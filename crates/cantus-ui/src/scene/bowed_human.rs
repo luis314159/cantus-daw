@@ -154,7 +154,7 @@ static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
 /// built (`CANTUS_FIGURE_DIR` names a folder `tools/arcus-figures/build_figures.py` wrote),
 /// that folder's file of the same name, read once — so a rebuilt figure is looked at in
 /// `shoot_arcus` without compiling the app again (DEVELOPING §4). Unset in the app.
-fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
+pub(crate) fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
     std::env::var_os("CANTUS_FIGURE_DIR")
         .and_then(|d| std::fs::read(std::path::Path::new(&d).join(name)).ok())
         .map_or(
@@ -1403,6 +1403,7 @@ pub fn build(
     emit(m, fig, &pts, &nrm, who, tone, 1, &lum);
     if who == Who::Man {
         tie_knot(m, fig, &pts, &nrm);
+        his_tips(m, fig, &posed, &pts); // r42:arcus-polish4
     } else {
         wisps(m, fig, &posed, &pts);
     }
@@ -1610,7 +1611,113 @@ fn wisps(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3
             WISP_R * 0.85,
         );
     }
+    // r42:arcus-polish4 — loose hairs at the bun's outline (the coordinator: her bun read as
+    // a carved shell; a twisted chignon always lets a few strands loose round its edge): short
+    // arcs springing off its outer turns, each its own length and lift.
+    let mut bun: Vec<usize> = fig
+        .tris
+        .iter()
+        .zip(&fig.stuff)
+        .filter(|(_, s)| **s == Stuff::Hair)
+        .flat_map(|(t, _)| t.iter().map(|&i| i as usize))
+        .collect();
+    bun.sort_unstable();
+    bun.dedup();
+    if bun.is_empty() {
+        return;
+    }
+    let centre = bun.iter().fold(V3::default(), |a, &i| a + pts[i]) * (1.0 / bun.len() as f32);
+    let far = bun
+        .iter()
+        .map(|&i| (pts[i] - centre).len())
+        .fold(0.0f32, f32::max);
+    let mut n = 0;
+    for &i in &bun {
+        // Only from its outer turns (the outline as it is seen), a few.
+        if n >= BUN_WISPS || (pts[i] - centre).len() < far * 0.78 || hash(i, 9) > 0.05 {
+            continue;
+        }
+        n += 1;
+        hair(
+            pts[i],
+            1.2 + 2.2 * hash(i, 10),
+            0.25 + 0.55 * hash(i, 11),
+            (hash(i, 12) - 0.5) * 2.4,
+            WISP_R * 0.8,
+        );
+    }
 }
+
+/// r42:arcus-polish4 — his hair's top against the room (the coordinator: a hard dark cap's
+/// outline): short tips standing out of the combed-back top, each from a card vertex over
+/// the crown, leaving along the combing (back and a little up) and lifting off — fine rods,
+/// the Photographic picture's (`Role::WispDark`).
+fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3]) {
+    use super::bowed_mesh::{Rod, Role};
+    let eyes = (fig.mark("eye.L") + fig.mark("eye.R")) * 0.5;
+    let at = |q: V3| posed.at(HEAD, q);
+    let e = at(eyes);
+    let up = (at(eyes + v(0.0, 1.0, 0.0)) - e).norm();
+    let fwd = (at(eyes + v(0.0, 0.0, 1.0)) - e).norm();
+    let mid = e - fwd * 6.5 + up * 1.0;
+    let mut top = Vec::new();
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if *s != Stuff::CardHair {
+            continue;
+        }
+        for &i in t {
+            let i = i as usize;
+            let l = fig.line.get(i).copied().unwrap_or(0.0);
+            let q = pts[i] - mid;
+            // Over the crown and toward its outline, well inside the top's line.
+            if l > 6.0 && q.dot(up) > 6.0 {
+                top.push(i);
+            }
+        }
+    }
+    top.sort_unstable();
+    top.dedup();
+    let hash = |i: usize, k: u32| {
+        let x = (i as u32)
+            .wrapping_mul(2_246_822_519)
+            .wrapping_add(k.wrapping_mul(3_266_489_917));
+        ((x ^ (x >> 13)).wrapping_mul(668_265_263) >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let mut n = 0;
+    for &i in &top {
+        if n >= HIS_TIPS || hash(i, 1) > 0.12 {
+            continue;
+        }
+        n += 1;
+        let p0 = pts[i];
+        let nn = (p0 - mid).norm();
+        let way = fwd * -1.0 + up * 0.45;
+        let way = (way - nn * way.dot(nn)).norm();
+        let side = nn.cross(way).norm();
+        let len = 0.7 + 1.1 * hash(i, 2);
+        let lift = 0.15 + 0.35 * hash(i, 3);
+        let sway = (hash(i, 4) - 0.5) * 0.6;
+        let pt = |t: f32| p0 + way * (len * t) + nn * (lift * t * t + 0.03) + side * (sway * t);
+        const SEGS: usize = 3;
+        for k in 0..SEGS {
+            let (a, b) = (k as f32 / SEGS as f32, (k + 1) as f32 / SEGS as f32);
+            m.rods.push((
+                Role::WispDark,
+                Rod {
+                    a: pt(a),
+                    b: pt(b),
+                    r: WISP_R * (1.3 - 0.6 * a),
+                },
+            ));
+        }
+    }
+}
+
+/// r42:arcus-polish4 — how many tips stand out of his top at most.
+const HIS_TIPS: usize = 90;
+
+/// r42:arcus-polish4 — how many loose hairs leave her bun's outline at most.
+const BUN_WISPS: usize = 12;
 
 /// How many of her hairline's points take a baby hair (a share of every other one), and how
 /// many flyaways leave her crown at most; a loose hair's radius (cm: a little over a real
@@ -1667,23 +1774,49 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
     const N: usize = 12;
     let at = |u: f32, v: f32| {
         // u across (-1…1), v up the knot (0 its foot … 1 under the collar).
+        if v < 0.0 {
+            // r42:arcus-polish4 — the blade's top under the knot (v −1 … 0 over `DIMPLE.0`
+            // cm): widening from the knot's foot toward the blade, standing off the shirt
+            // where it leaves the knot and settling onto it, with the dimple — the groove
+            // a well-tied four-in-hand leaves down the blade's middle just under the knot
+            // (the coordinator: the tie's knot and dimple).
+            let s = -v;
+            let w = KNOT_W.0 + (DIMPLE.1 - KNOT_W.0) * s;
+            let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
+            let lift = KNOT_D * 0.45 * (1.0 - smooth_k(s));
+            let groove = DIMPLE.2 * (-(u / 0.24) * (u / 0.24)).exp() * (1.0 - s).powf(0.7);
+            let h = (lift * round - groove).max(0.0);
+            return c
+                + right * (u * w * 0.5)
+                + up * (-0.5 * KNOT_H - s * DIMPLE.0)
+                + n * (0.12 + h);
+        }
         let w = KNOT_W.0 + (KNOT_W.1 - KNOT_W.0) * v;
         let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
         let full = 0.45 + 0.55 * smooth_k((v - 0.05) / 0.4);
         // The wrap's fold: a shallow groove from upper left down to lower right.
         let d = u * 0.55 + (v - 0.55);
         let fold = (-(d / 0.11) * (d / 0.11)).exp();
-        let h = KNOT_D * round * full - 0.14 * fold * round;
+        // (r42:arcus-polish4: a neat four-in-hand — the wrap's fold a faint line, not a
+        // crumple, and the knot's upper corners going in under the collar's points, which
+        // lie over them; the coordinator.)
+        let under = smooth_k((v - 0.6) / 0.4) * smooth_k((u.abs() - 0.35) / 0.55);
+        let h = (KNOT_D * round * full - 0.05 * fold * round) * (1.0 - 0.85 * under);
         c + right * (u * w * 0.5) + up * ((v - 0.5) * KNOT_H) + n * (0.12 + h)
     };
     let mut t = Tris::default();
-    for j in 0..=N {
+    // (r42:arcus-polish4: `DIMPLE_ROWS` rows under the knot, the blade's top and its dimple.)
+    for j in 0..=N + DIMPLE_ROWS {
         for i in 0..=N {
-            let (u, v) = (i as f32 / N as f32 * 2.0 - 1.0, j as f32 / N as f32);
+            let rows = if j < DIMPLE_ROWS { DIMPLE_ROWS } else { N };
+            let (u, v) = (
+                i as f32 / N as f32 * 2.0 - 1.0,
+                (j as f32 - DIMPLE_ROWS as f32) / rows as f32,
+            );
             let p = at(u, v);
             let e = 0.02;
             let du = at((u + e).min(1.0), v) - at((u - e).max(-1.0), v);
-            let dv = at(u, (v + e).min(1.0)) - at(u, (v - e).max(0.0));
+            let dv = at(u, (v + e).min(1.0)) - at(u, (v - e).max(-1.0));
             let mut nn = du.cross(dv).norm();
             if nn.dot(n) < 0.0 {
                 nn = nn * -1.0;
@@ -1692,13 +1825,19 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
             t.nrm.push(nn);
             // (Its luminance a little lower in the fold, and at its sides where it turns
             // under — the knot's own shade — and no edge of its own.)
-            let side = 1.0 - 0.25 * smooth_k((u.abs() - 0.7) / 0.3);
-            t.detail.push([side, 9.0]);
+            let side = 1.0 - 0.15 * smooth_k((u.abs() - 0.7) / 0.3);
+            // (The dimple's groove in its own shade.)
+            let dim = if v < 0.0 {
+                1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 + v).powf(0.7)
+            } else {
+                1.0
+            };
+            t.detail.push([side * dim, 9.0]);
             t.uv.push([-1.0, -1.0]);
         }
     }
     let row = (N + 1) as u32;
-    for j in 0..N as u32 {
+    for j in 0..(N + DIMPLE_ROWS) as u32 {
         for i in 0..N as u32 {
             let (a, b, cc, d) = (
                 j * row + i,
@@ -1725,7 +1864,11 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
 /// off the shirt at its fullest (cm).
 const KNOT_H: f32 = 3.0;
 const KNOT_W: (f32, f32) = (1.9, 3.2);
-const KNOT_D: f32 = 0.9;
+const KNOT_D: f32 = 0.75;
+/// r42:arcus-polish4 — the blade's top under the knot: how far down it runs (cm), how wide it
+/// grows there (cm), the dimple's depth (cm); its rows.
+const DIMPLE: (f32, f32, f32) = (3.2, 3.4, 0.12);
+const DIMPLE_ROWS: usize = 6;
 
 fn smooth_k(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);

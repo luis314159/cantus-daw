@@ -32,6 +32,9 @@ pub const SHEEN: Srgb = [255, 250, 240];
 pub const TROUSERS: C3 = srgb(30, 30, 34);
 pub const SHOES: C3 = srgb(16, 14, 14);
 pub const HAIR: C3 = srgb(58, 38, 28);
+/// r42:arcus-polish4 — the realistic man's hair: a dark brown, near black in the shade, as
+/// the concert photographs' men's (ref-06, ref-10); the stylised musician keeps [`HAIR`].
+pub const HAIR_DARK: C3 = srgb(46, 35, 29);
 /// The face's few strokes: the closed eyes, the brows, the smile; the cheeks' warmth.
 pub const FEATURE: C3 = srgb(70, 44, 34);
 pub const BLUSH: C3 = srgb(226, 132, 118);

@@ -344,14 +344,34 @@ impl Light {
                 let l = self.ldir(p);
                 let h = (l + vv).norm();
                 let nh = n.dot(h).max(0.0);
-                if self.concert.is_some() {
+                if let Some(cc) = &self.concert {
                     // r42:arcus-polish3 — under the stage's spot a varnish shows one clean
                     // highlight (a shape, not the strip lights' blotches), the dark hall
                     // round it, its edge's rim from the back lights.
+                    // r42:arcus-polish4 — an old Italian varnish as the photographs show it
+                    // (ref-04/06/10), not a flat saturated orange: red-brown, its flames
+                    // darker (the wood's figure stronger through it, less of the flat
+                    // colour), deeper where the arching turns from the eye (the varnish
+                    // pooled toward the edges), and a specular ridge along the arching.
+                    let c = if mat.wood {
+                        let t = (0.5 + (g - 1.0) / (2.0 * mat.figure) * 0.9 * cc.d_flame)
+                            .clamp(0.0, 1.0);
+                        let b = lerp(lerp(mat.dark, mat.light, t), mat.albedo, 0.2);
+                        let nv = n.dot(vv).max(0.0);
+                        let pool = 1.0 - cc.d_edge * (1.0 - nv) * (1.0 - nv);
+                        scale(mul(self.lit(b, n, p), cc.d_varnish), pool)
+                    } else {
+                        mul(c, [1.0, 0.8, 0.62])
+                    };
                     let spot = nh.powi(12) * 0.12;
-                    // The varnish deeper, toward red-amber, under the stage's warm spot.
-                    let c = mul(c, [1.0, 0.8, 0.62]);
+                    let ridge = if mat.wood {
+                        nh.powf(cc.d_ridge_pow) * cc.d_ridge
+                    } else {
+                        0.0
+                    };
+                    // The ridge the spot's own white-warm, not the varnish's colour.
                     let c = add(c, scale(m.key_col, spot * mat.spec.max(0.4) * m.key));
+                    let c = add(c, scale(lerp(m.key_col, [1.0; 3], 0.4), ridge * m.key));
                     return add(c, scale([1.0, 0.9, 0.78], self.rim(n, vv) * 0.6));
                 }
                 // The key's tight highlight is a broad flat face's band too (`no_streak`):

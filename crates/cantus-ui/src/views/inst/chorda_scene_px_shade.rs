@@ -282,7 +282,17 @@ pub fn surf(rig: &Rig, m: &PMat, p: V3, uv: [f32; 2], fp: f32) -> Surf {
                 )
             }
         }
-        Tex::Scalp(_) => s(lscale(m.base, scalp_strands(uv, fp)), m.coat, m.rough),
+        Tex::Scalp(w) => {
+            // r42:arcus-polish4 — his short sides: the skin (`m.dark`) through the short hair
+            // near the hairline (`uv[1]`, degrees in from it), as a short cut's sides show it.
+            let base = if w == 1 {
+                let k = crate::scene::figure::cards::side_cover(uv[1]);
+                std::array::from_fn(|i| m.dark[i] + (m.base[i] - m.dark[i]) * k)
+            } else {
+                m.base
+            };
+            s(lscale(base, scalp_strands(uv, fp)), m.coat, m.rough)
+        }
         Tex::Hair => {
             // Strand bundles across the strands (`uv[0]`), the scalp's under the cards
             // (r42:arcus-hair: one head of hair — the chignon as the hair drawn into it); at

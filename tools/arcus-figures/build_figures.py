@@ -406,7 +406,12 @@ def shape_arms(pos, wt, J, sex):
 # r42:arcus-polish — the neck's and the collarbones' forms (cm of relief): the
 # sternocleidomastoid's ridge, the hollow beside it, the collarbone's ridge and the hollow
 # under it, the suprasternal notch's dip. Subtle: drawn, they read as a sketch's lines.
-RELIEF = {"female": (0.38, 0.22, 0.28, 0.2, 0.5), "male": (0.45, 0.25, 0.3, 0.2, 0.5)}
+# (r42:arcus-polish4: her collarbones and the notch clearer — the coordinator beside ref-04:
+# the neckline read as one smooth plane — and the sternum's line down from the notch.)
+RELIEF = {"female": (0.38, 0.22, 0.4, 0.3, 0.6), "male": (0.45, 0.25, 0.3, 0.2, 0.5)}
+# r42:arcus-polish4 — the sternum's shallow groove between the chest's two sides, from the
+# notch down (cm deep, cm wide, cm long), hers.
+STERNUM = (0.22, 1.3, 7.0)
 
 
 def _seg(p, a, b):
@@ -510,6 +515,13 @@ def relief(pos, tris, J, sex):
         d += clav * np.exp(-(r / 0.6) ** 2) - clav_hollow * np.exp(-((r - 1.4) / 0.6) ** 2) * below
     r = np.linalg.norm(pos - L["notch"], axis=1)
     d -= notch * np.exp(-(r / 1.0) ** 2)
+    if sex == "female":
+        # r42:arcus-polish4 — the sternum's groove down from the notch, on the chest's front.
+        depth, width, length = STERNUM
+        top = L["notch"] + np.array([0.0, -1.2, 0.3])
+        r, t = _seg(pos, top, top + np.array([0.0, -length, 0.6]))
+        fade = smooth01(t / 0.15) * (1.0 - smooth01((t - 0.6) / 0.4))
+        d -= depth * fade * np.exp(-(r / (0.5 * width)) ** 2) * (n[:, 2] > 0.5)
     if sex == "male":
         # r42:arcus-polish3 — his Adam's apple: a small rise on the neck's front, a third
         # of the way from the chin's underside down to the notch.
@@ -548,7 +560,9 @@ def tones(pos, J, sex, ear):
     neck_top = eyes[1] - 9.5
     neck = smooth01((neck_top - pos[:, 1]) / 3.0) * (pos[:, 1] > J["neck01____head"][1] - 14.0)
     dl *= 1.0 + 0.015 * neck
-    dr -= 0.07 * neck
+    # (r42:arcus-polish4: hers as warm as her face — ref-04's neck and chest are warm peach,
+    # not the cooler, paler skin the first pass gave them; the coordinator: pale-pink rubber.)
+    dr -= (0.07 if sex == "male" else -0.02) * neck
     # Under the jaw: the skin that faces down from the jaw's line to the neck.
     jaw_y = eyes[1] - 8.6
     under = (np.exp(-((pos[:, 1] - jaw_y) / 1.2) ** 2) * smooth01((eyes[2] - 1.0 - pos[:, 2]) / 3.0)
@@ -561,9 +575,23 @@ def tones(pos, J, sex, ear):
     jaw = (np.exp(-((pos[:, 1] - (eyes[1] - 7.2)) / 1.8) ** 2)
            * smooth01((np.abs(pos[:, 0]) - 2.5) / 2.0) * (np.abs(pos[:, 0]) < 7.5))
     dr -= 0.07 * jaw
-    # The ears warmer and redder (light through their thin cartilage).
-    dr += 0.32 * ear
-    dl *= 1.0 - 0.03 * ear
+    # The ears warmer and redder (light through their thin cartilage). (r42:arcus-polish4:
+    # hers redder still, as ref-04's under the stage light.)
+    dr += (0.48 if sex == "female" else 0.32) * ear
+    dl *= 1.0 - 0.05 * ear
+    if sex == "female":
+        # r42:arcus-polish4 — the skin over the breastbone and under the collarbones a
+        # little flushed (blood near the surface, the chest's thin skin), the collarbones'
+        # ridges catching less of it; a soft unevenness of value over the neck and chest
+        # (real skin is never one even tone).
+        r = np.linalg.norm((pos - (L["notch"] + np.array([0.0, -4.0, 0.5]))) * [0.8, 1.0, 1.0],
+                           axis=1)
+        dr += 0.09 * (1.0 - smooth01(r / 6.0))
+        q = pos * 0.7
+        mott = np.sin(q[:, 0] * 1.1 + 0.3) * np.sin(q[:, 1] * 0.9 + 1.2) * np.sin(q[:, 2] * 1.3)
+        low = pos[:, 1] < eyes[1] - 8.0
+        dl *= 1.0 + 0.035 * mott * low
+        dr += 0.03 * mott * low
     if sex == "male":
         # His beard's shadow: the jaw, the chin and over the upper lip, blue-grey
         # (r42:arcus-polish3: a little deeper; the stubble's own hairs are in his skin's
@@ -820,8 +848,20 @@ HIS_LINE = [(0, 30), (16, 31), (30, 33), (42, 28), (55, 20), (68, 12), (80, 2), 
 # hairline; it was set back 5° — the owner's review of sheet v8: a hard edge at the brow).
 SCALP_IN = -2.5
 
+# r42:arcus-polish4 — where his longer top begins (the coordinator's review of pass 3: his
+# hair a helmet, one smooth shell with a hard hairline; ref-06): the front's hairline as
+# ``HIS_LINE``, the line rising over the temples and the ears, so the sides and the back
+# below it are cut short (the scalp's short, darker hair, its edge on the skin), the top
+# above it longer, with volume, combed straight back.
+HIS_TOP_LINE = [(0, 30), (16, 31), (30, 33), (42, 31), (55, 28), (68, 25), (82, 23),
+                (100, 22), (120, 18), (140, 13), (160, 9), (180, 8)]
+# How much his top stands off the scalp (cm): most at the front of the crown, combed back.
+HIS_VOLUME = 1.7
+HIS_SIDE = 0.12
 
-def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0, base=None):
+
+def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0, base=None,
+               blend=None, wave=None):
     """A shell over the scalp: the head's skin above ``line`` (cut along it, so the
     hairline is a smooth curve), pushed out along its normal by ``thick(θ, φ)`` tapering
     to nothing at the hairline, so its edge lies on the skin. Returns (positions, weights,
@@ -829,6 +869,9 @@ def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0, base=
     near = tris[(head_w[tris] > 0.2).all(1)]
     th, ph = angles(pos, c)
     f = ph - hairline(th, line)
+    if wave is not None:
+        # r42:arcus-polish4 — a broken edge (tufts at the temples), cut along it.
+        f = f + wave(th)
     p2, w2, _, t2, f2 = cut(pos, W, [], near, f)
     keep = t2[(f2[t2].mean(1) > 0)]
     used = np.unique(keep.ravel())
@@ -850,7 +893,8 @@ def hair_shell(pos, W, tris, c, line, thick, head_w, band=16.0, rise=22.0, base=
     q = p2[used] - c
     # (Folded under the head's middle, so no seam runs down the nape.)
     across = np.arctan2(q[:, 0], np.abs(q[:, 1]) + 0.5) * 9.0
-    uv = np.stack([across, smooth01(f2[used] / band)], 1)
+    edge = smooth01(f2[used] / band) if blend is None else blend(th2[used], ph2[used], f2[used])
+    uv = np.stack([across, edge], 1)
     return hp, [w2[i] for i in used], remap[keep], uv
 
 
@@ -1096,7 +1140,9 @@ def make(sex, data, assets):
     crease, tips = finger_tint(pos[:n0], wt, J)
     crease, tips = crease[src], tips[src]
     lum = lum * (1.0 - 0.16 * crease)
-    red = red + 0.06 * crease + 0.16 * tips
+    # (r42:arcus-polish4: the knuckles' and the joints' skin redder, 0.06 — the
+    # coordinator: the redness under the skin at the knuckles; colour only.)
+    red = red + 0.12 * crease + 0.16 * tips
     if sex == "male":
         # His skin less pale: a little more colour all over.
         red = red + 0.08
@@ -1132,6 +1178,13 @@ def make(sex, data, assets):
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HER_LINE, thick, head_w, band=16.0,
                                      rise=40.0)
         bp, bw, bt, bmat, blum, bred, buv = dress(pos, W, btris, J, lum, red, nf, vuv)
+        # r42:arcus-polish4 — the sleeves finer (a wrinkle a couple of centimetres long
+        # needs more than the base mesh's centimetre), then wrinkled.
+        bp, bw, bt, bmat, (blum, bred, buv) = subdivide(
+            bp, bw, bt, bmat, [blum, bred, buv], arm_cloth(bw, bt, bmat, VELVET))
+        bp = sleeve_wrinkles(bp, bw, bt, bmat, J, VELVET)
+        bp, bw, bt, bmat, (blum, bred, buv) = hem(bp, bw, bt, bmat, [blum, bred, buv], VELVET,
+                                                  wrists(bw) > 0.5)
         buv = cloth_folds(bp, bw, bt, bmat, buv, J)  # r42:arcus-polish
         fig.add(bp, bw, bt, bmat, blum, bred, uv=buv)
         fig.add(hp, hw, ht, SHELL, uv=huv)
@@ -1154,19 +1207,36 @@ def make(sex, data, assets):
         et = outward(ep, et, bc)
         fig.add(ep, [{BI["head"]: 1.0}] * len(ep), et, HAIR, uv=euv)
         tp, tt, tuv = torus(bc + np.array([0.0, 0.0, -0.6]), np.array([0.0, -0.25, -1.0]),
-                            2.6, 1.35)
+                            2.6, 1.35, rows=16, cols=72, rope=0.12, turns=3, dense=9.0)
         fig.add(tp, [{BI["head"]: 1.0}] * len(tp), tt, HAIR, uv=tuv)
         # Small drop earrings: a bead at each lobe, a drop under it.
         for jp, jt in earrings(pos, head_w, c, J):
             fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
     else:
         def thick(th, ph):
-            # (r42:arcus-polish3: shorter at the sides and over the ears — a man's cut,
-            # the top's volume kept.)
-            return (0.45 + 0.65 * smooth01((ph - 25) / 30.0)
-                    - 0.3 * smooth01((np.abs(th) - 55) / 40.0))
+            # (r42:arcus-polish4: the sides short — a short even layer up to where the top
+            # begins (``HIS_TOP_LINE``) — and the top long, standing off the scalp most at
+            # the front of the crown and less toward the back, as hair combed straight back
+            # does; the coordinator's review: a helmet.)
+            top = smooth01((ph - hairline(th, HIS_TOP_LINE)) / 9.0)
+            front = 1.0 - 0.5 * smooth01((np.abs(th) - 25.0) / 120.0)
+            rise = 0.55 + 0.45 * smooth01((ph - 30.0) / 25.0)
+            return HIS_SIDE + HIS_VOLUME * top * front * rise
+
+        def blend(th, ph, f):
+            # Its colour along the strands: the short sides deeper (more of the roots and
+            # the skin under them, a short cut's look), the top the hair's own.
+            ft = ph - hairline(th, HIS_TOP_LINE)
+            return 0.05 * smooth01(f / 5.0) + 0.95 * smooth01((ft + 2.0) / 10.0)
         # His short hair's edge crisper (a groomed hairline; a wide band read as teeth).
-        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0)
+        def tufts(th):
+            # His temples' and sideburns' edge broken into short tufts (the coordinator: the
+            # Drawn shell's hard edge), the forehead's line kept.
+            a = np.radians(th)
+            at = smooth01((np.abs(th) - 30.0) / 20.0) * (1.0 - smooth01((np.abs(th) - 150.0) / 20.0))
+            return at * (1.6 * np.sin(a * 23.0) + 1.0 * np.sin(a * 41.0 + 1.3))
+        hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0,
+                                     rise=6.0, blend=blend, wave=tufts)
         fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red, uv=vuv)
         fig.add(hp, hw, ht, SHELL, uv=huv)
         sp_, sw_, st_, suv_ = hair_shell(pos, W, btris, c, HIS_LINE, scalp_thick, head_w,
@@ -1175,7 +1245,22 @@ def make(sex, data, assets):
         suv_[:, 1] = ph_ - hairline(th_, HIS_LINE)
         fig.add(sp_, sw_, st_, SCALP, uv=suv_)
         sp, st, smat = suit(assets, obj, refs, scales, pos, J)
-        fig.add(sp, mh.proxy_weights(refs, W), st, smat)
+        sw = mh.proxy_weights(refs, W)
+        # r42:arcus-polish4 — the jacket's sleeves finer, then wrinkled. (Finer, they keep
+        # the suit's own modelled cuff buttons, which the arms' thinning had flattened.)
+        sp, sw, st, smat, _ = subdivide(sp, sw, st, smat, [], arm_cloth(sw, st, smat, WOOL))
+        sp = sleeve_wrinkles(sp, sw, st, smat, J, WOOL)
+        # r42:arcus-polish4 — the clothes' edges with a thickness (the coordinator: his
+        # lapel's edge, a modelled collar, the cuffs' thickness): the jacket's edge over the
+        # shirt (the lapels, the sleeves' ends), the shirt collar's edge over the jacket.
+        neck_y = J["neck01____head"][1]
+        collar = np.array([q[1] > neck_y - 9.0 for q in sp])
+        sp, sw, st, smat, _ = hem(sp, sw, st, smat, [], WOOL, ~collar | (wrists(sw) > 0.5),
+                                  HEM_JACKET, against=(SHIRT,))
+        collar = np.array([q[1] > neck_y - 9.0 for q in sp])
+        sp, sw, st, smat, _ = hem(sp, sw, st, smat, [], SHIRT, collar & (wrists(sw) < 0.2),
+                                  HEM_COLLAR, against=(WOOL,))
+        fig.add(sp, sw, st, smat)
     fig.add(shp, shw, sht, SHOES)
     for s_ in SIDES:
         ec = J[f"eye.{s_}____head"]
@@ -1187,7 +1272,7 @@ def make(sex, data, assets):
     # The proxies' cards (the owner's review, 2026-11-24: hair, brows and lashes that read
     # as hair, not paint): MakeHuman's own, fitted to this body, each card's texture
     # coordinates kept (``uv``).
-    hair_name = "ponytail01" if sex == "female" else "short02"
+    hair_name = "ponytail01" if sex == "female" else HIS_HAIR
     brow_name = "eyebrow001" if sex == "female" else "eyebrow010"
     for kind, folder, name, mat in (("hair", "hair", hair_name, CARD_HAIR),
                                      ("brow", "eyebrows", brow_name, CARD_BROW),
@@ -1205,10 +1290,18 @@ def make(sex, data, assets):
             # (r42:arcus-hair: how far in from the hairline each vertex lies — the bake
             # feathers the cards' coverage at the front of the hair, so the strands thin
             # out onto the forehead instead of ending in a line.)
+            if sex == "male":
+                cp = his_volume(cp, c)
             th_, ph_ = angles(cp, c)
-            lum = line_lum(ph_ - hairline(th_, HER_LINE if sex == "female" else HIS_LINE))
+            lum = line_lum(ph_ - hairline(th_, HER_LINE if sex == "female" else HIS_TOP_LINE))
         fig.add(cp, cw, ct, mat, lum=lum, uv=cuv)
     return compact(fig), J
+
+
+# r42:arcus-polish4 — his hair: MakeHuman's CC0 ``short04`` (combed straight back, longer on
+# top than at the sides, a groomed texture whose strands run one way — the coordinator's
+# review: ``short02``'s curls read as a helmet), ``short02`` before.
+HIS_HAIR = "short04"
 
 
 # The cards' textures as written beside the .fig files: (folder, asset, texture, side px).
@@ -1216,7 +1309,7 @@ CARD_TEX = {
     "woman": [("hair", "ponytail01", "ponytail01_diffuse.png", 1024),
               ("eyebrows", "eyebrow001", "eyebrow001.png", 256),
               ("eyelashes", "eyelashes01", "eyelashes01.png", 256)],
-    "man": [("hair", "short02", "short02_diffuse.png", 1024),
+    "man": [("hair", HIS_HAIR, f"{HIS_HAIR}_diffuse.png", 1024),
             ("eyebrows", "eyebrow010", "eyebrow010.png", 256),
             ("eyelashes", "eyelashes01", "eyelashes01.png", 256)],
 }
@@ -1280,6 +1373,22 @@ def reach_line(cp, c, line):
     return c + np.stack([np.sin(a) * h, np.sin(ph2) * r, np.cos(a) * h], 1)
 
 
+def his_volume(cp, c):
+    """r42:arcus-polish4 — his cards (``short04``) lifted off the head as the Drawn shell's top
+    is (``HIS_VOLUME``): each vertex pushed out from the head's centre by the top's volume
+    where it lies, so the combed-back top has a body over the crown instead of lying on the
+    skull as a cap; the sides, below ``HIS_TOP_LINE``, untouched (they are feathered away
+    there: the scalp's short hair shows)."""
+    q = cp - c
+    r = np.linalg.norm(q, axis=1)
+    th, ph = angles(cp, c)
+    top = smooth01((ph - hairline(th, HIS_TOP_LINE)) / 9.0)
+    front = 1.0 - 0.5 * smooth01((np.abs(th) - 25.0) / 120.0)
+    rise = 0.55 + 0.45 * smooth01((ph - 30.0) / 25.0)
+    push = 0.85 * HIS_VOLUME * top * front * rise
+    return c + q * ((r + push) / np.maximum(r, 1e-6))[:, None]
+
+
 def lift_cards(cp, pos, tris, head_w):
     """Each hair card vertex lifted along the head's skin normal under it until it stands
     ``CARD_CLEAR`` over the skin (a card under the scalp or the skin is hidden: patches)."""
@@ -1313,9 +1422,12 @@ def card_proxy(path, pos, W):
             suv[uniq[:, 1]] if len(suv) else np.zeros((len(uniq), 2)))
 
 
-def torus(c, axis, R, r, rows=12, cols=36, twist=2.5):
+def torus(c, axis, R, r, rows=12, cols=36, twist=2.5, rope=0.0, turns=3, dense=4.0):
     """A ring of hair round ``axis`` at ``c`` (major radius ``R``, the twist's ``r``), its
-    strands winding round the twist: points, triangles, strand coordinates."""
+    strands winding round the twist: points, triangles, strand coordinates. (r42:arcus-
+    polish4: ``rope`` > 0 twists it as a rope of two locks — its section swelling and
+    narrowing ``turns`` times round the ring — the coordinator: her bun read as a carved
+    shell; ``dense`` how finely the strands' coordinate runs round it.)"""
     a = axis / np.linalg.norm(axis)
     u = np.cross(a, [0.0, 1.0, 0.0])
     u = u / max(np.linalg.norm(u), 1e-9)
@@ -1326,8 +1438,9 @@ def torus(c, axis, R, r, rows=12, cols=36, twist=2.5):
         ring = u * np.cos(th) + v * np.sin(th)
         for j in range(rows):
             ph = 2 * np.pi * j / rows
-            pts.append(c + ring * (R + r * np.cos(ph)) + a * (r * np.sin(ph)))
-            uv.append([th * 4.0 + ph * twist, 1.0])
+            rr = r * (1.0 + rope * np.cos(2.0 * (ph - turns * th)))
+            pts.append(c + ring * (R + rr * np.cos(ph)) + a * (rr * np.sin(ph)))
+            uv.append([th * dense + ph * twist, 1.0])
     tris = []
     for i in range(cols):
         for j in range(rows):
@@ -1432,7 +1545,7 @@ def warmth(pos, J, sex):
     spots = [
         (el + np.array([0.6, -3.0, 0.6]), 2.4, 1.0),
         (er + np.array([-0.6, -3.0, 0.6]), 2.4, 1.0),
-        (mid + np.array([0.0, -4.0, 2.6]), 1.1, 0.7),
+        (mid + np.array([0.0, -4.0, 2.6]), 1.2, 0.9),  # (polish4: the nose's tip 0.7)
         (mid + np.array([0.0, -6.6, 1.3]), 1.4, 0.9),
         (el + np.array([4.6, -1.5, -5.8]), 2.0, 0.6),
         (er + np.array([-4.6, -1.5, -5.8]), 2.0, 0.6),
@@ -1614,6 +1727,195 @@ def cloth_folds(p, w, t, mats, uv, J):
     return uv
 
 
+# r42:arcus-polish4 — the sleeves' wrinkles in the cloth itself (the coordinator: the
+# black cloth read as smooth plastic; ref-06's and ref-10's sleeves): (how deep, how far
+# apart, cm) at the elbow's crook and the armpit's drag folds; the crook's
+# folds run round the arm a little on the slant, as a bent sleeve's spiral.
+WRINKLE_ELBOW = (0.45, 2.6)
+WRINKLE_PIT = (0.25, 2.6)
+
+
+def subdivide(p, w, t, mats, extra, sel):
+    """r42:arcus-polish4 — the triangles ``sel`` (a mask) split in four at their edges'
+    middles, and each neighbour that shares a split edge split to match (in two or three:
+    no crack): (positions, weights, triangles, materials, extra arrays). New vertices
+    interpolate the positions, the weights and every array in ``extra``."""
+    p = list(p)
+    w = list(w)
+    extra = [list(e) for e in extra]
+    mid = {}
+    for tr in t[sel]:
+        for a, b in ((tr[0], tr[1]), (tr[1], tr[2]), (tr[2], tr[0])):
+            k = (min(a, b), max(a, b))
+            if k in mid:
+                continue
+            p.append((np.asarray(p[a]) + np.asarray(p[b])) * 0.5)
+            wa, wb = w[a], w[b]
+            w.append({x: 0.5 * wa.get(x, 0.0) + 0.5 * wb.get(x, 0.0) for x in set(wa) | set(wb)})
+            for e in extra:
+                e.append((np.asarray(e[a]) + np.asarray(e[b])) * 0.5)
+            mid[k] = len(p) - 1
+    out, om = [], []
+    for tr, m in zip(t, mats):
+        a, b, c = (int(x) for x in tr)
+        ab, bc, ca = (mid.get((min(x, y), max(x, y))) for x, y in ((a, b), (b, c), (c, a)))
+        n = sum(x is not None for x in (ab, bc, ca))
+        if n == 0:
+            tris = [[a, b, c]]
+        elif n == 3:
+            tris = [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]]
+        elif n == 1:
+            if ab is not None:
+                tris = [[a, ab, c], [ab, b, c]]
+            elif bc is not None:
+                tris = [[a, b, bc], [a, bc, c]]
+            else:
+                tris = [[a, b, ca], [ca, b, c]]
+        else:
+            # Two split edges: the corner between them cut off, the rest in two.
+            if ab is None:
+                tris = [[c, ca, bc], [ca, a, b], [ca, b, bc]]
+            elif bc is None:
+                tris = [[a, ab, ca], [ab, b, c], [ab, c, ca]]
+            else:
+                tris = [[b, bc, ab], [ab, bc, c], [ab, c, a]]
+        out += tris
+        om += [m] * len(tris)
+    return (np.array(p), w, np.array(out, dtype=np.int64), np.array(om),
+            [np.array(e) for e in extra])
+
+
+def arm_cloth(w, t, mats, cloth, least=0.3):
+    """r42:arcus-polish4 — which triangles are ``cloth`` on an arm (their corners' arm
+    share over ``least``): the sleeves."""
+    share = np.array([max(arm_share(d, "L"), arm_share(d, "R")) for d in w])
+    return (mats == cloth) & (share[t].mean(1) > least)
+
+
+# r42:arcus-polish4 — her sleeves' ends as a finished hem (the owner: her sleeve's end must
+# not "lose itself" into the body; it thinned to nothing on the skin, as paint): the cloth's
+# edge stands this far off the wrist (cm), and a little more flared, with the hem's own face
+# between it and the skin.
+HEM = (0.3, 0.12)
+
+
+# His clothes' edges (cm): the jacket's over the shirt (the lapels' edge, the sleeves' hems
+# over the shirt's cuffs) and the shirt collar's over the jacket and the neck.
+HEM_JACKET = (0.22, 0.06)
+HEM_COLLAR = (0.18, 0.05)
+
+
+def wrists(w):
+    """Each vertex's share of a forearm or a hand (either side)."""
+    return np.array([max(bone_share(d, ("fore1.L", "fore2.L", "hand.L")),
+                         bone_share(d, ("fore1.R", "fore2.R", "hand.R"))) for d in w])
+
+
+def hem(p, w, t, mats, extra, cloth, pick, size=HEM, against=None):
+    """r42:arcus-polish4 — the edge where ``cloth`` meets another stuff given a thickness,
+    where ``pick`` (a mask over the vertices) allows: the cloth's edge vertices copied (the
+    cloth's triangles take the copies, the other stuff keeps the originals), the copies
+    lifted along the cloth's normal (``size``: the thickness and a little flare) and a band
+    of ``cloth`` between each copied edge and the original — the hem's face. Returns
+    (positions, weights, triangles, materials, extra). ``against``: only edges with these
+    stuffs (all others by default)."""
+    cl = mats == cloth
+    other = ~cl if against is None else np.isin(mats, against)
+    on = np.zeros(len(p), bool)
+    on[t[cl].ravel()] = True
+    sk = np.zeros(len(p), bool)
+    sk[t[other].ravel()] = True
+    ids = np.where(on & sk & pick)[0]
+    if len(ids) == 0:
+        return p, w, t, mats, extra
+    n = vnormals(p, t[cl])
+    thick, flare = size
+    copy = {}
+    p = list(p)
+    w = list(w)
+    extra = [list(e) for e in extra]
+    for i in ids:
+        copy[int(i)] = len(p)
+        p.append(p[i] + n[i] * (thick + flare))
+        w.append(dict(w[i]))
+        for e in extra:
+            e.append(e[i])
+    t = t.copy()
+    for k in np.where(cl)[0]:
+        t[k] = [copy.get(int(x), int(x)) for x in t[k]]
+    # The hem's face: each cloth triangle's edge whose two ends were copied, if a skin
+    # triangle has that edge too.
+    skin_e = set()
+    for tr in t[other]:
+        for a, b in ((tr[0], tr[1]), (tr[1], tr[2]), (tr[2], tr[0])):
+            skin_e.add((min(int(a), int(b)), max(int(a), int(b))))
+    inv = {v: k for k, v in copy.items()}
+    band = []
+    for tr in t[cl]:
+        for a, b in ((tr[0], tr[1]), (tr[1], tr[2]), (tr[2], tr[0])):
+            a0, b0 = inv.get(int(a)), inv.get(int(b))
+            if a0 is None or b0 is None or (min(a0, b0), max(a0, b0)) not in skin_e:
+                continue
+            band += [[int(b), int(a), a0], [int(b), a0, b0]]
+    t = np.vstack([t, np.array(band, dtype=np.int64).reshape(-1, 3)])
+    mats = np.concatenate([mats, np.full(len(band), cloth)])
+    return np.array(p), w, t, mats, [np.array(e) for e in extra]
+
+
+def sleeve_wrinkles(p, w, t, mats, J, cloth):
+    """r42:arcus-polish4 — the cloth ``cloth`` on each arm moved along its normal into soft
+    wrinkles (``WRINKLE_*``): rings round the arm near the elbow, densest and deepest on the
+    crook's side, their phase turning round the arm so they slant; drag folds under the arm
+    from the armpit. Only vertices every
+    triangle round which is ``cloth`` move (a cuff's or a neckline's edge stays put), so the
+    cloth's edges and the skin keep their places."""
+    on = np.zeros(len(p), bool)
+    on[t[mats == cloth].ravel()] = True
+    off = np.zeros(len(p), bool)
+    off[t[mats != cloth].ravel()] = True
+    move = on & ~off
+    n = vnormals(p, t[mats == cloth])
+    d = np.zeros(len(p))
+    rng = np.random.default_rng(11)
+    for s_ in SIDES:
+        sh, el, wr = (J[f"upperarm01.{s_}____head"], J[f"lowerarm01.{s_}____head"],
+                      J[f"wrist.{s_}____head"])
+        share = np.array([bone_share(x, (f"upper1.{s_}", f"upper2.{s_}", f"fore1.{s_}",
+                                         f"fore2.{s_}")) for x in w])
+        ids = np.where(move & (share > 0.25))[0]
+        if len(ids) == 0:
+            continue
+        q = p[ids]
+        # Each point's place along the arm (cm from the elbow: − up the arm, + down the
+        # forearm) and its angle round it (0 on the crook's side, the front).
+        up, fo = sh - el, wr - el
+        lu, lf = np.linalg.norm(up), np.linalg.norm(fo)
+        tu = ((q - el) @ up) / lu
+        tf = ((q - el) @ fo) / lf
+        along = np.where(tu > 0.0, -tu, tf)
+        ax = np.where((tu > 0.0)[:, None], (up / lu)[None, :], (fo / lf)[None, :])
+        rad = (q - el) - ax * ((q - el) * ax).sum(1)[:, None]
+        rad /= np.maximum(np.linalg.norm(rad, axis=1, keepdims=True), 1e-6)
+        front = np.array([0.0, 0.0, 1.0])
+        side_ = np.cross(ax, front)
+        phi = np.arctan2((rad * side_).sum(1), rad @ front)
+        jitter = rng.uniform(-0.6, 0.6, size=5)
+        wave = lambda lam, slant: np.sin(2 * np.pi * along / lam + slant * phi
+                                         + jitter[0] * np.sin(phi * 2.0 + jitter[1]))
+        crook = 0.35 + 0.65 * np.clip(np.cos(phi), 0.0, 1.0)
+        a, lam = WRINKLE_ELBOW
+        # (Creases cut in from the sleeve's surface, never standing out of it: the sleeve's
+        # silhouette stays the arm's — `arcus_figure_shape`'s elbow.)
+        d[ids] += a * np.exp(-(along / 8.0) ** 2) * crook * 0.5 * (wave(lam, 0.8) - 1.0)
+        # Under the arm, from the armpit: drag folds along the arm's first quarter on its
+        # body side.
+        a, lam = WRINKLE_PIT
+        inner = np.clip(-(rad[:, 0] * np.sign(sh[0])), 0.0, 1.0)
+        pit = smooth01((-along - lu * 0.6) / (lu * 0.2)) * inner
+        d[ids] += a * pit * 0.5 * (np.sin(2 * np.pi * phi / 1.1 + jitter[3] + along / lam) - 1.0)
+    return p + n * d[:, None]
+
+
 def dress(pos, W, tris, J, lum, red, nail, vuv=None):
     """The woman's black velvet concert dress on her body: long sleeves to the wrists, a
     soft scoop neckline in front (the collarbones' line showing, the shoulders covered);
@@ -1712,6 +2014,19 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
         avg = acc / np.maximum(deg, 1.0)[:, None]
         q = q + (avg - q) * (0.5 * m)[:, None]
         q = q[rep]
+    # r42:arcus-polish4 — the bodice's front over the bust smoothed further (modesty, the
+    # owner's standing direction: the Drawn picture's sheen still drew a small crescent of the
+    # bust's form through the cloth): more passes, weighted to the chest's front at its height.
+    chest = J["spine01____head"]
+    bust = (np.exp(-((q[:, 1] - chest[1]) / 7.0) ** 2) * smooth01((q[:, 2] - chest[2]) / 4.0)
+            * np.where(on, m, 0.0))
+    for _ in range(BUST_SMOOTH):
+        acc = np.zeros_like(q)
+        np.add.at(acc, e[:, 0], q[e[:, 1]])
+        np.add.at(acc, e[:, 1], q[e[:, 0]])
+        avg = acc / np.maximum(deg, 1.0)[:, None]
+        q = q + (avg - q) * (0.5 * bust)[:, None]
+        q = q[rep]
     nq = vnormals(q, t[vel])
     nq = np.where(on[:, None], nq, nrm)
     front = np.clip(nq[:, 2], 0.0, 1.0)
@@ -1721,6 +2036,8 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
 
 # The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
 BODICE_SMOOTH = 160
+# r42:arcus-polish4 — the further passes over the bust (``dress``).
+BUST_SMOOTH = 200
 BODICE_EASE = 0.7
 SLEEVE_EASE = 0.18  # r42:arcus-polish (0.35: the sleeves follow the arm)
 # r42:arcus-polish — the cloth's rise over the shoulder's top (0.55: padded).
@@ -1945,6 +2262,8 @@ def main():
         tipv = np.array([bone_share(d, tuple(f"f{f}_3.{s_}" for f in range(1, 6)
                                              for s_ in SIDES)) for d in fig.w])
         movable &= tipv[fig.tris].max(1) < 0.3
+        # (r42:arcus-polish4: nor the sleeves — made finer for their wrinkles.)
+        movable &= ~np.isin(fig.mat, (VELVET, WOOL))
         uv = [fig.uv[:, 0], fig.uv[:, 1]]
         p2, w2, ex, t2, m2, part = thin.thin(fig.pos, fig.w, [fig.lum, fig.red] + uv,
                                               fig.tris, fig.mat, part, THIN, movable)

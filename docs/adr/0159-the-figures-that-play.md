@@ -412,6 +412,41 @@ occluding capsules in its live painter.
       over the hall, the picture's contrast, the hair's and the clothes' edge, and the dark
       clothes' silhouette against the hall below the face — each in the band measured from
       the three photographs; the Drawn picture held to the light's shape.
+  - **The polish, pass 4: toward concert photographs** (amendment, 2026-11-26,
+    r42:arcus-polish4 — the integrator's review of pass 3's sheets and the owner's standing
+    notes: realistic hair, skin, ears and clothing details; "lo hermoso es hermoso"):
+    - **The Drawn varnish** (`Light::shade`'s concert branch, `bowed_draw::plate_rows`):
+      red-brown over the wood (`Concert::d_varnish`), the flames' contrast doubled
+      (`d_flame`), deeper where the arching turns from the eye (`d_edge`), a specular ridge
+      along the arching (`d_ridge`, `d_ridge_pow`), and the plates' value varied — darker
+      toward their edges, a slow mottle of wear (`d_plate`, `d_mottle`); the flat saturated
+      orange is gone.
+    - **His hair**: MakeHuman's CC0 `short04` (combed straight back) for `short02`'s curls;
+      `HIS_TOP_LINE` where the longer top begins — the sides and the nape below it short
+      (his cards feathered away there; the scalp's short hair, its colour drawn toward the
+      skin's near the hairline, `cards::side_cover`), the top with volume, most at the front
+      of the crown (`his_volume`, the Drawn shell's `thick`); a dark brown (`HAIR_DARK`,
+      ref-06/10); the Drawn shell sorted a little nearer than the skin it lies on (the
+      skin's triangles had painted light flecks through it), its rim lowered, strand lines.
+    - **Her skin**: pinker and with a redder shade in the Photographic key (`skin_gain`,
+      `skin_sss`, no wrap — the face's R/B 4.2 → 3.8, its two sides 2.0 → 2.2; ref-04 2.9,
+      3.3), the Drawn stage skin in a warmer hue (`d_skin`, its value kept); her neck and
+      chest as warm as her face, a flush over the breastbone, redder ears, nose tip and
+      knuckles; clearer collarbones and the sternum's groove (`RELIEF`, `STERNUM`). Her bun
+      a rope of two twisted locks with fine strands, loose hairs at its outline
+      (`BUN_WISPS`).
+    - **Clothing in the geometry**: the sleeves made finer (`subdivide`, never thinned
+      again) and wrinkled — slanted rings in the elbow's crook, drag folds from the armpit
+      (`sleeve_wrinkles`); finer, his sleeves keep the suit's own three cuff buttons, which
+      the arms' thinning had flattened; edges with a thickness (`hem`): her cuffs (the
+      sleeve's end no longer thins onto the skin), his jacket's edge over the shirt (the
+      lapels, the sleeves' hems over the shirt's cuffs) and his shirt collar's edge; the
+      tie's blade under the knot with its dimple (`bowed_human::tie_knot`, `DIMPLE`); the
+      cloth's sheen duller.
+    - **The raised bow arm's shoulder cap** (`arcus_draw_flesh::Deltoid`): a pose-space
+      corrective — skinning turned the cap round the joint as a rigid piece, so the lifted
+      arm bulged (her bow-arm deltoid 11.3 cm across against her left one's 9.5 and ref-04's
+      8–9 cm bare); the cap drawn in toward the arm's axis as the arm is lifted past 40°.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

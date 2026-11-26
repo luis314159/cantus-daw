@@ -25,18 +25,25 @@ pub fn skin_at(base: &Mat, d: [f32; 2]) -> Mat {
 
 /// A hair corner's albedo: soft streaks across its strands, blended into the skin's
 /// `scalp` colour at the hairline (`d[0]`: 0 at the hairline, 1 inside it).
-fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
+fn hair_at(base: &Mat, d: [f32; 2], scalp: C3, short: bool) -> Mat {
     let across = d[0];
+    // r42:arcus-polish4 — his (`short`): broader value bands along the combing (the
+    // coordinator: one smooth shell), and his short sides' roots with more of the skin.
+    let bands = if short { 2.0 } else { 1.0 };
     let k = 0.9
-        + 0.07 * (across * 2.1).sin()
-        + 0.05 * (across * 5.3 + 1.7).sin()
+        + 0.07 * bands * (across * 2.1).sin()
+        + 0.05 * bands * (across * 5.3 + 1.7).sin()
         + 0.04 * (across * 13.0 + 0.4).sin();
     // r42:arcus-polish2 — the edge blends over the first third of the band only, and into
     // the hair's own deeper roots with a little of the skin (blended into the skin over the
     // whole band, her hairline read as a pale pink stripe across the temple — the owner's
     // review of the Drawn picture).
     let e = (d[1] / 0.35).clamp(0.0, 1.0).powf(0.6);
-    let root: C3 = std::array::from_fn(|i| base.albedo[i] * 0.62 * 0.7 + scalp[i] * 0.3);
+    let root: C3 = if short {
+        std::array::from_fn(|i| base.albedo[i] * 0.45 + scalp[i] * 0.5)
+    } else {
+        std::array::from_fn(|i| base.albedo[i] * 0.62 * 0.7 + scalp[i] * 0.3)
+    };
     // The roots a little deeper for a while in from the edge.
     let deep = 1.0 - 0.16 * (1.0 - (d[1] / 0.6).clamp(0.0, 1.0));
     Mat {
@@ -80,6 +87,11 @@ pub fn stage_skin(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
     let lum = |c: C3| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     let a = mat.albedo;
     let k = lum(shaded) / lum(a).max(1e-3);
+    // r42:arcus-polish4 — the stage's skin in its own hue (`Concert::d_skin`, its value
+    // kept): the drawn face read a pale beige beside the photographs' warm peach.
+    let g = crate::scene::figure::concert::get().d_skin;
+    let ga = [a[0] * g[0], a[1] * g[1], a[2] * g[2]];
+    let a = ga.map(|x| x * lum(a) / lum(ga).max(1e-4));
     let glow = 0.02 + (1.0 - ndv).powi(2) * 0.08;
     let mut c = [
         a[0] * (k + glow),
@@ -159,7 +171,7 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                 let mat = match role {
                     Role::Skin(_) => skin_at(&base, t.detail[i]),
                     Role::Hair | Role::HairFair | Role::Shell(_) => {
-                        hair_at(&base, t.detail[i], scalp)
+                        hair_at(&base, t.detail[i], scalp, *role == Role::Shell(1))
                     }
                     _ => base,
                 };
@@ -198,20 +210,37 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                     let k = match role {
                         Role::Skin(_) => 0.35,
                         Role::Velvet | Role::Wool => 0.5,
+                        // r42:arcus-polish4 — his dark hair takes the varnish's rim already
+                        // (`Light::shade`): more read as a bright cap's rim over the crown.
+                        Role::Shell(1) => 0.25,
                         _ => 1.0,
                     };
                     col = add(col, [1.0, 0.88, 0.72], rim * k);
                 }
                 cols[k] = col;
             }
-            c.p.at(cam.depth(ctr), Part::Bowed);
+            // r42:arcus-polish4 — the hair's shell a little nearer than the skin it lies on:
+            // at its thin edge the two lie within a millimetre and, sorted by their middles,
+            // the skin's triangles painted over the hair in places (his crown's and temples'
+            // light flecks in the Drawn picture).
+            // (And his shirt and tie a little nearer: the collar's far point lies over the
+            // violin's edge, and sorted by their middles its triangles and the violin's cells
+            // interleaved — white shards over the violin, the coordinator's review.)
+            let bias = match role {
+                Role::Shell(_) => SHELL_BIAS,
+                Role::Shirt | Role::Tie => SHIRT_NEAR,
+                _ => 0.0,
+            };
+            c.p.at(cam.depth(ctr) - bias, Part::Bowed);
             let sp = c.sps(&q);
             // Overlapping a little more than a pixel: no seam grid on a light theme.
             c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
             // (Not over the hair's edge band, where it blends into its roots: light strands
             // there read as white dashes along the hairline.)
             let edge = [i0, i1, i2].iter().any(|&i| t.detail[i][1] < 0.45);
-            if !inside && !edge && matches!(role, Role::HairFair | Role::Shell(0)) {
+            // (r42:arcus-polish4: his too — combed straight back, the strands' lines run
+            // from the hairline over the crown.)
+            if !inside && !edge && matches!(role, Role::HairFair | Role::Shell(_)) {
                 strand_lines(c, &sp, [i0, i1, i2].map(|i| t.detail[i][0]), &cols);
             }
         }
@@ -262,6 +291,11 @@ fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]
         s += 1.0;
     }
 }
+
+/// r42:arcus-polish4 — how much nearer the hair's shell sorts than its own depth (cm).
+const SHELL_BIAS: f32 = 0.6;
+/// r42:arcus-polish4 — how much nearer his shirt and tie sort (cm).
+const SHIRT_NEAR: f32 = 1.5;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.

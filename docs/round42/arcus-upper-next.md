@@ -1129,3 +1129,63 @@ side against a luthier's profile.
    not lose itself into the body.
 5. *Specks*: the three above that are mine and the flecks in his hair.
 6. `arcus_figure_shape`'s deltoid (above), the budget's idle re-measure, the WSL Linux check.
+
+## arcus-polish4 (2026-11-26): toward concert photographs
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 4f9e99efe. The
+integrator's review of pass 3's sheets, in order: the Drawn varnish, his hair, her skin, the
+clothing, the specks, the deltoid gate. ADR 0159 amended ("The polish, pass 4"). The
+left hand and `arcus_hold`'s left-arm items are arcus-hands' (not touched here; the hand
+geometry code in `build_figures.py` is unchanged).
+
+**How to look without rebuilding** (new): `CANTUS_FIGURE_DIR` now serves the cards' and the
+skin's textures too (`<who>_hair.png`, `_brow`, `_lash`, `_skin`), not only the `.fig` and
+the lids — a new hair proxy is looked at in `shoot_arcus` without a compile. The Drawn
+varnish and skin are `Concert` numbers (`d_varnish`, `d_flame`, `d_edge`, `d_ridge`,
+`d_ridge_pow`, `d_plate`, `d_mottle`, `d_skin`), tunable by `CANTUS_CONCERT`. The MakeHuman
+system assets on this machine now also hold `hair/short01`, `short03`, `short04`
+(`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys`, extracted from `sys.zip`).
+
+**Done** (where; the measures):
+1. *The Drawn varnish* (`Light::shade`'s concert branch; `bowed_draw::plate_rows`): red-brown
+   (`d_varnish` 0.92/0.42/0.32 over the wood), the flames twice as strong (`d_flame` 2.0, and
+   0.2 of the flat colour, was 0.45), deeper where the arching turns from the eye (`d_edge`
+   0.45), a specular ridge (`d_ridge` 0.4, `d_ridge_pow` 28), the plates darker toward
+   their edges (`d_plate` 0.35) with a slow mottle of wear (`d_mottle` 0.12).
+2. *His hair*: MakeHuman's CC0 `short04` (`HIS_HAIR`; `short02` before), its cards lifted into
+   a combed-back top (`his_volume`, `HIS_VOLUME` 1.7 cm at the front of the crown) and
+   feathered away below `HIS_TOP_LINE` (the sides and the nape short: the scalp there, its
+   colour drawn toward the skin's near the hairline, `cards::side_cover`); `HAIR_DARK`
+   (46, 35, 29) for his cards, scalp and Drawn shell, `HairLook` detail 0.4 (higher, the
+   crossing card layers read as a weave at 200 %); loose tips at the top's outline
+   (`his_tips`, `Role::WispDark`, Photographic). Drawn: the shell's top with the volume
+   (`thick`), the sides short and deeper (`blend`, `hair_at(.., short)`: roots with more of
+   the skin, broader value bands along the combing), its temples' edge cut into tufts
+   (`hair_shell(.., wave)`), sorted 0.6 cm nearer than the skin (`SHELL_BIAS`: the skin's
+   triangles had painted the light flecks through it), its rim 0.25.
+3. *Her skin*: `skin_gain` 1.0/0.92/1.04, `skin_sss` 0.5, no wrap or camera fill (her face
+   R/B 4.2 → 3.8, its sides 2.0 → 2.2; ref-04 2.9 and 3.3; his R/B 4.4, sides 2.8); the
+   Drawn stage skin's hue `d_skin` 1.0/0.92/0.88 (its value kept); `tones`: her neck no
+   longer cooled, a flush over the breastbone, a mottle over the neck and chest, the ears
+   redder (0.48); the nose's tip warmer; the knuckles' and joints' red ×2 (colour only);
+   `RELIEF` collarbones 0.4/0.3, notch 0.6, `STERNUM` (0.22 cm deep, 1.3 wide, 7 long).
+   Her bun a rope of two twisted locks (`torus(.., rope=0.12, turns=3, dense=9)`) and up to
+   12 loose hairs at its outline (`BUN_WISPS`).
+4. *Clothing*: the sleeves subdivided once (`subdivide`, a red-green split so nothing
+   cracks; cloth is no longer thinned) and creased (`sleeve_wrinkles`: slanted rings cut in
+   round the elbow's crook, 0.45 cm deep, 2.6 cm apart, deepest on the crook's side; drag
+   folds from the armpit) — the creases cut in only, so the silhouette stays the arm's;
+   finer, his sleeves keep the suit's own three cuff buttons (the thinning had flattened
+   them; the front's two buttons and the pocket flaps were always the suit's); edges with a
+   thickness (`hem`): her cuffs (0.3 cm + 0.12 flare: her sleeve's end no longer thins onto
+   the skin), his jacket's edge over the shirt (the lapels, the sleeves' hems over the
+   shirt's cuffs, `HEM_JACKET`) and the shirt collar's edge over the jacket (`HEM_COLLAR`);
+   the tie's blade under the knot with its dimple (`tie_knot`, `DIMPLE`) and a neater knot
+   (the wrap's fold faint, the upper corners going in under the collar's points); the
+   cloth's sheen duller (`velvet_spec` 0.06, `wool_spec` 0.035, `cloth_rim` 0.28); in Drawn
+   his shirt and tie sorted 0.8 cm farther (the collar's far point drew white shards over
+   the violin). The bodice smoothed further over the bust (`BUST_SMOOTH`: a small crescent
+   of its form showed in the Drawn sheen — modesty).
+5. *Specks*: the live cloth's outline strip drawn nearer the inner corner's colour (0.8,
+   was 0.5: the dotted light line on her bow shoulder).
+6. *The deltoid*: see the gates below.

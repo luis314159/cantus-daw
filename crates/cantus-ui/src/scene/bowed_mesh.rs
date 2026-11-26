@@ -85,6 +85,9 @@ pub enum Role {
     /// r42:arcus-polish2 — her loose hairs: the baby hairs at her hairline and a few
     /// flyaways off her crown (rods finer than a pixel; the Photographic picture's only).
     Wisp,
+    /// r42:arcus-polish4 — his hair's loose tips at the top's outline (dark brown; the
+    /// Photographic picture's only, as hers).
+    WispDark,
 }
 
 /// A grid of points (`rows` × `cols`, row-major) with normals and grain coordinates (cm:

@@ -156,6 +156,10 @@ fn pmat(b: Bowed, r: Role, cc: Option<&crate::scene::figure::concert::Concert>) 
             0.2,
             0.3,
         ),
+        // r42:arcus-polish4 — his loose tips: his dark brown, a strand's gloss.
+        // (Lighter than the hair's albedo: a lone strand at the outline catches the back
+        // lights over its whole width, and at the hair's own value it vanished.)
+        Role::WispDark => PMat::lacquer(lin3(hp::HAIR_DARK).map(|c| c * 2.4), 0.2, 0.3),
         Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
         Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
         // (r42:arcus-hair: a little lighter than the Drawn picture's — near black, each lash
@@ -170,9 +174,9 @@ fn pmat(b: Bowed, r: Role, cc: Option<&crate::scene::figure::concert::Concert>) 
             let woman = k < 3;
             let base = match (k % 3, woman) {
                 (0, true) => hp::HAIR_FAIR,
-                (0, false) => hp::HAIR,
+                (0, false) => hp::HAIR_DARK, // r42:arcus-polish4
                 (1, true) => hp::BROW_FAIR,
-                (1, false) => hp::HAIR,
+                (1, false) => hp::HAIR_DARK,
                 _ => hp::LASH,
             };
             let base = match k % 3 {
@@ -184,7 +188,7 @@ fn pmat(b: Bowed, r: Role, cc: Option<&crate::scene::figure::concert::Concert>) 
             PMat::lacquer(base, 0.06, 0.45).with(Tex::Card(k))
         }
         Role::Shell(0) | Role::Scalp(0) => PMat::lacquer(fair(), 0.1, 0.42).with(Tex::Hair),
-        Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR)),
+        Role::Shell(_) | Role::Scalp(_) => PMat::matte(lin3(hp::HAIR_DARK)),
     }
 }
 
@@ -282,9 +286,13 @@ pub fn build_lit(
             // (r42:arcus-hair: the hair's colour, lit as the cards over it are, thinning out
             // at its edge by the hairline.)
             Role::Scalp(w) => {
-                let hair = if *w == 0 { fair() } else { lin3(hp::HAIR) };
+                let hair = if *w == 0 { fair() } else { lin3(hp::HAIR_DARK) };
                 let deep = crate::scene::figure::cards::hair_look(*w).scalp;
-                g.mat(PMat::lacquer(hair.map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w)))
+                // (r42:arcus-polish4: the skin under it, `dark`, through his short sides.)
+                g.mat(PMat {
+                    dark: scalp,
+                    ..PMat::lacquer(hair.map(|c| c * deep), 0.06, 0.45).with(Tex::Scalp(*w))
+                })
             }
             // (r42:arcus-hair: the eyes from their texture — the iris, its pupil, the white —
             // wet: a catch-light from the key.)
@@ -345,7 +353,11 @@ pub fn build_lit(
         g.rod(of(r.a), of(r.b), r.r / 100.0, mi);
         // r42:arcus-polish2 — the strings (dashed white and black down the fingerboard
         // at 100 %, the owner's review).
-        if matches!(role, Role::Steel | Role::Wound | Role::Wisp) && !g.wires.contains(&mi) {
+        if matches!(
+            role,
+            Role::Steel | Role::Wound | Role::Wisp | Role::WispDark
+        ) && !g.wires.contains(&mi)
+        {
             g.wires.push(mi);
         }
     }

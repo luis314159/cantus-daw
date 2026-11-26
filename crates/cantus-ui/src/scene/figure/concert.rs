@@ -101,6 +101,20 @@ pub struct Concert {
     pub d_key: f32,
     pub d_term: f32,
     pub d_rim: f32,
+    /// r42:arcus-polish4 — the Drawn varnish under the spot: its gains over the wood's
+    /// (red-brown, not orange), the flames' contrast (× the wood's own), how much darker it
+    /// is where the arching turns from the eye, the specular ridge along the arching (its
+    /// strength, its tightness), and the value across the plates (darker toward the edges,
+    /// a slow mottle of wear).
+    pub d_varnish: [f32; 3],
+    pub d_flame: f32,
+    pub d_edge: f32,
+    pub d_ridge: f32,
+    pub d_ridge_pow: f32,
+    pub d_plate: f32,
+    pub d_mottle: f32,
+    /// r42:arcus-polish4 — the Drawn skin's hue on the stage (gains, its value kept).
+    pub d_skin: [f32; 3],
 }
 
 /// The concert light as tuned against ref-04, ref-06 and ref-10.
@@ -126,18 +140,23 @@ pub const CONCERT: Concert = Concert {
     back2_e: 0.9,
     back_warm: 0.25,
     back_face: 12.0,
-    skin_wrap: 0.1,
-    skin_front: 0.02,
-    skin_sss: 0.2,
+    // (r42:arcus-polish4: the skin pinker and its shade redder — the light under the skin
+    // where the key falls off —, its terminator narrower: ref-04's face R/B 2.9, its lit and
+    // shaded sides 3.3 apart; hers was 4.2 and 2.0, a pale even beige — now 3.8 and 2.2.)
+    skin_wrap: 0.0,
+    skin_front: 0.0,
+    skin_sss: 0.5,
     skin_rim: 0.5,
-    skin_gain: [1.0, 0.93, 0.86],
+    skin_gain: [1.0, 0.92, 1.04],
     hair_wrap: 0.3,
     hair_rim: 1.0,
     velvet_back: 1.3,
     velvet_pile: 0.45,
-    velvet_spec: 0.08,
-    cloth_rim: 0.35,
-    wool_spec: 0.05,
+    // (r42:arcus-polish4: the cloth's sheen duller — the coordinator: the black cloth read as
+    // smooth plastic; the wrinkles now break it up — 0.08, 0.35, 0.05.)
+    velvet_spec: 0.06,
+    cloth_rim: 0.28,
+    wool_spec: 0.035,
     cloth_pow: 16.0,
     exposure: 1.1,
     contrast: 1.25,
@@ -158,6 +177,14 @@ pub const CONCERT: Concert = Concert {
     d_key: 1.2,
     d_term: 0.5,
     d_rim: 0.5,
+    d_varnish: [0.92, 0.42, 0.32],
+    d_flame: 2.0,
+    d_edge: 0.45,
+    d_ridge: 0.4,
+    d_ridge_pow: 28.0,
+    d_plate: 0.35,
+    d_mottle: 0.12,
+    d_skin: [1.0, 0.92, 0.88],
 };
 
 static TUNED: std::sync::OnceLock<Concert> = std::sync::OnceLock::new();
@@ -244,6 +271,14 @@ pub fn tuned(base: Concert, spec: &str) -> Concert {
             "d_key" => c.d_key = x,
             "d_term" => c.d_term = x,
             "d_rim" => c.d_rim = x,
+            "d_varnish" => arr(&mut c.d_varnish),
+            "d_flame" => c.d_flame = x,
+            "d_edge" => c.d_edge = x,
+            "d_ridge" => c.d_ridge = x,
+            "d_ridge_pow" => c.d_ridge_pow = x,
+            "d_plate" => c.d_plate = x,
+            "d_mottle" => c.d_mottle = x,
+            "d_skin" => arr(&mut c.d_skin),
             _ => {}
         }
     }

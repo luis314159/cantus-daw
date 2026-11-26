@@ -1721,7 +1721,16 @@ pub fn arm(
                         // between more and less grazing — the strip in their own colours
                         // drew a dotted bright line a pixel wide along every sleeve.)
                         let ci = corner(third);
-                        let (ca, cb) = (lerp_c(corner(a), ci, 0.5), lerp_c(corner(bb), ci, 0.5));
+                        // (r42:arcus-polish4: on cloth nearer the inner corner's still — where a
+                        // sleeve's cap turns away under the back light its outline's corners
+                        // flicker between lit and not, and the strip read as a dotted light
+                        // line on her bow shoulder: `arcus_figure_specks`.)
+                        let k = if matches!(am.stuff[t], Stuff::Velvet | Stuff::Wool) {
+                            0.8
+                        } else {
+                            0.5
+                        };
+                        let (ca, cb) = (lerp_c(corner(a), ci, k), lerp_c(corner(bb), ci, k));
                         b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
                 }
@@ -2365,6 +2374,157 @@ fn smooth01(x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
+/// r42:arcus-polish4 — the raised bow arm's shoulder cap as a raised arm's is (the
+/// `arcus_figure_shape` gate: her bow-arm deltoid 11.3 cm across, sleeved, where her left
+/// one is 9.5 and ref-04's bare raised arm measures 8–9 cm against her bow hand's breadth):
+/// skinning turns the cap's skin round the joint as one rigid piece, so the more the arm is
+/// lifted from hanging the more the cap bulges out round the turn — a pad. A corrective, as
+/// pose-space shapes are (Lewis, Cordner and Fong 2000): over the upper arm's first part
+/// the skin is drawn in toward the arm's axis by a share that grows as the arm is lifted past
+/// 40° from hanging; nothing at the shoulder's band (where the live arm meets the bake) nor
+/// past the upper arm's middle.
+struct Deltoid {
+    sh: V3,
+    way: V3,
+    len: f32,
+    k: f32,
+    bones: [usize; 3],
+}
+
+/// The most the cap is drawn in (a share of its distance to the axis), and the lifts (°
+/// from hanging) over which it comes in.
+const DELTOID: [f32; 3] = [0.3, 25.0, 65.0];
+
+/// r42:arcus-polish4 — a bent elbow as a bent elbow is: dual-quaternion skinning keeps the
+/// volume round a joint by swelling it as it bends (Kavan et al. 2007, the bulging), and the
+/// sleeves made finer for their creases showed it — her bent elbows 9.5–9.8 cm across the
+/// crook, sleeved, against 8.2–9.0 before (`arcus_figure_shape`). Round the elbow the skin is
+/// drawn in toward the joint by a share that grows with the bend past 30°.
+struct Elbow {
+    at: V3,
+    k: f32,
+    bones: [usize; 3],
+}
+
+/// The most a bent elbow is drawn in, and the bends (°) over which it comes in.
+const ELBOW: [f32; 3] = [0.1, 30.0, 100.0];
+
+/// [`ELBOW`], or `CANTUS_ELBOW="most,from,to"` while finding it (read once; unset in the app).
+fn elbow_numbers() -> [f32; 3] {
+    static E: OnceLock<[f32; 3]> = OnceLock::new();
+    *E.get_or_init(|| {
+        std::env::var("CANTUS_ELBOW")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 3).then(|| [v[0], v[1], v[2]])
+            })
+            .unwrap_or(ELBOW)
+    })
+}
+
+impl Elbow {
+    fn of(fig: &Figure, posed: &Posed, s: usize) -> Option<Elbow> {
+        let o = hu::side(s);
+        let (u1, f1, h) = (o + hu::UPPER1, o + hu::FORE1, o + hu::HAND);
+        let (b1, bf, bh) = (fig.bones.get(u1)?, fig.bones.get(f1)?, fig.bones.get(h)?);
+        let sh = posed.xf[u1].apply(b1.head);
+        let el = posed.xf[f1].apply(bf.head);
+        let wr = posed.xf[h].apply(bh.head);
+        let (a, b) = ((el - sh).norm(), (wr - el).norm());
+        let bend = a.dot(b).clamp(-1.0, 1.0).acos().to_degrees();
+        let [most, from, to] = elbow_numbers();
+        let k = most * smooth01((bend - from) / (to - from).max(1.0));
+        (k > 1e-4).then_some(Elbow {
+            at: el,
+            k,
+            bones: [o + hu::UPPER2, f1, o + hu::FORE2],
+        })
+    }
+
+    fn corrected(&self, fig: &Figure, i: usize, p: V3) -> V3 {
+        let share: f32 = fig.bw[i]
+            .iter()
+            .filter(|(b, _)| self.bones.contains(&(*b as usize)))
+            .map(|(_, w)| *w)
+            .sum();
+        let q = p - self.at;
+        let d = q.len();
+        // Within about 7 cm of the joint, most at it.
+        let near = 1.0 - smooth01((d - 3.0) / 4.0);
+        let k = self.k * near * share.min(1.0);
+        if k <= 0.0 {
+            return p;
+        }
+        p - q * k
+    }
+}
+
+/// [`DELTOID`], or `CANTUS_DELTOID="most,from,to"` while finding it (a tuning aid, read once,
+/// as `CANTUS_SHRUG`; unset in the app).
+fn deltoid_numbers() -> [f32; 3] {
+    static D: OnceLock<[f32; 3]> = OnceLock::new();
+    *D.get_or_init(|| {
+        std::env::var("CANTUS_DELTOID")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 3).then(|| [v[0], v[1], v[2]])
+            })
+            .unwrap_or(DELTOID)
+    })
+}
+
+impl Deltoid {
+    fn of(fig: &Figure, posed: &Posed, s: usize) -> Option<Deltoid> {
+        // (The bow arm only: the left arm is lifted forward under the violin, and its cap
+        // measures as an arm's — 9.4–9.5 cm.)
+        if s != 1 {
+            return None;
+        }
+        let o = hu::side(s);
+        let (u1, f1) = (o + hu::UPPER1, o + hu::FORE1);
+        let (b1, bf) = (fig.bones.get(u1)?, fig.bones.get(f1)?);
+        let sh = posed.xf[u1].apply(b1.head);
+        let el = posed.xf[f1].apply(bf.head);
+        let len = (el - sh).len();
+        if len < 1.0 {
+            return None;
+        }
+        let way = (el - sh) * (1.0 / len);
+        // The lift from hanging (0° straight down).
+        let lift = (-way.y).clamp(-1.0, 1.0).acos().to_degrees();
+        let [most, from, to] = deltoid_numbers();
+        let k = most * smooth01((lift - from) / (to - from).max(1.0));
+        (k > 1e-4).then_some(Deltoid {
+            sh,
+            way,
+            len,
+            k,
+            bones: [o + hu::CLAV, u1, o + hu::UPPER2],
+        })
+    }
+
+    fn corrected(&self, fig: &Figure, i: usize, p: V3) -> V3 {
+        let share: f32 = fig.bw[i]
+            .iter()
+            .filter(|(b, _)| self.bones.contains(&(*b as usize)))
+            .map(|(_, w)| *w)
+            .sum();
+        if share <= 0.0 {
+            return p;
+        }
+        let q = p - self.sh;
+        let t = q.dot(self.way) / self.len;
+        let along = smooth01((t + 0.02) / 0.2) * (1.0 - smooth01((t - 0.32) / 0.3));
+        let k = self.k * along * share.min(1.0);
+        if k <= 0.0 {
+            return p;
+        }
+        p - (q - self.way * q.dot(self.way)) * k
+    }
+}
+
 /// Skin arm `s`, its normals, its occlusion; clear the kept colours. Returns the arm's
 /// middle (where its light is taken).
 #[allow(clippy::too_many_arguments)]
@@ -2393,6 +2553,8 @@ fn arm_setup(
     sc.dq.extend(posed.xf.iter().map(dual));
     let o = hu::side(s);
     let hand = o + hu::HAND..=o + hu::finger(4, 2);
+    let deltoid = Deltoid::of(fig, &posed, s); // r42:arcus-polish4
+    let elbow = Elbow::of(fig, &posed, s); // r42:arcus-polish4
     for (j, &i) in am.verts.iter().enumerate() {
         // r42:arcus-polish2 — a sleeve's cuff follows the forearm: the share of the hand's
         // bones in the hem's weights turned it with the wrist into spikes and a jagged end
@@ -2416,6 +2578,12 @@ fn arm_setup(
         } else {
             dq_vertex(fig, &sc.dq, i as usize).unwrap_or_else(|| posed.vertex(fig, i as usize))
         };
+        if let Some(d) = &deltoid {
+            p = d.corrected(fig, i as usize, p);
+        }
+        if let Some(e) = &elbow {
+            p = e.corrected(fig, i as usize, p);
+        }
         if am.live[j] < 1.0 {
             p = base.vertex(fig, i as usize).lerp(p, am.live[j]);
         }
