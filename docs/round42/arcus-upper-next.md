@@ -1006,3 +1006,73 @@ within 16°; `arcus_hold`'s wrist within 16°.
    per-point nail model (cuticle line, free edge, specular) is not done.
 6. *Normal maps / a denser hand mesh in High*: not done; the thinned MakeHuman hand with
    PN patches carries the forms at the app's scales.
+
+### arcus-hands — the end of the session (fb4bc92c7) and the re-solve for the next builder
+
+**Done since the list above**: High's live arms are filled with a **depth per sample**
+(`views/inst/arcus_draw_raster.rs`: each arm pass into a small buffer over its own screen
+rectangle, 3×3 samples a pixel at 100 %, 2×2 at 200 %, the nearest surface kept per sample,
+averaged into the pixel and drawn as one texture a pass, the creases blended over the skin with
+a depth test; nothing filled or uploaded at rest; Light keeps the vector path). This was the
+root of the notches, slivers, stair-steps and the board showing through the fingers (the
+painter's order by triangle middles, a one-bit fill). Her hand is scaled 1.08 (`HAND_SCALE`,
+Rust and `hand_rig.py`: it was 0.095 of her height, a woman's ~0.105); the little finger
+spreads toward the bridge (`SPREAD`). polish2's hold (03888c909) is merged; **the table in
+`assets/figures/left_hand.bin` was solved on the old hold and her unscaled hand — re-solve it**.
+
+**The re-solve** (about an hour with four processes; the machine shared):
+1. Build the dump's test: `bash tools/build/slot.sh cargo test --release -p cantus-ui --no-run
+   --test arcus_hand_table` (with `CARGO_PROFILE_*_DEBUG=0`).
+2. `CANTUS_HAND_DUMP=<dir>/dump.json target/release/deps/arcus_hand_table-*.exe --ignored dump`.
+3. Four at once: `python tools/arcus-figures/left_hand.py solve <dir>/dump.json
+   --only=woman-violin` (woman-viola, man-violin, man-viola); then `fix` on each (rows over
+   cost 60); then `pack <dir>/dump.json` (writes `assets/figures/left_hand.bin`; with
+   `CANTUS_FIGURE_DIR=<folder>` it writes there and the app reads it from there — look before
+   installing). `tools/arcus-figures/hand_study.py <dump> <out> woman violin 2 0 1` draws a
+   row from the app's camera and photo 5's and 2's angles with the picture measures; a
+   one-row experiment with changed rules runs in ~30 s (solve from `start()` with the
+   constants patched, as `hands-work/row2.py` did).
+4. The rules now in `left_hand.py` (each commented there): open arches — `PLAY`
+   ((18, 60), (55, 100), (4, 25)), `HOVER`, `MID` (36, 72, 10), `RISE_COS` 0.64 (the first
+   phalanx within 50° of the board's normal), `UPRIGHT_COS` 0.906 (25°); `HAND_UP` 78° and
+   `FORE_UP` 64° (the hand and the forearm standing up from the neck); `WRIST_DEV` 0–12° at 8;
+   `YAW` 10°; `CROOK_X` 0.85 (the index's base against the E side — on the old hold the
+   upright hand pushed it 2.2–3.5 cm out: gate ≤ 2.2); `KNUCKLES` (−0.8, 0.8); `SPREAD`;
+   **new, not yet solved**: `UPPER_BELOW` (35, 60) — the upper arm hanging below level (on the
+   old hold one row reached only 9°; polish2's hold rotates it to 32° hers, 60° his, so it
+   should be reachable) — and `BOUT` (8.5, 12) / `CLEAR` 0.4 — the forearm's points and every
+   finger joint kept over the upper bout's top plate (the slab `neck_mesh` draws) by 4 mm,
+   so in high positions the wrist rises over the body (on the old table a 15-semitone row
+   had a residual of 40 755: the hand and forearm deep in the body).
+5. **Still to write** (the coordinator's list, not started): (a) the thumb's travel with
+   position — to the neck's heel, then beside or under the fingerboard high up (photos
+   crop-02, ref-12, ref-40 — measure them as `left_hand_refs.md` does); (b) a **neck
+   penetration** term and gate: every finger segment, the thumb and the palm against the
+   neck's rounded back and the fingerboard's sides and top (`Neck.outside` is a box: round
+   its back), only the playing tip's pad touching (≤ 1 mm), hovering fingers over the
+   strings — the existing `inboard`, `thumb_clear` and `palm_gap` probes are the start; a
+   debug render with penetration in red from the app's camera and from under the neck;
+   (c) a **body penetration gate** in `arcus_hand_table` for every row (the skinned hand
+   and forearm against the body's outline, `bowed::outline`), and a side or top view of the
+   highest rows.
+6. Gates to run after: `arcus_hand_table` (the photographs' rules: the index's base ≤ 2.2 cm
+   out, tips ≤ 30°, the wrist ≤ 16°, the palm's width), `arcus_hand_shape` (the lobe ≤ 0.19 —
+   0.17 on the fig5 figures — and the fingers' girth; tighten the ceilings to hers ≤ 1.8 /
+   1.5, his ≤ 2.1 / 1.7 once measured: on fig5 her index 1.54–1.91 and little 1.56–1.65),
+   `arcus_hand_form` (proportions and nails pass; its `no_dark_specks_on_the_hands` should
+   now pass with the depth raster — run it), `arcus_hold` (the fingertip on its stop; the
+   left arm's elbow), polish2's `arcus_arm_pose` and `arcus_figure_specks`, `arcus_scene`,
+   `scene_identity`, `figure_contract`, `kit_lint`, and `arcus_hold_budget` (the raster's
+   cost is not yet measured: it fills ~1–1.5 M samples a frame while the arm moves).
+
+**Her "weird fingers"** (the owner's first issue) — what was found and fixed this session:
+the fingers curled into a ring (the hand leant along the neck at 55°: now upright); hooks
+(the DIP 15–45° and the first phalanx forced near the board's normal: now open arches); the
+index and little finger short and the little finger's middle phalanx 0.49 of its first (now
+0.90 / 0.94 of the middle, 1 : 0.60); the whole hand 10 % small for her height (now 1.08);
+nails 0.8–0.85 of the slimmed fingers' width (now 0.61–0.70); dark board-coloured shards and
+notches where the neck's stamp and the painter's order cut the fingers (now split patches and
+the depth raster). **Not yet done**: the finger-by-finger diagnostic at 400 % (kinks, twists,
+sideways joints, pinches, tips' way, nails' side, crease places, patch inflation, fused or
+crossing fingers) — `arcus_hand_table` already gates sideways joints (≤ 5°) and the last joint
+over the middle; the rest needs the sheet, after the re-solve.
