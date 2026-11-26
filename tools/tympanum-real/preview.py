@@ -120,7 +120,7 @@ def main():
         d.mkdir(parents=True, exist_ok=True)
         items = []
         for i, ((lab, p, x, fs), g) in enumerate(zip(audio, gains)):
-            fn = f"{i + 1:02d}-{lab.replace(' · ', '-').replace(' ', '_').lower()}.wav"
+            fn = f"{i + 1:02d}-{lab.replace(' · ', '-').replace(' ', '_').lower()}.wav".replace("é", "e")
             y = x * 10 ** ((g - drop) / 20)
             sf.write(str(d / fn), to16(y, rng), fs, subtype="PCM_16")
             items.append((lab, f"{name}/{fn}"))
@@ -157,7 +157,7 @@ def main():
         d.mkdir(parents=True, exist_ok=True)
         items = []
         for i, ((lab, p, x, fs), g) in enumerate(zip(audio, gains)):
-            fn = f"{i + 1:02d}-{lab.split(',')[0].replace(' · ', '-').replace(' ', '_').lower()}.wav"
+            fn = f"{i + 1:02d}-{lab.split(',')[0].replace(' · ', '-').replace(' ', '_').lower()}.wav".replace("é", "e").replace("ó", "o")
             sf.write(str(d / fn), to16(x * 10 ** ((g - drop) / 20), rng), fs, subtype="PCM_16")
             items.append((lab, f"{name}/{fn}"))
             meta.append({"groove": name, "clip": lab, "file": f"{name}/{fn}", "source": str(p),

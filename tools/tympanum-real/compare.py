@@ -162,8 +162,6 @@ def curves(kind, kits, hits, path):
         ce = S.by_vel(hs, "cent_c")
         axs[1].plot([lv[x] - top for x in v if x in ce], [ce[x] for x in v if x in ce], color=c, ls=ls,
                     lw=lw, alpha=0.8 if role == "ref" else 1, zorder=3 if role != "ref" else 2)
-        if role != "ref":
-            axs[0].text(v[-1] + 2, 0, kit["label"], color=INK, fontsize=7.5, va="center")
     axs[0].set_xlabel("velocidad MIDI", fontsize=8.5, color=MUTED)
     axs[0].set_ylabel("nivel 0–80 ms (dB, 0 = el más fuerte)", fontsize=8.5, color=MUTED)
     axs[1].set_xlabel("nivel (dB)", fontsize=8.5, color=MUTED)
@@ -171,10 +169,15 @@ def curves(kind, kits, hits, path):
     axs[1].set_yscale("log")
     axs[0].set_title(f"{KIND_ES.get(kind, kind)}: nivel por velocidad", loc="left", fontsize=10, color=INK)
     axs[1].set_title("brillo por nivel", loc="left", fontsize=10, color=INK)
+    from matplotlib.ticker import FuncFormatter, LogLocator
+    axs[1].yaxis.set_major_locator(LogLocator(base=10, subs=(1, 2, 5)))
+    axs[1].yaxis.set_minor_locator(LogLocator(base=10, subs=()))
+    axs[1].yaxis.set_major_formatter(FuncFormatter(lambda y, _: f"{y:.0f}"))
     handles = [plt.Line2D([], [], color=REF, lw=1, label="kits grabados")]
-    for role, name in (("before", "Tympanum antes"), ("after", "Tympanum después")):
-        if any(kits[k]["role"] == role for k in kits):
-            handles.append(plt.Line2D([], [], color=COL[role], lw=2, label=name))
+    for role, name in (("before", "antes"), ("after", "después")):
+        for kid, kit, ls in (("studio", "Studio Maple", "-"), ("jazz", "Jazz Birch", "--")):
+            if any(kits[k]["role"] == role and k.startswith(kid) for k in kits):
+                handles.append(plt.Line2D([], [], color=COL[role], lw=2, ls=ls, label=f"{kit} {name}"))
     axs[1].legend(handles=handles, frameon=False, fontsize=8, loc="lower right")
     fig.tight_layout()
     fig.savefig(path, facecolor=SURFACE)
