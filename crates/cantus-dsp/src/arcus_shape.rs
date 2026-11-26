@@ -69,6 +69,16 @@ pub struct Knobs {
     /// corner (`InstrumentSpec::corner_hz`) moves with the bow's force against the same bowing's
     /// mf force — its power above and below (0: the corner fixed, as before).
     pub bright: (f32, f32),
+    /// The player's intonation in a passage (a note reached from another, never one from
+    /// silence): each note's own error (cents, about its spread; × `into_shift` on a shift), how
+    /// much of it is left once the ear has heard it (a share) and how fast it is corrected (s),
+    /// and the tendency of a semitone step (up high, down low, cents). The HSD players' notes sit
+    /// 13–16 cents off the nearest semitone at p90; Arcus's sat 3–7.
+    pub into_ct: f32,
+    pub into_keep: f32,
+    pub into_s: f32,
+    pub into_shift: f32,
+    pub into_step: f32,
 }
 
 /// The measured shape (`docs/round42/arcus-classical.md`).
@@ -89,6 +99,11 @@ pub const KNOBS: Knobs = Knobs {
     vib_back_s: (0.08, 0.38),
     vib_floor: 0.1,
     bright: (0.0, 0.0),
+    into_ct: 8.0,
+    into_keep: 0.6,
+    into_s: 0.18,
+    into_shift: 1.6,
+    into_step: 4.0,
 };
 
 impl Knobs {
@@ -128,6 +143,11 @@ impl Knobs {
                 "vib_floor" => self.vib_floor = v,
                 "bright_hi" => self.bright.0 = v,
                 "bright_lo" => self.bright.1 = v,
+                "into_ct" => self.into_ct = v,
+                "into_keep" => self.into_keep = v,
+                "into_s" => self.into_s = v,
+                "into_shift" => self.into_shift = v,
+                "into_step" => self.into_step = v,
                 _ => {}
             }
         }
@@ -135,8 +155,47 @@ impl Knobs {
     }
 }
 
-/// The seed's twist that gives the shape its own generator.
+/// The seed's twist that gives the shape its own generator, and the intonation's.
 const SEED_TWIST: u32 = 0x5A3E_0C11;
+const INTO_TWIST: u32 = 0x1A70_7E55;
+
+/// A note's intonation in a passage (`Knobs::into_*`): its error and its tendency (cents), for a
+/// note `step` semitones from the last (a shift or not), the player's `amount`.
+#[allow(clippy::too_many_arguments)]
+pub fn intonation(
+    k: &Knobs,
+    amount: f32,
+    step: f32,
+    shift: bool,
+    seed: u32,
+    key: u8,
+    id: u64,
+) -> (f32, f32) {
+    if amount <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let mut r = Rng::of(seed ^ INTO_TWIST, key, id);
+    // Three uniforms: about a normal's shape, a unit's spread.
+    let u = r.bipolar() + r.bipolar() + r.bipolar();
+    let e = k.into_ct * u * if shift { k.into_shift } else { 1.0 };
+    let tend = if (step - 1.0).abs() < 0.3 {
+        k.into_step
+    } else if (step + 1.0).abs() < 0.3 {
+        -k.into_step
+    } else {
+        0.0
+    };
+    (amount * e, amount * tend)
+}
+
+/// The intonation `t` s into the note: the error corrected to its kept share, the tendency held.
+pub fn intonation_at(k: &Knobs, e: f32, tend: f32, t: f32) -> f32 {
+    if e == 0.0 && tend == 0.0 {
+        return 0.0;
+    }
+    let left = k.into_keep + (1.0 - k.into_keep) * math::exp(-t / k.into_s.max(1e-3));
+    tend + e * left
+}
 
 /// How a note begins.
 #[derive(Copy, Clone, Debug, PartialEq)]

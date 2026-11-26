@@ -140,9 +140,11 @@ impl Voice {
         let spec = self.spec();
         // r42 arcus-expr: the fingering (`bow::finger`): the string, an open one's rules.
         let p = s.player.clamp(0.0, 1.0);
+        let mut shift = false; // r42 arcus-classical
         if p > 0.0 {
             let from = (keep && was_bowing).then_some((was, self.string_ix));
             let fing = bow::finger(spec, self.note + self.tune, how.string, !fast, from);
+            shift = fing.shift;
             self.string_ix = fing.string;
             self.open = fing.open && tech.is_bowed();
             // (A tremolo keeps pass 6's vibrato: its level in music moved 1.5–2.5 LU with it.)
@@ -230,6 +232,22 @@ impl Voice {
         } else {
             -1.0
         };
+        // r42 arcus-classical: the player's intonation in a passage (never a note from
+        // silence: `shape::intonation`).
+        let (e, tend) = if shaped && keep && was_bowing {
+            super::super::shape::intonation(
+                &knobs,
+                p,
+                self.note + self.tune - was,
+                shift,
+                s.seed,
+                key,
+                id,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        self.into = (e, tend, 0.0);
         self.lvl = (self.swell.1, self.swell.1);
         self.stop_lift = false;
         self.rough.set(Biquad::band(2500.0, 2.5, sh.sr));
@@ -429,6 +447,7 @@ impl Voice {
         let p = s.player.clamp(0.0, 1.0);
         let spec = self.spec();
         let mut extra_ms = 0.0;
+        let mut shift = false; // r42 arcus-classical
         let ix = if p > 0.0 {
             let fing = bow::finger(
                 spec,
@@ -450,6 +469,7 @@ impl Voice {
             }
             // (A tremolo's slur is its strokes going on: its finger and dip stay pass 6's.)
             if fing.shift && !tremolo {
+                shift = true;
                 let st = (self.note + self.tune - was).abs();
                 extra_ms = p * ((st - 2.0).max(0.0) * bow::SHIFT_MS_PER_ST).min(bow::SHIFT_MS_MAX);
                 self.vib_kn *= 1.0 - 0.85 * p;
@@ -478,6 +498,21 @@ impl Voice {
         }
         // … and the vibrato's way back into a slurred note (none in a fast passage).
         self.vib_re = if shaped && !fast { 0.0 } else { -1.0 };
+        // … and its intonation.
+        let (e, tend) = if shaped {
+            super::super::shape::intonation(
+                &knobs,
+                p,
+                self.note + self.tune - was,
+                shift,
+                s.seed,
+                key,
+                id,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        self.into = (e, tend, 0.0);
         // The finger's change dips the level (the study §2.10: ~3 dB over the change).
         self.dip = (
             self.lvl_t,

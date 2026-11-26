@@ -229,6 +229,17 @@ impl Voice {
         let tun = self.tune;
         let mut semis =
             (self.note + self.glide + sh.ctl.bend * s.bend_st + self.tuning) as f64 + tun as f64;
+        // r42 arcus-classical: the player's intonation in a passage, corrected as it is heard.
+        if self.into.0 != 0.0 || self.into.1 != 0.0 {
+            self.into.2 += dt;
+            let c = super::super::shape::intonation_at(
+                self.shape.knobs(),
+                self.into.0,
+                self.into.1,
+                self.into.2,
+            );
+            semis += 0.01 * c as f64;
+        }
         // r42 fiddle: a double stop's just interval (`pair`; none without one).
         let paired = Self::paired(s);
         let (just1, just2) = if paired {
