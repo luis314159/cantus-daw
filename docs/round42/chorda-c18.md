@@ -156,6 +156,23 @@ by 8–10 dB, and a brighter band (T3c) overshot 4–8 kHz.
     18 against itself.
   - The page checked in Edge (`abx_browser_check.mjs`, `ABX_ONLY=edge,online`).
 
+## Tests
+
+- **`cantus-dsp --lib chorda`: 145 passed.** That includes the new pin (`0xb19b_545c_67c3_0ee9`),
+  candidate 17's (`MODEL_2_C17`), every earlier voicing's, `tests_voicing5`, and
+  `tests_voicing4`'s `pass` with every new part on (every block size and thread count, idle as
+  new, rest).
+- **`cantus-engine --test inst_chorda`: 14 passed.**
+- **`cantus-ui`:**
+  - `chorda_c17_e2e` and `chorda_model2_e2e` pass. A Chorda through the app knocks as a grand
+    under C8 within −22 … −4 dB.
+  - `chorda_abx`'s example tests (9) pass, among them `the_kits_shipped_chorda_is_the_apps`.
+  - `preset_render`: every Chorda preset is inside its window (+0.7 … +1.6 LU). The test failed
+    on CPU alone, under four parallel builds: Fragor's `synth_fuzz` and three Saltus presets, none
+    of them Chorda's (beta.15's known flaky CPU gate). Rerun it quiet before calling it a
+    regression.
+- **Not run on this branch:** the WSL/Linux check, clippy over the workspace, the whole suite.
+
 ## Open
 
 - The A0–C2 inharmonicity is over both grands; a keyboard change needs the tuning passes
