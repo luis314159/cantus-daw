@@ -3190,6 +3190,28 @@ SFZ reader does not honour yet — reading region-level controller ranges would 
   limit moves with the bow's speed where Schoonderwaldt's machine found it fixed.
 - **The next techniques** (harmonics, sordino, sul ponticello and tasto as their own sounds,
   col legno), **sections** (seeded players, divisi), the stage and the hybrid voice (§3e).
+**Country musicians (the owner, 2026-11-26).** *"Más después crea músicos country, ve viendo
+cómo hacerlo que queden cool."*
+- **When:** after the concert pair is at 100 %. The same figure module (ADR 0159), the same
+  hands and the same light pipeline.
+- **The picker:** new holders in Settings ▸ Appearance ▸ what holds the instrument, chosen
+  automatically when the Fiddle character or a country preset is on, and selectable by hand.
+- **The figures:** original faces, never a real artist's likeness.
+  - A fiddler in Western wear: a felt or straw cowboy hat, a pearl-snap Western shirt with
+    yokes, a vest or denim jacket, jeans, a tooled belt and boots.
+  - A bluegrass player: a hat, a button shirt with rolled sleeves, suspenders or a vest.
+  - Women and men in both.
+- **Posture and playing:** the fiddler's posture differs from the concert one. The violin
+  sits lower on the chest or the shoulder, often without a shoulder rest. The wrist is looser
+  and the bow is held further up the stick. The player stands and moves to the groove: a
+  tapping foot and some sway, which waits for the expressive musician's motion work.
+  Photographs of fiddlers are measured the way the concert players were (study only, never
+  committed).
+- **The stage:** a honky-tonk or a barn dance, or a festival stage with warm practical
+  lights, wood and a neon sign glow. Procedural and drawn by us, never photographs.
+- **The bar:** the owner judges it beside photographs of real fiddlers, in both looks and
+  both themes, before it is done.
+
 **The musician who plays expressively (the owner, 2026-11-25).** *"¿Nuestro músico se moverá
 conforme se toca? ¿Hará expresiones en función de saltos (quinta, cuarta, etc., y la
 emocionalidad que éstas dan), además de la velocidad y el vibrato?"* Today (ADR 0159) the arms
