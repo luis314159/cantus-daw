@@ -38,12 +38,21 @@ pub fn semis(st: f32) -> f32 {
 /// The hand's position for a note `s` semitones up, from where it is (`at`): it stays
 /// while the note lies under its fingers (an open string never moves it), else it shifts
 /// so the note falls under its first or its last finger, whichever is nearer.
+/// r42:arcus-hands, pass 4 — how far (semitones) the fourth finger reaches past the hand's
+/// position from the 12th semitone up.
+const HIGH_REACH: f32 = 3.0;
+
 pub fn target(at: f32, s: f32, span: f32) -> f32 {
     if s < 0.5 {
         return at;
     }
     // The note under the first finger at most, under the fourth at least.
-    let lo = (s - span).max(1.0);
+    // (r42:arcus-hands, pass 4: high up a held instrument's hand shifts rather than reach —
+    // from the 9th semitone the fourth finger's reach falls from the span to 3 by the 12th:
+    // the little finger's long reach from the 7th position put the palm into the body's
+    // shoulder, the coordinator: "let the hand shift or turn instead".)
+    let reach = span - (span - HIGH_REACH).max(0.0) * ((s - 9.0) / 3.0).clamp(0.0, 1.0);
+    let lo = (s - reach).max(1.0);
     let hi = s.max(1.0);
     if at < lo - 0.25 {
         lo

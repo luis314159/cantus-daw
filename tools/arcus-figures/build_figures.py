@@ -608,6 +608,70 @@ def sharpen_joints(pos, wt, J):
     return out
 
 
+# r42:arcus-hands, pass 4 — the coordinator at 400 %: "a smooth mitten with short, fused
+# fingers". Measured (finger_profile / web.py, as the app loads them): MCP-to-tip over
+# wrist-to-MCP her 1.00 / 1.15 / 1.09 / 0.87 (index … little), his 0.96 / 1.12 / 1.08 / 0.86 —
+# the anatomical tables' ~1.05-1.1 for the middle finger (its phalanges ~9.2 cm over the
+# carpus and metacarpal ~8.9, Buryanov & Kotiuk 2010): the bones are long enough. What read
+# short is the skin: the webs between the first phalanges reached 2.0-2.4 cm past the
+# knuckles (0.51-0.63 of the first phalanx), a real hand's commissures about a third of it
+# on the back, so a curled finger showed little free length and its neighbours fused.
+# CLEFT: how far (cm, her hand) the web between two fingers is drawn back toward the
+# knuckles, fully where the skin is shared by both first phalanges.
+CLEFT = 0.6
+# How far (cm) a nail plate stands off the nail bed's skin round it (its folds): a plate
+# with a margin, not a painted patch.
+NAIL_RISE = 0.03
+
+
+def clefts(pos, wt, J):
+    """r42:arcus-hands, pass 4 — ``CLEFT``: the skin shared by two neighbouring fingers'
+    first phalanges (each at least 0.1 of it) moved back along the fingers toward the
+    knuckles, by how evenly it is shared: the webs lower, each finger freer of its
+    neighbour (its own silhouette, a crevice between)."""
+    out = pos.copy()
+    for s_ in SIDES:
+        hand = np.linalg.norm(J[f"finger3-1.{s_}____head"] - J[f"wrist.{s_}____head"])
+        k = CLEFT * hand / 7.7
+        share = {}
+        for f in range(2, 6):
+            n = f"finger{f}-1.{s_}"
+            share[f] = np.zeros(len(pos))
+            for i, w in wt.get(n, []):
+                if i < len(pos):
+                    share[f][i] += w
+        for f in range(2, 5):
+            a, b = share[f], share[f + 1]
+            tot = a + b
+            # (How evenly the two share it: 0.5 the web's middle, 0 a finger's own side.)
+            both = np.minimum(a, b) / np.maximum(tot, 1e-6)
+            m = (tot > 0.3) & (both > 0.05)
+            if not m.any():
+                continue
+            ax = sum(J[f"finger{g}-1.{s_}____tail"] - J[f"finger{g}-1.{s_}____head"]
+                     for g in (f, f + 1))
+            ax = ax / np.linalg.norm(ax)
+            amt = smooth01((both - 0.05) / 0.2) * np.clip(tot, 0.0, 1.0) * k
+            out[m] -= ax[None, :] * amt[m][:, None]
+    return out
+
+
+def raise_nails(pos, tris, nf):
+    """r42:arcus-hands, pass 4 — ``NAIL_RISE``: each nail's inner vertices (no skin
+    triangle touches them) lifted off the finger along their normal, so the plate stands
+    over its folds and its free edge (the coordinator: "no nail reads at any size")."""
+    nail = nf[tris].mean(1) > 0
+    on_skin = np.zeros(len(pos), bool)
+    on_skin[tris[~nail].ravel()] = True
+    inner = np.zeros(len(pos), bool)
+    inner[tris[nail].ravel()] = True
+    inner &= ~on_skin
+    n = vnormals(pos, tris)
+    out = pos.copy()
+    out[inner] += n[inner] * NAIL_RISE
+    return out
+
+
 def _profile(t, table):
     xs = np.array([a for a, _ in table])
     ys = np.array([b for _, b in table])
@@ -1361,6 +1425,7 @@ def make(sex, data, assets):
     pos = finger_form(pos, wt, J, sex)  # r42:arcus-hands, pass 3
     pos = shape_arms(pos, wt, J, sex)  # r42:arcus-polish
     pos = slim_hand(pos, wt, J)  # r42:arcus-polish
+    pos = clefts(pos, wt, J)  # r42:arcus-hands, pass 4
     W = scene_weights(len(pos), sharpen_joints(pos, wt, J), m2s)  # r42:arcus-hands, pass 3
     tris_all, tuv_all = triangulate(faces)
     pos = relief(pos, tris_all, J, sex)  # r42:arcus-polish
@@ -1431,6 +1496,7 @@ def make(sex, data, assets):
     nf = nail_field(pos, W, sk, J)
     pos, W, (lum, red, su, sv), btris, nf = cut(pos, W, [lum, red, vuv[:, 0], vuv[:, 1]],
                                                 btris, nf)
+    pos = raise_nails(pos, btris, nf)  # r42:arcus-hands, pass 4
     # Her or his texture told apart by u (his 2 … 3): the bake picks the texture by it.
     vuv = np.stack([su + (0.0 if sex == "female" else 2.0), sv], 1)
     head_w = np.array([d.get(BI["head"], 0.0) / max(sum(d.values()), 1e-9) for d in W])

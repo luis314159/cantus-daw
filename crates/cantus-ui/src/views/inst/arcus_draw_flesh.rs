@@ -522,7 +522,8 @@ const SKIN_VARY: (f32, f32) = (0.05, 0.12);
 /// r42:arcus-hands, pass 2 — a nail's broad gloss (its power and strength) and its sheen at
 /// a glance.
 const NAIL_GLOSS: (i32, f32, f32) = (14, 0.1, 0.08);
-const TENDON: (f32, f32) = (0.045, 0.22);
+/// (r42:arcus-hands, pass 4: 0.07 — crop-08's tendons fanning to the knuckles.)
+const TENDON: (f32, f32) = (0.07, 0.22);
 
 /// How near two open edges lie to be one seam's sides (cm; the thinning's shortest edge).
 const SEAM_NEAR: f32 = 0.62;
@@ -561,6 +562,16 @@ fn hand_detail(
         if *st == Stuff::Nail {
             for &i in t {
                 nail[i as usize] = true;
+            }
+        }
+    }
+    // r42:arcus-hands, pass 4 — the skin round each nail (its folds): a skin triangle's
+    // corners where another corner is the nail's.
+    let mut fold = vec![false; verts.len()];
+    for (t, st) in tris.iter().zip(stuff) {
+        if *st == Stuff::Skin && t.iter().any(|&i| nail[i as usize]) {
+            for &i in t {
+                fold[i as usize] |= !nail[i as usize];
             }
         }
     }
@@ -645,14 +656,14 @@ fn hand_detail(
             let t = (p - bn.head).dot(ax) / ax.dot(ax).max(1e-6);
             if nail[i] {
                 // The free edge pale, the bed pink.
-                let edge = ((t - 0.78) / 0.12).clamp(0.0, 1.0);
                 // r42:arcus-polish — and the lunula at its root, a paler crescent.
-                let lunula = (1.0 - ((t - 0.45) / 0.1).clamp(0.0, 1.0)) * (1.0 - edge);
-                d = [
-                    d[0] * (1.0 + 0.16 * edge + 0.1 * lunula),
-                    d[1] + 0.25 * (1.0 - edge - lunula) - 0.45 * edge - 0.2 * lunula,
-                ];
-                return d;
+                // (r42:arcus-hands, pass 4: as the plate is drawn — `skin::nail`.)
+                return super::skin::nail(t);
+            }
+            if fold[i] && (bone - o - hu::finger(0, 0)) % 3 == 2 {
+                // r42:arcus-hands, pass 4 — the nail's folds: the cuticle's line at its root
+                // and the side folds, a little darker and redder (`skin::fold`).
+                return super::skin::fold(d, t);
             }
             // Over a joint on the back: the base and middle knuckles.
             let k = (bone - o - hu::finger(0, 0)) % 3;
@@ -1017,9 +1028,12 @@ impl LutAt<'_> {
         }
         // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
         // occlusion.
-        if matches!(st, Stuff::Skin | Stuff::Lips) {
-            let (lum, red) = (detail[0].min(1.1), detail[1]);
-            let f = super::skin::blood(red, hand); // r42:arcus-hands, pass 3
+        if matches!(st, Stuff::Skin | Stuff::Lips | Stuff::Nail) {
+            // (r42:arcus-hands, pass 4: and the nails' — their bed, lunula and free edge
+            // were worked out per vertex and never drawn: one pale cap.)
+            let nail = st == Stuff::Nail;
+            let (lum, red) = (detail[0].min(if nail { 1.25 } else { 1.1 }), detail[1]);
+            let f = super::skin::blood(red, if nail { 1.0 } else { hand }); // r42:arcus-hands, pass 3
             for (ck, fk) in c.iter_mut().zip(f) {
                 *ck *= lum * fk;
             }
@@ -2243,8 +2257,10 @@ fn ras_samples(ppp: f32) -> usize {
 }
 
 /// r42:arcus-hands — the hand's own occlusion: its gain and the most it darkens.
-const AO_K: f32 = 0.45;
-const AO_MOST: f32 = 0.4;
+/// (r42:arcus-hands, pass 4: 0.65 and 0.52 — the coordinator: neighbouring fingers "melt into
+/// each other"; a dark crevice where two touch.)
+const AO_K: f32 = 0.65;
+const AO_MOST: f32 = 0.52;
 /// r42:arcus-hands — how far (cm) a crease is sorted in front of the skin it lies on.
 const MARK_AHEAD: f32 = 0.12;
 
@@ -2813,7 +2829,7 @@ const SLEEVE_INSIDE: f32 = 2.5;
 const INSIDE_SHADE: f32 = 0.72;
 
 /// r42:arcus-polish — how strongly the back of the hand's veins show.
-const VEIN: f32 = 0.8;
+const VEIN: f32 = 1.1; // r42:arcus-hands, pass 4 (was 0.8: crop-08's veins)
 
 /// How far apart the elbow's folds lie (cm).
 const FOLD_CM: f32 = 2.4;

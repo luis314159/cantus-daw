@@ -36,7 +36,8 @@ const KNUCKLE_RED: f32 = 0.5;
 
 /// r42:arcus-hands, pass 3 — `CANTUS_HAND_TUNE="a,b,_,d…"`: the hands' look's numbers
 /// overridden while designing it in `shoot_arcus` (index `i`: 0–2 the gains, 3–5 the sheen,
-/// 6–8 the blood, 9 the tips, 10 the knuckles, 11 the creases' floor; `_` keeps one).
+/// 6–8 the blood, 9 the tips, 10 the knuckles, 11 the creases' floor, 12–14 the nail's bed
+/// and free edge, 15 its folds; `_` keeps one).
 /// Read once; unset in the app.
 pub fn tune(i: usize, d: f32) -> f32 {
     static T: OnceLock<Vec<Option<f32>>> = OnceLock::new();
@@ -82,7 +83,7 @@ pub fn sheen(n: V3, e: V3, l: V3, ao: f32) -> (f32, f32) {
 /// bends): crop-02's and crop-08's bent middle joints still show their folds round the
 /// stretched knuckle (was 0).
 pub fn crease_floor() -> f32 {
-    tune(11, 0.45)
+    tune(11, 0.6)
 }
 
 /// The fingertips' pads' redness (see [`TIP_RED`]).
@@ -111,4 +112,25 @@ pub fn as_hand<R>(hand: bool, f: impl FnOnce() -> R) -> R {
 /// Whether the light is being worked out as the hands' skin (see [`as_hand`]).
 pub fn hand_now() -> bool {
     HAND.with(|h| h.get())
+}
+
+/// r42:arcus-hands, pass 4 — a nail's detail (luminance, redness) at `t` along its finger's
+/// last bone: the bed pink through the plate, the lunula a paler crescent at its root, the
+/// free edge white past the tip's pad (crop-08's raised index: a pink plate, a white rim).
+pub fn nail(t: f32) -> [f32; 2] {
+    let edge = ((t - 0.8) / 0.1).clamp(0.0, 1.0);
+    let lunula = (1.0 - ((t - 0.5) / 0.1).clamp(0.0, 1.0)) * (1.0 - edge);
+    let bed = 1.0 - edge - lunula;
+    [
+        tune(12, 0.96) * bed + 1.06 * lunula + tune(13, 1.2) * edge,
+        tune(14, 0.5) * bed + 0.1 * lunula - 0.6 * edge,
+    ]
+}
+
+/// r42:arcus-hands, pass 4 — the skin of a nail's folds (its detail `d`, `t` along the last
+/// bone): the cuticle's line at the root darker and redder, the side folds less so.
+pub fn fold(d: [f32; 2], t: f32) -> [f32; 2] {
+    let root = 1.0 - ((t - 0.55) / 0.15).clamp(0.0, 1.0);
+    let k = tune(15, 0.14) * (0.5 + 0.5 * root);
+    [d[0] * (1.0 - k), d[1] + 0.3 + 0.2 * root]
 }
