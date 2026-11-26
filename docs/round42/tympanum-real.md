@@ -142,15 +142,16 @@ velocities before anything changed.
    recordings 193–224); brightness rising with level (true for kicks, toms and cymbals in the
    recordings, and in Tympanum; not for a snare — four of seven recorded snares are brighter soft,
    the wires carrying a ghost note — so a snare must not be made to brighten).
-7. **Where the stick lands (changed, a control's range only).** `position.py` reads centre and
-   off-centre strokes from the packs' own files. On Virtuosity's rack tom, the (1,1) region
-   (1.35–1.75 × the fundamental) over the fundamental is −16 … −24 dB struck at the centre and
-   −7 … −13 dB off it, layer by layer — the nodal-diameter modes a centre stroke leaves still. Big
-   Rusty's snare (wires on) moves the same way by 3–6 dB at the louder layers; Virtuosity's snare,
-   with the wires on or off, gives no steady difference in this measure (its f0 is hard to read
-   under the noise). So a drum's `p{n}.pos` towards the edge now also raises its (1,1) and (2,1)
-   regions by up to `EDGE_DB` (10 dB at the edge, as much lower at the very centre); at its
-   default (0, as measured) nothing moves. Test: `a_tom_struck_at_its_edge_rings_its_nodal_diameter_modes`.
+7. **Where the stick lands (measured, not changed).** `position.py` reads centre and off-centre
+   strokes from the packs' own files. On Virtuosity's rack tom the (1,1) region (1.35–1.75 × the
+   fundamental) over the fundamental is −16 … −24 dB struck at the centre and −7 … −13 dB off it,
+   layer by layer — the nodal-diameter modes a centre stroke leaves still; Big Rusty's snare
+   (wires on) moves the same way by 3–6 dB at its louder layers; Virtuosity's snare, wires on or
+   off, gives no steady difference (its f0 is hard to read under the noise). A first try that
+   raised a measured drum's (1,1)/(2,1) regions with `p{n}.pos` did not show the rise through
+   Pulsus (its own test measured the ratio falling: the 3-dB-an-octave tilt and the glide move
+   the modes it names), so it was taken out: the edge stroke waits for model 6's modes driven
+   through the strike point (each mode's shape at the point, not a band boost).
 
 ## 5. Brushes — the plan (not built)
 
@@ -202,11 +203,11 @@ python -I tools/tympanum-real/law.py law.log <work>/hits <crates/cantus-dsp/src/
 packs joined from the app's folder; MuldjordKit stopped at 0.8 GB when F: neared its floor — the
 manifest's `muldjordkit-tympanum` pack fetches it later; ShittyKit's old DrumGizmo format the
 builder refuses, removed); the tools above; the measures of eight recorded kits and Tympanum's two;
-the level law, the jazz toms' burst, the jazz hat's spread and the edge stroke's modes
+the level law, the jazz toms' burst and the jazz hat's spread
 (`DSP_VERSION` 19, ADR 0124's sixth amendment); the owner's previews and report.
 
 **Tests:** cantus-dsp `pulsus::measured` (the law interpolates; every table grows at every step;
-the burst and spread tables; the edge stroke's (1,1) region; the existing block-size, rest and
+the burst and spread tables; the existing block-size, rest and
 choke tests), cantus-engine's Tympanum lib tests (14), `inst_contract` (51) and `rt_memory` (68) on
 the law; cantus-ui `tympanum_e2e`'s `every_modelled_piece_grows_with_the_velocity_through_the_app`
 through `CantusApp::assemble`.

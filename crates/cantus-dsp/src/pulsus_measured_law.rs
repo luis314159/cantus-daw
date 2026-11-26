@@ -85,8 +85,3 @@ pub(crate) fn spread(id: u8) -> f32 {
         .find(|(t, _)| *t == id)
         .map_or(1.0, |(_, g)| *g)
 }
-
-/// How much louder a drum's (1,1) and (2,1) regions ring when struck at its edge (`p{n}.pos`
-/// at 1; as much quieter at −1, the very centre), dB: Virtuosity's rack tom, off its centre
-/// against at its centre, over its fundamental, 7–12 dB layer by layer (`position.py`).
-pub(crate) const EDGE_DB: f32 = 10.0;

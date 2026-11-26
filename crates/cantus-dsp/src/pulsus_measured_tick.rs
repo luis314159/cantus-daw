@@ -501,16 +501,6 @@ impl Object {
             amax = amax.max(a);
             if tilt != 0.0 {
                 a *= amp_of(3.0 * tilt * math::log2(t.hz[i] / 250.0));
-                // A drum struck towards its edge drives the nodal-diameter modes — (1,1)
-                // near 1.5 × its fundamental, (2,1) near 2.1 × — that a centre stroke leaves
-                // nearly still: Virtuosity's rack tom off its centre rings that region 7–12 dB
-                // louder over its fundamental than at its centre (r42:tympanum-real, `position.py`).
-                if t.drum && t.low_hz > 0.0 {
-                    let r = t.hz[i] / t.low_hz;
-                    if (1.3..1.8).contains(&r) || (1.9..2.3).contains(&r) {
-                        a *= amp_of(super::law::EDGE_DB * tilt);
-                    }
-                }
             }
             let (ph, jitter) = if onset {
                 let spread = 0.1 + t.hz[i] * self.ratio * 0.001;
