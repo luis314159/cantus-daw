@@ -1227,8 +1227,8 @@ system assets on this machine now also hold `hair/short01`, `short03`, `short04`
 `arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
 `scene_identity` ✓ (Chorda's and Tympanum's pictures unchanged), `arcus_figure_auto` ✓,
 `arcus_arm_pose` ✓ (the bow arm; the left arm's ignored for arcus-hands), the new
-`no_skin_shows_through_or_under_her_bow_sleeve` ✓; clippy `-D warnings` on cantus-ui: see
-the final commit. `arcus_figure_shape` ✗ on its taper rule only — "Woman violin/viola arm
+`no_skin_shows_through_or_under_her_bow_sleeve` ✓; clippy `-D warnings` on cantus-ui ✓
+(on 271600266). Build 15 (271600266): the same, `arcus_figure_specks` 200 strays. `arcus_figure_shape` ✗ on its taper rule only — "Woman violin/viola arm
 1: no elbow": her bent bow elbow 9.2 cm across the crook against the upper arm's middle
 8.3/8.6 (the deltoid 10.3/10.4 and every width in its band; the viola's failed the same rule
 before this pass, 9.8 against 8.7). `arcus_figure_specks`' stray count ~250: the largest
