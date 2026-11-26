@@ -729,9 +729,13 @@ fn level_law_dump() {
                     });
                     at += c;
                 }
-                e += rms(&out).powi(2);
+                let r = rms(&out);
+                e += r * r;
             }
-            line += &format!(" {vel}:{:.1}", 10.0 * (e / 3.0).max(1e-20).log10());
+            line += &format!(
+                " {vel}:{:.1}",
+                10.0 * crate::math::log10((e / 3.0).max(1e-20))
+            );
         }
         eprintln!("{line}");
     }
@@ -756,7 +760,7 @@ fn first_80ms_db(table: u8, vel: u8, id: u64) -> f32 {
         });
         at += c;
     }
-    20.0 * rms(&out).max(1e-10).log10()
+    20.0 * crate::math::log10(rms(&out).max(1e-10))
 }
 
 /// The level law (r42:tympanum-real): every measured table grows with the velocity at every
