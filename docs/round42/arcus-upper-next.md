@@ -1660,3 +1660,42 @@ the figures built from this pass's `build_figures.py`, `fig1s\` those with a pac
   Greiner's means (1.8 / 2.1) on purpose: pass 3 measured the reference violinists at 1.6–1.7
   and the owner had found the hand "tosca". The one-page Spanish summary:
   `F:\projects\daw-r42\tmp\hands6\proporciones.html`.
+- *The table at the end of pass 6* (`assets/figures/left_hand.bin` from
+  `F:\projects\daw-r42\tmp\hands6\s10\`'s caches: `blend_fix.py` two sweeps on the final
+  figures, seeded by the earlier solves; `snap.sh` packs and gates a copy). `arcus_hand_table`
+  (release, these assets): **penetration 63 → 32 cases, the worst skin 12.2 → 2.8 mm** (the
+  playing pad 1.8; 8 at +12, 6 at +14, 6 at +17, the pad at +7/+9); `blend_check.py --mid`
+  over every row and every pair's thirds: 342 points over the slack, median 1.5 mm, worst 8.4
+  (pass 5: 500 thirds, to 20 mm). **Rule breaks 49 → 82**: 22 the thumb's tip against the
+  index's base (mostly +12/+14), 19 `PALM_WIDE` on her reach and high rows (her outline at the
+  middle 7–9.8 cm from the camera against a 4.0–4.3 cm wrist: the ANSUR-wide palm seen nearly
+  broadside there), 19 knuckles 3.5–3.9 cm over the board at +12/+14 (`KNUCKLES_UP` 3.4), 16 the
+  index's base 2.2–2.9 cm out from the E edge (the solver's `INDEX_OUT` 1.8 does not hold
+  against the high rows' other rules).
+- *Gates* (release, this tree): see the end-of-pass list below.
+- *Sheets*: 400 % `F:\projects\daw-r42\tmp\hands6\z6c\` (before = pass 5, after = pass 6, with
+  crop-08/02/11), 100 % / 200 % sheet v14 `F:\projects\daw-r42\tmp\hands6\sheet-p6\`; the
+  owner's page `proporciones.html`.
+
+**Open after pass 6, in order**: (1) her hand turned a little more edge-on in the reach and
+high rows (`PALM_WIDE`'s 19), and the thumb's and knuckles' rows at +12/+14 — a residual for
+the outline's middle over the wrist from the app's eye beside `thumb_peek`, then
+`blend_fix.py --keys=` those rows; (2) the index's base out from the E edge (16); (3)
+`arcus_hold::the_left_hand_passes_behind_the_neck` now fails on Vector Violin Man (a skin
+pixel over the neck at [459, 271] at 2x: Light's per-triangle split, the wider knuckles —
+look at it with the pen view and the shot; the test stops at its first failure, so the
+cello case is not reached); (4) the slit at her
+hand's ulnar edge low in high position at 400 % (seen in pass 6's first shots, unexplained);
+(5) one dark speck on his left hand at 100 %; (6) Chatzioglou's finger lengths still put the
+fingers at p68–88 (their crease ~0.45 cm out from ANSUR II's), and the PIP breadths stay a
+slim violinist's.
+
+**Gates at the end of pass 6** (release binaries of this tree, the installed assets, the
+machine loaded by other builders): green `arcus_hand_shape` (the lobe in: her 0.21 / 0.20 in
+pass 5), `arcus_hand_form` (proportions with the floor at 0.95, nails, **no dark specks**:
+pass 5 had 3), `arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint`. Red
+`arcus_hand_table` (32 penetration cases, 82 rule breaks, above) and
+`arcus_hold::the_left_hand_passes_behind_the_neck` on Vector Violin Man (a skin pixel at
+[459, 271] at 2x over the neck: most likely the wider index base, legitimately in front of the
+neck, covering a hidden vertex's pixel that the test's clearance round the stylised tubes no
+longer excludes — not yet confirmed).
