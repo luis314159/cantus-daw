@@ -70,3 +70,18 @@ pub(crate) fn burst(id: u8) -> f32 {
         .find(|(t, _)| *t == id)
         .map_or(1.0, |(_, g)| *g)
 }
+
+/// A table's hit-to-hit variation scaled (its modes' ± ~1.5 dB and its bands' ± ~0.7 dB,
+/// drawn per hit). The jazz kit's hi-hat (table 18) varied 6.1 dB from one closed stroke to
+/// the next at one velocity (the third-octave spectrum's RMS difference, 250 Hz – 16 kHz)
+/// where every recorded closed hat varies 1.4–2.0 dB and the studio hat 1.65: a few strong
+/// partials carry its bands, so each one's draw moves them. A table not listed keeps it.
+pub(crate) const SPREAD: &[(u8, f32)] = &[(18, 0.35)];
+
+/// Table `id`'s variation scale (1 for a table not in [`SPREAD`]).
+pub(crate) fn spread(id: u8) -> f32 {
+    SPREAD
+        .iter()
+        .find(|(t, _)| *t == id)
+        .map_or(1.0, |(_, g)| *g)
+}

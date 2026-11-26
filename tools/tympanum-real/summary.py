@@ -139,7 +139,10 @@ def summarise_kind(hs, kind):
     for g in groups.values():
         if len(g) < 2:
             continue
-        sp = np.array([h["spec3"] for h in g])[:, 4:29]  # 63 Hz … 16 kHz
+        # 63 Hz … 16 kHz; a hat's and a cymbal's from 250 Hz (under it a plate gives only the
+        # other pieces' bleed and the room, a narrow noise whose 200-ms level is its own lottery)
+        lo = 10 if kind in ("hihat", "crash", "ride") else 4
+        sp = np.array([h["spec3"] for h in g])[:, lo:29]
         sp = sp - sp.max(axis=1, keepdims=True)
         sp = np.maximum(sp, -60)
         for i in range(len(g)):

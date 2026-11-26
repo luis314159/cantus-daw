@@ -807,4 +807,9 @@ fn a_table_without_its_burst_and_every_other_with_its_own() {
     for id in [1u8, 4, 5, 6, 17, 20, 21, 23] {
         assert_eq!(burst(id), 1.0);
     }
+    // and only the jazz hat's variation is scaled
+    assert!(super::law::spread(18) < 1.0);
+    for id in [1u8, 2, 4, 5, 17, 19, 22] {
+        assert_eq!(super::law::spread(id), 1.0);
+    }
 }
