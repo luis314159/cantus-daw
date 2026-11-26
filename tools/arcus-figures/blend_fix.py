@@ -32,7 +32,7 @@ sys.path.insert(0, HERE)
 import blend_check as B  # noqa: E402
 import left_hand as L  # noqa: E402
 
-KS = (0.25, 0.5, 0.75)
+KS = (0.5,)
 # The gate's own blends (``hand::target``: +14 is the 11th position, two thirds from the 9th
 # to the 12th; +17 the 14th; +7 and +9 the 2nd and 4th, halfway).
 KS_EXTRA = (1.0 / 3.0, 2.0 / 3.0)
@@ -130,13 +130,20 @@ def rules(pose, x, at):
                 h.angles(W, Rh, P)[p + 1][1] > 108:
             return True
     qi = pose.neck.loc(P[1, 0])
-    return qi[0] - pose.neck.hw(qi[1]) > 2.1 * pose.k
+    if qi[0] - pose.neck.hw(qi[1]) > 2.1 * pose.k:
+        return True
+    # (and the thumb's tip past the neck's far side from the app's eye: left_hand's
+    # thumb_peek.)
+    most = pose.peek_most()
+    return any(pose.peek(P[0, k]) + r * pose.k - most > 0.1 for k, r in ((2, 0.75), (3, 0.6)))
 
 
 def main():
     dump = sys.argv[1]
     D = json.load(open(dump))
-    L.dense()
+    # (The rows are solved on the thinned skin, as left_hand.py solves them, near the
+    # instrument only; what they reach is checked on every skin point.)
+    thin = {}
     here = os.path.dirname(os.path.abspath(dump))
     arg = {a.split("=", 1)[0]: a.split("=", 1)[1] for a in sys.argv[2:] if "=" in a}
     only = arg["--only"]
@@ -145,6 +152,8 @@ def main():
     worse = float(arg.get("--worse", "0.3")) / 10.0
     keys = arg.get("--keys")
     F = next(F for F in D["figs"] if f'{F["who"]}-{F["inst"]}' == only)
+    thin = L.Hand(F["who"])
+    L.dense()
     h = L.Hand(F["who"])
     cache = B.cache_of(here, only)
     b = B.Blend(F, h, cache)
@@ -181,7 +190,7 @@ def main():
             key = f"{only}-{string}-{finger}-{at:g}"
             row = b.rows[(string, finger, at)]
             mids = Row.mids_of(b, at)
-            hs = near(b, h, string, finger, at, mids)
+            hs = near(b, thin, string, finger, at, mids)
             pose = L.Pose(hs, neck, F, row, R0)
             i = b.ats.index(at)
             lo = cache.get(f"{only}-{string}-{finger}-{b.ats[i - 1]:g}") if i > 0 else None
@@ -209,7 +218,7 @@ def main():
                             xs = xn.copy()
                             xs[:3] = x0[:3]
                             starts.append(xs)
-            for _ in range(1):
+            for _ in range(0):
                 xs = x0.copy()
                 xs[:3] += rng.normal(0, 0.5, 3)
                 xs[3:6] += rng.normal(0, 0.12, 3)

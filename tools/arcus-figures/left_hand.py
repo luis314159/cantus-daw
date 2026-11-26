@@ -381,6 +381,13 @@ CROOK_Z = (-1.2, 0.3)
 # (cm, her hand; the gate's INDEX_OUT 2.2 with a margin), and the rule's weight.
 INDEX_OUT = 1.8
 INDEX_OUT_W = 12.0
+# r42:arcus-hands, pass 6 — how far (cm) the thumb's skin may show past the neck's far
+# silhouette from the app's eye (a sliver of the pad; in first position the tip's end, as
+# crop-08 shows it), a little more past the heel, and the rule's weight.
+THUMB_PEEK = 0.15
+THUMB_PEEK_FIRST = 0.6
+THUMB_PEEK_HIGH = 0.2
+THUMB_PEEK_W = 10.0
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
 # The thumb's flex (MCP, IP): relaxed.
@@ -474,12 +481,42 @@ class Pose:
         self.playing = row["playing"]
         self.want_names = False
         self.solid = solid_of(F)
+        self.eye = np.array(F["eye"])
         self.pen_w = PEN_W
         # How far the hand is past the neck's heel, 0 (at or below it) to 1 (HIGH beyond).
         y12 = neck.loc(self.tips[0])[1] * 0.6 + neck.loc(self.tips[1])[1] * 0.4
         self.y12 = y12
         self.yh = neck.body + HEEL
         self.high = float(np.clip((self.yh - y12) / HIGH, 0.0, 1.0))
+
+    def peek(self, p):
+        """r42:arcus-hands, pass 6 — how far (cm) the point ``p`` stands past the neck's
+        far (G) silhouette as the app's eye sees it: in the neck's cross-section at ``p``,
+        across the eye's way, beyond the section's farthest point (the fingerboard's and the
+        neck's polygons as drawn)."""
+        q = self.neck.loc(p)
+        e = self.neck.loc(self.eye)
+        d = np.array([e[0] - q[0], e[2] - q[2]])
+        d /= max(np.linalg.norm(d), 1e-6)
+        n = np.array([-d[1], d[0]])
+        if n[0] > 0:
+            n = -n
+        far = -1e9
+        for ys, polys in (self.solid.board, self.solid.shaft):
+            y = np.clip(q[1], ys[0], ys[-1])
+            i = int(np.clip(np.searchsorted(ys, y), 1, len(ys) - 1))
+            t = np.clip((y - ys[i - 1]) / max(ys[i] - ys[i - 1], 1e-6), 0, 1)
+            poly = polys[i - 1] * (1 - t) + polys[i] * t
+            far = max(far, float((poly @ n).max()))
+        return float(np.array([q[0], q[2]]) @ n) - far
+
+    def peek_most(self):
+        """How far the thumb's skin may show past the neck's far side here (cm): crop-08's
+        first position shows its tip's end over the neck (~0.6 cm), crop-11's none, crop-02's
+        third and high positions none."""
+        at = self.row["at"]
+        first = float(np.clip((3.0 - at) / 2.0, 0.0, 1.0))
+        return THUMB_PEEK + (THUMB_PEEK_FIRST - THUMB_PEEK) * first + THUMB_PEEK_HIGH * self.high
 
     def unpack(self, x):
         W = x[:3]
@@ -604,6 +641,14 @@ class Pose:
         y12 = self.y12
         yt = y12 if y12 >= self.yh else self.yh - THUMB_LAG * (self.yh - y12)
         add("thumb_y", 4.0 * over(qt[1] - yt, -0.8, 1.2))
+        # (r42:arcus-hands, pass 6 — the coordinator at 400 %: in third position the
+        # thumb's tip peeked out past the neck's far side, a stray fingertip; crop-02 and
+        # crop-11 show the thumb under the neck, at most a sliver of its pad beside the
+        # edge. Seen from the app's eye, the thumb's last joint and tip, with their skin,
+        # stand no more than THUMB_PEEK past the neck's far silhouette.)
+        for k_, r_ in ((2, 0.75), (3, 0.6)):
+            add(f"thumb_peek{k_}", THUMB_PEEK_W * max(0.0, self.peek(P[0, k_]) + r_ * self.k
+                                                         - self.peek_most()))
         # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
         # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
         # abultada gorda").
