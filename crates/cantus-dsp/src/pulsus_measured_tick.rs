@@ -365,6 +365,9 @@ impl Object {
     /// Add a hit: a slot for its bands, its modes into the ringing bank, its stick.
     pub(super) fn hit(&mut self, t: &'static Table, h: &Strike, sr: f32) {
         let (w, offset) = blend(t, h);
+        // The recording's level law across velocity (r42:tympanum-real; 0 for a table
+        // without one): the whole hit, modes, bands and stick alike.
+        let offset = offset + super::law::law_db(t.id, h.vel);
         // Each state's share (two when a hat's stroke falls between two openings).
         let sws = [w[0].1 + w[1].1, w[2].1 + w[3].1];
         let two = sws[0] > 0.0 && sws[1] > 0.0;

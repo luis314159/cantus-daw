@@ -67,8 +67,17 @@ def main_hits(hits, kind):
             # an open hat's art is not the closed one: the least open
             if kind == "hihat":
                 art = min(arts, key=lambda a: min(h["open"] for h in hs if h["art"] == a))
-    pieces = list(dict.fromkeys(h["piece"] for h in hs if h["art"] == art))
-    return [h for h in hs if h["art"] == art and h["piece"] == pieces[0]]
+    cand = [h for h in hs if h["art"] == art]
+    # the same piece in every kit: a rack tom on General MIDI's 45 (else 47, 48, 50, else
+    # the first rack tom, else a floor tom); the kick on 36; else the first
+    pref = {"tom": (45, 47, 48, 50, 43, 41), "kick": (36, 35)}.get(kind, ())
+    for k in pref:
+        if any(h["key"] == k and h["kind"] != "floortom" for h in cand) or (
+                k in (43, 41) and any(h["key"] == k for h in cand)):
+            cand = [h for h in cand if h["key"] == k]
+            break
+    pieces = list(dict.fromkeys(h["piece"] for h in cand))
+    return [h for h in cand if h["piece"] == pieces[0]]
 
 
 def by_vel(hs, key):

@@ -30,6 +30,9 @@ GMD = REFS / "drums" / "gmd" / "groove"
 EXE = os.environ.get("TYMPANUM_REAL_EXE", str(REPO / "target" / "release" / "examples" / "tympanum_real.exe"))
 PY = sys.executable
 
+KINDS = "kick,snare,racktom,floortom,hihat,crash,ride"
+VELS = "16,32,48,64,80,100,127"  # the soft end dense: 41 % of real snare strokes are under 40
+SLOT = "4"
 # id, kit text, label, genre, role
 KITS = [
     ("drskit", "pack:drskit-tympanum/kit", "DRSKit", "rock/pop (estudio)", "ref"),
@@ -104,13 +107,15 @@ def hits(work):
         d = work / "hits" / ("ref" if role == "ref" else tag)
         d.mkdir(parents=True, exist_ok=True)
         wav = d / f"{kid}.wav"
-        if not wav.exists() or role != "ref":
-            cmd = [EXE, "hits", ROOT, wav, kit]
+        if not wav.with_suffix(".jsonl").exists() or role != "ref":
+            cmd = [EXE, "hits", ROOT, wav, kit, "--kinds", KINDS, "--vels", VELS, "--slot", SLOT]
             if sets and role != "ref":
                 cmd += ["--set", sets]
             run(cmd)
         if not wav.with_suffix(".jsonl").exists() or role != "ref":
             run([PY, "-I", HERE / "measure.py", wav])
+            if os.environ.get("TYMPANUM_REAL_KEEP") != "1":
+                wav.unlink()  # 0.5-1 GB of float a kit: the measures are what is kept
 
 
 def grooves(work):

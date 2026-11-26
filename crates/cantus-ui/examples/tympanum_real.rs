@@ -5,13 +5,14 @@
 //! ```text
 //! cargo run --release -p cantus-ui --example tympanum_real -- info <content root> <kit> [<kit> …]
 //! cargo run --release -p cantus-ui --example tympanum_real -- hits <content root> <out.wav> <kit>
-//!     [--vels 20,40,…] [--takes 3] [--slot 5] [--kinds kick,snare,…] [--set k=v,…]
+//!     [--vels 20,40,…] [--takes 3] [--slot 5] [--slot-cym 6] [--kinds kick,snare,…] [--set k=v,…]
 //! cargo run --release -p cantus-ui --example tympanum_real -- notes <content root> <out.wav> <kit>
 //!     <notes.csv> [--set k=v,…]
 //! ```
 //!
 //! A kit is `model:<id>` or `pack:<pack>/<kit>` (a pack under `<content root>` with a receipt).
-//! `info` prints each kit's pieces, articulations (key, openness) and mics as JSON lines.
+//! `dg-build <root> <drumkit.xml> <out dir>` builds a DrumGizmo kit into an SFZ multi-mic kit
+//! as the app's install does (`cantus_content::user_pack::dg`). `info` prints each kit's pieces, articulations (key, openness) and mics as JSON lines.
 //! `hits` plays every articulation alone at each velocity, `takes` times (consecutive hits
 //! draw different takes), each in a `slot`-second window, and writes a 32-bit float stereo
 //! WAV and beside it `<out>.csv` (one row per hit: its start frame, piece, kind, articulation,
@@ -28,6 +29,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 const RATE: f64 = 48_000.0;
+static ROOT: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 const BPM: f64 = 60.0;
 
 fn kit_def(kit: &str) -> KitDef {
@@ -35,8 +37,13 @@ fn kit_def(kit: &str) -> KitDef {
     if let Some(id) = kit.strip_prefix("model:") {
         return modelled_kit(id).unwrap_or_else(|| panic!("no modelled kit {id}"));
     }
-    let rec = cantus_engine::inst::tympanum::cache::recorded(&r)
-        .unwrap_or_else(|| panic!("{kit}: not readable"));
+    let rec = cantus_engine::inst::tympanum::cache::recorded(&r).unwrap_or_else(|| {
+        let why = ROOT
+            .get()
+            .map(|root| cantus_ui::tympanum_load::read_pack_kit(root, &r).err())
+            .unwrap_or_default();
+        panic!("{kit}: not readable ({why:?})")
+    });
     for l in &rec.log {
         eprintln!("{kit}: {l}");
     }
@@ -179,9 +186,11 @@ fn hits(out: &Path, kit: &str, args: &[String]) {
     let slot: f64 = arg(args, "--slot").map_or(5.0, |t| t.parse().unwrap());
     let kinds: Option<Vec<String>> =
         arg(args, "--kinds").map(|k| k.split(',').map(str::to_string).collect());
+    let slot_cym: f64 = arg(args, "--slot-cym").map_or(6.0, |t| t.parse().unwrap());
     let sets = arg(args, "--set").unwrap_or("");
     let d = kit_def(kit);
     let mut notes = Vec::new();
+    let mut next = 0.5;
     let mut csv = String::from("start,piece,kind,art,key,open,vel,take\n");
     // takes vary fastest so each velocity's takes sit side by side
     for p in &d.pieces {
@@ -189,11 +198,20 @@ fn hits(out: &Path, kit: &str, args: &[String]) {
         if kinds.as_ref().is_some_and(|k| !k.contains(&kind)) {
             continue;
         }
+        // cymbals ring past a drum's window: theirs is `--slot-cym` (6 s)
+        let cymbal = matches!(
+            kind.as_str(),
+            "crash" | "ride" | "splash" | "china" | "stack"
+        );
+        let len = if cymbal { slot_cym } else { slot };
         for a in &p.articulations {
             for &v in &vels {
                 for take in 0..takes {
-                    let at = 0.5 + notes.len() as f64 * slot;
-                    let open = a.openness.map(|o| o.at);
+                    let at = next;
+                    next += len;
+                    // a closed hat as a song without a pedal plays it (CC4 at 0): a kit's
+                    // nearly-closed articulation (Tympanum's 0.1) is closed here
+                    let open = a.openness.map(|o| o.at).map(|o| if o <= 0.15 { 0.0 } else { o });
                     let _ = writeln!(
                         csv,
                         "{},{:?},{},{},{},{},{},{}",
@@ -217,7 +235,7 @@ fn hits(out: &Path, kit: &str, args: &[String]) {
         }
     }
     eprintln!("{kit}: {} hits", notes.len());
-    let y = render_notes(kit, sets, &notes, slot);
+    let y = render_notes(kit, sets, &notes, slot_cym);
     write_wav(out, &y);
     std::fs::write(out.with_extension("csv"), csv).unwrap();
 }
@@ -245,9 +263,22 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let mode = args.get(1).map(String::as_str).unwrap_or("");
     let root = PathBuf::from(args.get(2).expect("a content root"));
+    ROOT.set(root.clone()).unwrap();
     cantus_ui::tympanum_load::install(root);
     match mode {
         "info" => info(&args[3..]),
+        // A DrumGizmo kit built for Tympanum as the app's *Install from a file…* builds it.
+        "dg-build" => {
+            let cancel = std::sync::atomic::AtomicBool::new(false);
+            let name = cantus_content::user_pack::dg::build(
+                Path::new(&args[3]),
+                Path::new(&args[4]),
+                &cancel,
+                &mut |_| {},
+            )
+            .expect("the DrumGizmo build");
+            println!("{name}");
+        }
         "hits" => hits(Path::new(&args[3]), &args[4], &args[5..]),
         "notes" => notes_csv(Path::new(&args[3]), &args[4], Path::new(&args[5]), &args[6..]),
         _ => eprintln!("modes: info, hits, notes (see the file's header)"),

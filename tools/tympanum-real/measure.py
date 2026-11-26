@@ -21,7 +21,7 @@ from features import features  # noqa: E402
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    slot = 5.0
+    slot = 30.0
     if "--slot" in sys.argv:
         slot = float(sys.argv[sys.argv.index("--slot") + 1])
         args = [a for a in args if a != str(sys.argv[sys.argv.index("--slot") + 1])]
@@ -31,10 +31,12 @@ def main():
     rows = list(csv.DictReader(open(wav.with_suffix(".csv"), encoding="utf-8")))
     pre = int(0.01 * fs)
     n = 0
+    starts = [int(r["start"]) for r in rows] + [len(x) + pre]
     with open(out, "w", encoding="utf-8") as fh:
-        for r in rows:
+        for i, r in enumerate(rows):
             a = int(r["start"]) - pre
-            b = a + int((slot - 0.05) * fs)
+            # each hit's own window: to the next hit (a cymbal's is longer), `--slot` at most
+            b = min(starts[i + 1] - pre - int(0.05 * fs), a + int((slot - 0.05) * fs))
             st = x[max(0, a):b]
             if len(st) < fs // 2:
                 continue

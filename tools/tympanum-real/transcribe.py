@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """Real drumming to MIDI (round 42, tympanum-real): a tool, never shipped.
 
-    python -I tools/tympanum-real/transcribe.py templates <hits.jsonl> <hits.wav> <templates.npz>
+    python -I tools/tympanum-real/transcribe.py templates <hits.jsonl> <templates.npz>
     python -I tools/tympanum-real/transcribe.py run <audio> <templates.npz> <out.csv> [--mid out.mid]
-    python -I tools/tympanum-real/transcribe.py score <truth notes.csv> <found.csv>
+    python -I tools/tympanum-real/transcribe.py score <truth notes.csv> <found.csv> [--offset 0.5]
 
 Partially-fixed NMF drum transcription (Dittmar & Gärtner, DAFx 2014; Wu et al., IEEE/ACM
 TASLP 2018's NMF family), written here so nothing NC is used (madmom's and ADTOF's models are
-CC BY-NC-SA): a log-frequency magnitude spectrogram (2048/256, 72 bands 30 Hz–16 kHz) is
+CC BY-NC-SA): a third-octave power spectrogram (2048/256, 31 bands 25 Hz–20 kHz) is
 factored as W·H with W started from each class's template — measured off a recorded kit's
-hits (`templates`: the first 60 ms of every hit of that class, median) — and allowed to adapt
+hits (`templates`: the first 200 ms's third octaves of every hit of that class at velocity ≥ 64, median) — and allowed to adapt
 to the recording (W blended back toward the template each step), H the activations. A hit is
-a peak of H's rise over an adaptive threshold (its 0.5-s median + δ, 30 ms apart); its
+where H rises 6 dB or more within 10 ms, within 32 dB of the class's loudest, 30 ms apart; its
 velocity comes from the activation's peak, mapped through the template kit's own level per
 velocity (`rms80_db` against `vel` in its measured hits), the class's 97th percentile at that
 kit's velocity 112. Classes: kick 36, snare 38, closed hat 42, open hat 46 (cc4 0.9), tom 45,
@@ -29,24 +29,29 @@ from scipy import signal
 
 CLASSES = [("kick", 36, None), ("snare", 38, None), ("hat_closed", 42, 0.0),
            ("hat_open", 46, 0.9), ("tom", 45, None), ("crash", 49, None), ("ride", 51, None)]
-N, HOP, NB = 2048, 256, 72
+N, HOP = 2048, 256
+SHARE = {"kick": 0.35, "snare": 0.3, "tom": 0.35, "hat_closed": 0.15, "hat_open": 0.2,
+         "crash": 0.2, "ride": 0.2}
+THIRDS = [25 * 2 ** (k / 3) for k in range(31)]
+NB = len(THIRDS)
 
 
 def bands(fs):
-    edges = np.geomspace(30, min(16000, fs / 2 * 0.95), NB + 1)
+    """Third-octave bands, 25 Hz - 20 kHz (as `features.thirds`, so a kit's measured hits'
+    `spec3` are templates as they are)."""
     f = np.fft.rfftfreq(N, 1 / fs)
     M = np.zeros((NB, len(f)))
-    for b in range(NB):
-        m = (f >= edges[b]) & (f < edges[b + 1])
+    for b, c in enumerate(THIRDS):
+        m = (f >= c / 2 ** (1 / 6)) & (f < c * 2 ** (1 / 6))
         if not m.any():
-            m[np.argmin(np.abs(f - np.sqrt(edges[b] * edges[b + 1])))] = True
+            m[np.argmin(np.abs(f - c))] = True
         M[b, m] = 1.0
     return M
 
 
 def spec(x, fs):
     _, _, Z = signal.stft(x, fs, nperseg=N, noverlap=N - HOP, boundary=None, padded=True)
-    return bands(fs) @ np.abs(Z)
+    return bands(fs) @ (np.abs(Z) ** 2)
 
 
 def mono(path):
@@ -73,30 +78,26 @@ def cls_of(row):
     return None
 
 
-def templates(jsonl, wav, out):
-    x, fs = mono(wav)
+def templates(jsonl, out):
+    """Each class's template: the median third-octave power spectrum of the first 200 ms of
+    the kit's measured hits of that class at velocity 64 or more (`spec3`)."""
     rows = [json.loads(l) for l in open(jsonl, encoding="utf-8")]
-    starts = {int(r["start"]): r for r in csv.DictReader(open(wav[:-4] + ".csv", encoding="utf-8"))}
     T, levels = {}, {}
-    for r in starts.values():
-        c = cls_of({"kind": r["kind"], "art": r["art"], "open": float(r["open"])})
-        if not c:
-            continue
-        a = int(r["start"])
-        S = spec(x[a:a + int(0.06 * fs) + N], fs)
-        T.setdefault(c, []).append(S.mean(axis=1))
     for r in rows:
         c = cls_of(r)
-        if c:
-            levels.setdefault(c, {}).setdefault(r["vel"], []).append(r["rms80_db"])
+        if not c:
+            continue
+        levels.setdefault(c, {}).setdefault(r["vel"], []).append(r["rms80_db"])
+        if r["vel"] >= 64:
+            T.setdefault(c, []).append(10 ** (np.array(r["spec3"]) / 10))
     W = np.stack([np.median(np.array(T[c]), axis=0) for c, _, _ in CLASSES], axis=1)
     W /= W.sum(axis=0, keepdims=True)
     lv = {c: sorted((v, float(np.mean(x))) for v, x in levels[c].items()) for c in levels}
-    np.savez(out, W=W, levels=json.dumps(lv), fs=fs)
-    print(f"templates: {[c for c, _, _ in CLASSES]} from {wav}")
+    np.savez(out, W=W, levels=json.dumps(lv), fs=48000)
+    print(f"templates: {[c for c, _, _ in CLASSES]} from {jsonl}")
 
 
-def nmf(V, W0, iters=40, keep=0.85):
+def nmf(V, W0, iters=60, keep=0.5):
     W = W0.copy()
     H = np.full((W.shape[1], V.shape[1]), V.mean() / W.shape[1] + 1e-9)
     eps = 1e-12
@@ -109,15 +110,22 @@ def nmf(V, W0, iters=40, keep=0.85):
     return W, H
 
 
-def picks(h, fs, delta):
+def picks(h, fs, rise_db=6.0, floor_db=32.0):
+    """A class's hits: where its activation (power, in dB) rises by `rise_db` or more over the
+    next 10 ms, 30 ms apart, and is within `floor_db` of the class's loudest (ghost notes are
+    20-35 dB under the accents, so the rise is read in dB, not against the loudest's rise)."""
     fr = fs / HOP
-    d = np.maximum(0.0, np.diff(h, prepend=h[0]))
-    w = int(0.5 * fr) | 1
-    thr = signal.medfilt(d, w) + delta * d.max()
-    pk, _ = signal.find_peaks(d, height=thr, distance=max(1, int(0.03 * fr)))
-    # the activation's own peak within the next 30 ms gives the strength
-    amp = [h[p:p + max(2, int(0.03 * fr))].max() for p in pk]
-    return pk, np.array(amp)
+    top = h.max() + 1e-30
+    hd = 10 * np.log10(np.maximum(h, top * 1e-6))
+    k = max(1, int(round(0.010 * fr)))
+    rise = np.zeros_like(hd)
+    rise[:-k] = hd[k:] - hd[:-k]
+    ok = (rise >= rise_db) & (np.roll(hd, -k) >= 10 * np.log10(top) - floor_db)
+    pk, _ = signal.find_peaks(np.where(ok, rise, 0.0), height=rise_db, distance=max(1, int(0.03 * fr)))
+    # the strength: the activation's peak within the 30 ms after the rise
+    n = max(2, int(0.03 * fr))
+    amp = np.array([h[p:p + n].max() for p in pk])
+    return pk + k // 2, amp
 
 
 def vel_map(levels, c, amps):
@@ -154,7 +162,7 @@ def write_mid(path, notes):
         fh.write(b"MTrk" + struct.pack(">I", len(trk)) + trk)
 
 
-def run(audio, tpl, out, mid=None, delta=0.06):
+def run(audio, tpl, out, mid=None):
     x, fs = mono(audio)
     z = np.load(tpl)
     levels = json.loads(str(z["levels"]))
@@ -164,10 +172,19 @@ def run(audio, tpl, out, mid=None, delta=0.06):
     V = spec(x, fs)
     _, H = nmf(V, z["W"])
     notes = []
+    # each class's share of the frame (its activation times its template's energy): a
+    # snare's low end lights the kick a little, a kick's the tom; a hit is kept only where
+    # its class carries a good share of what sounds then
+    E = H * z["W"].sum(axis=0)[:, None]
+    share = E / (E.sum(axis=0, keepdims=True) + 1e-30)
     for i, (c, key, cc4) in enumerate(CLASSES):
-        pk, amp = picks(H[i], fs, delta)
+        pk, amp = picks(H[i], fs)
+        n = max(2, int(0.03 * fs / HOP))
+        keep = [j for j, p in enumerate(pk) if share[i, p:p + n].max() >= SHARE.get(c, 0.15)]
+        pk, amp = pk[keep], amp[keep]
         for p, v in zip(pk, vel_map(levels, c, amp)):
-            notes.append((p * HOP / fs, key, int(v), cc4 if cc4 is not None else -1))
+            # a frame's time is its window's centre (the rise is seen as the window reaches it)
+            notes.append(((p * HOP + N // 2) / fs, key, int(v), cc4 if cc4 is not None else -1))
     notes.sort()
     hat = 0.0
     with open(out, "w", encoding="utf-8") as fh:
@@ -180,12 +197,13 @@ def run(audio, tpl, out, mid=None, delta=0.06):
     print(f"{audio}: {len(notes)} hits -> {out}")
 
 
-def score(truth, found, tol=0.03):
+def score(truth, found, tol=0.03, offset=0.0):
     def rd(p):
         r = [l.split(",") for l in open(p, encoding="utf-8").read().splitlines()[1:] if l]
         return [(float(a[0]), int(a[1])) for a in r]
-    fold = {36: 36, 38: 38, 40: 38, 37: 38, 42: 42, 44: 42, 46: 46, 49: 49, 51: 51, 53: 51}
-    t, f = rd(truth), rd(found)
+    fold = {35: 36, 36: 36, 38: 38, 40: 38, 37: 38, 42: 42, 44: 42, 46: 46, 49: 49, 57: 49, 55: 49,
+            52: 49, 51: 51, 53: 51, 59: 51}
+    t, f = [(x + offset, k) for x, k in rd(truth)], rd(found)
     keys = sorted({fold.get(k, 45) for _, k in t})
     for k in keys:
         a = sorted(x for x, kk in t if fold.get(kk, 45) == k)
@@ -207,9 +225,10 @@ def score(truth, found, tol=0.03):
 if __name__ == "__main__":
     m = sys.argv[1]
     if m == "templates":
-        templates(*sys.argv[2:5])
+        templates(sys.argv[2], sys.argv[3])
     elif m == "run":
         mid = sys.argv[sys.argv.index("--mid") + 1] if "--mid" in sys.argv else None
         run(sys.argv[2], sys.argv[3], sys.argv[4], mid)
     elif m == "score":
-        score(sys.argv[2], sys.argv[3])
+        off = float(sys.argv[sys.argv.index("--offset") + 1]) if "--offset" in sys.argv else 0.0
+        score(sys.argv[2], sys.argv[3], offset=off)

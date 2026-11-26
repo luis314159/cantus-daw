@@ -694,3 +694,84 @@ fn a_drums_noise_rests_under_its_fundamental_and_its_low_bands_under_its_highs()
         assert_eq!(o.hp_hz > 0.0, hp, "table {table}: {} Hz", o.hp_hz);
     }
 }
+
+/// Every table's level against velocity, through Pulsus (round 42, tympanum-real): the first
+/// 80 ms's RMS of three hits (three seeds) at each of the law's velocities — what
+/// `tools/tympanum-real/law.py` reads (each table's law applied: run it with an empty `LAW` to
+/// read the tables as they are). Run with `cargo test --release -p
+/// cantus-dsp --lib level_law_dump -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn level_law_dump() {
+    for table in [1u8, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24] {
+        if super::table(table).is_none() {
+            continue;
+        }
+        let mut line = format!("table {table:2}:");
+        for v in super::law::LAW_VELS {
+            let vel = v as u8;
+            let mut e = 0.0f32;
+            for id in 0..3u64 {
+                let mut p = Pulsus::new(SR);
+                p.enable_measured();
+                p.set_kit(3, 9, 4, false);
+                p.set_pad_count(1);
+                p.set_pad(0, 60, &pad(table, 1, 0));
+                let mut out = vec![0.0f32; 3_840];
+                let mut at = 0;
+                p.note_on(60, vel, id + 1);
+                while at < out.len() {
+                    let c = (out.len() - at).min(512);
+                    p.process_buses(c, &mut |_, off, l, r| {
+                        for (i, (a, b)) in l.iter().zip(r).enumerate() {
+                            out[at + off + i] += 0.5 * (a + b);
+                        }
+                    });
+                    at += c;
+                }
+                e += rms(&out).powi(2);
+            }
+            line += &format!(" {vel}:{:.1}", 10.0 * (e / 3.0).max(1e-20).log10());
+        }
+        eprintln!("{line}");
+    }
+}
+
+/// One hit of table `table` at `vel` (seed `id`): its first 80 ms's RMS, dB.
+fn first_80ms_db(table: u8, vel: u8, id: u64) -> f32 {
+    let mut p = Pulsus::new(SR);
+    p.enable_measured();
+    p.set_kit(3, 9, 4, false);
+    p.set_pad_count(1);
+    p.set_pad(0, 60, &pad(table, 1, 0));
+    p.note_on(60, vel, id);
+    let mut out = vec![0.0f32; 3_840];
+    let mut at = 0;
+    while at < out.len() {
+        let c = (out.len() - at).min(512);
+        p.process_buses(c, &mut |_, off, l, r| {
+            for (i, (a, b)) in l.iter().zip(r).enumerate() {
+                out[at + off + i] += 0.5 * (a + b);
+            }
+        });
+        at += c;
+    }
+    20.0 * rms(&out).max(1e-10).log10()
+}
+
+/// The level law (r42:tympanum-real): every measured table grows with the velocity at every
+/// step — the studio kick at 48 was louder than at 64 and as loud as at 80 — and spans at least
+/// 12 dB from 16 to 127.
+#[test]
+fn every_table_grows_with_velocity_at_every_step() {
+    for (table, _) in super::law::LAW {
+        let lv: Vec<f32> = [16u8, 32, 48, 64, 80, 96, 112, 127]
+            .iter()
+            .map(|&v| 0.5 * (first_80ms_db(*table, v, 1) + first_80ms_db(*table, v, 2)))
+            .collect();
+        for w in lv.windows(2) {
+            assert!(w[1] > w[0] - 0.5, "table {table}: {lv:?}");
+        }
+        assert!(lv[7] - lv[0] >= 12.0, "table {table} spans {:.1} dB", lv[7] - lv[0]);
+    }
+}

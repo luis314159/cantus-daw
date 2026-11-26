@@ -16,8 +16,8 @@ What each key means (the report's chart names in brackets):
 - `band_<w>_<f>` octave-band level (dB re the hit's peak band) per window, `t30_<f>` each
   octave band's decay (Schroeder, −5 → −35 dB, ms; T20 doubled where the band ends sooner)
   [caída];
-- drums only: `f0` the lowest strong mode (Hz) at 20–200 ms, `glide_c` its pitch at 8–40 ms
-  over 150–400 ms (cents), `r2`, `r3` the next two modes' ratios to f0 and `upper_db` the
+- drums only: `f0` the lowest strong mode (Hz) at 20–200 ms, `glide_c` its pitch at 10–60 ms
+  over 150–450 ms (cents), `r2`, `r3` the next two modes' ratios to f0 and `upper_db` the
   energy at 1.3–3 × f0 over that at f0 ± 12 % (edge strokes excite the asymmetric modes)
   [modos, golpe];
 - snare: `wires_db` the 3–10 kHz noise at 40–250 ms over the whole hit's energy there,
@@ -206,8 +206,10 @@ def features(st, fs, kind):
         f0 = peak_freq(seg(m, fs, 0.020, 0.200), fs, lo, hi)
         out["f0"] = f0
         if f0 == f0:
-            fe = peak_freq(seg(m, fs, 0.008, 0.040), fs, f0 * 0.8, f0 * 1.35)
-            fl = peak_freq(seg(m, fs, 0.150, 0.400), fs, f0 * 0.75, f0 * 1.25)
+            # round 40's windows (the strongest low partial at 10-60 ms against 150-450 ms):
+            # 50 ms is the shortest that still resolves a kick's 50-60 Hz
+            fe = peak_freq(seg(m, fs, 0.010, 0.060), fs, f0 * 0.85, f0 * 1.3)
+            fl = peak_freq(seg(m, fs, 0.150, 0.450), fs, f0 * 0.8, f0 * 1.2)
             out["glide_c"] = float(1200 * np.log2(fe / fl)) if fe == fe and fl == fl and fl > 0 else float("nan")
             y = seg(m, fs, 0.020, 0.200)
             e0 = band_energy(y, fs, f0 * 0.88, f0 * 1.12)

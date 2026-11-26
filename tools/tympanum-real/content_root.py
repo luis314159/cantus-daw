@@ -44,29 +44,27 @@ for pack, kits in SFZ.items():
     r = json.loads((src / "cantus-pack.json").read_text(encoding="utf-8"))
     r["instruments"] = [{"id": k, "name": {"en": n, "es": n}, "file": f, "shelf": "drums", "gain_db": 0.0, "plays": "tympanum"} for k, f, n in kits]
     (d / "cantus-pack.json").write_text(json.dumps(r, indent=2, ensure_ascii=False), encoding="utf-8")
-# DrumGizmo kits downloaded into drums/dg and DRSKit from the tympanum set
+# DrumGizmo kits of `drums-dg`, built for Tympanum as the app's *Install from a file…* builds
+# them (`tympanum_real dg-build`: every mic its own file, an SFZ multi-mic kit) into
+# drums/built/<kit>; ShittyKit's old format (no power levels) the builder refuses.
 DG = {
-    "shittykit": ("ShittyKit.xml", "ShittyKit", "CC-BY-4.0", "ShittyKit, DrumGizmo (drumgizmo.org)"),
-    "aasimonster": ("aasimonster.xml", "The Aasimonster", "CC-BY-4.0", "The Aasimonster, DrumGizmo (drumgizmo.org)"),
-    "muldjordkit": ("MuldjordKit3.xml", "MuldjordKit", "CC-BY-4.0", "MuldjordKit, Lars Muldjord / DrumGizmo"),
+    "aasimonster": ("aasimonster.xml", "The Aasimonster", "The Aasimonster, DrumGizmo (drumgizmo.org)"),
+    "muldjordkit": ("MuldjordKit3.xml", "MuldjordKit", "MuldjordKit, Lars Muldjord / DrumGizmo (drumgizmo.org)"),
 }
-for pack, (xml, name, lic, credit) in DG.items():
-    src = (REFS / "drums" / "dg") / pack
-    d = root / ("dg-" + pack)
-    if not src.exists():
-        print("not yet:", pack); continue
-    junction(d, src) if not d.exists() else None
-for pack, (xml, name, lic, credit) in DG.items():
-    d = root / ("dg-" + pack)
-    if not d.exists():
+for pack, (xml, name, credit) in DG.items():
+    built = REFS / "drums" / "built" / pack
+    if not (built / "Tympanum.sfz").exists():
+        raw = REFS / "drums" / "dg" / pack / xml
+        print(f"not built: {pack}" + (f" (tympanum_real dg-build x {raw} {built})" if raw.exists() else ""))
         continue
-    if not (d / xml).exists():
-        cands = sorted(p.name for p in d.glob("*.xml"))
-        print(pack, "xml?", cands); continue
-    r = {"id": "dg-" + pack, "version": 1, "name": {"en": name, "es": name}, "licence": lic,
+    d = root / ("dg-" + pack)
+    junction(d, built)
+    r = {"id": "dg-" + pack, "version": 1, "name": {"en": name, "es": name}, "licence": "CC-BY-4.0",
          "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode", "licence_file": "",
-         "credits": [{"name": credit, "url": "https://drumgizmo.org/wiki/doku.php?id=kits", "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"}],
-         "instruments": [{"id": "kit", "name": {"en": name, "es": name}, "file": xml, "shelf": "drums", "gain_db": 0.0, "plays": "tympanum"}],
+         "credits": [{"name": credit, "url": "https://drumgizmo.org/wiki/doku.php?id=kits",
+                      "licence_url": "https://creativecommons.org/licenses/by/4.0/legalcode"}],
+         "instruments": [{"id": "kit", "name": {"en": name, "es": name}, "file": "Tympanum.sfz",
+                          "shelf": "drums", "gain_db": 0.0, "plays": "tympanum"}],
          "installed_at": 0, "files": 0, "bytes": 0}
     (d / "cantus-pack.json").write_text(json.dumps(r, indent=2), encoding="utf-8")
 drs = REFS / "tympanum" / "content" / "drskit-tympanum"
