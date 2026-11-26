@@ -416,7 +416,9 @@ pub const CELLO_VIB: VibSpec = VibSpec {
     hz: 5.35,
     hz_dyn: 0.17,
     hz_oct: 0.035,
-    pp_ct: 23.3,
+    pp_ct: 18.6, // r42 arcus-classical: × 0.8 (was 23.3): in music the cellos
+    // vibrate narrower than on single notes (the strings-hq phrases: violas 21 cents, cellos 10–25;
+    // Arcus's phrases 28–31), the single notes still inside their band.
     pp_oct: 0.21,
     pp_dyn: 0.98,
     jitter: (0.15, 0.16),

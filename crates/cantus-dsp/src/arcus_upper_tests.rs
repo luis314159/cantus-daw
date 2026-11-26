@@ -57,26 +57,36 @@ fn lower() -> Vec<ArcusSettings> {
 /// −1.19, −0.06 dB; their difference +1.2, −4.4, −22.4, −12.7 (cello) and −1.0, −6.4, −21.4 dB
 /// (bass) re each render — the bowed ones at the signal's level (the vibrato's and the strokes'
 /// shapes move them), every one on purpose.
+///
+/// r42 arcus-classical (`DSP_VERSION` 20, ADR 0166): re-made for the stroke's shape (the bow's
+/// speed and the dynamic it is read at rising, sagging, breathing and tapering inside a held
+/// note), the free string after the lift, the pluck's DC corner and contact, the vibrato's way
+/// back and the player's intonation in a passage, the violin's and viola's corner with the force,
+/// the viola's and cello's narrower vibrato and the upper strings' pitch table measured again with
+/// the player on. The measured size: `docs/round42/arcus-classical.md`, *The size of the change*.
 const LOWER_HASHES: &[u64] = &[
-    0x0bc1035d57c1b9c9,
-    0x009de863481bb899,
-    0xa5fce59fe0fd3315,
-    0xd901c894ec7ac2a6,
-    0x9114597ec54d728d,
-    0x78e40fe592b9a488,
-    0xc8a91674dd71955c,
+    0xedee88a99a161007,
+    0x0fc1c7f4258b2391,
+    0x8ab414d6e1b9ffd4,
+    0x2499bbc3fbcb96a4,
+    0x9f0be6272bb67192,
+    0x11e9652f06b9b99d,
+    0xddcda54d66f25e6e,
 ];
 
-/// r42 arcus-expr — pass 6's [`LOWER_HASHES`] (`DSP_VERSION` 14): the null of the player
-/// (ADR 0162). With `player` 0 every one of the seven renders keeps pass 6's bits.
+/// r42 arcus-expr — the null of the player (ADR 0162): with `player` 0 the seven renders keep
+/// the string's own bits — pass 6's until `DSP_VERSION` 20, when the string's model-2 changes of
+/// r42 arcus-classical (the free ring after the lift, the pluck's DC corner and contact, the
+/// viola's and cello's vibrato) moved them on purpose; the player's shape, taper, way back and
+/// intonation stay out of them (`tests_classical::with_the_player_off_the_shape_touches_no_sample`).
 const PASS6_HASHES: &[u64] = &[
-    0x6d5e0259952247da,
-    0xe01dd2f1fccb542d,
-    0xa568fb3f43a76064,
-    0x7427607794f02a73,
-    0xca2c6a870093b044,
-    0xd0b07d0d827ca234,
-    0x368b8fa3f06e79bf,
+    0x56171b9d8c3a613f,
+    0x5634ca566ba8d2b4,
+    0x14bce81194da377a,
+    0xff53c5e8c8a78e36,
+    0x37ee4025d26144f9,
+    0xb8f95ec789b155c9,
+    0x397c32ccfbf464e1,
 ];
 
 #[test]

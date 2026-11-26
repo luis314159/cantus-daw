@@ -12,7 +12,7 @@ pub(super) const PLUCK_NOISE: f32 = 0.03;
 pub(super) const PIZZ_CONTACT_POW: f32 = 0.8;
 /// … never under this share of `pizz.soft` (a key far over the instrument's range plucked
 /// with no contact at all rang eight voices to 25 × full scale).
-pub(super) const PIZZ_CONTACT_MIN: f32 = 0.3;
+pub(super) const PIZZ_CONTACT_MIN: f32 = 0.5;
 
 /// r42:arcus-p5 — how long a re-bow's finger takes to a new note on a ringing string, ms.
 pub(super) const REBOW_FINGER_MS: f32 = 6.0;
@@ -213,8 +213,12 @@ impl Voice {
             let (len, depth) = (spec.swell_s, spec.swell_db);
             // (A loud stroke from the string is set in less deeply: `Knobs::fresh_ff`.)
             let ff = s.shape_try.unwrap_or(super::super::shape::KNOBS).fresh_ff;
+            // … and the bass's lowest notes at the stroke's speed (under C2 the depth falls to
+            // none at E1: a slow string's attack sits at Guettler's limit already).
+            let hz = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
+            let low = ((hz - 41.2) / (65.4 - 41.2)).clamp(0.0, 1.0);
             super::super::shape::Begin::Fresh(
-                (depth.0 + (depth.1 - depth.0) * d) * (1.0 - ff * d),
+                (depth.0 + (depth.1 - depth.0) * d) * (1.0 - ff * d) * low,
                 len.0 + (len.1 - len.0) * d * d,
             )
         };
@@ -321,8 +325,8 @@ impl Voice {
         }
         self.pluck.clear();
         self.string.set_dc_share(None); // r42 arcus-classical
-        // The attack from the velocity: a harder note accelerates sooner and presses more
-        // (the Guettler region measured on this model, `docs/round42/arcus.md`).
+                                        // The attack from the velocity: a harder note accelerates sooner and presses more
+                                        // (the Guettler region measured on this model, `docs/round42/arcus.md`).
         let z0 = spec.strings[self.string_ix].z0();
         let open_hz = spec.strings[self.string_ix].open_hz(); // r42:arcus-upper
         let f = 440.0 * math::exp2((self.note as f64 + self.tune as f64 - 69.0) / 12.0);

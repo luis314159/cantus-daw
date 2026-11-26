@@ -114,7 +114,7 @@ pub const KNOBS: Knobs = Knobs {
     dyn_max: 0.3,
     fresh_db: 1.0,
     fresh_s: 1.6,
-    fresh_cap: 7.0,
+    fresh_cap: 8.0,
     fresh_min: 0.2,
     fresh_max: 0.6,
     fresh_ff: 0.8,
@@ -244,6 +244,9 @@ pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
 pub fn classical(amount: f32, pair: f32) -> f32 {
     (amount.clamp(0.0, 1.0) * (1.0 - pair.clamp(0.0, 1.0))).max(0.0)
 }
+
+/// How long a stroke holds still after its rise before it sags and breathes, s.
+pub const CALM_S: f32 = 0.3;
 
 /// The seed's twist that gives the shape its own generator, and the intonation's.
 const SEED_TWIST: u32 = 0x5A3E_0C11;
@@ -443,9 +446,13 @@ impl Shape {
             self.l = *from - self.amount * self.k.taper_db * smooth(*t / *len);
         } else {
             let rise = self.from * (1.0 - smooth(self.t / self.rise));
-            let after = (self.t - self.rise).max(0.0);
+            // (the sag too begins once the stroke has settled, `CALM_S` after its rise)
+            let after = (self.t - self.rise - CALM_S).max(0.0);
             let sag = -self.k.sag_db * (1.0 - math::exp(-after / self.k.sag_s.max(1e-3)));
-            self.l = self.amount * (rise + sag + self.breath_now());
+            // The breath comes in once the stroke has risen (a settling bow does not wander:
+            // the bass's E1 attacks sat at Guettler's limit and its first breath pushed one over).
+            let calm = smooth((self.t - self.rise) / CALM_S);
+            self.l = self.amount * (rise + sag + calm * self.breath_now());
         }
         self.l_t = if self.k.timbre_s > 0.0 {
             self.l_t + (self.l - self.l_t) * (1.0 - math::exp(-dt / self.k.timbre_s))

@@ -108,7 +108,9 @@ pub const VIOLA_VIB: VibSpec = VibSpec {
     hz: 5.6,
     hz_dyn: 0.08,
     hz_oct: 0.01,
-    pp_ct: 23.2,
+    pp_ct: 18.6, // r42 arcus-classical: × 0.8 (was 23.2): in music the violas
+    // vibrate narrower than on single notes (the strings-hq phrases: violas 21 cents, cellos 10–25;
+    // Arcus's phrases 28–31), the single notes still inside their band.
     pp_oct: 0.11,
     pp_dyn: 0.97,
     jitter: (0.18, 0.17),

@@ -94,16 +94,14 @@ pub fn offset(
     a.set(&probe_settings(inst, pos));
     a.set_pitch_table(table);
     a.note_on(key, (d as f32).max(0.01), 1);
-    // r42 arcus-classical: a held note's steady part, as the lab measures it (the player's stroke
-    // sags and breathes over it: over 0.5–1.45 s the table left the lab's notes 1–3 cents off).
-    let frames = (3.0 * SR) as usize;
+    let frames = (1.5 * SR) as usize;
     let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
     for at in (0..frames).step_by(256) {
         let n = 256.min(frames - at);
         a.process(&mut l[at..at + n], &mut r[at..at + n]);
     }
     let want = 440.0 * math::exp2((key as f64 - 69.0) / 12.0);
-    1200.0 * math::log2(measure_hz(&l, want, 0.6, 2.95) / want)
+    1200.0 * math::log2(measure_hz(&l, want, 0.5, 1.45) / want)
 }
 
 fn leak(v: Vec<f32>) -> &'static [f32] {
