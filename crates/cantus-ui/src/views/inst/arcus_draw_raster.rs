@@ -78,7 +78,7 @@ impl Raster {
         p: [Pos2; 3],
         z: [f32; 3],
         c: [Color32; 3],
-        kept: Option<([V3; 3], &dyn Fn(V3) -> bool)>,
+        kept: Option<Kept<'_>>,
         rest: [V3; 3],
         grain: &dyn Fn(V3) -> f32,
     ) {
