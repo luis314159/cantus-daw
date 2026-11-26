@@ -20,7 +20,7 @@ fn voiced(v: &Voicing) -> Chorda {
 
 /// Every round-42 knob away from its default, over the shipped voicing.
 fn pass() -> Voicing {
-    let mut v = Voicing::shipped();
+    let mut v = Voicing::unison();
     v.knock_shape = [2_000.0, 0.007, 250.0, 3_500.0, 0.25, 0.09, 2.5, -0.4];
     v.knock_noise_reg = [0.6, 2.0];
     v.knock_treble = 0.05;
@@ -65,12 +65,12 @@ fn band_energy(x: &[f32], lo: f64, hi: f64) -> f64 {
 
 #[test]
 fn the_knock_as_is_is_the_round_40_thud() {
-    // The shape's neutral value is the model's own thud, so the shipped voicing (which
+    // The shape's neutral value is the model's own thud, so the unison pass (which
     // carries it) renders as it did; a shape set and set back plays as one never set.
-    assert_eq!(Voicing::shipped().knock_shape, KNOCK_AS_IS);
-    assert_eq!(Voicing::shipped().knock_noise_reg, [1.0, 1.0]);
+    assert_eq!(Voicing::unison().knock_shape, KNOCK_AS_IS);
+    assert_eq!(Voicing::unison().knock_noise_reg, [1.0, 1.0]);
     let ev = phrase();
-    let plain = perform(&mut voiced(&Voicing::shipped()), &ev, 16_000, 256, 1);
+    let plain = perform(&mut voiced(&Voicing::unison()), &ev, 16_000, 256, 1);
     let mut c = voiced(&pass());
     perform(
         &mut c,
@@ -79,7 +79,7 @@ fn the_knock_as_is_is_the_round_40_thud() {
         256,
         1,
     );
-    c.set_voicing(&Voicing::shipped());
+    c.set_voicing(&Voicing::unison());
     let mut idle: usize = 0;
     while !c.at_rest() {
         perform(&mut c, &[], 4_800, 512, 1);
@@ -96,7 +96,7 @@ fn the_knocks_noise_sits_in_its_band_and_its_tail_rings_on() {
     // A top key's knock with its noise raised: more of the 0.5–2.8 kHz band under the
     // fundamental; with the tail, more 80–250 ms later, the first 20 ms nearly the same.
     let strike = |shape: [f64; 8]| {
-        let mut v = Voicing::shipped();
+        let mut v = Voicing::unison();
         v.knock_shape = shape;
         let ev = vec![(0, Ev::On(108, 0.7, 1))];
         perform(&mut voiced(&v), &ev, 14_400, 256, 1).0
@@ -104,23 +104,28 @@ fn the_knocks_noise_sits_in_its_band_and_its_tail_rings_on() {
     let base = strike(KNOCK_AS_IS);
     let noisy = strike([3_000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
     let tail = strike([3_000.0, 0.0, 0.0, 0.0, 0.3, 0.1, 1.0, 0.0]);
-    let db = |x: &[f32], a: usize, b: usize| {
-        10.0 * math::log10(band_energy(&x[a..b], 500.0, 2_800.0) + 1e-30)
+    // What the shape adds: the renders less the round-40 thud's (the strings are the same).
+    let e = |x: &[f32], a: usize, b: usize| {
+        x[a..b]
+            .iter()
+            .zip(&base[a..b])
+            .map(|(p, q)| ((*p - *q) as f64).powi(2))
+            .sum::<f64>()
     };
-    let (early, late) = ((0, 960), (3_840, 12_000));
+    let (early, late) = ((0, 960), (4_800, 12_000));
+    assert!(e(&noisy, early.0, early.1) > 0.0, "the noise added nothing");
     assert!(
-        db(&noisy, early.0, early.1) > db(&base, early.0, early.1) + 6.0,
-        "the noise did not rise: {:.1} → {:.1}",
-        db(&base, early.0, early.1),
-        db(&noisy, early.0, early.1)
+        e(&tail, late.0, late.1) > 4.0 * e(&noisy, late.0, late.1),
+        "the tail did not ring on: {:.3e} against {:.3e}",
+        e(&tail, late.0, late.1),
+        e(&noisy, late.0, late.1)
     );
+    // The noise in its band: under 3 kHz more of it than over 6 kHz (the steep slopes).
+    let d: Vec<f32> = noisy.iter().zip(&base).map(|(p, q)| p - q).collect();
     assert!(
-        db(&tail, late.0, late.1) > db(&noisy, late.0, late.1) + 6.0,
-        "the tail did not ring: {:.1} → {:.1}",
-        db(&noisy, late.0, late.1),
-        db(&tail, late.0, late.1)
+        band_energy(&d[..4_800], 300.0, 3_000.0)
+            > 10.0 * band_energy(&d[..4_800], 6_000.0, 20_000.0)
     );
-    assert!((db(&tail, early.0, early.1) - db(&noisy, early.0, early.1)).abs() < 3.0);
 }
 
 #[test]
@@ -150,7 +155,7 @@ fn a_thud_reshaped_keeps_its_ringing_and_its_tail_falls() {
 
 #[test]
 fn the_knocks_register_laws_move_their_registers_alone() {
-    let mut v = Voicing::shipped();
+    let mut v = Voicing::unison();
     v.knock_shape[0] = 3.0;
     assert_eq!(v.knock_shape_of(60)[0], 3.0);
     v.knock_noise_reg = [0.5, 4.0];
@@ -190,4 +195,68 @@ fn an_idle_unit_with_the_pass_plays_as_a_new_one_and_comes_to_rest() {
     perform(&mut idle, &[], to - frames - 512, 512, 1);
     let after = perform(&mut idle, &ev, 16_000, 256, 1);
     assert!(fresh == after, "an idle unit's attacks moved");
+}
+
+fn coloured(c: f64) -> Chorda {
+    let mut p = voiced(&Voicing::default());
+    let s = ChordaSettings {
+        model: 2,
+        colour: c,
+        ..ChordaSettings::default()
+    };
+    p.set(&s, 0.0);
+    p
+}
+
+#[test]
+fn the_colour_at_zero_is_nothing_and_its_stage_follows_its_shape() {
+    use super::colour::{Colour, CENTRES, SHAPE};
+    let ev = phrase();
+    let plain = perform(&mut voiced(&Voicing::default()), &ev, 12_000, 256, 1);
+    assert!(perform(&mut coloured(0.0), &ev, 12_000, 256, 1) == plain);
+    let mut st = Colour::new(48_000.0);
+    assert!(!st.on());
+    st.set(1.0);
+    assert!(st.on());
+    for (i, f) in CENTRES.iter().enumerate() {
+        let g = st.gain_db(*f);
+        assert!(
+            (g - SHAPE[i]).abs() < 1.5,
+            "{f} Hz: {g:.2} dB, the shape {:.2}",
+            SHAPE[i]
+        );
+    }
+    st.set(-1.0);
+    for (i, f) in CENTRES.iter().enumerate() {
+        assert!((st.gain_db(*f) + SHAPE[i]).abs() < 1.5);
+    }
+    if SHAPE.iter().any(|g| *g != 0.0) {
+        assert!(perform(&mut coloured(1.0), &ev, 12_000, 256, 1) != plain);
+    }
+}
+
+#[test]
+fn a_coloured_unit_keeps_every_block_size_and_comes_to_rest() {
+    let ev = phrase();
+    let reference = perform(&mut coloured(0.8), &ev, 12_000, 1, 1);
+    for (block, threads) in [(7, 1), (64, 1), (300, 3), (512, 1)] {
+        assert!(
+            perform(&mut coloured(0.8), &ev, 12_000, block, threads) == reference,
+            "block {block}, {threads} threads"
+        );
+    }
+    let mut c = coloured(-0.6);
+    perform(
+        &mut c,
+        &[(0, Ev::On(60, 0.9, 1)), (2_000, Ev::Off(60, 1))],
+        4_096,
+        512,
+        1,
+    );
+    let mut frames: usize = 0;
+    while !c.at_rest() {
+        perform(&mut c, &[], 4_800, 512, 1);
+        frames += 4_800;
+        assert!(frames < 48_000 * 60, "a coloured unit never rested");
+    }
 }

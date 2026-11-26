@@ -24,6 +24,9 @@ pub mod tune;
 #[path = "chorda_voicing_unison.rs"]
 pub mod unison;
 
+#[path = "chorda_voicing_c17.rs"]
+pub mod c17;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Voicing {
     pub body: BodyVoicing,
@@ -359,9 +362,9 @@ pub const EVEN_FADE_TO: f64 = 88.0;
 /// The partials a key's evening weighs.
 pub const EVEN_PARTIALS: u32 = 10;
 
-/// What ships since `DSP_VERSION` 11 (round 41, ADR 0098's fifth amendment): the
-/// technician's pass of `DSP_VERSION` 10 ([`Voicing::technician`]) with the unison pass over
-/// it ([`Voicing::shipped`]). Made once; nothing allocates.
+/// What ships since `DSP_VERSION` 16 (round 42, ADR 0098's sixth amendment): the unison pass
+/// of `DSP_VERSION` 11 ([`Voicing::unison`]) with candidate 17 over it ([`Voicing::shipped`]).
+/// Made once; nothing allocates.
 impl Default for Voicing {
     fn default() -> Self {
         static SHIPPED: OnceLock<Voicing> = OnceLock::new();
@@ -400,16 +403,29 @@ impl Voicing {
         v
     }
 
-    /// What ships (`DSP_VERSION` 11, `docs/round41/chorda-tune.md`): the technician's pass,
-    /// then the unison pass — [`unison::SPEC`] applied over it (no bridge resonance pulling
+    /// What shipped in `DSP_VERSION` 11 to 15 (`docs/round41/chorda-tune.md`; beta.16 and
+    /// beta.17, the owner's blind test of 2026-11-25): the technician's pass, then the unison pass — [`unison::SPEC`] applied over it (no bridge resonance pulling
     /// a partial 1–3 more than 0.1 Hz; each unison as wide as it can be without a beat the
     /// ear counts, its stiffness scatter, pattern and bridge share keeping the key's level)
     /// and [`unison::TUNE`], each key's last correction re-measured, handed to the keyboard.
-    pub fn shipped() -> Self {
+    pub fn unison() -> Self {
         let mut v = Voicing::technician();
         let ok = v.apply(unison::SPEC);
         debug_assert!(ok, "the unison spec names a key the voicing does not have");
         v.tune = unison::TUNE;
+        v
+    }
+
+    /// What ships (`DSP_VERSION` 16, round 42, `docs/round42/chorda-c17.md`): the unison
+    /// pass, then candidate 17 — [`c17::SPEC`] applied over it (the action's knock as the
+    /// case rings it, middle C's third partial voiced).
+    pub fn shipped() -> Self {
+        let mut v = Voicing::unison();
+        let ok = v.apply(c17::SPEC);
+        debug_assert!(
+            ok,
+            "candidate 17's spec names a key the voicing does not have"
+        );
         v
     }
 
