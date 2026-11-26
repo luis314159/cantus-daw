@@ -162,37 +162,41 @@ impl Raster {
                 if w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5 {
                     continue;
                 }
+                // (r42:arcus-hands, pass 7: the depth test first — a sample that would not
+                // be written skips the neck's test, the colour and the grain; the picture is
+                // the same.)
+                let d = z[0] * w0 + z[1] * w1 + z[2] * w2;
+                let i = y * sw + x;
+                let writes = match blend {
+                    None => d < self.depth[i],
+                    Some(slack) => d <= self.depth[i] + slack && self.col[i][3] > 0.0,
+                };
+                if !writes {
+                    continue;
+                }
                 if let Some((room, keep)) = &kept {
                     if !keep(room[0] * w0 + room[1] * w1 + room[2] * w2) {
                         continue;
                     }
                 }
-                let d = z[0] * w0 + z[1] * w1 + z[2] * w2;
-                let i = y * sw + x;
                 let mut rgba =
                     [0, 1, 2, 3].map(|ch| cf[0][ch] * w0 + cf[1][ch] * w1 + cf[2][ch] * w2);
                 if let Some((rest, g)) = &grain {
-                    if d < self.depth[i] {
-                        let k = g(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
-                        for v in rgba.iter_mut().take(3) {
-                            *v = (*v * k).min(255.0);
-                        }
+                    let k = g(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
+                    for v in rgba.iter_mut().take(3) {
+                        *v = (*v * k).min(255.0);
                     }
                 }
                 match blend {
                     None => {
-                        if d < self.depth[i] {
-                            self.depth[i] = d;
-                            self.col[i] = rgba;
-                        }
+                        self.depth[i] = d;
+                        self.col[i] = rgba;
                     }
-                    Some(slack) => {
-                        if d <= self.depth[i] + slack && self.col[i][3] > 0.0 {
-                            let a = rgba[3] / 255.0;
-                            let o = &mut self.col[i];
-                            for ch in 0..3 {
-                                o[ch] = rgba[ch] + o[ch] * (1.0 - a);
-                            }
+                    Some(_) => {
+                        let a = rgba[3] / 255.0;
+                        let o = &mut self.col[i];
+                        for ch in 0..3 {
+                            o[ch] = rgba[ch] + o[ch] * (1.0 - a);
                         }
                     }
                 }

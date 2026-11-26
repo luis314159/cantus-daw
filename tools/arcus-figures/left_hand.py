@@ -428,6 +428,15 @@ PEN_W = 30.0
 HEEL = 1.6
 HIGH = 5.0
 THUMB_HIGH_X = 0.45
+# r42:arcus-hands, pass 7 — past the heel the thumb's tip may sit in the heel's curve under the
+# neck (left_hand_refs.md §5: "under the neck's shoulder in 3rd"; from the heel on it stays
+# there, under the neck and hidden from the audience, while the fingers go on over the body —
+# beside the fingerboard over the body there is no room for it over the top plate): its tip
+# may drop THUMB_DROP_HIGH cm further under the fingerboard's top and come THUMB_UNDER_HIGH of
+# the half width in from the G side (at the hand's full ``high``; the gate's bounds from the
+# 12th semitone, arcus_hand_table).
+THUMB_DROP_HIGH = 2.2
+THUMB_UNDER_HIGH = 0.75
 # Past the heel the thumb moves this share of the fingers' way (it lags them, then leaves
 # the heel's curve for the fingerboard's G side over the body).
 THUMB_LAG = 0.5
@@ -483,6 +492,9 @@ class Pose:
         self.solid = solid_of(F)
         self.eye = np.array(F["eye"])
         self.pen_w = PEN_W
+        # r42:arcus-hands, pass 7 — how much freer the palm's way is (deg; blend_fix.py
+        # --rules frees it where the gate's outline rule holds the hand edge-on instead).
+        self.palm_free = 0.0
         # How far the hand is past the neck's heel, 0 (at or below it) to 1 (HIGH beyond).
         y12 = neck.loc(self.tips[0])[1] * 0.6 + neck.loc(self.tips[1])[1] * 0.4
         self.y12 = y12
@@ -636,8 +648,10 @@ class Pose:
         # the fingerboard's G side over the body, closer to the edge and a little higher.)
         qt = loc(P[0, 3])
         hi = self.high
-        add("thumb_x", 4.0 * (qt[0] + nk.hw(qt[1]) + 0.65 + (THUMB_HIGH_X - 0.65) * hi))
-        add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6 + 0.2 * hi, 0.3 + 0.3 * hi))
+        add("thumb_x", 4.0 * (1.0 - THUMB_UNDER_HIGH * hi)
+            * (qt[0] + nk.hw(qt[1]) + 0.65 + (THUMB_HIGH_X - 0.65) * hi))
+        add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6 + (0.2 - THUMB_DROP_HIGH) * hi,
+                                  0.3 + 0.3 * hi))
         y12 = self.y12
         yt = y12 if y12 >= self.yh else self.yh - THUMB_LAG * (self.yh - y12)
         add("thumb_y", 4.0 * over(qt[1] - yt, -0.8, 1.2))
@@ -651,8 +665,8 @@ class Pose:
                                                          - self.peek_most()))
         # (and, hidden, still the gate's thumb: its tip no lower than 1.3 cm under the
         # fingerboard's top and on the G side's half — arcus_hand_table's −1.6 and −hw/2.)
-        add("thumb_floor", 20.0 * max(0.0, nk.top(qt[1]) - 1.3 - qt[2]))
-        add("thumb_side", 10.0 * max(0.0, qt[0] + nk.hw(qt[1]) * 0.5 + 0.2))
+        add("thumb_floor", 20.0 * max(0.0, nk.top(qt[1]) - 1.3 - THUMB_DROP_HIGH * hi - qt[2]))
+        add("thumb_side", 10.0 * max(0.0, qt[0] + nk.hw(qt[1]) * (0.5 - THUMB_UNDER_HIGH * hi) + 0.2))
         # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
         # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
         # abultada gorda").
@@ -720,7 +734,8 @@ class Pose:
         add("elbow_z", 1.0 * max(0.0, qe[2] + 13.0))
         # The palm toward the neck and up toward the player.
         # (r42:arcus-hands: high up the hand turns round the body's shoulder, its palm freer.)
-        pmin = np.cos(np.arccos(PALM_MIN) + np.radians(PALM_FREE_HIGH) * self.high)
+        pmin = np.cos(np.arccos(PALM_MIN) + np.radians(PALM_FREE_HIGH) * self.high
+                      + np.radians(self.palm_free))
         add("palm_way", PALM_W * max(0.0, pmin - npalm @ PALM_WAY(self)))
         qw = loc(W)
         add("wrist_x", 3.0 * over(qw[0] - nk.hw(qw[1]), WRIST_X[0], WRIST_X[1] + WRIST_X_HIGH * self.high))

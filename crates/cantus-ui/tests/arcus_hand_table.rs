@@ -330,6 +330,15 @@ const HAND_NECK: (f32, f32) = (68.0, 92.0);
 /// knuckles 2.6–3.2 cm over the top there), the floor at −1.6 (lower, the knuckles hide
 /// behind the neck from the audience).
 const KNUCKLES_UP: (f32, f32) = (-1.6, 3.4);
+/// r42:arcus-hands, pass 7 — from the 12th semitone (the hand at the neck's heel or past it)
+/// the thumb's tip in the heel's curve under the neck: down to this far under the
+/// fingerboard's top (cm; the heel's underside) and in from the G side to this share of the
+/// half width past the middle (`left_hand_refs.md` §5: "under the neck's shoulder in 3rd"; from
+/// the heel on the thumb stays there, hidden, while the fingers go on over the body — beside
+/// the fingerboard over the body there is no room for it over the top plate). Lower down it is
+/// up the G side, its tip about level with the fingerboard (−1.6 … +1.2, the G half).
+const THUMB_HIGH: f32 = -3.6;
+const THUMB_UNDER: f32 = 0.25;
 
 /// The angle between two ways, degrees.
 fn deg(a: V3, b: V3) -> f32 {
@@ -620,9 +629,18 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                             ));
                         }
                     }
+                    // (r42:arcus-hands, pass 7: from the 12th semitone the hand is at or past the
+                    // neck's heel and the thumb's tip sits in the heel's curve under the neck,
+                    // hidden from the audience — THUMB_HIGH, THUMB_UNDER.)
+                    let high = semis >= 12.0;
+                    let (t_lo, t_x) = if high {
+                        (THUMB_HIGH, la.hw * THUMB_UNDER)
+                    } else {
+                        (-1.6, -la.hw * 0.5)
+                    };
                     if ix <= la.hw + index_in
-                        || tx >= -la.hw * 0.5
-                        || !(top - 1.6..=top + 1.2).contains(&tz)
+                        || tx >= t_x
+                        || !(top + t_lo..=top + 1.2).contains(&tz)
                     {
                         bad.push(format!(
                             "{tag}: the index's base at x {ix:.1}, the thumb's tip at x {tx:.1}, \

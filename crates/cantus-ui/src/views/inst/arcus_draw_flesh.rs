@@ -833,6 +833,10 @@ fn dq_vertex(fig: &Figure, dq: &[Option<Dq>], i: usize) -> Option<V3> {
 /// A triangle faces the eye (and is drawn: not a shirt's cuff), is a sleeve's inside, lies
 /// behind the neck.
 const CLS_FACING: u8 = 1;
+/// r42:arcus-hands, pass 7 — how far a High hand patch's flat triangle may turn away from the
+/// eye (the cosine) and still be drawn into the depth raster (a fold's patch bulging back
+/// toward it).
+const FOLD_GRAZE: f32 = 0.35;
 const CLS_INSIDE: u8 = 2;
 const CLS_BEHIND: u8 = 4;
 /// r42:arcus-hands — a hand patch across the neck's edge (drawn split between the passes).
@@ -1571,6 +1575,16 @@ pub fn arm(
                 // live its thinned band broke into white specks and jagged teeth against
                 // the wrist (the review, both wrists, both cameras).
                 let facing = fnrm.dot(eye - ctr) > 0.0 && am.stuff[k] != Stuff::Shirt;
+                // r42:arcus-hands, pass 7 — High's hand patches a little turned away too:
+                // drawn as curved patches into the depth raster, a patch whose flat triangle
+                // turns just away can still bulge toward the eye (a fold at the webs, the
+                // clefts between the knuckles); left out it opened a thin dark slit at her
+                // hand's ulnar edge high up. The samples' depths keep what lies behind.
+                let facing = facing
+                    || (!light
+                        && am.fine[k]
+                        && am.stuff[k] == Stuff::Skin
+                        && fnrm.dot(eye - ctr) > -FOLD_GRAZE * fnrm.len() * (eye - ctr).len());
                 // r42:arcus-polish2 — a sleeve's triangle the pose drew out to over
                 // [`STRETCH_MAX`] times its length at rest: the crook of a sharply bent
                 // elbow, whose corners the two bones pull apart, poked out of the sleeve

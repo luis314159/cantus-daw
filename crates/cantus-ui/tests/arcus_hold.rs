@@ -370,6 +370,14 @@ fn the_left_hand_passes_behind_the_neck() {
                 // Along the thumb and the upper arm: where the neck or the body hides
                 // them, the picture's own pixels.
                 let mut samples = Vec::new();
+                // r42:arcus-hands, pass 7 — a realistic figure's own skin in front of the neck
+                // (its triangles as the picture's eye sees them, each point at the pixel not
+                // hidden by the neck): what it covers is the figure's to show — the wider
+                // knuckles' index base over a hidden vertex's pixel (Vector Violin Man) is not
+                // the hand showing through the neck. The stylised tubes' clearance (`fronts`)
+                // does not reach the skinned hand's own breadth.
+                let mut front_tris: Vec<([egui::Pos2; 3], [cantus_ui::scene::geo::V3; 3])> =
+                    Vec::new();
                 for i in 1..20 {
                     let t = i as f32 / 20.0;
                     for s in 0..3 {
@@ -395,6 +403,18 @@ fn the_left_hand_passes_behind_the_neck() {
                         }),
                     };
                     let posed = hu::repose_arm(fig, &base.0, 0, &aim);
+                    for (k, t) in fig.tris.iter().enumerate() {
+                        if fig.part[k] & 2 == 0 || fig.part[k] & 1 != 0 {
+                            continue;
+                        }
+                        let w = t.map(|i| posed.vertex(fig, i as usize));
+                        if w.iter()
+                            .all(|&q| hand::hidden_by_neck(q, eye, d, &rig.pose))
+                        {
+                            continue;
+                        }
+                        front_tris.push((w.map(to_px), w));
+                    }
                     let mut seen = std::collections::HashSet::new();
                     for (k, t) in fig.tris.iter().enumerate() {
                         if fig.part[k] & 2 == 0 || fig.part[k] & 1 != 0 {
@@ -416,6 +436,28 @@ fn the_left_hand_passes_behind_the_neck() {
                         }
                     }
                 }
+                // Whether the figure's own skin in front of the neck covers the pixel `p`.
+                let front_skin = |p: egui::Pos2| {
+                    front_tris.iter().any(|(q, w)| {
+                        let (a, b, c) = (q[0], q[1], q[2]);
+                        let den = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                        if den.abs() < 1e-6 {
+                            return false;
+                        }
+                        let l0 = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / den;
+                        let l1 = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / den;
+                        let l2 = 1.0 - l0 - l1;
+                        l0 >= 0.0
+                            && l1 >= 0.0
+                            && l2 >= 0.0
+                            && !hand::hidden_by_neck(
+                                w[0] * l0 + w[1] * l1 + w[2] * l2,
+                                eye,
+                                d,
+                                &rig.pose,
+                            )
+                    })
+                };
                 for (w, by_neck) in samples {
                     let p = to_px(w);
                     let hid = if by_neck {
@@ -424,6 +466,13 @@ fn the_left_hand_passes_behind_the_neck() {
                         inside(p)
                     };
                     if !hid || !clear(p) {
+                        continue;
+                    }
+                    if front_skin(p) {
+                        let (_, _, diff) = pixel(p);
+                        if diff > 40 {
+                            println!("{be:?} {b:?} {hold:?}: at {p:?} the figure's own front skin");
+                        }
                         continue;
                     }
                     let (got, want, diff) = pixel(p);

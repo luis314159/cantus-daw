@@ -31,6 +31,26 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import blend_check as B  # noqa: E402
 import left_hand as L  # noqa: E402
+import rule_check as RC  # noqa: E402
+import hand_rig as hr  # noqa: E402
+
+# r42:arcus-hands, pass 7 — ``--rules``: the gate's rules (``rule_check.py``) held on the
+# gate's cases this row's blends make and on the row's own pose up to RULES_TOP semitones of
+# the hand's position, with the palm's way freer by PALM_FREE_REACH degrees where the
+# outline's rule holds the hand edge-on (the reach and high rows: crop-02, crop-11).
+RULES_TOP = 12.0
+PALM_FREE_REACH = 20.0
+RULES_W = 1.0
+# The back of the hand at a slant to the eye on the reach and high rows' own poses: at most
+# FACING_MOST (the cosine; the photographs' slanted backs, w/l 0.5-0.9 — crop-02's hand at
+# the body's shoulder nearly edge-on; the table's read 0.85-0.92 there, broadside), and the
+# hinge's weight. The rows are started too from the hand turned about its own length by
+# TURN_STARTS degrees (LM alone does not leave a broadside pose for an edge-on one).
+FACING_MOST = 0.6
+FACING_W = 25.0
+TURN_STARTS = (-25.0, 25.0)
+# A row is kept only if its skin and its blends go no deeper than before (or the slack).
+KEEP_SLACK = 0.03
 
 KS = (0.5,)
 # The gate's own blends (``hand::target``: +14 is the 11th position, two thirds from the 9th
@@ -89,15 +109,50 @@ class Row:
             out.append(np.maximum(0.0, self.need - d))
         return np.concatenate(out)
 
+    def gate(self, rules):
+        """r42:arcus-hands, pass 7 — the gate's cases whose blend uses this row (the same
+        finger playing) and the row's own stop, as (semis, hand position)."""
+        self.rules = rules
+        self.cases = []
+        for s in RC.GATE_SEMIS:
+            at, f = RC.target_finger(s)
+            if f != self.finger:
+                continue
+            lo = max(a for a in self.b.ats if a <= at)
+            hi = min((a for a in self.b.ats if a >= at), default=lo)
+            if self.at == lo or (self.at == hi and at > lo):
+                self.cases.append((s, at, lo))
+        if self.at <= RULES_TOP and self.finger < 4:
+            row = self.b.rows[(self.string, self.finger, self.at)]
+            self.cases.append((row["semis"], self.at, self.at))
+        row = self.b.rows[(self.string, self.finger, self.at)]
+        self.edge_on = self.finger < 4 and row["semis"] > 3.0
+        return self
+
+    def held(self, x):
+        if not getattr(self, "cases", None):
+            return np.zeros(0)
+        me = me_of(self.pose, x)
+        out = []
+        for s, at, lo in self.cases:
+            W, Rh, Q, P, fore = self.b.pose(self.string, self.finger, at, s, x_over={self.at: me})
+            row = self.rules.rows[(self.string, self.finger, lo)]
+            m = self.rules.measure(self.string, s, at, self.finger, W, Rh, Q, P, fore, row)
+            out += RC.hold(m)
+            if self.edge_on and lo == self.at and at == self.at:
+                out.append(FACING_W * max(0.0, m["facing"][0] - FACING_MOST))
+        return RULES_W * np.array(out)
+
     def fun(self, prev):
         def f(x):
             r = self.pose.residuals(x, prev)
-            return np.concatenate([r, self.pose.pen_w * self.blends(x)])
+            return np.concatenate([r, self.pose.pen_w * self.blends(x), self.held(x)])
         return f
 
 
-def worst(b, string, finger, at):
-    """The deepest skin (cm) at the row and at its blends either side."""
+def worst(b, string, finger, at, me=None):
+    """The deepest skin (cm) at the row and at its blends either side (``me``: the row's
+    pose to use instead of the cache's)."""
     i = b.ats.index(at)
     out = 0.0
     pts = [at]
@@ -105,7 +160,8 @@ def worst(b, string, finger, at):
         if 0 <= j < len(b.ats):
             pts += [at + (b.ats[j] - at) * k for k in KS + KS_EXTRA]
     for a in pts:
-        W, Rh, Q, P, fore = b.pose(string, finger, a)
+        W, Rh, Q, P, fore = b.pose(string, finger, a, None,
+                                   x_over=None if me is None else {at: me})
         dp, dr, _, _ = b.depth(W, Rh, Q, P, fore, finger)
         out = max(out, dr, dp - B.PAD_PRESS)
     return out
@@ -154,6 +210,7 @@ def main():
     sweeps = int(arg.get("--sweeps", "2"))
     worse = float(arg.get("--worse", "0.3")) / 10.0
     keys = arg.get("--keys")
+    use_rules = "--rules" in sys.argv[2:]
     F = next(F for F in D["figs"] if f'{F["who"]}-{F["inst"]}' == only)
     thin = L.Hand(F["who"])
     L.dense()
@@ -161,6 +218,7 @@ def main():
     cache = B.cache_of(here, only)
     b = B.Blend(F, h, cache)
     neck = L.Neck(F)
+    rules = RC.Rules(F, h, neck) if use_rules else None
     R0, _ = L.start(h, L.rows_of(F, 0, 1)[0])
     tag = "-s" + "".join(str(s) for s in strings) + "blend"
     path = os.path.join(here, f"left_hand_cache-{only}{tag}.json")
@@ -199,6 +257,10 @@ def main():
             lo = cache.get(f"{only}-{string}-{finger}-{b.ats[i - 1]:g}") if i > 0 else None
             prev = np.array(lo["x"]) if lo is not None else None
             rr = Row(b, pose, string, finger, at)
+            if rules is not None:
+                rr.gate(rules)
+                if row["semis"] > 3.0 and finger < 4:
+                    pose.palm_free = PALM_FREE_REACH
             fun = rr.fun(prev)
             x0 = np.array(cache[key]["x"])
             if len(x0) < 29:
@@ -227,11 +289,21 @@ def main():
                 xs[3:6] += rng.normal(0, 0.12, 3)
                 xs[6:] += rng.normal(0, 0.1, len(xs) - 6)
                 starts.append(xs)
+            if rules is not None and rr.edge_on:
+                Wx, Rhx, Qx = pose.unpack(x0)
+                Px = pose.h.fk(Wx, Rhx, Qx)
+                ax = hr.norm((Px[2, 0] + Px[3, 0]) * 0.5 - Wx)
+                for ang in TURN_STARTS:
+                    xs = x0.copy()
+                    xs[3:6] = L.rotlog(hr.about(ax, np.radians(ang)) @ Rhx @ pose.R0.T)
+                    starts.append(xs)
+            was = worst(b, string, finger, at)
             for xs in starts:
                 x, _ = L.settle(pose, fun, xs, 30)
                 pose.pen_w = L.PEN_W
                 c = total(x)
-                if c < best[1]:
+                if c < best[1] and (rules is None or worst(b, string, finger, at, me_of(pose, x))
+                                    <= max(was, KEEP_SLACK) + 1e-4):
                     best = (x, c)
             x, c = best
             if c < first:
