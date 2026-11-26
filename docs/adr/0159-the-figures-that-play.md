@@ -219,9 +219,8 @@ occluding capsules in its live painter.
       - The kit's brush pools the foreign textures' quads as it pools its meshes (the
         depth raster's arm pictures at rest had drawn a fresh image mesh a pass:
         `arcus_scene`'s nothing-allocated-at-rest gate); the rod grip's tips curled under the
-        stick (`figure_contract`: the lengthened fingers curled at
-        three joints stood their middle joints 4.2 cm off it; the tips now curl under the rod and
-        back toward the palm).
+        stick and back toward the palm (`figure_contract`: the lengthened fingers, curled at
+        three joints, had stood their middle joints 4.2 cm off it).
       - *Gates*: `arcus_hand_table::the_left_hand_keeps_out_of_the_neck_and_the_body`
         (every figure, instrument, string and eight positions to the 17th semitone: the
         playing pad ≤ 1 mm in, anything else ≤ 0.3 mm — the skin's sampling), the hand's

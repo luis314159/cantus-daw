@@ -1218,7 +1218,7 @@ on a loaded machine; eight at once):
     ... pen <dump> <out> <who> <inst> <string>,<finger>,<at> ...   (the red debug view)
 
 **Where it stands (2026-11-26, the table installed: `assets/figures/left_hand.bin`, the
-figures rebuilt)** — sheets outside the tree: `F:\projects\daw-r42	mp\hands2-sheet\`
+figures rebuilt)** — sheets outside the tree: `F:\projects\daw-r42\tmp\hands2-sheet\`
 (`hands-{photo,drawn}-{night,paper}.png`: both figures, first, third and high position and
 the bow hand, 100 % own pixels and 2x, 200 %, before/after, with the photographs;
 `her-left-hand-400.png`: her left hand at ~400 % from the app's camera, before/after, with
