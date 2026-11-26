@@ -1176,3 +1176,92 @@ as it was built for the pianos; nothing in it was tuned for the figures. What it
    orange and flat, and in Drawn the spots make white blotches on the top.
 6. *Contrast*: deeper blacks with the velvet's and the wool's sheen kept; warmer skin
    (ours pale); Paper's Concert currently a dim grey stage.
+
+## arcus-hands, pass 2 (2026-11-25, late): the instrument kept out, the fingers rebuilt
+
+The owner, this pass: "la mano izquierda de la chica aún falla", "los dedos muy raros — es el
+detalle principal", "quizás a veces choca con el mástil", "cuando se toca muy cerca del cuerpo
+del violín el músico suele subir la muñeca… al tocar muy abajo se solapa la mano y antebrazo
+con el cuerpo", then on the first before/after "aún se pueden mejorar los dedos" and "aún se
+ven alienígenas y raros los dedos". Merged on the way: polish2's neck (01c32794e, 2.03 cm),
+camera (d630eb474, 8° under the room's) and polish3's heel (da0ad2fc2, 1.8 cm) with the
+Concert light.
+
+**Found at 400 % (the app's camera zoomed: `shoot_arcus --cam=$(python tools/arcus-figures/hand_cam.py <dump> woman violin 2 7 8) --scales=2`)**:
+- the notches, saw-tooth shards, kinks and facets at the finger joints were `thin.py`'s — a
+  phalanx collapsed to one ring of 7–8 points a joint; fixed by never thinning a phalanx
+  (`build_figures.py::FINGER_KEEP`);
+- fingers splayed 15–50° (MakeHuman's rest fan, a hovering index swinging to its note):
+  `SPREAD` takes three quarters of the fan back, `SPREAD_MAX` 8°;
+- hooks: tips held to 25° folded every playing PIP to its end (110–112°): the tip may
+  lean 28°, the PIP to 100°, the knuckles stand over the board as in crop-11;
+- fingers thin (her PIP 1.3–1.4 cm): `FINGER_SEX` 1.0/1.03, the middle 1.06 — her 1.53/
+  1.52, his 1.81/1.91; joints no longer bony (`JOINT` 1.0), tips half slimmed (`TIP_FULL`);
+- the back of the hand a flat slab: `hand_relief` (knuckle heads, hollows, tendon ridges);
+- creases read as red scratches: fainter, wider, toward the skin's grey, fading as the joint
+  bends (`arcus_draw_marks.rs`); skin variation, tendons, warm knuckles and pads, the nail
+  plate's gloss (`arcus_draw_flesh.rs`);
+- the neck's heel was a 7.5 cm wedge (polish3 fixed it, da0ad2fc2).
+
+**The solver** (`left_hand.py`, `hand_solid.py`): the dump carries the neck's and the
+fingerboard's sections from `bowed_head::neck`'s own patches and the body; ~750 skinned
+points of the hand and forearm are kept out of them (`pen`; only the playing pad presses,
+`PAD_PRESS`); walls soft then hard (`settle`); high up the thumb lags, the wrist rises and
+may bend, the palm turns round the body's shoulder. Commands (each process ~1 row a minute
+on a loaded machine; eight at once):
+
+    CANTUS_HAND_DUMP=<dir>/dump.json target/release/deps/arcus_hand_table-*.exe --ignored dump
+    CANTUS_FIGURE_DIR=<figures> python tools/arcus-figures/left_hand.py solve <dir>/dump.json \
+        --only=<who>-<inst> --strings=0,1 [--seed=<dir of earlier caches>]   (and 2,3)
+    ... fix <dump> --only=... --strings=... [--ats=5,7,9] [--worse=250]
+    ... pack <dump>          (writes <figures>/left_hand.bin with CANTUS_FIGURE_DIR)
+    ... pen <dump> <out> <who> <inst> <string>,<finger>,<at> ...   (the red debug view)
+
+**Where it stands (2026-11-26, the table installed: `assets/figures/left_hand.bin`, the
+figures rebuilt)** — sheets outside the tree: `F:\projects\daw-r42	mp\hands2-sheet\`
+(`hands-{photo,drawn}-{night,paper}.png`: both figures, first, third and high position and
+the bow hand, 100 % own pixels and 2x, 200 %, before/after, with the photographs;
+`her-left-hand-400.png`: her left hand at ~400 % from the app's camera, before/after, with
+crop-08/11/02). The poses now read close to crop-11 and crop-02 in silhouette (the hand
+upright, the fingers together and gently arched, high up the hand over the body's
+shoulder); the owner's last word on the previous step was still "alienígenas" — not yet
+shown the new one.
+
+Gates on this tree (release, `CANTUS_FIGURE_DIR` = the installed assets):
+- green: `arcus_scene` (the brush's pooled quads), `scene_identity`, `figure_contract` (the
+  rod grip), `kit_lint`, clippy `-D warnings` on cantus-ui (lib, tests, examples);
+- `arcus_hand_table` **red**: 132 rule breaks (most a few degrees over: the playing tip
+  31–36° from upright against 30, the hand 61–67° to the neck in the picture on the A and
+  E strings against 68, knuckles 2.6–3.4 cm over the board high up — the solver lets them
+  rise there (`HIGH_RISE`), the gate's `KNUCKLES_UP` does not: reconcile), and
+  `the_left_hand_keeps_out_of_the_neck_and_the_body` 55 cases (the palm's skin 1–10 mm into
+  the body or the heel high up — the solver samples 420 palm points, the gate all of them:
+  sample denser near the instrument or check the whole skin in `fix`);
+  `tools/arcus-figures/hand_check.py <dump> --pen` lists the rows and gives `--keys=` for
+  `fix`;
+- `arcus_hand_shape` red on the lobe only (her 0.22 / 0.20 against 0.19 — the fuller
+  fingers and the knuckle relief; the breadths pass: her 1.48–1.53, his 1.74–1.91);
+- `arcus_hand_form::no_dark_specks_on_the_hands` red (her 200 %: 5 on the left hand, 1 on the
+  bow hand);
+- `arcus_hold`: the wrist 17.6° on her viola against 16 (`WRIST_TOTAL` 14 low: one row
+  over); `the_left_hand_passes_behind_the_neck` fails on the cello — on polish's own build
+  too (not the hands');
+- `arcus_figure_specks`: 56 strays, polish's own build 66 (the Concert light's work);
+- `arcus_arm_pose` (ignored by polish3 for the bow arm): the left upper arms 38°, 38°, 56°,
+  43° below level — in the 30–80 band (her viola was 26°).
+
+**Budget (measured, not a gate; release, best of the test's runs, the machine shared)**:
+High's live arms on the violinists +7.9 / +10.4 ms at 100 % (her / him) and +20.7 / +29.2 ms
+at 200 % — far over the ADR's 4 ms. The depth raster (`arcus_draw_raster.rs`, 3×3 samples at
+100 %, 2×2 at 200 %, never measured before this pass) and the unthinned fingers (~1.2 k
+triangles a hand) are the likely costs; Light +0.8–1.2 ms. **First thing next**: measure the
+raster alone (2×2 / 1×1 + edge AA), raster only the hand's rectangle, keep `FINGER_KEEP` but
+thin the first phalanx's back.
+
+**Open, in order**: (1) the table's remaining rows (`hand_check.py`, then `fix --keys=`),
+the gates' knuckle bound high up; (2) the budget; (3) the lobe and the specks; (4) the
+asset question — a better-modelled CC0 hand (Blender Studio's Human Base Meshes, CC0) was
+not evaluated: Blender is not on this machine (the bundle is .blend) and studio.blender.org
+refuses automated fetches (403); grafting needs retargeting and a weight transfer — a
+session of its own; (5) the nail detail per point (cuticle, free edge) and a normal map for
+creases and tendons.

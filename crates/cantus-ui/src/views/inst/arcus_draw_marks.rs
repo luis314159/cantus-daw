@@ -37,10 +37,13 @@ pub struct Line {
 
 pub const LINE_PTS: usize = 9;
 
+/// One line of a joint's creases: its offset along the finger, its half-span, its strength.
+type Crease = (f32, f32, f32);
+
 /// The creases a joint carries: (the joint's finger, its bone whose head is the joint, the
 /// lines' offsets along the finger from the joint (cm, toward the tip positive, scaled by
 /// the hand), each line's half-span round the finger (deg), its strength).
-const CREASES: [(usize, usize, &[(f32, f32, f32)]); 9] = [
+const CREASES: [(usize, usize, &[Crease]); 9] = [
     // The middle joints (PIP): three, the middle one the longest and darkest.
     (1, 1, PIP),
     (2, 1, PIP),
@@ -57,8 +60,8 @@ const CREASES: [(usize, usize, &[(f32, f32, f32)]); 9] = [
 // (r42:arcus-hands, pass 2 — the coordinator at 400 %: "small red cuts or scars"; real
 // dorsal creases are soft, low-contrast folds in tight groups: fainter, wider, nearer
 // together, a neutral shadow, gone as the joint bends.)
-const PIP: &[(f32, f32, f32)] = &[(-0.09, 34.0, 0.32), (0.0, 46.0, 0.5), (0.09, 38.0, 0.38)];
-const DIP: &[(f32, f32, f32)] = &[(-0.04, 36.0, 0.3), (0.05, 30.0, 0.22)];
+const PIP: &[Crease] = &[(-0.09, 34.0, 0.32), (0.0, 46.0, 0.5), (0.09, 38.0, 0.38)];
+const DIP: &[Crease] = &[(-0.04, 36.0, 0.3), (0.05, 30.0, 0.22)];
 /// The bend (deg, the back's line either side of the joint) where the creases start to fade
 /// and where they are gone.
 const BEND_FADE: (f32, f32) = (15.0, 60.0);

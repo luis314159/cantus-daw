@@ -179,9 +179,15 @@ occluding capsules in its live painter.
         a paper hinge — the notches, saw-tooth shards, kinks and facets seen at 400 % were
         that, not the neck. `build_figures.py::FINGER_KEEP` keeps MakeHuman's own rings
         on every phalanx (about 1 200 more triangles a hand); the palm and the forearm
-        are still thinned. The fingers fuller (`FINGER_SEX` 1.0 / 1.03; a woman's PIP
-        breadth 1.5–1.8 cm), held together (`SPREAD`, `SPREAD_MAX` 8°: a hovering index had
-        swung 50° off the middle finger to stay over its note).
+        are still thinned. The fingers fuller (`FINGER_SEX` 1.0 / 1.03, the middle finger
+        1.06: her PIP breadth 1.53 / 1.52 cm, his 1.81 / 1.91), their joints no longer bony
+        (`JOINT` 1.0), the tips half slimmed (`TIP_FULL`: unslimmed beside fuller shafts
+        they read bulbous); the back of the hand given its forms (`hand_relief`: the base
+        knuckles' heads, the hollows between them, the extensor tendons' ridges — a flat
+        slab before). Held together and nearly parallel: MakeHuman's rest hand fans its
+        fingers 15.6°, −10.2° and −18.6° off the middle finger; `SPREAD` takes three
+        quarters of that back and `SPREAD_MAX` holds each within 8° of it (a hovering index
+        had swung 50° off the middle finger to stay over its note; `HOVER_SLACK` looser).
       - *The instrument as drawn, kept out.* The table's dump carries the fingerboard's and
         the neck's sections from `bowed_head::neck`'s own patches and the body (its
         outline, the plates' arching, the ribs); `tools/arcus-figures/hand_solid.py`
@@ -196,8 +202,12 @@ occluding capsules in its live painter.
         and may bend toward the back (`WRIST_FLEX_HIGH`: the forearm leans along the
         instrument from an elbow the upper arm can reach); the palm turns round the body's
         shoulder (`PALM_FREE_HIGH`); the knuckles rise over it (`HIGH_RISE`).
-      - *The rules on the thinner neck* (polish2's 01c32794e, 2.03 cm deep): the arches 1.3
-        neck thicknesses (`ARCHES`, was 3.5–3.8 cm), the playing PIP to 110°, the wrist
+      - *The rules on the thinner neck* (polish2's 01c32794e, 2.03 cm deep; polish3's heel,
+        da0ad2fc2, 1.8 cm — it had been a 7.5 cm wedge in 3rd–5th position): the arches 1.3
+        neck thicknesses (`ARCHES`, was 3.5–3.8 cm); gentle arches, the playing PIP to 100°
+        and its last phalanx within 28° of the board's normal (held to 25° every playing
+        PIP folded to its end, 110–112°: hooks), the knuckles free to stand over the board
+        as in crop-11 (`KNUCKLES` to 2 cm); the upper arm 38–60° below level; the wrist
         −1.7 … +2.0 cm across from the E edge as the photographs have it (was 0 … 3.5), the
         index's base held to the E side (`CROOK_W` 15).
       - *Creases* fainter, wider and neutral (a shadow toward the skin's own grey, never a
@@ -206,12 +216,22 @@ occluding capsules in its live painter.
         extensor tendons as faint lighter ridges, the knuckles and the pads warmer, the
         base knuckles' tops lighter; the nail plate's broad gloss and its sheen at a glance
         (`NAIL_GLOSS`).
+      - The kit's brush pools the foreign textures' quads as it pools its meshes (the
+        depth raster's arm pictures at rest had drawn a fresh image mesh a pass:
+        `arcus_scene`'s nothing-allocated-at-rest gate); the rod grip's tips curled under the
+        stick (`figure_contract`: the lengthened fingers curled at
+        three joints stood their middle joints 4.2 cm off it; the tips now curl under the rod and
+        back toward the palm).
       - *Gates*: `arcus_hand_table::the_left_hand_keeps_out_of_the_neck_and_the_body`
         (every figure, instrument, string and eight positions to the 17th semitone: the
         playing pad ≤ 1 mm in, anything else ≤ 0.3 mm — the skin's sampling), the hand's
         line 68–92° to the fingerboard's edge in the picture up to the 9th semitone, and
         `arcus_hand_shape`'s breadth measured on the middle phalanx's own skin past its
         joint (her index and middle 1.5–1.8 cm, the little ≤ 1.5; his 1.6–2.1 / ≤ 1.7).
+      - *Cost* (measured, `arcus_hold_budget`, release, the machine shared): High's live arms
+        on the violinists +7.9 / +10.4 ms at 100 %, +20.7 / +29.2 ms at 200 % — the depth
+        raster (first measured here) and the unthinned fingers; over the 4 ms the owner
+        allows for the look: open, the handoff's first item. Light +0.8–1.2 ms.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

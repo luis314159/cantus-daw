@@ -294,6 +294,10 @@ const UPRIGHT: f32 = 30.0;
 /// (r42:arcus-hands: 16 — the photographs' 3–23°, median ~10; was 8, which kept the hand
 /// leaning along the neck.)
 const WRIST: f32 = 16.0;
+/// r42:arcus-hands — from the 9th semitone: the hand toward the body's shoulder, the forearm
+/// leaning along the instrument from an elbow the upper arm reaches (ref-40, crop-11), the
+/// wrist bent toward the back as well.
+const WRIST_HIGH: f32 = 30.0;
 /// How much wider the hand's outline may be at its middle than at the wrist's crease where
 /// the index or the middle finger plays low on the neck (the photographs: 1.1–1.3; ours
 /// 1.05–1.3 but one viola case at 1.42).
@@ -578,7 +582,7 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     }
                     let wrist = deg(lp.wrist - lp.elbow, mid - lp.wrist);
                     worst[5] = worst[5].max(wrist);
-                    if wrist > WRIST {
+                    if wrist > if semis >= 9.0 { WRIST_HIGH } else { WRIST } {
                         bad.push(format!("{tag}: the wrist bent {wrist:.0}°"));
                     }
                     worst[6] = worst[6].max(upright);

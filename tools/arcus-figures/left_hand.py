@@ -126,7 +126,7 @@ class Hand:
     # the forearm's own vertices (each at least 0.6 theirs, as the gate takes them), thinned
     # (the fingers kept densest), each skinned by its weights on the hand's, the fingers'
     # and the forearm's bones (linear blend, as the app's ``repose_arm``).
-    SKIN_MOST = {"finger": 420, "thumb": 100, "palm": 150, "fore": 70}
+    SKIN_MOST = {"finger": 420, "thumb": 100, "palm": 420, "fore": 120}
 
     def skin_setup(self):
         fig = self.fig
@@ -322,6 +322,8 @@ ARCHES = (2.7, 2.9, 2.8, 2.3)
 # The playing finger's last phalanx within this of the fingerboard's normal (cos 25 deg; was 24 — with the last joint nearly straight, the middle joint takes the
 # bend).
 UPRIGHT_COS = 0.883
+# (r42:arcus-hands, pass 2: 300 — at 150 the high rows let their tips lean 32-40 deg.)
+UPRIGHT_W = 300.0
 # Each first phalanx rising from its knuckle: within this of the normal (cos 50 deg; was 40 — the first phalanx leans over the board toward the string, as in
 # crop-08 and crop-11, so the bend is spread over three joints, not folded at two).
 RISE_COS = 0.64
@@ -334,6 +336,8 @@ WRIST_X = (-1.7, 2.0)
 # the gates hold the wrist within 16.)
 WRIST_DEV = (0.0, 12.0)
 WRIST_DEV_MID = 8.0
+# The wrist's whole bend at the most (deg), low and high up (the gates: 16 low).
+WRIST_TOTAL = (14.0, 28.0)
 # How far a finger that does not play may hover from over its note (cm).
 # (r42:arcus-hands, pass 2: looser — a finger close to its neighbours rather than over its
 # own note; was 1.2, 1.4, 1.8, 2.6.)
@@ -490,7 +494,7 @@ class Pose:
             if f == p:
                 add(f"tip{f}", *((tip - self.tips[f]) * 40.0))
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
-                add(f"upright{f}", 150.0 * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
+                add(f"upright{f}", UPRIGHT_W * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
             else:
                 # Hovering over its own string a little across from the playing one (each
                 # finger falls toward its own string, at its own angle — photograph 4).
@@ -577,6 +581,11 @@ class Pose:
             lo, hi_ = (WRIST_FLEX[i] + (WRIST_FLEX_HIGH[i] - WRIST_FLEX[i]) * self.high for i in (0, 1))
             add("wrist_flex", 1.5 * over(fl, lo, hi_) + 0.04 * fl)
         add("wrist_dev", 1.5 * over(np.degrees(dev), *WRIST_DEV) + 0.05 * (np.degrees(dev) - WRIST_DEV_MID))
+        # (r42:arcus-hands, pass 2: the wrist's whole bend, the forearm against the hand's
+        # line, as arcus_hold and arcus_hand_table measure it — the sideways turn and the
+        # bend toward the back together had reached 21 deg.)
+        bend = np.degrees(np.arccos(np.clip(way @ -hd, -1, 1)))
+        add("wrist_total", 2.0 * over(bend, 0.0, WRIST_TOTAL[0] + (WRIST_TOTAL[1] - WRIST_TOTAL[0]) * self.high))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
         # r42:arcus-hands — the upper arm hanging from the shoulder to an elbow under the
         # violin, not out to the side like a wing (the owner: "ese brazo aún se ve raro";
@@ -831,7 +840,7 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
             print(k, "cost %.1f -> %.1f" % (c["cost"], cost), flush=True)
         # (r42:arcus-hands: a forced row is kept whatever its old cost — the instrument may
         # have changed under it, its old cost no longer its own.)
-        if cost < c["cost"] or row["at"] in FORCE_AT:
+        if cost < c["cost"] or row["at"] in FORCE_AT or any(k.endswith(x) for x in FORCE):
             cache[k] = entry(pose, x, cost)
             if save:
                 save(cache)
@@ -1189,9 +1198,12 @@ def main():
                 FORCE_AT.extend(float(a) for a in ats.split(","))
             worse = float(next((a.split("=", 1)[1] for a in sys.argv
                                 if a.startswith("--worse=")), "60"))
+            # (Each share saves only its own strings' rows, so the shares' files merge.)
+            def mine(c):
+                return {k: v for k, v in c.items() if int(k.split("-")[2]) in STRINGS}
             fix_fig(F, Hand(F["who"]), cache, worse=worse, verbose=True, tries=3,
-                    save=lambda c, p=path: json.dump(c, open(p, "w")))
-            json.dump(cache, open(path, "w"))
+                    save=lambda c, p=path: json.dump(mine(c), open(p, "w")))
+            json.dump(mine(cache), open(path, "w"))
     elif cmd == "pack":
         cache = {}
         for k in keys:

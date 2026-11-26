@@ -298,8 +298,7 @@ impl Brush {
             }
             self.items.clear();
         }
-        let mut used = 0;
-        for (tex, rect) in self.foreign.drain(..) {
+        for (used, (tex, rect)) in self.foreign.drain(..).enumerate() {
             let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
             // A pooled quad epaint has finished with, refilled (its room kept).
             let free =
@@ -317,7 +316,6 @@ impl Brush {
             m.texture_id = tex;
             m.add_rect_with_uv(rect, uv, Color32::WHITE);
             painter.add(Shape::Mesh(self.fpool[used].clone()));
-            used += 1;
         }
         for t in self.texts.drain(..) {
             let mut s = TextShape::new(t.pos, t.galley, t.color);
