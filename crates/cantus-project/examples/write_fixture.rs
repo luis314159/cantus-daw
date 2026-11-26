@@ -2157,6 +2157,9 @@ fn main() {
                 ("bow.grit", 1.0),
                 ("sym", 1.2),
                 ("steel", 1.0),
+                ("tuning.strings", 1.0),
+                ("body.mic", 1.0),
+                ("body.bridge", 1.0),
             ] {
                 spec.set(k, v);
             }

@@ -29,7 +29,7 @@ catalogued as the `fiddle` set) measured what the ear heard:
 
 ## Decision
 
-Seven settings, each **off at its default — nothing changes, to the bit** — and on in the
+Eight settings, each **off at its default — nothing changes, to the bit** — and on in the
 *Fiddle* preset:
 
 1. **`bow.pair`** (0/1) — **one bow on two strings.** A voice gets a second `BowedString`
@@ -81,7 +81,17 @@ Seven settings, each **off at its default — nothing changes, to the bit** — 
    the crossed table; a voice keeps its tuning while it rings; the lines are sized for the lowest
    (DDAD's D3). Standard is the violin's own table, the same reference, to the bit.
 
-7. **`body.mic`** (stepped) — the violin's and the viola's microphones: 0 the pair (each side
+7. **`body.bridge`** (0 … 2) — a fiddle's bridge, on the violin's and the viola's body modes
+   themselves (not an EQ).
+   - Each mode at `hz` takes `bridge_gain(hz, amount)`: the bridge hill (the rocking mode)
+     +4 dB at 2.3 kHz over ±1.1 octaves, a raised cosine in log frequency, and the top −8 dB
+     from 4.5 kHz over half an octave. It is exactly 1 at 0.
+   - With the close mic, the songs' 1.6–3.2 kHz third-octaves go from −15 … −17 to about −12
+     dB re the total (the bluegrass references −11 … −13). Tren's stem reads centroid / f0 2.26
+     and −6.6 dB above 2 kHz (2.21 and −6.6).
+   - 5 kHz stays about 4 dB over dry classical violins; 6.3–8 kHz now sit at them.
+
+8. **`body.mic`** (stepped) — the violin's and the viola's microphones: 0 the pair (each side
    hears each mode above 700 Hz with its own sign and strength, Weinreich's directional tone
    colour), 1 one close microphone (both sides the left one's).
    - The pair summed to mono cancels part of the upper modes. The fiddle songs' stems, summed
@@ -91,7 +101,7 @@ Seven settings, each **off at its default — nothing changes, to the bit** — 
      −10 dB.
 
 The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1, `dstop.just` 0.6
-and `body.mic` 1, with its bow nearer the bridge (×0.73, was 0.82) and heavier (×1.32, was
+`body.mic` 1 and `body.bridge` 1, with its bow nearer the bridge (×0.73, was 0.82) and heavier (×1.32, was
 1.15). The demos put each drone in the fiddle's own clip, at the melody note's velocity.
 
 ## Consequences
@@ -130,6 +140,10 @@ and `body.mic` 1, with its bow nearer the bridge (×0.73, was 0.82) and heavier 
   browser:
   - both notes of a double stop sound, and without the pair one is gone;
   - F#5 is tuned toward the just sixth;
-  - the sympathetic tail is louder than with none.
+  - the sympathetic tail is louder than with none;
+  - the close mic and the fiddle's bridge lift the 1.6–3.2 kHz band of the two sides' sum
+    (+13 dB against the pair and the measured bridge).
+- `cantus-engine` `arcus_image`: a fork is 770 KB at 48 kHz (was 425: the second string a
+  voice, the lines sized for DDAD's D3, the sympathetic loops), and `approx_bytes` follows it.
 - `cantus-project` `schema_85_keeps_arcus_s_strings_under_one_bow` (fixture v85; v83 reads the
   defaults).

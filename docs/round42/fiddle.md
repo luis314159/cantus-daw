@@ -192,6 +192,45 @@ and −8 … −9 (`fiddle_ltas.py`, `fiddle_quick.py`).
 | the sympathetic tail 0.2–1 s after the bow lifts (re the note) | −40.2 dB | −29.6 dB (sym 1) | — |
 | a chop's periodicity (the open D, 60 ms) | 0.72 (a staccato) | 0.00 | — |
 
+### 3.4 The gates (Windows, this branch, release)
+
+- **`cantus-dsp` `arcus::`**: 123 passed, 0 failed, 48 ignored probes. Among them:
+  - `LOWER_HASHES`, `the_player_off_keeps_pass_six_s_bits` and every held-out gate: unchanged
+    — at their defaults the new keys change no sample;
+  - `tests_fiddle`'s eight:
+    - the same bits at block sizes 1, 31, 64, 256 and 1000, everything on;
+    - rest;
+    - a double stop as one voice, F#5 tuned 0.6 of the way to 5/3;
+    - no pair: a slur as before;
+    - a crossing's ring;
+    - the sympathetic ring;
+    - the chop's periodicity 0.00 against a staccato's 0.72;
+    - every cross-tuning's open strings.
+- **`cantus-engine`**:
+  - `inst_arcus` 9: the fiddle's keys at their defaults null, a fiddle shape at every block
+    size;
+  - `null_tests` 26;
+  - `rt_memory` 68: `an_arcus_fiddle_never_allocates`, on the audio thread and the pool;
+  - `arcus_image`: 770 KB a fork, `approx_bytes` moved;
+  - `strings_rec_art` 4.
+- **`cantus-ui`**:
+  - `arcus_fiddle_e2e`, through `CantusApp::assemble`, the picker and the preset browser:
+    - both notes of a one-bow double stop at −10.3 dB of each other, against −23.1 without
+      the pair;
+    - F#5 at −9.3 cents (the just sixth × 0.6: −9.4);
+    - the sympathetic tail +4.1 dB;
+    - the close mic and the fiddle's bridge +13.0 dB at 1.6–3.2 kHz;
+  - `arcus_level_e2e`: every bowed preset's music level in the spread, the fiddle's included;
+  - `arcus_upper_e2e`, `arcus_tuning_art_e2e`, `arcus_pick_e2e`;
+  - `ai_mcp_boot`: the tools list re-dumped with the chop;
+  - i18n: every English key in Spanish.
+- **`cantus-core`**: the undo fuzz 19 (its `SetNoteArt` arm draws from `Articulation::ALL`, the
+  chop included); the lib tests 55.
+- **`cantus-project`**: `schema_85_keeps_arcus_s_strings_under_one_bow` (fixture v85; v83 reads
+  the defaults) and every fixture loading.
+- **`DSP_VERSION` 17**: at the defaults the measured size of the change is zero — no golden
+  hash and no `LOWER_HASHES` render moved. The fiddle preset sounds otherwise (§3.2).
+
 ## 4. For the owner's ears
 
 `F:\projects\cantus-work\listen\fiddle\escuchar.html` (Spanish, `tools/arcus/fiddle/listen_page.py`).

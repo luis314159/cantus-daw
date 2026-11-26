@@ -90,9 +90,8 @@ impl Sympathy {
     pub fn set(&mut self, spec: &InstrumentSpec, offsets: [f32; 4], sym: f32, decay: f64) {
         self.fed = sym > 0.0;
         let mut longest = 0usize;
-        for i in 0..4 {
-            let st = spec.strings[i];
-            let f = 440.0 * math::exp2((st.open as f64 + offsets[i] as f64 - 69.0) / 12.0);
+        for (i, (st, off)) in spec.strings.iter().zip(offsets).enumerate() {
+            let f = 440.0 * math::exp2((st.open as f64 + off as f64 - 69.0) / 12.0);
             let f = f.max(LOWEST_HZ * 1.02);
             let p = self.sr / f;
             let w0 = std::f64::consts::TAU * f / self.sr;

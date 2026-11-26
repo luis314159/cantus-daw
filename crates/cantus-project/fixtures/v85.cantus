@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 85,
   "app_version": "fixture",
-  "saved_at": 1795668126,
+  "saved_at": 1795687934,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3526,6 +3526,8 @@
           "type": "Native",
           "kind": "BowedString",
           "params": {
+            "body.bridge": 1.0,
+            "body.mic": 1.0,
             "bow.grit": 1.0,
             "bow.pair": 1.0,
             "bow.tilt": 0.6,
@@ -3536,7 +3538,8 @@
             "mod4.amt": 0.5,
             "model": 2.0,
             "steel": 1.0,
-            "sym": 1.2
+            "sym": 1.2,
+            "tuning.strings": 1.0
           },
           "text": {
             "macro1.name": "arcus.macro.expression",
@@ -7709,5 +7712,5 @@
     },
     "next_id": 155
   },
-  "integrity": "4a1f0b2654057964f3099e60c3b78446ca6f73376bb2538c50dbb149183fa315"
+  "integrity": "8e3b5b6812a96ca80cfd776750152e8c2c1ff46d3a619385b04362338b4eb47d"
 }
