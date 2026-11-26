@@ -169,3 +169,28 @@ head's bands, held by the note and shaped by its velocity and a controller (a ha
 wires gated by the head's motion. Keys: GM has none — the articulation keys past 88 (ADR 0042),
 `brush`, `sweep`, `dig`, `flutter`, `release` on the snare, a brushed hat and ride. Built only
 against those recordings, as the drums were.
+
+## 6. For the owner's ears
+
+`F:\projects\cantus-work\listen\tympanum-real\` — `escuchar.html` (Spanish): nine Groove MIDI
+performances (rock, pop, funk, jazz, samba, soul, gospel, punk, hip-hop), each through the recorded
+kits of its genre and Tympanum's Studio and Jazz kits before and after; three real Freesound
+recordings (funk, a funk ride, slow metal) transcribed by `transcribe.py` and played back by
+DRSKit and Tympanum beside the original. 16-bit WAV, one loudness (−20 LUFS, lowered together for
+−1 dBFS peaks). `informe.html` (Spanish): the library, the method, what changed, every chart,
+every measure as the annex. Named, not blind: the blind kit (`tympanum_abx`'s, with the new
+genres) comes after he has heard these.
+
+Rebuild everything (after a change to model 5):
+
+```text
+bash tools/build/slot.sh cargo build --release -p cantus-ui --example tympanum_real
+python -I tools/tympanum-real/content_root.py
+python -I tools/tympanum-real/pipeline.py hits <work> --tag after        (TYMPANUM_REAL_EXE=…)
+python -I tools/tympanum-real/pipeline.py grooves <work> --tag after
+python -I tools/tympanum-real/preview.py <work> <listen> --tags before,after
+python -I tools/tympanum-real/pipeline.py compare <work> <work>/report --tags before,after
+python -I tools/tympanum-real/report.py <work>/report <listen> <informe.md>
+cargo test --release -p cantus-dsp --lib level_law_dump -- --ignored --nocapture > law.log
+python -I tools/tympanum-real/law.py law.log <work>/hits <crates/cantus-dsp/src/pulsus_measured_law.rs>
+```
