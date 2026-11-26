@@ -231,8 +231,8 @@ fn aperiodic(x: &[f32], f0: f64, from: f64, to: f64) -> f64 {
     while k <= 50 {
         let t = t0 * (1.0 + k as f64 * 1e-4);
         let (mut d, mut e) = (0.0, 0.0);
-        for n in a..b {
-            let (p, q) = (x[n] as f64, at(n as f64 + t));
+        for (n, v) in x.iter().enumerate().take(b).skip(a) {
+            let (p, q) = (*v as f64, at(n as f64 + t));
             d += (p - q) * (p - q);
             e += p * p + q * q;
         }

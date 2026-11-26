@@ -410,6 +410,7 @@ the bow presses.
       −26.1 dB at bite 0, 1/3, 2/3, 1;
   - `arcus_level_e2e` (every bowed preset at one level, the fiddle's included);
   - `arcus_upper_e2e`.
+- `cargo clippy --release --all-targets -- -D warnings` on cantus-dsp, -core, -engine, -project and -ui: clean (the e2e's residual loop as an iterator after the run, the same sums); rustfmt on every changed file. No `cfg(windows)` code was added.
 - The scratch measures and the owner's report: `tools/arcus/fiddle/fiddle_scratch.py`,
   `fiddle_analysis.py`, `fiddle_analysis_page.py`, `fiddle_analysis_text.py`, and
   `$CANTUS_WORK/listen/arcus-analisis/` (index.html, resumen.html).
