@@ -131,6 +131,9 @@ params! {
     // steel strings (0: as measured; both 0 change nothing, to the bit).
     SYM = ("sym", "arcus.sym", 0.0, 2.0, 0.0, "%", false, false),
     STEEL = ("steel", "arcus.steel", 0.0, 1.0, 0.0, "%", false, false),
+    // r42 fiddle (ADR 0164): the violin's cross-tunings — 0 Standard (G D A E) · 1 AEAE ·
+    // 2 GDGD · 3 ADAE · 4 Calico (A E A C#) · 5 DDAD.
+    CROSS = ("tuning.strings", "arcus.tuning.strings", 0.0, 5.0, 0.0, "", false, true),
 
     // ---- MPE ----
     MPE_PRESS = ("mpe.press", "arcus.mpe.press", 0.0, 1.0, 1.0, "%", false, false),
@@ -162,6 +165,9 @@ pub const DYN_SOURCES: [&str; 6] = ["auto", "cc1", "cc11", "breath", "at", "vel"
 pub const VIB_SOURCES: [&str; 6] = ["cc21", "cc2", "at", "auto", "mw", "mpe"];
 /// The friction laws, in `bow.friction`'s order (locale keys `arcus.friction_kind.<name>`).
 pub const FRICTIONS: [&str; 2] = ["hyperbolic", "thermal"];
+/// r42 fiddle — the strings' tunings, in `tuning.strings`' order (locale keys
+/// `arcus.cross_kind.<name>`).
+pub const CROSS_TUNINGS: [&str; 6] = ["standard", "aeae", "gdgd", "adae", "calico", "ddad"];
 /// The bow's directions, in `bow.dir`'s order (locale keys `arcus.dir_kind.<name>`).
 pub const DIRECTIONS: [&str; 3] = ["alt", "down", "up"];
 

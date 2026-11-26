@@ -216,3 +216,95 @@ fn the_open_strings_ring_in_sympathy_after_the_bow_lifts() {
     let db = 10.0 * (rung / dry.max(1e-30)).log10();
     assert!(db > 6.0, "the ring after the bow lifts: {db:.1} dB over none");
 }
+
+/// The double stop's level against its two notes alone (`--ignored --nocapture`).
+#[test]
+#[ignore = "probe: prints the levels"]
+fn probe_double_stop_levels() {
+    let lvl = |notes: &[u8], tilt: f32, pair: f32| {
+        let s = ArcusSettings {
+            tilt,
+            pair,
+            sym: 0.0,
+            ..fiddle()
+        };
+        let mut a = Arcus::new(SR);
+        a.set(&s);
+        for (i, k) in notes.iter().enumerate() {
+            a.note_art(i as u64 + 1, Some(Art::Sustain), Some(BowDir::Down));
+            a.note_on(*k, 0.7, i as u64 + 1);
+        }
+        let mut l = vec![0.0f32; 48_000];
+        let mut r = vec![0.0f32; 48_000];
+        a.process(&mut l, &mut r);
+        let e: f64 = l[19_200..48_000].iter().map(|x| (x * x) as f64).sum::<f64>() / 28_800.0;
+        10.0 * e.max(1e-30).log10()
+    };
+    for (lo, hi) in [(69u8, 78u8), (69, 76), (62, 69), (69, 73), (64, 73)] {
+        println!(
+            "{lo}+{hi}: lo alone {:.1}, hi alone {:.1}, both {:.1}, tilt 1 (lo only) {:.1}, tilt 0 (hi only) {:.1}",
+            lvl(&[lo], 0.5, 1.0),
+            lvl(&[hi], 0.5, 1.0),
+            lvl(&[hi, lo], 0.5, 1.0),
+            lvl(&[hi, lo], 1.0, 1.0),
+            lvl(&[hi, lo], 0.0, 1.0)
+        );
+    }
+}
+
+/// The energy of `x` in `lo … hi` Hz over the whole slice (a plain DFT on a 1 Hz-ish grid
+/// would be slow: a band by first differences is enough for a ratio), as a share of all.
+fn high_share(x: &[f32]) -> f64 {
+    // A first difference tilts +6 dB an octave: its energy over the signal's is the
+    // spectrum's weight above ~sr/(2π).
+    let d: f64 = x.windows(2).map(|w| ((w[1] - w[0]) as f64).powi(2)).sum();
+    let e: f64 = x.iter().map(|v| (*v as f64).powi(2)).sum();
+    d / e.max(1e-30)
+}
+
+#[test]
+fn a_chop_scratches_where_a_staccato_speaks() {
+    let stroke = |art: Art| {
+        let mut a = Arcus::new(SR);
+        a.set(&fiddle());
+        a.note_art(1, Some(art), Some(BowDir::Down));
+        a.note_on(62, 1.0, 1);
+        let (mut l, mut r) = (vec![0.0f32; 2880], vec![0.0f32; 2880]);
+        a.process(&mut l, &mut r);
+        a.note_off(62, 1);
+        // the stroke's 60 ms
+        high_share(&l)
+    };
+    let (chop, stac) = (stroke(Art::Chop), stroke(Art::Staccato));
+    let db = 10.0 * (chop / stac).log10();
+    assert!(db > 3.0, "the chop's top over the staccato's: {db:.1} dB");
+}
+
+#[test]
+fn a_cross_tuning_moves_the_open_strings() {
+    use super::upper::tables::CROSS;
+    for (c, d) in CROSS.iter().enumerate() {
+        let s = ArcusSettings {
+            cross: c as u8,
+            ..fiddle()
+        };
+        let spec = Instrument::Violin.spec_crossed(c as u8);
+        for i in 0..4 {
+            let key = (Instrument::Violin.spec().strings[i].open as i16 + d[i] as i16) as u8;
+            assert_eq!(spec.strings[i].open, key);
+            let mut a = Arcus::new(SR);
+            a.set(&s);
+            a.note_on(key, 0.6, 1);
+            let (mut l, mut r) = (vec![0.0f32; 480], vec![0.0f32; 480]);
+            a.process(&mut l, &mut r);
+            let v = a.voices.iter().find(|v| v.active()).unwrap();
+            assert_eq!(v.string_index(), i, "tuning {c}: key {key} on its string");
+            assert!(v.is_open(), "tuning {c}: key {key} open");
+        }
+    }
+    // Standard is the violin's own table.
+    assert!(std::ptr::eq(
+        Instrument::Violin.spec_crossed(0),
+        Instrument::Violin.spec()
+    ));
+}

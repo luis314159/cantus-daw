@@ -24,7 +24,7 @@ pub fn note_item_schema() -> Value {
                 "type": ["object", "null"],
                 "description": "How the note is played (get_clip_notes gives it back): its articulation and, for a bowed string, its bow. Left out or null: the instrument decides.",
                 "properties": {
-                    "articulation": {"type": "string", "enum": ["sustain", "legato", "staccato", "spiccato", "pizzicato", "tremolo"]},
+                    "articulation": {"type": "string", "enum": ["sustain", "legato", "staccato", "spiccato", "pizzicato", "tremolo", "chop"]},
                     "bow": {"type": "string", "enum": ["down", "up"]}
                 },
                 "required": ["articulation"],
@@ -95,7 +95,7 @@ pub fn parse_notes(map: &TempoMap, items: &[Value]) -> Res<Vec<NewNote>> {
             Some(v) => Some(serde_json::from_value(v.clone()).map_err(|_| {
                 ToolError::bad(
                     k("art"),
-                    "an articulation (sustain, legato, staccato, spiccato, pizzicato, tremolo) and an optional bow (down, up)",
+                    "an articulation (sustain, legato, staccato, spiccato, pizzicato, tremolo, chop) and an optional bow (down, up)",
                 )
             })?),
         };

@@ -244,7 +244,7 @@ pub fn fiddle(sec: &Section, seed: u64) -> Played {
                 NoteArt {
                     start: Some(BowStart::Air),
                     part: Some(BowPart::Frog),
-                    ..art(Articulation::Staccato, Some(Bow::Down))
+                    ..art(Articulation::Chop, Some(Bow::Down)) // r42 fiddle: the chop itself
                 }
             } else if i == a {
                 art(Articulation::Sustain, Some(dir))

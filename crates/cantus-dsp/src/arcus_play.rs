@@ -88,7 +88,7 @@ impl Arcus {
     /// r42 fiddle — the sympathetic strings' tuning and coupling from the settings and the
     /// track's tuning.
     fn sym_tune(&mut self) {
-        let spec = self.s.instrument.spec();
+        let spec = self.s.instrument.spec_crossed(self.s.cross);
         let mut off = [0.0f32; 4];
         for (o, st) in off.iter_mut().zip(spec.strings.iter()) {
             let t = crate::tuning::at(&self.tuning, st.open);
@@ -244,7 +244,9 @@ impl Arcus {
         {
             let v = self.newest.min(MAX_VOICES - 1);
             let tech = NoteTech::of(self.s.technique, art);
-            if matches!(tech, NoteTech::Arco | NoteTech::Staccato) && self.voices[v].active() {
+            if matches!(tech, NoteTech::Arco | NoteTech::Staccato | NoteTech::Chop)
+                && self.voices[v].active()
+            {
                 let sh = Shared {
                     s: &self.s,
                     sr: self.sr,
@@ -307,7 +309,7 @@ impl Arcus {
                     Some(Art::Sustain | Art::Legato | Art::Tremolo) => {
                         matches!(sounding, NoteTech::Arco | NoteTech::Tremolo)
                     }
-                    Some(Art::Staccato | Art::Spiccato | Art::Pizzicato) => false,
+                    Some(Art::Staccato | Art::Spiccato | Art::Pizzicato | Art::Chop) => false,
                     None => sounding != NoteTech::Pizzicato && self.s.technique == Technique::Arco,
                 };
                 if slur {

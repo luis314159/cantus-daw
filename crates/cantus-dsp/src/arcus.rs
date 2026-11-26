@@ -147,6 +147,8 @@ pub enum Art {
     Spiccato,
     Pizzicato,
     Tremolo,
+    /// r42 fiddle (ADR 0164) — the chop.
+    Chop,
 }
 
 /// Which way the bow is drawn: down (from the frog) is `+`, up is `−`.
@@ -332,6 +334,9 @@ pub struct ArcusSettings {
     /// r42 fiddle — steel strings (0 the measured synthetic-core set … 1 steel): a sharper
     /// corner, less loss in the upper partials, a longer ring.
     pub steel: f32,
+    /// r42 fiddle — the strings' tuning (`tuning.strings`: 0 standard, 1 AEAE, 2 GDGD, 3 ADAE,
+    /// 4 calico, 5 DDAD — the violin's; `upper::tables::CROSS`).
+    pub cross: u8,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -399,6 +404,7 @@ impl Default for ArcusSettings {
             sym: 0.0,        // r42 fiddle
             grit: 0.0,       // r42 fiddle
             steel: 0.0,      // r42 fiddle
+            cross: 0,        // r42 fiddle
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,

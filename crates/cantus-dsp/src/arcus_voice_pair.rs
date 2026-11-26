@@ -167,7 +167,7 @@ impl Voice {
 
     /// The string a bowed note of key `note` (semitones, tuned) is played on.
     pub(super) fn string_of(&self, s: &ArcusSettings, note: f32, how: &NoteHow) -> usize {
-        let spec = self.inst.spec();
+        let spec = self.spec();
         if s.player > 0.0 {
             bow::finger(spec, note, how.string, true, None).string
         } else {
@@ -222,14 +222,17 @@ impl Voice {
         if !self.active
             || self.released
             || !Self::paired(s)
-            || !matches!(self.tech, NoteTech::Arco | NoteTech::Staccato)
+            || !matches!(
+                self.tech,
+                NoteTech::Arco | NoteTech::Staccato | NoteTech::Chop
+            )
             || self.sec.held
         {
             return false;
         }
         let sh_rate = self.at_rate(sh);
         let sh = &sh_rate;
-        let spec = self.inst.spec();
+        let spec = self.spec();
         let tune = crate::tuning::at(sh.tuning, key);
         let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         let mut ix = self.string_of(s, note + tune, how);
@@ -405,7 +408,7 @@ impl Voice {
     ) {
         let s = sh.s;
         let sr = sh.sr;
-        let spec = self.inst.spec();
+        let spec = self.spec();
         let c = &mut self.sec;
         let st = spec.strings[c.string_ix];
         if c.glide_step != 0.0 {
@@ -447,10 +450,17 @@ impl Voice {
             st.z0(),
             sr as f64 / f,
         );
+        // The same bow at the same distance from the bridge: β on this string the first's
+        // over the two stopped lengths (a longer string's β is smaller).
+        let st1 = spec.strings[self.string_ix];
+        let len1 = st1.open_hz() / self.f0.max(1.0);
+        let len2 = st.open_hz() / f;
+        let beta2 = (bw.beta * len1 / len2).clamp(min_beta(sr as f64 / f), MAX_BETA);
         if bowed {
             // The same bow at the same speed: the force its own stroke's (Schelleng's limit
-            // goes with the string's impedance and β), its share by the tilt.
-            let k = ((bw2.force / bw2.speed.max(1e-9)) / (bw.force / bw.speed.max(1e-9))) as f32;
+            // goes with the string's impedance, the speed and 1/β), its share by the tilt.
+            let k = ((bw2.force / bw2.speed.max(1e-9)) / (bw.force / bw.speed.max(1e-9))
+                * (bw2.beta / beta2)) as f32;
             for j in 0..span {
                 let u = (j + 1) as f32 / span as f32;
                 let w = c.w.0 + (c.w.1 - c.w.0) * u;
@@ -476,7 +486,7 @@ impl Voice {
             f0: f * math::exp2(-corr / 1200.0),
             t60,
             p: st.p * steel_p(s),
-            beta: bw2.beta,
+            beta: beta2,
             dc: !bowed,
             corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f)
                 * steel_corner(s),
@@ -493,6 +503,7 @@ impl Voice {
     /// The second string's samples `a..b` of this step, **added** into `tmp[..b − a]`.
     pub(super) fn render_second(&mut self, sh: &Shared, a: usize, b: usize, grid_end: bool) {
         let k = b - a;
+        let friction = self.spec().friction(sh.s.friction);
         let c = &mut self.sec;
         c.out[..k].fill(0.0);
         let bow = if c.bowed {
@@ -500,7 +511,7 @@ impl Voice {
                 v: &self.v[a..b],
                 force: &c.fbuf[a..b],
                 rough: &self.roughs[a..b],
-                friction: self.inst.spec().friction(sh.s.friction),
+                friction,
             })
         } else {
             None

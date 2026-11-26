@@ -57,7 +57,19 @@ pub enum NoteTech {
     Spiccato,
     Pizzicato,
     Tremolo,
+    /// r42 fiddle (ADR 0164) — the chop: from the air at the frog, the force landing past the
+    /// Helmholtz region's upper limit at a fraction of the stroke's speed, the hair's noise
+    /// raised, stopped on the string ([`CHOP_S`]).
+    Chop,
 }
+
+/// r42 fiddle — the chop's force over the region's upper limit (Schelleng's raucous side),
+/// its speed over the stroke's, how long it draws before the bow stops on the string (s), and
+/// its hair noise over the bow's (dB).
+pub const CHOP_FORCE: f32 = 2.5;
+pub const CHOP_SPEED: f32 = 0.3;
+pub const CHOP_S: f32 = 0.06;
+pub const CHOP_NOISE_DB: f32 = 12.0;
 
 impl NoteTech {
     /// The note's own articulation over the instrument's technique.
@@ -67,6 +79,7 @@ impl NoteTech {
             Some(Art::Spiccato) => NoteTech::Spiccato,
             Some(Art::Pizzicato) => NoteTech::Pizzicato,
             Some(Art::Tremolo) => NoteTech::Tremolo,
+            Some(Art::Chop) => NoteTech::Chop, // r42 fiddle
             Some(Art::Sustain | Art::Legato) => NoteTech::Arco,
             None => match t {
                 Technique::Arco => NoteTech::Arco,
@@ -237,9 +250,11 @@ pub const REACH_ST: f64 = 14.0;
 pub fn reach(sample_rate: f32) -> usize {
     Instrument::ALL
         .iter()
-        .map(|i| {
-            let os = super::upper::factor(*i) as f64;
-            let low = i.spec().strings[0].open_hz() * math::exp2(-REACH_ST / 12.0);
+        .flat_map(|i| (0..super::upper::tables::CROSS.len() as u8).map(move |c| (*i, c)))
+        .map(|(i, c)| {
+            let os = super::upper::factor(i) as f64;
+            // r42 fiddle: a cross-tuning's lowest string (the violin's DDAD: D3) too.
+            let low = i.spec_crossed(c).strings[0].open_hz() * math::exp2(-REACH_ST / 12.0);
             (os * sample_rate as f64 / low).ceil() as usize
         })
         .max()
@@ -357,6 +372,8 @@ pub struct Voice {
     /// first string's note is one the allocator never saw (a drone), and whether the first
     /// string starts afresh at the next step (the bow crossed onto a string at rest).
     sec: pair::Second,
+    /// r42 fiddle — the strings' cross-tuning this voice plays in (`ArcusSettings::cross`).
+    cross: u8,
     w1: (f32, f32),
     orphan: bool,
     restring: bool,
@@ -445,6 +462,7 @@ impl Voice {
             peak: 0.0,
             rate: upper::Rate::new(sample_rate), // r42:arcus-upper
             sec: pair::Second::new(sample_rate), // r42 fiddle
+            cross: 0,
             w1: (1.0, 1.0),
             orphan: false,
             restring: false,
@@ -453,6 +471,11 @@ impl Voice {
             #[cfg(test)]
             slips: Vec::new(),
         }
+    }
+
+    /// r42 fiddle — the instrument's table in the voice's cross-tuning (its own table at 0).
+    pub fn spec(&self) -> &'static InstrumentSpec {
+        self.inst.spec_crossed(self.cross)
     }
 
     pub fn active(&self) -> bool {

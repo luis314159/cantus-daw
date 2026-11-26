@@ -81,6 +81,15 @@ const FRICTIONS: [Src<'static>; 2] = [
     Src::Key("arcus.friction_kind.hyperbolic"),
     Src::Key("arcus.friction_kind.thermal"),
 ];
+// r42 fiddle (ADR 0164): the violin's cross-tunings, in `tuning.strings`' order.
+const CROSS_TUNINGS: [Src<'static>; 6] = [
+    Src::Key("arcus.cross_kind.standard"),
+    Src::Key("arcus.cross_kind.aeae"),
+    Src::Key("arcus.cross_kind.gdgd"),
+    Src::Key("arcus.cross_kind.adae"),
+    Src::Key("arcus.cross_kind.calico"),
+    Src::Key("arcus.cross_kind.ddad"),
+];
 const DIRECTIONS: [Src<'static>; 3] = [
     Src::Key("arcus.dir_kind.alt"),
     Src::Key("arcus.dir_kind.down"),
@@ -559,7 +568,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     );
     // r42 fiddle (ADR 0164): the strings under one bow, in sympathy, gritty, steel.
     let r7 = rows.row(heights[6], &[1.0]);
-    cells_card(
+    switched_card(
         app,
         ui,
         track,
@@ -568,6 +577,9 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s,
         "arcus.strings",
         Function::Tone,
+        "tuning.strings",
+        &CROSS_TUNINGS,
+        300.0,
         &[&["bow.pair", "bow.tilt", "dstop.just", "bow.grit", "sym", "steel"]],
     );
 }

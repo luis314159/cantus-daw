@@ -204,9 +204,14 @@ impl Unit {
 /// (`cantus_dsp::exemplar::art`): the articulation's index + 1, the bow 1 down, 2 up, 0 none.
 pub fn art_codes(art: cantus_core::note_art::NoteArt) -> (u8, u8) {
     use cantus_core::note_art::{Articulation, Bow};
+    // r42 fiddle: a chop is a staccato to a sampler (no library records one).
+    let played = match art.articulation {
+        Articulation::Chop => Articulation::Staccato,
+        a => a,
+    };
     let a = Articulation::ALL
         .iter()
-        .position(|x| *x == art.articulation)
+        .position(|x| *x == played)
         .map_or(0, |i| i as u8 + 1);
     let b = match art.bow {
         None => 0,

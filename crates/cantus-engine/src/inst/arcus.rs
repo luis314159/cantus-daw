@@ -90,6 +90,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         sym: v[ix::SYM],
         grit: v[ix::GRIT],
         steel: v[ix::STEEL],
+        cross: round(ix::CROSS).clamp(0.0, 5.0) as u8,
         pizz_pos: v[ix::PIZZ_POS],
         pizz_soft_ms: v[ix::PIZZ_SOFT],
         pizz_decay: v[ix::PIZZ_DECAY],
@@ -139,6 +140,7 @@ pub fn art_of(art: NoteArt) -> (Option<Art>, Option<BowDir>) {
         Articulation::Spiccato => Art::Spiccato,
         Articulation::Pizzicato => Art::Pizzicato,
         Articulation::Tremolo => Art::Tremolo,
+        Articulation::Chop => Art::Chop, // r42 fiddle
     };
     let b = art.bow.map(|b| match b {
         Bow::Down => BowDir::Down,

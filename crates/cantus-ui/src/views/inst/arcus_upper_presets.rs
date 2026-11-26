@@ -79,7 +79,11 @@ pub const PRESETS: &[FactoryPreset] = &[
         ["inst" => 2.0, "bow.pos" => 0.82, "bow.force" => 1.15, "bow.noise" => 4.0,
          "bow.attack" => 0.7, "bow.release" => 70.0, "bow.change" => 14.0, "finger" => 14.0,
          "vib.depth" => 0.35, "vib.delay" => 450.0, "vib.var" => 0.35, "ring" => 1.8,
-         "body.ring" => 0.9, "gain" => 5.4]),
+         "body.ring" => 0.9, "gain" => 5.4,
+         // r42 fiddle (ADR 0164): one bow on two strings, the open strings in sympathy, the
+         // grit, a steel set, double stops tuned most of the way to just.
+         "bow.pair" => 1.0, "sym" => 1.0, "bow.grit" => 1.0, "steel" => 1.0,
+         "dstop.just" => 0.6]),
     preset!("arcus.preset.violin_pizz", PLUCKED,
         ["inst" => 2.0, "tech" => 1.0, "mode" => 0.0, "pizz.decay" => 1.0, "ring" => 0.4,
          "gain" => 2.4]),

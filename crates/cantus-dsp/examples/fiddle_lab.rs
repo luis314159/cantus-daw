@@ -3,7 +3,8 @@
 //!
 //! - **dobles**: a bluegrass double-stop lick (thirds and sixths against the open E and A);
 //! - **rapidas**: a fast run at 160 BPM crossing strings (two slurred, two separate);
-//! - **bordon**: a tune on the E string over the open A, re-bowed together.
+//! - **bordon**: a tune on the E string over the open A, re-bowed together;
+//! - **simpatia**: single notes an open string answers, let go and rung out.
 //!
 //! *Before* is the fiddle as round 42's `arcus-expr` left it: the *Fiddle* preset's numbers,
 //! the lower note of each double stop or drone on a second Arcus. *After* is one Arcus with
@@ -217,10 +218,48 @@ fn bordon() -> Vec<N> {
     v
 }
 
+/// Single notes whose partials an open string shares (D5 and A5: the open D's and A's
+/// octaves; G4 on the D string: the open G's), each let go and rung out.
+fn simpatia() -> Vec<N> {
+    let mut v = Vec::new();
+    let mut t = 0.1;
+    for k in [74u8, 81, 67, 76] {
+        v.push(N { at: t, len: 0.9, key: k, vel: 0.7, art: Art::Sustain, dir: BowDir::Down, low: false });
+        t += 2.2;
+    }
+    v
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let out = Path::new(args.first().expect("an output folder"));
     std::fs::create_dir_all(out).expect("the folder");
+    // A transcribed phrase (`tools/arcus/fiddle/transcribe.py`): `notes=<tsv>` renders it alone
+    // on the fiddle, each note its own bow, alternating, changed on the string.
+    if let Some(tsv) = args.iter().find_map(|a| a.strip_prefix("notes=")) {
+        let text = std::fs::read_to_string(tsv).expect("the notes");
+        let mut notes = Vec::new();
+        let mut dir = BowDir::Down;
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let f: Vec<&str> = line.split('	').collect();
+            let (at, len, key, vel): (f64, f64, u8, f32) = (
+                f[0].parse().unwrap(),
+                f[1].parse().unwrap(),
+                f[2].parse().unwrap(),
+                f[3].parse().unwrap(),
+            );
+            notes.push(N { at: at + 0.1, len: (len - 0.002).max(0.03), key, vel, art: Art::Sustain, dir, low: false });
+            dir = flip(dir);
+        }
+        let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
+        let name = Path::new(tsv).file_stem().unwrap().to_string_lossy().to_string();
+        let now = render(&[(after(&[]), notes.clone())], secs);
+        write(&out.join(format!("{name}-cantus.wav")), &now);
+        let before = render(&[(preset(), notes)], secs);
+        write(&out.join(format!("{name}-cantus-antes.wav")), &before);
+        println!("{name}: {secs:.1} s");
+        return;
+    }
     let extra: Vec<(String, f32)> = args[1..]
         .iter()
         .map(|a| {
@@ -240,7 +279,7 @@ fn main() {
                 .join("-")
         )
     };
-    for (name, notes) in [("dobles", dobles()), ("rapidas", rapidas()), ("bordon", bordon())] {
+    for (name, notes) in [("dobles", dobles()), ("rapidas", rapidas()), ("bordon", bordon()), ("simpatia", simpatia())] {
         let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
         let (hi, lo): (Vec<N>, Vec<N>) = notes.iter().partition(|n| !n.low);
         let before = render(&[(preset(), hi), (preset(), lo)], secs);

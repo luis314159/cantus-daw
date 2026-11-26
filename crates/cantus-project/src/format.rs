@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 83; // r42: 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 85; // r42: 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 reserved for Chorda's branch (chorda-c17; the integrator renumbers), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -356,6 +356,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_80_to_81, // r42:contract — Arcus and the note's articulation (ADRs 0157, 0158)
     migrate_81_to_82, // r42:strings-rec — Exemplar's articulations and legato (ADR 0158)
     migrate_82_to_83, // r42 arcus-expr — a note's bow start, bow part and string (ADR 0162)
+    migrate_83_to_84, // r42 — reserved for Chorda's branch (chorda-c17)
+    migrate_84_to_85, // r42 fiddle — Arcus's strings under one bow (ADR 0164)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1296,6 +1298,23 @@ fn migrate_82_to_83(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 84 (round 42): reserved for Chorda's branch (chorda-c17), which takes it at
+/// integration; nothing here.
+fn migrate_83_to_84(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 85 (round 42, ADR 0164): an Arcus may bow two strings with one bow (`bow.pair`,
+/// `bow.tilt`, `dstop.just`), its open strings ring in sympathy (`sym`), its bow has grit
+/// (`bow.grit`), its strings may be steel (`steel`) and cross-tuned (`tuning.strings`). Absent — every older song — is each
+/// one's default, which plays what it played (one string a voice, no sympathy, no grit, the
+/// measured set), so nothing is written; an older build would drop them and play the song as
+/// before them.
+// r42 fiddle
+fn migrate_84_to_85(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1816,6 +1835,41 @@ mod tests {
         assert!(p.tracks.iter().all(|t| t.tuning.is_follow()));
     }
 
+    /// r42 fiddle — Schema 85 (ADR 0164): the fixture's Arcus keeps its strings under one
+    /// bow, its sympathy, its grit, its steel set and its just double stops; every older file
+    /// (83) has none of them, and its Arcus reads each at the default that plays as before.
+    #[test]
+    fn schema_85_keeps_arcus_s_strings_under_one_bow() {
+        use cantus_core::InstrumentSpec;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let arcus = |file: &str| {
+            let text = std::fs::read_to_string(dir.join(file)).unwrap();
+            let report = parse(&text, true).unwrap();
+            let p = report.file.project;
+            let spec = p
+                .tracks
+                .iter()
+                .find_map(|t| match &t.instrument {
+                    InstrumentSpec::Native(s)
+                        if s.kind == cantus_core::InstrumentKind::BowedString =>
+                    {
+                        Some(s.clone())
+                    }
+                    _ => None,
+                })
+                .expect("the Arcus track");
+            (report.integrity_verified, spec)
+        };
+        let (ok, s) = arcus("v85.cantus");
+        assert!(ok);
+        let keys = ["bow.pair", "bow.tilt", "dstop.just", "bow.grit", "sym", "steel"];
+        let got: Vec<f32> = keys.iter().map(|k| s.get(k)).collect();
+        assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 1.2, 1.0]);
+        let (_, old) = arcus("v83.cantus");
+        let got: Vec<f32> = keys.iter().map(|k| old.get(k)).collect();
+        assert_eq!(got, vec![0.0, 0.5, 0.0, 0.0, 0.0, 0.0]);
+    }
+
     /// r42 arcus-expr — Schema 83 (ADR 0162): the fixture's second note keeps its bow start,
     /// bow part and string; every older file (82) has none of them.
     #[test]
@@ -1824,7 +1878,8 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v83.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        assert!(report.integrity_verified);
+        // r42 fiddle — no longer the newest (85): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(83));
         let p = report.file.project;
         let b = p.tracks[0].clips[0].notes[1]
             .art
