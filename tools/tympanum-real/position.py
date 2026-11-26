@@ -39,7 +39,32 @@ SETS = {
         "mics": ["snaremic", "oh"],
         "pat": "{mic}/snare/{mic}_snare_{art}_vl{v}.flac",
     },
+    # the same strokes with the wires off (the head's modes alone), and a rack tom
+    "virtuosity-wires-off": {
+        "dir": "virtuosity-drums/Samples",
+        "arts": {"center": "center", "edge": "offcenter"},
+        "mics": ["snaremic", "oh"],
+        "pat": "{mic}/snareoff/{mic}_snareoff_{art}_vl{v}.flac",
+    },
+    "virtuosity-tom": {
+        "dir": "virtuosity-drums/Samples",
+        "arts": {"center": "center", "edge": "offcenter"},
+        "mics": ["snaremic", "oh"],
+        "pat": "{mic}/htom/{mic}_htom_{art}_vl{v}.flac",
+        "kind": "racktom",
+    },
 }
+
+
+def asym_db(st, fs, f0):
+    """The (1,1) mode's region (1.35–1.75 × f0) over the fundamental's (± 12 %), 20–200 ms:
+    an edge stroke drives the nodal-diameter modes a centre stroke leaves still."""
+    m = st.mean(axis=1)
+    m = m[int(0.02 * fs):int(0.2 * fs)]
+    X = np.abs(np.fft.rfft(m * np.hanning(len(m)), 1 << 15)) ** 2
+    f = np.fft.rfftfreq(1 << 15, 1 / fs)
+    e = lambda a, b: X[(f >= a * f0) & (f < b * f0)].sum() + 1e-30  # noqa: E731
+    return float(10 * np.log10(e(1.35, 1.75) / e(0.88, 1.12)))
 
 
 def stereo(x):
@@ -77,10 +102,14 @@ def measure(root):
             rows = []
             n = len(ls)
             for i, (v, (takes, fs)) in enumerate(sorted(ls.items())):
-                fs_ = [features(t, fs, "snare") for t in takes]
+                kind = s.get("kind", "snare")
+                fs_ = [features(t, fs, kind) for t in takes]
                 fs_ = [f for f in fs_ if f]
+                for t, f in zip(takes, fs_):
+                    if isinstance(f.get("f0"), float) and np.isfinite(f["f0"]):
+                        f["asym_db"] = asym_db(t, fs, f["f0"])
                 row = {"layer": v, "place": i / max(1, n - 1)}
-                for k in ("upper_db", "f0", "cent_c", "t30_2000", "rms80_db", "wires_db", "r2", "glide_c"):
+                for k in ("upper_db", "asym_db", "f0", "cent_c", "t30_2000", "rms80_db", "wires_db", "r2", "glide_c"):
                     vals = [f.get(k) for f in fs_ if isinstance(f.get(k), float) and np.isfinite(f.get(k))]
                     row[k] = float(np.median(vals)) if vals else None
                 rows.append(row)
@@ -97,7 +126,7 @@ def main():
         for label in ("center", "edge"):
             rows = r[label]
             print(f"{name:10} {label:6} " + " ".join(
-                f"{x['place']:.1f}:{x['upper_db'] if x['upper_db'] is not None else float('nan'):+.1f}/{x['cent_c'] or 0:.0f}"
+                f"{x['place']:.1f}:{x['asym_db'] if x['asym_db'] is not None else float('nan'):+.1f}/{x['cent_c'] or 0:.0f}"
                 for x in rows))
 
 

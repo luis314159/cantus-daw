@@ -813,3 +813,43 @@ fn a_table_without_its_burst_and_every_other_with_its_own() {
         assert_eq!(super::law::spread(id), 1.0);
     }
 }
+
+/// Where the stick lands (r42:tympanum-real): a tom struck at its edge rings its (1,1) region
+/// (near 1.5 × its fundamental) louder against its fundamental than one struck as measured.
+#[test]
+fn a_tom_struck_at_its_edge_rings_its_nodal_diameter_modes() {
+    let t = super::table(6).expect("the 12-inch tom");
+    let f0 = t.low_hz;
+    let f11 =
+        t.hz.iter()
+            .copied()
+            .find(|h| (1.3..1.8).contains(&(h / f0)))
+            .expect("a mode near 1.5 f0");
+    // Goertzel's power at `f` over 20-200 ms
+    let power = |x: &[f32], f: f32| {
+        let w = 2.0 * std::f32::consts::PI * f / SR;
+        let (mut s1, mut s2) = (0.0f32, 0.0f32);
+        for v in &x[960..9_600] {
+            let s0 = v + 2.0 * w.cos() * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+        }
+        s1 * s1 + s2 * s2 - 2.0 * w.cos() * s1 * s2
+    };
+    let ratio = |position: f32| {
+        let mut p = Pulsus::new(SR);
+        p.enable_measured();
+        p.set_kit(3, 9, 4, false);
+        p.set_pad_count(1);
+        let mut s = pad(6, 1, 0);
+        s.position = position;
+        p.set_pad(0, 60, &s);
+        let x = play(&mut p, &[(0, 60, 100)], 9_600, 512);
+        10.0 * (power(&x, f11) / power(&x, f0)).log10()
+    };
+    let (centre, edge) = (ratio(0.0), ratio(1.0));
+    assert!(
+        edge > centre + 5.0,
+        "edge {edge:.1} dB, as measured {centre:.1} dB"
+    );
+}

@@ -98,3 +98,47 @@ the kick F 0.62–0.98, the closed hat 0.71–0.94, the snare 0.72 on DRSKit but
 (its rimshots and its 14×8 snare are far from DRSKit's template); the toms and cymbals are rare in
 the excerpts. Good enough to give a real performance's timing and dynamics back to a kit; not a
 transcription to publish.
+
+## 4. What was wrong, what changed (`DSP_VERSION` 19; ADR 0124's sixth amendment)
+
+Ranked by `compare.py`'s audibility weight; every finding below held on three takes and across
+velocities before anything changed.
+
+1. **The level law (changed).** Measured through Pulsus (`level_law_dump`), every model 5
+   table had velocity steps that went the wrong way: the studio kick at 56 louder than at 80,
+   its 100 → 127 step +0.7 dB (DRSKit's own: 12, 6, 5.5, 3, 3.5, 3 dB over the same steps), the
+   12″ tom −2.8 dB from 80 to 96, the jazz ride 5.7 dB quieter at 127 than at 104. Each table now
+   follows a law (`pulsus_measured_law.rs`, written by `law.py`): the studio kit's DRSKit's, the
+   jazz kit's its own made monotone; the hardest hit unchanged. After: every table grows at every
+   step (the dump at 17 velocities; the jazz ride flat within 0.7 dB above 104). Weighted measures
+   outside the recorded kits' range: **studio 22.9 → 13.3, jazz 38.1 → 22.6**; no step falls.
+2. **The jazz rack toms' attack (changed).** Table 22 alone had a stick burst; its first 3 ms
+   ranged 0.4–10 kHz from take to take at one velocity (Virtuosity's own tom 1.3–2.1 kHz, every
+   recorded tom 0.4–2.1 kHz). `BURST` scales it to 0; the knock stays.
+3. **The jazz closed hat's variation (changed).** 6.1 dB from one closed stroke to the next
+   (third octaves, 250 Hz – 16 kHz) against 1.4–2.0 for every recorded closed hat and 1.65 for the
+   studio hat: a few strong partials carry its bands. `SPREAD` draws its per-hit variation at 0.35.
+4. **The crest (diagnosed, not changed).** In the grooves Tympanum's crest (peak − loudness) is
+   2–10 dB above the recorded kits' in almost every genre. Per hit, the snare is the cause: its
+   waveform peaks at 0.6–1.2 ms (DRSKit 7.5 ms, Virtuosity 7.1 ms), and **every band of the
+   generated snare peaks early** — 4–12 kHz at 0.5–1.4 ms, 1.5–4 kHz at 1.5 ms, 0.4–1.5 kHz at
+   2–3 ms, 60–400 Hz at 4–5.5 ms — where in both recordings every band peaks at 5–11 ms (the lows
+   last). The bands' tables rise over 3–5 ms as measured, so the early energy is the modes' onset
+   and the stick's knock (the snare's knock is 4.9 at velocity 110–127, a 2-ms half-sine low-passed
+   at 1.2 kHz). Physically: the stick's contact lasts ~1 ms but the head's displacement — what
+   radiates — grows over its first half-periods (a 14″ snare's ~200 Hz: 2.5 ms each), the bottom
+   head and the wires answer only after the air cavity couples them (another 1–3 ms), and the
+   overheads hear it 2–3 ms later still. Model 5 starts every mode at full amplitude at the
+   strike. **The fix is model 6's onset**: each mode driven through the contact force (a half-sine
+   as long as the contact: ~0.8 ms at ff, ~1.8 ms at pp — the brightness law comes with it), the
+   wires' noise gated by the bottom head's motion with the cavity's lag, the knock as the head's
+   first push rather than a separate pulse. A limiter or a fixed delay would only hide it.
+5. **The 1 kHz band (diagnosed).** Per hit, the studio kit's 1 kHz share is inside the recorded
+   range for every piece; the jazz kit's snare (−7.5 dB re its whole first 200 ms against
+   −10 … −15) and toms (−4.6 against −9 … −25) are above it — their knocks (4.4 and 2.3 at 127).
+   The grooves' 1 kHz excess on the studio kit is the mix's balance (its snare against its kick
+   and hats), not a piece's colour. It goes with item 4: the knock re-made as the head's push.
+6. **Measured and left:** the closed hat's length (241 ms at 8 kHz with the pedal closed, the
+   recordings 193–224); brightness rising with level (true for kicks, toms and cymbals in the
+   recordings, and in Tympanum; not for a snare — four of seven recorded snares are brighter soft,
+   the wires carrying a ghost note — so a snare must not be made to brighten).
