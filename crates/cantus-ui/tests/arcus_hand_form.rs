@@ -98,7 +98,12 @@ fn the_fingers_have_a_real_hands_proportions() {
         let back = (fig.bones[o + hu::finger(2, 0)].head - fig.bones[o + hu::HAND].head).len();
         let r = mid / back;
         report += &format!("{who:?} the middle finger over the back of the hand: {r:.2}\n");
-        if !(1.05..=1.35).contains(&r) {
+        // (r42:arcus-hands, pass 6: from 0.95 — ANSUR II's hands (Gordon et al. 2014; 1 986
+        // women, 4 082 men) with the proximal digital crease 1.8-2.0 cm past the MCP joint
+        // put the middle finger at 1.00-1.04 ± 0.07 of the wrist-to-MCP length for women,
+        // 0.97-1.01 ± 0.08 for men; the hands were set to ANSUR II's stature regressions,
+        // tools/arcus-figures/hand_anthro.py, and read 1.01 / 1.00. Was 1.05.)
+        if !(0.95..=1.35).contains(&r) {
             bad.push(format!("{who:?}: the middle finger {r:.2} of the back of the hand"));
         }
     }
