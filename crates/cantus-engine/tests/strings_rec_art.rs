@@ -35,6 +35,9 @@ fn art(a: Articulation) -> Option<NoteArt> {
     Some(NoteArt {
         articulation: a,
         bow: None,
+        start: None,
+        part: None,
+        string: None,
     })
 }
 

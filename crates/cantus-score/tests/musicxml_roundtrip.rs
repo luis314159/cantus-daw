@@ -260,7 +260,18 @@ fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
         (6, A::Legato, None),
     ]
     .into_iter()
-    .map(|(id, articulation, bow)| (id, NoteArt { articulation, bow }))
+    .map(|(id, articulation, bow)| {
+        (
+            id,
+            NoteArt {
+                articulation,
+                bow,
+                start: None,
+                part: None,
+                string: None,
+            },
+        )
+    })
     .collect();
     let song = Song {
         title: p.title.into(),
@@ -315,11 +326,17 @@ fn articulations_and_bows_are_written_as_musicxml_names_them_and_read_back() {
         vec![
             Some(NoteArt {
                 articulation: A::Staccato,
-                bow: None
+                bow: None,
+                start: None,
+                part: None,
+                string: None,
             }),
             Some(NoteArt {
                 articulation: A::Tremolo,
-                bow: Some(Bow::Down)
+                bow: Some(Bow::Down),
+                start: None,
+                part: None,
+                string: None,
             }),
             None,
         ]

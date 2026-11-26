@@ -24,6 +24,8 @@
 //! (ADR 0038); a voice ends when its bow is off and its string is still, and [`Arcus::at_rest`]
 //! is exact.
 
+#[path = "arcus_bow.rs"] // r42 arcus-expr
+pub mod bow; // r42 arcus-expr
 #[path = "arcus_ear.rs"]
 pub mod ear;
 #[path = "arcus_eq.rs"]
@@ -41,6 +43,10 @@ pub mod tables;
 #[cfg(test)]
 #[path = "arcus_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "arcus_tests_expr.rs"] // r42 arcus-expr
+#[allow(clippy::needless_range_loop, clippy::type_complexity)]
+mod tests_expr;
 #[cfg(test)]
 #[path = "arcus_tests_fix2.rs"] // r42 fix2-arcus
 mod tests_fix2;
@@ -144,6 +150,19 @@ pub enum BowDir {
     #[default]
     Down,
     Up,
+}
+
+/// r42 arcus-expr — everything a note says about how it is played (ADR 0158's articulation
+/// and bow, ADR 0162's bow start, bow part and string), handed in before its note-on. Every
+/// field `None`: the instrument decides.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub struct NoteHow {
+    pub art: Option<Art>,
+    pub bow: Option<BowDir>,
+    pub start: Option<bow::Start>,
+    pub part: Option<bow::Part>,
+    /// The string, 0 the lowest (honoured where it reaches the note).
+    pub string: Option<u8>,
 }
 
 /// How the bow's direction is chosen, in `bow.dir`'s order.
@@ -279,6 +298,14 @@ pub struct ArcusSettings {
     /// r42:arcus-p5 — how much the vibrato's extent follows the dynamic (model 2): 0 not at
     /// all, 1 as the players' (the study's), 2 twice.
     pub vib_dyn: f32,
+    /// r42 arcus-expr — the player (ADR 0162, `bow`): 0 off (pass 6's instrument, to the
+    /// bit), 1 on — the bow's place along the stick, the stroke's start from the string or the
+    /// air, the fingering (an open string's pitch stopped below, shifts, no vibrato open),
+    /// the bow slowed as it runs out and changed when it has, the vibrato by the passage.
+    pub player: f32,
+    /// r42 arcus-expr — how much the force follows the bow's place (the arm's weight at the
+    /// frog, its lightness at the tip): 0 none, 1 the player's, 2 twice.
+    pub bow_weight: f32,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -337,7 +364,9 @@ impl Default for ArcusSettings {
             vib_attack_ms: VIB_ATTACK_MS, // r42:arcus-p5
             vib_var: 0.25,
             vib_src: VibSource::Cc21,
-            vib_dyn: 1.0, // r42:arcus-p5
+            vib_dyn: 1.0,    // r42:arcus-p5
+            player: 1.0,     // r42 arcus-expr
+            bow_weight: 1.0, // r42 arcus-expr
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,
@@ -468,8 +497,11 @@ pub struct Arcus {
     hammer_area: f32,
     /// The track's tuning: semitones each key sits from 12-TET at A440 (ADR 0155).
     tuning: [f32; 128],
-    /// The next note's own articulation and bow (ADR 0158), by its id.
-    pending: Option<(u64, Option<Art>, Option<BowDir>)>,
+    /// The next note's own articulation and bow (ADR 0158) and its bow start, part and
+    /// string (ADR 0162), by its id.
+    pending: Option<(u64, NoteHow)>,
+    /// r42 arcus-expr — the stream's sample at the last note-on (the passage's speed).
+    last_on: Option<u64>,
     /// The bow's direction for the next re-bow, when alternating.
     next_dir: BowDir,
     /// The pitch table (`None`: no correction, for the tool that measures it).

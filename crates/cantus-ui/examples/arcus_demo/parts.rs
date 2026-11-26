@@ -1,7 +1,12 @@
 //! The parts, section by section (the notation is `score.rs`'s). The harmony each bar
 //! stands on is written beside it; every voice was led against it by hand.
+//!
+//! r42 arcus-expr: the player's marks (`,` a breath, `^` a slide, `f` fp, `z` sforzando,
+//! `-` portato) are read by `perform.rs` only; the plain build plays pass 6's take.
 
-use super::score::{Part, Who};
+use super::build::Piece;
+use super::perform::Role;
+use super::score::{Part, Who, BPM, SECTIONS};
 
 use Who::{Bass, Cello, Viola, Violin};
 
@@ -13,7 +18,7 @@ pub const PARTS: &[Part] = &[
         section: 0,
         vel: 70,
         notes: "(A3:1.5 F#3:0.5 D4:2) | (B3:1.5 A3:0.5 G3:1 F#3:1) | (E3:1 G3:1) (A3:1.5 B3:0.5 | \
-                C#4:1.5 B3:0.5 A3:2) | (A3:1.5 F#3:0.5 D4:2) | (F#4:1.5 E4:0.5 D4:1 B3:1) | \
+                C#4:1.5 B3:0.5 A3:2) , | (A3:1.5 F#3:0.5 D4:2^) | (F#4:1.5 E4:0.5 D4:1 B3:1) | \
                 (B3:1.5 A3:0.5 G3:1 E3:1) | D3:3.5 r:0.5",
         cc1: &[
             (0.0, 0.28),
@@ -33,7 +38,7 @@ pub const PARTS: &[Part] = &[
         section: 1,
         vel: 72,
         notes: "(F#4:2 E4:1 D4:1) | (D4:1.5 C#4:0.5 B3:2) | (A#3:1 C#4:1 E4:1.5 D4:0.5) | \
-                (D4:1 C#4:1) B3:0.5 C#4:0.5 D4:0.5 E4:0.5 | (F#4:3 E4:1) | \
+                (D4:1 C#4:1) B3:0.5 C#4:0.5 D4:0.5 E4:0.5 , | (F#4:3 E4:1) | \
                 (D4:1.5 C#4:0.5 B3:1 D4:1) | (B3:1 G3:1 A3:1.5 C#4:0.5) | D4:2.5 r:1.5",
         cc1: &[
             (0.0, 0.42),
@@ -64,8 +69,9 @@ pub const PARTS: &[Part] = &[
         who: Cello,
         section: 2,
         vel: 72,
-        notes: "(A3:1.5 F#3:0.5 D4:2) | (B3:1.5 A3:0.5 G3:1 F#3:1) | (E3:1 G3:1) (A3:1.5 B3:0.5 | \
-                C#4:1.5 B3:0.5 A3:2) | (A3:1.5 F#3:0.5 D4:2) | (F#4:1.5 E4:0.5 D4:1 B3:1) | \
+        notes:
+            "(A3:1.5 F#3:0.5 D4:2^) | (B3:1.5 A3:0.5 G3:1 F#3:1) | (E3:1 G3:1) (A3:1.5 B3:0.5 | \
+                C#4:1.5 B3:0.5 A3:2) , | (A3:1.5 F#3:0.5 D4:2) | (F#4:1.5 E4:0.5 D4:1 B3:1) | \
                 (B3:1.5 A3:0.5 G3:1 E3:1) | D3:3.5 r:0.5",
         cc1: &[
             (0.0, 0.46),
@@ -80,7 +86,7 @@ pub const PARTS: &[Part] = &[
         who: Viola,
         section: 2,
         vel: 66,
-        notes: "(F#4:2 A4:1 G4:1) | (G4:3 A4:1) | (B4:2 A4:2) | (G4:2 E4:2) | (F#4:2 A4:2) | \
+        notes: "(F#4:2 A4:1 G4:1) | (G4:3 A4:1) | (B4:2 A4:2) | (G4:2 E4:2) , | (F#4:2 A4:2) | \
                 (D5:2 C#5:1 B4:1) | (B4:2 A4:1 G4:1) | F#4:3.5 r:0.5",
         cc1: &[
             (0.0, 0.3),
@@ -105,8 +111,9 @@ pub const PARTS: &[Part] = &[
         who: Violin,
         section: 3,
         vel: 72,
-        notes: "(A4:1.5 F#4:0.5 D5:2) | (B4:1.5 A4:0.5 G4:1 F#4:1) | (E4:1 G4:1) (A4:1.5 B4:0.5 | \
-                C#5:1.5 B4:0.5 A4:2) | (A4:1.5 F#4:0.5 D5:2) | (F#5:1.5 E5:0.5 D5:1 B4:1) | \
+        notes:
+            "(A4:1.5 F#4:0.5 D5:2^) | (B4:1.5 A4:0.5 G4:1 F#4:1) | (E4:1 G4:1) (A4:1.5 B4:0.5 | \
+                C#5:1.5 B4:0.5 A4:2) , | (A4:1.5 F#4:0.5 D5:2) | (F#5:1.5 E5:0.5 D5:1 B4:1) | \
                 (B4:1.5 A4:0.5 G4:1 E5:1) | D5:2 (A4:0.5 B4:0.5 C#5:0.5 E5:0.5)",
         cc1: &[
             (0.0, 0.42),
@@ -170,7 +177,7 @@ pub const PARTS: &[Part] = &[
         section: 4,
         vel: 80,
         notes:
-            "A4:4t | (B4:2t G4:2t) | G4:4t | (A4:2t B4:2t) | (G4:2t F#4:1t G4:1t) | F#4:3.5 r:0.5",
+            "A4:4tf | (B4:2t G4:2t) | G4:4t | (A4:2t B4:2t) | (G4:2t F#4:1t G4:1t) | F#4:3.5 r:0.5",
         cc1: &[
             (0.0, 0.52),
             (12.0, 0.82),
@@ -183,7 +190,7 @@ pub const PARTS: &[Part] = &[
         who: Cello,
         section: 4,
         vel: 80,
-        notes: "D3:4t | (D3:2t E3:2t) | (E3:2t C#3:2t) | D3:4t | (D3:3t C#3:1t) | D3:3.5 r:0.5",
+        notes: "D3:4tf | (D3:2t E3:2t) | (E3:2t C#3:2t) | D3:4t | (D3:3t C#3:1t) | D3:3.5 r:0.5",
         cc1: &[
             (0.0, 0.54),
             (12.0, 0.84),
@@ -196,7 +203,7 @@ pub const PARTS: &[Part] = &[
         who: Bass,
         section: 4,
         vel: 88,
-        notes: "D2:2 F#2:2 | G2:2 E2:2 | E2:2 A1:2 | F#2:2 G2:2 | Bb1:2 A1:2 | D2:3.5 r:0.5",
+        notes: "D2:2 F#2:2 | G2:2 E2:2 | E2:2 A1:2 | F#2:2 G2:2 | Bb1:2z A1:2 | D2:3.5 r:0.5",
         cc1: &[
             (0.0, 0.58),
             (12.0, 0.86),
@@ -226,7 +233,7 @@ pub const PARTS: &[Part] = &[
         who: Cello,
         section: 5,
         vel: 62,
-        notes: "(D3:2 A2:2) | (B2:2 F#3:2) | (G2:2 A2:2) | (B2:2 G2:2)",
+        notes: "(D3:2 A2:2-) | (B2:2 F#3:2-) | (G2:2 A2:2-) | (B2:2 G2:2-)",
         cc1: &[(0.0, 0.4), (8.0, 0.36), (16.0, 0.3)],
     },
     Part {
@@ -260,3 +267,43 @@ pub const PARTS: &[Part] = &[
         cc1: &[(0.0, 0.32), (8.0, 0.3), (11.0, 0.26), (16.0, 0.08)],
     },
 ];
+
+/// Who carries the music where (the player's balance and its arcs).
+fn role(who: Who, section: usize) -> Role {
+    use Who::{Bass as B, Cello as C, Viola as A, Violin as V};
+    match (section, who) {
+        (0..=2, C) => Role::Melody,
+        (2, A) => Role::Counter,
+        (3..=6, V) => Role::Melody,
+        (6, C) => Role::Counter,
+        (5, C) => Role::Bass,
+        (_, B) => Role::Bass,
+        _ => Role::Inner,
+    }
+}
+
+fn no_move(_: Who) -> i32 {
+    0
+}
+
+/// The quartet, as a piece the build plays.
+pub const QUARTET: Piece = Piece {
+    title: super::TITLE,
+    bpm: BPM,
+    tempo: &[
+        (1, BPM, false),
+        (37, BPM, true),
+        (38, 64.0, false),
+        (39, 70.0, false),
+        (43, 70.0, true),
+        (46, 58.0, false),
+    ],
+    sections: &SECTIONS,
+    parts: PARTS,
+    who: &Who::ALL,
+    transpose: no_move,
+    role,
+    climax: Some(4),
+    intimate: Some(6),
+    solo: false,
+};

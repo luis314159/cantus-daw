@@ -42,6 +42,7 @@ impl Arcus {
             hammer_area,
             tuning: [0.0; 128],
             pending: None,
+            last_on: None, // r42 arcus-expr
             next_dir: BowDir::Down,
             table: Some(&pitch::TABLE),
             stolen: 0,
@@ -96,7 +97,19 @@ impl Arcus {
 
     /// The next note's own articulation and bow (ADR 0158).
     pub fn note_art(&mut self, id: u64, art: Option<Art>, bow: Option<BowDir>) {
-        self.pending = Some((id, art, bow));
+        self.note_how(
+            id,
+            NoteHow {
+                art,
+                bow,
+                ..NoteHow::default()
+            },
+        );
+    }
+
+    /// r42 arcus-expr — the next note's whole way of playing (ADR 0158, ADR 0162).
+    pub fn note_how(&mut self, id: u64, how: NoteHow) {
+        self.pending = Some((id, how));
     }
 
     /// A controller, 0 … 1: `which` 0 CC1, 1 CC11, 2 breath (CC2), 3 aftertouch, 4 CC21,
@@ -189,14 +202,21 @@ impl Arcus {
     }
 
     pub fn note_on(&mut self, key: u8, velocity: f32, id: u64) {
-        let (art, own_bow) = match self.pending.take() {
-            Some((pid, art, bow)) if pid == id => (art, bow),
-            _ => (None, None),
+        let how = match self.pending.take() {
+            Some((pid, how)) if pid == id => how,
+            _ => NoteHow::default(),
         };
+        let art = how.art;
         if !self.tuning[(key as usize).min(127)].is_finite() {
             return; // a key the tuning's keyboard map leaves unmapped plays nothing
         }
         let silent = self.voices.iter().all(|v| !v.active());
+        // r42 arcus-expr: the passage's speed, from the last note-on (none after silence).
+        let fast = !silent
+            && self
+                .last_on
+                .is_some_and(|t| (self.clock.saturating_sub(t) as f32) < bow::FAST_S * self.sr);
+        self.last_on = Some(self.clock);
         let mono = self.s.mode != PlayMode::Poly;
         match self.alloc.note_on(key, id, velocity) {
             Action::Start {
@@ -217,9 +237,9 @@ impl Arcus {
                         NoteTech::Arco | NoteTech::Tremolo
                     );
                 if slur {
-                    self.glide(voice, key, id, velocity, Some(NoteTech::Arco));
+                    self.glide(voice, key, id, velocity, Some(NoteTech::Arco), &how, fast);
                 } else {
-                    self.start(voice, key, id, velocity, stolen, art, own_bow, silent);
+                    self.start(voice, key, id, velocity, stolen, &how, silent, fast);
                 }
             }
             Action::Glide { voice, key, id } => {
@@ -242,10 +262,10 @@ impl Arcus {
                 };
                 if slur {
                     let tech = art.map(|a| NoteTech::of(self.s.technique, Some(a)));
-                    self.glide(voice, key, id, velocity, tech);
+                    self.glide(voice, key, id, velocity, tech, &how, fast);
                 } else {
                     // The string rings on, the bow changes (or the finger plucks again).
-                    self.start(voice, key, id, velocity, false, art, own_bow, false);
+                    self.start(voice, key, id, velocity, false, &how, false, fast);
                 }
             }
             Action::Release { voice } => {
@@ -257,7 +277,17 @@ impl Arcus {
         }
     }
 
-    fn glide(&mut self, voice: usize, key: u8, id: u64, velocity: f32, tech: Option<NoteTech>) {
+    #[allow(clippy::too_many_arguments)]
+    fn glide(
+        &mut self,
+        voice: usize,
+        key: u8,
+        id: u64,
+        velocity: f32,
+        tech: Option<NoteTech>,
+        how: &NoteHow,
+        fast: bool,
+    ) {
         let sh = Shared {
             s: &self.s,
             sr: self.sr,
@@ -268,7 +298,7 @@ impl Arcus {
             table: self.table,
             clock: self.clock,
         };
-        self.voices[voice].glide_to(&sh, key, id, velocity, tech);
+        self.voices[voice].glide_to(&sh, key, id, velocity, tech, how, fast);
         self.newest = voice;
     }
 
@@ -280,10 +310,11 @@ impl Arcus {
         id: u64,
         velocity: f32,
         stolen: bool,
-        art: Option<Art>,
-        own_bow: Option<BowDir>,
+        how: &NoteHow,
         silent: bool,
+        fast: bool,
     ) {
+        let (art, own_bow) = (how.art, how.bow);
         if voice >= MAX_VOICES {
             return;
         }
@@ -302,6 +333,18 @@ impl Arcus {
             self.stolen += 1;
         }
         let tech = NoteTech::of(self.s.technique, art);
+        // r42 arcus-expr: the player's bow may have changed by itself (it ran out), so the
+        // next re-bow on a sounding string goes the other way from where it moves now.
+        // (Only for a sustained stroke: a tremolo's or a spiccato's strokes keep the
+        // alternation's turn — its first stroke's way moved a tremolo preset's level 1–2 LU.)
+        if self.s.player > 0.0 && keep && matches!(tech, NoteTech::Arco | NoteTech::Staccato) {
+            if let Some(d) = self.voices[voice].bow_moving() {
+                self.next_dir = match d {
+                    BowDir::Down => BowDir::Up,
+                    BowDir::Up => BowDir::Down,
+                };
+            }
+        }
         let dir = if tech.is_bowed() {
             self.bow_for(own_bow, silent)
         } else {
@@ -317,7 +360,7 @@ impl Arcus {
             table: self.table,
             clock: self.clock,
         };
-        self.voices[voice].start(&sh, key, id, velocity, tech, dir, keep);
+        self.voices[voice].start(&sh, key, id, velocity, tech, dir, keep, how, fast);
         self.newest = voice;
     }
 
@@ -379,6 +422,7 @@ impl Arcus {
         self.sustain = false;
         self.ctl = Controls::default();
         self.pending = None;
+        self.last_on = None; // r42 arcus-expr
         self.next_dir = BowDir::Down;
         self.stolen = 0;
         self.peak = 0.0;

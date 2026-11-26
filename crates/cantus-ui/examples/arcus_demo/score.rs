@@ -10,6 +10,11 @@
 //! spiccato, `p` pizzicato, `t` tremolo (slurred tremolo notes overlap, so the strokes go
 //! on while the finger moves), `n` a sustained stroke of its own, `d`/`u` the bow down or
 //! up, `>` an accent.
+//!
+//! r42 arcus-expr: marks the player reads (`perform.rs`; the plain build ignores them): `,`
+//! a breath (the phrase ends after the note before it), `f` fp, `z` sforzando, `m` martelé,
+//! `-` portato (a pulse inside a slur), `^` a slide into the note (a shift a player shows),
+//! `q` senza vibrato.
 
 use cantus_core::note_art::{Articulation, Bow, NoteArt};
 
@@ -136,6 +141,11 @@ pub struct Written {
     pub key: u8,
     pub vel: u8,
     pub art: Option<NoteArt>,
+    /// r42 arcus-expr: the slur it is in (from 1; 0 none), whether a phrase ends after it
+    /// (`,`), and its marks as written.
+    pub slur: u32,
+    pub breath: bool,
+    pub flags: &'static str,
 }
 
 fn key_of(name: &str) -> Option<u8> {
@@ -166,18 +176,35 @@ fn art(a: Articulation, bow: Option<Bow>) -> Option<NoteArt> {
     Some(NoteArt {
         articulation: a,
         bow,
+        start: None,
+        part: None,
+        string: None,
     })
 }
 
-/// The part's notes, and its length in beats. Panics on a wrong bar line, a note out of
-/// the instrument's range or a token it cannot read: the score is checked as it is built.
-pub fn parse(part: &Part) -> (Vec<Written>, f64) {
+/// The part's notes and its length in beats, every key moved by `transpose` semitones (the
+/// solos share one line). Panics on a wrong bar line, a note out of the instrument's range
+/// (checked after the move) or a token it cannot read: the score is checked as it is built.
+pub fn parse_t(part: &Part, transpose: i32) -> (Vec<Written>, f64) {
     let (lo, hi) = part.who.range();
     let mut out: Vec<Written> = Vec::new();
     let mut at = 0.0f64;
     let mut slur = false;
     let mut first_in_slur = false;
-    for (i, raw) in part.notes.split_whitespace().enumerate() {
+    let mut slurs = 0u32;
+    // The wobble's count: every token but a breath (so a breath changes no velocity).
+    let mut i = 0usize;
+    for raw in part.notes.split_whitespace() {
+        if raw == "," {
+            if let Some(last) = out.last_mut() {
+                last.breath = true;
+            }
+            continue;
+        }
+        let i = {
+            i += 1;
+            i - 1
+        };
         if raw == "|" {
             let off = at / BAR - (at / BAR).round();
             assert!(
@@ -193,6 +220,7 @@ pub fn parse(part: &Part) -> (Vec<Written>, f64) {
             assert!(!slur, "{:?}: a slur inside a slur at {raw}", part.who);
             slur = true;
             first_in_slur = true;
+            slurs += 1;
             tok = t;
         }
         let closes = tok.ends_with(')');
@@ -213,6 +241,7 @@ pub fn parse(part: &Part) -> (Vec<Written>, f64) {
             continue;
         }
         let key = key_of(name).unwrap_or_else(|| panic!("{:?}: a pitch in {raw}", part.who));
+        let key = u8::try_from(i32::from(key) + transpose).expect("a key after the move");
         assert!(
             (lo..=hi).contains(&key),
             "{:?}: {name} is outside its range",
@@ -263,6 +292,9 @@ pub fn parse(part: &Part) -> (Vec<Written>, f64) {
             key,
             vel: v.clamp(20, 127) as u8,
             art: a,
+            slur: if slur { slurs } else { 0 },
+            breath: false,
+            flags,
         });
         at += len;
         first_in_slur = false;
