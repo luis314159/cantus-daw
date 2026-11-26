@@ -225,6 +225,15 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // light flecks in the Drawn picture).
             let bias = if matches!(role, Role::Shell(_)) {
                 SHELL_BIAS
+            } else if *role == Role::Shirt
+                && [i0, i1, i2].iter().any(|&i| {
+                    t.uv.get(i)
+                        .is_some_and(|u| u[0] == super::bowed_human::BESIDE_BODY)
+                })
+            {
+                // r42:arcus-polish5 — the collar's band where it passes under a held
+                // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
+                -super::figure::tune::tune("drawn_beside", BESIDE_BIAS)
             } else {
                 0.0
             };
@@ -291,6 +300,10 @@ fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]
 
 /// r42:arcus-polish4 — how much nearer the hair's shell sorts than its own depth (cm).
 const SHELL_BIAS: f32 = 0.6;
+
+/// r42:arcus-polish5 — how much farther the collar's band over a held instrument's outline
+/// sorts (cm).
+const BESIDE_BIAS: f32 = 1.5;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.

@@ -39,9 +39,6 @@ struct ArmMesh {
     /// thinning (each side's copy collapsed on its own): painted solid across the crack,
     /// not feathered (the thin light line along the sleeve the review found).
     seam: Vec<bool>,
-    /// r42:arcus-polish5 — which edges draw no outline at all (a small separate piece of
-    /// cloth's: [`small_parts`]).
-    quiet: Vec<bool>,
     /// r42:arcus-upper — each vertex's first copy at its place (a texture seam's copies
     /// share one normal).
     weld: Vec<u16>,
@@ -207,7 +204,6 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let fine = vec![false; tris.len()];
     let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
     let seam = seams(fig, &verts, &edges);
-    let quiet = small_parts(fig, &verts, &tris, &stuff, &weld, &edges); // r42:arcus-polish5
     let curved = vec![0; tris.len()];
     ArmMesh {
         verts,
@@ -217,7 +213,6 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         alpha,
         edges,
         seam,
-        quiet,
         weld,
         fine,
         curved,
@@ -355,7 +350,6 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     }
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     let seam = seams(fig, &verts, &edges);
-    let quiet = small_parts(fig, &verts, &tris, &stuff, &weld, &edges); // r42:arcus-polish5
     let curved = curved_edges(&tris, &fine, &weld);
     ArmMesh {
         verts,
@@ -365,7 +359,6 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         alpha,
         edges,
         seam,
-        quiet,
         weld,
         fine,
         curved,
@@ -492,64 +485,6 @@ fn seams(fig: &Figure, verts: &[u32], edges: &[(u16, u16, u32, u32)]) -> Vec<boo
 
 /// How near two open edges lie to be one seam's sides (cm; the thinning's shortest edge).
 const SEAM_NEAR: f32 = 0.62;
-
-/// r42:arcus-polish5 — the edges of an arm's small separate pieces of cloth (his cuff
-/// buttons: each its own little mesh on the sleeve) take no outline strip: their outlines,
-/// turning away under the back light, drew each button as a ring of single light pixels
-/// (`arcus_figure_specks`' largest group; at 400 % a dotted line a pixel wide round each).
-/// A piece is small when its corners at rest lie within [`SMALL_PART`] across.
-fn small_parts(
-    fig: &Figure,
-    verts: &[u32],
-    tris: &[[u16; 3]],
-    stuff: &[Stuff],
-    weld: &[u16],
-    edges: &[(u16, u16, u32, u32)],
-) -> Vec<bool> {
-    use crate::scene::geo::v;
-    fn root(up: &mut [usize], mut i: usize) -> usize {
-        while up[i] != i {
-            up[i] = up[up[i]];
-            i = up[i];
-        }
-        i
-    }
-    let n = verts.len();
-    let mut up: Vec<usize> = (0..n).collect();
-    for t in tris {
-        let [a, b, c] = t.map(|i| weld[i as usize] as usize);
-        for (x, y) in [(a, b), (b, c)] {
-            let (rx, ry) = (root(&mut up, x), root(&mut up, y));
-            if rx != ry {
-                up[rx] = ry;
-            }
-        }
-    }
-    let mut lo = vec![v(f32::MAX, f32::MAX, f32::MAX); n];
-    let mut hi = vec![v(f32::MIN, f32::MIN, f32::MIN); n];
-    let mut cloth = vec![true; n];
-    for (t, st) in tris.iter().zip(stuff) {
-        for &i in t {
-            let r = root(&mut up, weld[i as usize] as usize);
-            let p = fig.pos[verts[i as usize] as usize];
-            lo[r] = v(lo[r].x.min(p.x), lo[r].y.min(p.y), lo[r].z.min(p.z));
-            hi[r] = v(hi[r].x.max(p.x), hi[r].y.max(p.y), hi[r].z.max(p.z));
-            cloth[r] &= matches!(st, Stuff::Velvet | Stuff::Wool);
-        }
-    }
-    let most = crate::scene::figure::tune::tune("small_part", SMALL_PART);
-    edges
-        .iter()
-        .map(|e| {
-            let r = root(&mut up, weld[e.0 as usize] as usize);
-            cloth[r] && (hi[r] - lo[r]).len() < most
-        })
-        .collect()
-}
-
-/// r42:arcus-polish5 — how small a separate piece of an arm's cloth is to draw no outline
-/// (cm across its box at rest: a cuff button under 2; a sleeve, tens).
-const SMALL_PART: f32 = 3.0;
 
 /// r42:arcus-hand — which of an arm's triangles are its hand's skin or nails (`fine`), and
 /// each vertex's detail for the hand: the figure's own, a nail paler toward its free edge
@@ -1636,10 +1571,6 @@ pub fn arm(
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
-            // (r42:arcus-polish5: a button's edge: none.)
-            if am.quiet[e] {
-                continue;
-            }
             // A seam's side: closed solid across the crack, then no outline (r42:arcus-hand).
             if am.seam[e] {
                 if f0 {

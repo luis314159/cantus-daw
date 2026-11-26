@@ -1714,11 +1714,21 @@ fn clear_of_the_body(
             Role::Wool => d.arch - 0.5,
             _ => continue,
         };
-        for p in t.pts.iter_mut() {
+        let shirt = *role == Role::Shirt;
+        for (k, p) in t.pts.iter_mut().enumerate() {
             let q = *p - pose.o;
             let (x, y, z) = (q.dot(ex), q.dot(ey), q.dot(ez));
             if !(z < top && z > low && inside(&o, x, y)) {
                 continue;
+            }
+            // (r42:arcus-polish5: the band's corners over the body's outline marked, so the
+            // Drawn picture sorts them behind the chin rest and the ribs they pass under —
+            // sorted by their own middles, they drew white stripes between the chin rest's
+            // cells. Harmless to the Photographic picture: a shirt's `uv` carries no fold.)
+            if shirt {
+                if let Some(uv) = t.uv.get_mut(k) {
+                    *uv = [BESIDE_BODY, 0.0];
+                }
             }
             // (The band kept; the point under the back, as far as it lies past the band. Beside
             // the body — under its top's level, by its ribs — the band goes under too, if
@@ -1751,6 +1761,10 @@ fn clear_of_the_body(
 
 /// r42:arcus-polish4 — how far under a held instrument's back its collar is tucked (cm).
 const TUCK: f32 = 0.4;
+
+/// r42:arcus-polish5 — a shirt corner's `uv[0]` when it lies over a held instrument's
+/// outline (`bowed_draw_tris` sorts its triangles a little farther).
+pub const BESIDE_BODY: f32 = -3.0;
 
 /// r42:arcus-polish5 — how far past the neck's surface the collar's band reaches (cm: a
 /// shirt collar stands 3.5–4 cm round the neck and its band lies within a couple of

@@ -487,9 +487,10 @@ fn no_stray_pixels_round_or_on_the_violinists() {
 /// 982b1dbbc) showed its point under the forearm, while at the frog, the middle and the tip
 /// alone the arm covered it or lay far from it — the test passed the old figure. Run with
 /// `CANTUS_FIGURE_DIR` holding the old `woman.fig`, it fails. `CANTUS_SLEEVE_DIR=<folder>`
-/// saves each shot. (And each shot three frames: a shot of one frame drew the live arms over
-/// an empty picture — a run of frames keeps only the textures it uploaded, and the baked
-/// body is a texture — so no neckline was ever under the sleeve to find.)
+/// saves each shot. (And each shot a new scene and three frames: a later shot of the same
+/// scene drew the live arms over an empty picture — a run of frames keeps only the textures
+/// it uploaded, and the baked body is a texture uploaded once — so no neckline was ever
+/// under the sleeve to find.)
 const SLEEVE_PPP: f32 = 2.0;
 const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
 
@@ -519,9 +520,10 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 views::inst::window_in(&mut app, ui)
             });
             for along in SLEEVE_ALONG {
-                if let Some(e) = app.inst.arcus_scenes.get_mut(&t.0) {
-                    e.1 = along;
-                }
+                // (A new scene each time, so its picture is drawn and uploaded in this run.)
+                app.inst
+                    .arcus_scenes
+                    .insert(t.0, (Default::default(), along, 0.0));
                 probe::record(true);
                 let save = std::env::var_os("CANTUS_SLEEVE_DIR").map(|d| {
                     std::path::PathBuf::from(d).join(format!("sleeve-{b:?}-{be:?}-{along}.png"))
@@ -593,7 +595,8 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 }
                 let area = sleeve.m.iter().filter(|&&x| x).count();
                 eprintln!(
-                    "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside,                      {under_n} under"
+                    "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside, \
+                     {under_n} under"
                 );
                 if area < (400.0 * SLEEVE_PPP * SLEEVE_PPP) as usize {
                     bad.push(format!(
