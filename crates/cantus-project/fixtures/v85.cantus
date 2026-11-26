@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 85,
   "app_version": "fixture",
-  "saved_at": 1795687934,
+  "saved_at": 1795708681,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3528,6 +3528,7 @@
           "params": {
             "body.bridge": 1.0,
             "body.mic": 1.0,
+            "bow.bite": 0.7,
             "bow.grit": 1.0,
             "bow.pair": 1.0,
             "bow.tilt": 0.6,
@@ -7712,5 +7713,5 @@
     },
     "next_id": 155
   },
-  "integrity": "8e3b5b6812a96ca80cfd776750152e8c2c1ff46d3a619385b04362338b4eb47d"
+  "integrity": "89a3ccafba254b42849f899f84fdd5aceb5e4f39fc0d1f9c95cb65d470eb15ba"
 }

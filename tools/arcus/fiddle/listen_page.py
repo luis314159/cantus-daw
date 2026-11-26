@@ -85,7 +85,15 @@ RASPADO = ("El sonido del arco: menos raspado",
            "micrófono cercano y las dobles cuerdas; solo cambia el ruido de la crin. "
            "A: el arreglo (el grano a 0,75, sin los +4 dB): el ruido en el rango de las "
            "grabaciones. C: menos grano (0,4). B: sin grano, lo más suave. "
-           "«Antes» es la versión que te molestó.")
+           "«Antes» es la versión que te molestó. «Ahora» es la mordida según cada nota: C en las "
+           "notas normales, B en las suaves, A en los acentos.")
+
+
+MORDIDA = ("Una frase de reel a 116 BPM tocada cuatro veces, de piano a forte. La «Mordida» "
+           "(nuevo control del violín country) reparte el grano del arco por la dinámica de "
+           "cada nota: las suaves no tienen (como B), las normales la mitad (como C), las "
+           "fuertes o acentuadas todo (como A). Con la Mordida en 0 no hay grano en ninguna; "
+           "en 1, todo desde mezzoforte. Se automatiza y se asigna a un control MIDI.")
 
 
 def main():
@@ -99,9 +107,10 @@ def main():
     clips = []
     named = {}
     tren = [("raspado-antes/tren.wav", "Antes (raspado)", "tren-raspado-antes.wav"),
-            ("ahora/tren.wav", "A: el arreglo", "tren-raspado-A.wav"),
+            ("raspado-A/tren.wav", "A: el arreglo", "tren-raspado-A.wav"),
             ("raspado-C/tren.wav", "C: intermedio", "tren-raspado-C.wav"),
-            ("raspado-B/tren.wav", "B: más suave", "tren-raspado-B.wav")]
+            ("raspado-B/tren.wav", "B: más suave", "tren-raspado-B.wav"),
+            ("ahora/tren.wav", "Ahora: la mordida según cada nota", "tren-mordida.wav")]
     items = [(r, lab) for r, lab, _ in tren if (d / r).exists()]
     if items:
         body.append(section(RASPADO[0], RASPADO[1], items))
@@ -118,6 +127,14 @@ def main():
                                 "arreglo A del sonido del arco.", items))
             clips += [old]
             named[old] = chat
+    cres = [("lab/crescendo-mordida0.wav", "Mordida 0 (B en todo)", "crescendo-mordida0.wav"),
+            ("lab/crescendo-ahora.wav", "Mordida 0,5 (el preset)", "crescendo-mordida.wav"),
+            ("lab/crescendo-mordida1.wav", "Mordida 1", "crescendo-mordida1.wav")]
+    items = [(r, lab) for r, lab, _ in cres if (d / r).exists()]
+    if items:
+        body.append(section("La mordida crece con la dinámica", MORDIDA, items))
+        clips += [r for r, _ in items]
+        named.update({r: n for r, _, n in cres})
     for stem, title, text in LAB:
         items = [(f"lab/{stem}-{v}.wav", lab) for v, lab in (("antes", "Antes"), ("ahora", "Ahora"))
                  if (d / f"lab/{stem}-{v}.wav").exists()]

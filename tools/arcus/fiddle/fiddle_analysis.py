@@ -36,7 +36,7 @@ SONGS = ("tren", "hoedown")
 SETS = {
     "antes": {"label": "Antes (raspado)", "dir": W("listen", "fiddle", "raspado-antes"),
               "lab": W("arcus", "fiddle", "scratch", "lab")},
-    "ahora": {"label": "Ahora (A)", "dir": W("listen", "fiddle", "ahora"),
+    "ahora": {"label": "Ahora (mordida)", "dir": W("listen", "fiddle", "ahora"),
               "lab": W("listen", "fiddle", "lab")},
 }
 LAB = ("rapidas", "agudas")
@@ -242,7 +242,7 @@ def chart_features(out, rows):
     ax.axvline(1, color="#6b7280", lw=0.8)
     ax.set_xlim(-2.6, 3.6)
     ax.set_xlabel("posición en el rango de las grabaciones (0 = borde bajo, 1 = borde alto; recortado a −2,5 … 3,5)")
-    ax.set_title("Cada rasgo contra las grabaciones: rojo antes (raspado), azul ahora (A)")
+    ax.set_title("Cada rasgo contra las grabaciones: rojo antes (raspado), azul ahora (mordida)")
     ax.grid(alpha=0.3, axis="x")
     fig.tight_layout()
     fig.savefig(out / "rasgos.png")
@@ -250,6 +250,7 @@ def chart_features(out, rows):
 
 
 def main(argv):
+    sys.stdout.reconfigure(encoding="utf-8")
     base = Path(argv[0]) if argv else W("listen", "arcus-analisis")
     out = base / "fiddle"
     out.mkdir(parents=True, exist_ok=True)
