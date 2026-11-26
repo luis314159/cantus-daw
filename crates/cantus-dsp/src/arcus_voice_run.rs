@@ -297,6 +297,7 @@ impl Voice {
     /// again. `tech`: the new note's way of bowing when its own articulation slurs it (a
     /// sustain into a tremolo, a tremolo into a sustain — ADR 0158), `None` to keep the
     /// voice's.
+    #[allow(clippy::too_many_arguments)] // r42 arcus-expr: the note's how, the passage's speed
     pub fn glide_to(
         &mut self,
         sh: &Shared,

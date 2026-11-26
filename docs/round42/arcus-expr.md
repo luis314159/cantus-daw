@@ -162,7 +162,13 @@ vibrato's and the strokes' shapes move them).
 168, and 96 of 96 upper, within a cent held out), the tremolo in tune, the vibrato's band and
 its partials, block sizes, rest, the pool, the player's own seven; `cantus-project` 79 (schema
 83's fixture); `cantus-core` the undo fuzz 22 and `note_art` 3; `cantus-engine` `inst_arcus`,
-`arcus_image`, `null_tests` 26, `rt_memory` 67, `strings_rec_art`; `cantus-score`'s round trip.
+`arcus_image`, `null_tests` 26, `rt_memory` 67, `strings_rec_art`; `cantus-score`'s round trip;
+`cantus-ui` `arcus_level_e2e` (every bowed preset within 1.5 LU in music, the fiddle at −18.8),
+`instrument_levels`, `arcus_tuning_art_e2e`, `arcus_pick_e2e`, `arcus_upper_e2e`,
+`strings_rec_e2e`, `fix2_model` 8, the note menu (`views::piano_roll::art`) and the i18n keys 4.
+The final `cantus-dsp` run (after the compensation and the tremolo's exemptions): `arcus::` 45
+passed, 0 failed. Not run: the workspace suite (the rule), the Linux check (WSL is the
+integrator's), clippy on `cantus-ui` (only `cantus-dsp`'s).
 
 **The held-out third** (arcus-match's protocol: `tools/arcus/pass4/measure.sh` renders the
 held-out notes and the study's estimator reads them, `study_compare.py`; before = pass 6's
@@ -197,9 +203,10 @@ By the rule (no row regresses beyond noise) the cello's rows are reported here, 
 view.
 
 **In music** (the stage-1 performance re-rendered on the stage-2 instrument, `etapa2/`, the
-same phrase study): the long notes start 4.9 dB and end 4.0 dB under their peak (stage 1: 4.8,
-3.7; HSD 11.9, 14.2), the peak at 0.578 of the note (HSD 0.55); the balance Vl +4.0, Vla −5.1,
-Vlc +0.5, Cb +0.1 dB over the four's mean — a small step towards the players. Every demo check
+same phrase study, with the compensation): the long notes start 5.1 dB and end 4.0 dB under their
+peak (stage 1: 4.8, 3.7; HSD 11.9, 14.2), the peak at 0.577 of the note (HSD 0.55); the balance
+Vl +3.4, Vla −4.9, Vlc +0.1, Cb +0.2 dB over the four's mean (stage 1: +3.8, −5.3, +0.9, +0.2;
+HSD Vl1 +1.1, Vla −1.2) — a small step towards the players. Every demo check
 passes (the same bytes twice and from the saved project, levels, audibility, boundaries, the
 tail), and every solo's.
 
@@ -239,7 +246,7 @@ were not checked in this session.
   (`arcus.preset.violin_fiddle`): contact ×0.82 (nearer the bridge), force ×1.15, bow noise +4
   dB, a quicker attack (×0.7), a 70 ms release, 14 ms bow changes and finger, vibrato depth 0.35
   with a 450 ms delay and more variation, the strings ringing 1.8 s, the body a little drier;
-  its level in music −18.9 LUFS (`arcus_level_e2e`, every bowed preset within the spread).
+  its level in music −18.8 LUFS (`arcus_level_e2e`, every bowed preset within the spread).
 - **The fiddler's rules** (`examples/arcus_demo/fiddle.rs`, all entered as a user enters them):
   the Nashville and Georgia shuffles by section and saw strokes by mark, alternating bows (a bow
   after a rest down on a beat); the pulse (off-beat eighths at velocity 92, on-beats 78–84, a
@@ -260,6 +267,22 @@ were not checked in this session.
   root and fifth on 1 and 3) and a light kit (Tympanum: closed hi-hat eighths, a soft kick, a
   cross-stick on 2 and 4 — Tympanum has no brushes); and the B part's first four bars on the
   violin alone, classical (the cantabile preset and the quartet's player) then fiddle.
+
+- **The second demo** (the owner after the hoedown: "much livelier, more cowboy, with more
+  energy"; `fiddle2.rs`, `arcus_demo -- <out> fiddle`): *Tren de la medianoche*, an original
+  breakdown in A at 160 BPM, 44 bars (66 s): a chop kick-off, the A part twice (the Nashville
+  shuffle, a flatted seventh, a cross-string arpeggio up to E6), the B part twice (the Georgia
+  shuffle, slides into the accented notes; the second time **twin fiddles**, a third Arcus violin
+  a diatonic third under), a quiet breakdown with the **train whistle** (a double stop sliding up
+  from a minor third under — the mark `x`: the second violin a third under, bending with it) and
+  chops, a double-time push of saw-stroke sixteenths, a shout tag with the band's hits; the bass
+  root and fifth hard on 1 and 3, the piano stabbing 2 and 4 with fills, a train beat (the
+  snare's eighths accented on 2 and 4, the kick on 1 and 3). −16 LUFS, −2.9 dBTP, the same bytes
+  twice, the fiddle stems' 950 boundaries at worst 3.8 dB over their music.
+- **Checks** (`fiddle::render`): each take exported twice to the same bytes, under −1 dBTP, no
+  full-scale sample, and its fiddle's boundaries measured on the fiddle's own stems (in the
+  band's mix the cross-stick on 2 and 4 lands on the fiddle's starts): the hoedown 58.7 s, worst
+  4.2 dB; the two passages 2.4 and 2.5 dB; the breakdown 3.8 dB.
 
 ### 4.3 Not built yet: the design and the steps for a fresh builder
 
@@ -377,4 +400,5 @@ left it, performed on the pass-6 instrument (stage 1) and on the stage-2 instrum
 plain, stage 1 and stage 2; the fiddle's hoedown and the passage classical against country.
 `chat\` holds 16-bit WAV copies of each (under 30 MB: the quartets at 44.1 kHz). The full takes:
 `pase6\`, `etapa1\` and `etapa2\` (each quartet's 24-bit export, stems, `.cantus`,
-`index.html`), `solos1\`, `solos2\`, `fiddle\` (with each project).
+`index.html`), `solos1\`, `solos2\`, `fiddle\` (the hoedown, the breakdown `tren.wav`, the
+two passages, each with its project and stems).

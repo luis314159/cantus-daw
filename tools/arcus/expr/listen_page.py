@@ -91,6 +91,14 @@ def main():
                    'cuerda al aire y dos «chops» al empezar — con piano honky-tonk (Chorda), '
                    'contrabajo en pizzicato (Arcus) y batería suave (Tympanum; no tiene escobillas).</p>')
         out.append(row("Hoedown (50 s)", [("fiddle/hoedown.wav", "Fiddle")]))
+        if have("fiddle/tren.wav"):
+            out.append('<p>«Tren de la medianoche»: más rápido y más vaquero — 160 BPM en la, '
+                       'arranque con chops, parte A y parte B dos veces (la segunda B con dos '
+                       'violines a terceras), un «breakdown» suave con el silbato del tren '
+                       '(dobles cuerdas que suben deslizando una tercera), un empujón final a '
+                       'doble tiempo y un remate con golpes de toda la banda; la batería toca '
+                       'un ritmo de tren.</p>')
+            out.append(row("Tren de la medianoche (66 s)", [("fiddle/tren.wav", "Fiddle")]))
         out.append(row("El mismo pasaje: clásico y country",
                        [(r, l) for r, l in (("fiddle/pasaje-clasico.wav", "Clásico"),
                                             ("fiddle/pasaje-country.wav", "Country"))
@@ -104,7 +112,8 @@ def main():
         jobs.append((f"solos1/{key}-plano.wav", f"{key}-plano.wav"))
         jobs.append((f"solos1/{key}-interpretado.wav", f"{key}-etapa1.wav"))
         jobs.append((f"solos2/{key}-interpretado.wav", f"{key}-etapa2.wav"))
-    jobs += [("fiddle/hoedown.wav", "fiddle-hoedown.wav"),
+    jobs += [("fiddle/tren.wav", "fiddle-tren.wav"),
+             ("fiddle/hoedown.wav", "fiddle-hoedown.wav"),
              ("fiddle/pasaje-clasico.wav", "pasaje-clasico.wav"),
              ("fiddle/pasaje-country.wav", "pasaje-country.wav")]
     for src, name in jobs:

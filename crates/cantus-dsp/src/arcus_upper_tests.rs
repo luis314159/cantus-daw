@@ -158,7 +158,8 @@ fn the_upper_strings_render_the_same_at_every_block_size_at_every_factor() {
 #[ignore = "a probe: cargo test -p cantus-dsp --lib arcus::upper_tests::probe_player_size -- --ignored --nocapture"]
 fn probe_player_size() {
     let db = |x: &[f32]| {
-        10.0 * (x.iter().map(|v| (*v as f64).powi(2)).sum::<f64>() / x.len() as f64 + 1e-30).log10()
+        let e = x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>() / x.len() as f64;
+        10.0 * crate::math::log10(e + 1e-30)
     };
     for s in lower() {
         let off = ArcusSettings { player: 0.0, ..s };
