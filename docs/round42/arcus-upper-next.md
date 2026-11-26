@@ -1514,3 +1514,36 @@ machine and studio.blender.org refuses automated fetches.
 - Open: the fingers' spread (light between them), the table's finger and knuckle rows at
   +14/+17 after the shift, the chips at the right edge, a re-solve of the table on these
   figures (the webs and nails moved a few millimetres of skin).
+
+### Pass 5 (2026-11-26): the spread, the chips, the skin's grain
+
+**A correction first:** the pass-3 and pass-4 sheets were drawn with a stale
+`examples/shoot_arcus.exe`. `cargo test --no-run --example shoot_arcus` builds the example as
+a test harness (`examples/shoot_arcus-<hash>.exe`) and leaves the plain `shoot_arcus.exe`
+alone. Their figures (geometry, the table) were current, but the Rust side stopped at
+pass 3's first build: the skin's first gains, the creases' floor and the tips' red. Missing
+were the hands' own light map and the arm blend, the raster over the hand only, the per-sample
+cut at the neck's edge, pass 4's nails, the crevices' shade and the tendons. The gates and the
+budget ran the test binaries and were current. Build the example with `cargo build
+--release -p cantus-ui --example shoot_arcus` before shooting sheets.
+
+- *The chips at the hand's right edge* (third position): `hidden_by_neck` tested the ray
+  against the neck's **box**. Skin in the box's lower corners, beside the neck's rounded back,
+  was taken for hidden, painted before the neck's stamp and stamped over with the picture's
+  background, which left saw-toothed slivers. `CANTUS_HAND_TUNE` 20 (the body's test left out)
+  changed nothing. The test now samples the ray through the neck as drawn: the
+  fingerboard's slab (`NECK_SLAB` 0.55 cm), then the rounded back (`NECK_STEPS` 10 samples).
+  The palm's edge under the neck is whole again. Over the fingerboard's far edge a fingertip
+  still shows apart from its finger, now cut cleanly by the fingerboard.
+- *The skin's grain per sample* (`Raster::tri_grain`, `skin::Grain`): two octaves of value
+  noise at 0.07 / 0.035 cm (5 %), and over the nearest finger joint's back the dorsal
+  wrinkles, arcs 0.11 cm apart (16 % at their deepest) over 0.32 cm either side. They are
+  laid at rest, so they move with the skin. Finer than the patches' points (1.5–3 mm), they
+  read at 200 % on the PIPs and DIPs and as grain at 400 %.
+- *The spread* (`left_hand.py`): `SPREAD` 4 / 3 / 5° wider (index 7.9° off the middle, ring
+  5.5, little 9.7), and a gap rule by role. Each finger is taken as capsules along its outer
+  first phalanx, middle and last phalanges (radii `GAP_R` of its PIP's breadth). The playing
+  finger is held 2.8 mm from its neighbours (`GAP_PLAY`), the free pairs 1.5 mm
+  (`GAP_FREE`). `finger_gap.py` (adopted) measured pass 4's table: the middle and ring glued
+  at 0.9–2.1 mm, and the playing finger nearer its neighbours (1.2–2.8) than the free ones
+  each other (2.2–3.7).
