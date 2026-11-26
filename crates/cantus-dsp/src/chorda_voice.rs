@@ -866,6 +866,7 @@ impl Voice {
                     or(ks[1], 0.004),
                 );
                 self.knock.set_tail(self.fs, ks[4], ks[5]);
+                self.knock.set_steep(true);
                 self.knock_shaped = true;
                 noise *= ks[0];
                 if ks[7] != 0.0 {
@@ -881,6 +882,7 @@ impl Voice {
                     0.004,
                 );
                 self.knock.set_tail(self.fs, 0.0, 0.0);
+                self.knock.set_steep(false);
                 self.knock_shaped = false;
             }
             self.knock.strike(kick, noise, seed);

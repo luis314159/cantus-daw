@@ -865,6 +865,19 @@ impl Voicing {
     /// Set `key` = `value` by name (the voicing lab's `key=v,key=v`). False when the name
     /// is not one.
     pub fn set(&mut self, key: &str, v: f64) -> bool {
+        // Round 42 (`chorda-c17`): one cell of the partial table by name, `partial<n>.<key>`
+        // (n 2…7, dB before `partials_amount`), so a spec can voice one key's partial alone.
+        if let Some(rest) = key.strip_prefix("partial") {
+            if let Some((n, k)) = rest.split_once('.') {
+                return match (n.parse::<usize>(), k.parse::<u8>()) {
+                    (Ok(n), Ok(m)) if (2..=7).contains(&n) && (21..=108).contains(&m) => {
+                        self.partials[(m - 21) as usize][n - 2] = v as f32;
+                        true
+                    }
+                    _ => false,
+                };
+            }
+        }
         if let Some(k) = key.strip_prefix("hf_key.") {
             return match k.parse::<u8>() {
                 Ok(m) if (21..=108).contains(&m) && v > 0.0 => {

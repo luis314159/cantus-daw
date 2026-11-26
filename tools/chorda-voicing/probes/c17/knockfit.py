@@ -82,7 +82,7 @@ def score(cand, keys, verbose=False):
 def between_score(cand, keys, dyns=('mf', 'ff'), verbose=False):
     """The noise between the partials (between.py) in its first two windows (0.02-0.32 s:
     the action and the case; later the references' own recording noise counts), each octave
-    125 Hz - 4 kHz, against both grands' span as `score` does."""
+    125 Hz - 4 kHz, against both grands' span as `score` does; 8 kHz one-sided (never over them)."""
     import between
     N = os.path.join(LAB, 'notes5', 'wav')
     out = []
@@ -90,14 +90,17 @@ def between_score(cand, keys, dyns=('mf', 'ff'), verbose=False):
         k = ('B', dyn, tuple(keys))
         for s in ('salamander', 'bitklavier'):
             if (s,) + k not in CACHE:
-                CACHE[(s,) + k] = between.measure(os.path.join(N, s), dyn, keys)[0][:2, 1:7]
+                CACHE[(s,) + k] = between.measure(os.path.join(N, s), dyn, keys)[0][:2, 1:8]
         sal, bk = CACHE[('salamander',) + k], CACHE[('bitklavier',) + k]
-        ch = between.measure(cand, dyn, keys)[0][:2, 1:7]
+        ch = between.measure(cand, dyn, keys)[0][:2, 1:8]
         mid, half = (sal + bk) / 2, np.maximum(np.abs(sal - bk) / 2, 2.0)
         d = np.maximum(np.abs(ch - mid) - half, 0) * np.sign(ch - mid)
+        # The 8 kHz octave counts only above the grands: their own recordings' floor lies
+        # under it (a knock may not add hiss; it need not copy theirs).
+        d[:, -1] = np.maximum(d[:, -1], 0)
         out.append(d)
         if verbose:
-            print(f'between {dyn} keys {keys[0]}-{keys[-1]}: cand minus the span, windows x octaves 125 Hz - 4 kHz')
+            print(f'between {dyn} keys {keys[0]}-{keys[-1]}: cand minus the span, windows x octaves 125 Hz - 8 kHz')
             for r in d:
                 print('  ' + ''.join(f'{v:6.1f}' for v in r))
     return float(np.sqrt(np.nanmean(np.array(out) ** 2)))

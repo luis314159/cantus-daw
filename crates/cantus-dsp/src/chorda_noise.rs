@@ -74,6 +74,12 @@ pub struct Thud {
     env_t: f64,
     fall_t: f64,
     tail: f64,
+    /// Round 42: the band's second-order slopes — each filter a second time (`steep`), its
+    /// states (`lp2`, `hp2_x`, `hp2_y`). Off in the round-40 thud.
+    steep: bool,
+    lp2: f64,
+    hp2_x: f64,
+    hp2_y: f64,
 }
 
 /// Below this (N) a thud has ended.
@@ -108,6 +114,10 @@ impl Thud {
             env_t: 0.0,
             fall_t: 1.0,
             tail: 0.0,
+            steep: false,
+            lp2: 0.0,
+            hp2_x: 0.0,
+            hp2_y: 0.0,
         }
     }
 
@@ -119,6 +129,11 @@ impl Thud {
         self.fall = new.fall;
         self.lp_a = new.lp_a;
         self.hp_a = new.hp_a;
+    }
+
+    /// Round 42: the band's slopes at 12 dB an octave (true) or the round-40 thud's 6 (false).
+    pub fn set_steep(&mut self, steep: bool) {
+        self.steep = steep;
     }
 
     /// Round 42 (`chorda-c17`): the noise's slower second stage, at `share` of the first's
@@ -173,6 +188,9 @@ impl Thud {
         self.y = [[0.0; 2]; 2];
         self.env = 0.0;
         self.lp = 0.0;
+        self.lp2 = 0.0;
+        self.hp2_x = 0.0;
+        self.hp2_y = 0.0;
         self.hp_x = 0.0;
         self.hp_y = 0.0;
         self.env_a = 0.0;
@@ -221,7 +239,16 @@ impl Thud {
         let hp = self.hp_a * (self.hp_y + self.lp - self.hp_x);
         self.hp_x = self.lp;
         self.hp_y = hp;
-        out += hp;
+        if self.steep {
+            // Round 42: the band's slopes at 12 dB an octave (the case's knock has no hiss).
+            self.lp2 = hp + self.lp_a * (self.lp2 - hp);
+            let h2 = self.hp_a * (self.hp2_y + self.lp2 - self.hp2_x);
+            self.hp2_x = self.lp2;
+            self.hp2_y = h2;
+            out += h2;
+        } else {
+            out += hp;
+        }
         let modes =
             self.y[0][0].abs() + self.y[0][1].abs() + self.y[1][0].abs() + self.y[1][1].abs();
         if modes < QUIET
@@ -229,6 +256,8 @@ impl Thud {
             && self.env_t == 0.0
             && self.hp_y.abs() < QUIET
             && self.lp.abs() < QUIET
+            && self.hp2_y.abs() < QUIET
+            && self.lp2.abs() < QUIET
         {
             self.silence();
         }
