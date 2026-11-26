@@ -14,6 +14,10 @@
 use crate::scene::geo::V3;
 use egui::{Color32, Pos2, Rect};
 
+/// r42:arcus-hands, pass 3 — a triangle's corners in the room and the test each sample's
+/// place there must pass to be filled (`Raster::tri_kept`).
+type Kept<'a> = ([V3; 3], &'a dyn Fn(V3) -> bool);
+
 /// The samples over one arm's rectangle (physical pixels from `x0`, `y0`).
 #[derive(Default)]
 pub struct Raster {
@@ -83,7 +87,7 @@ impl Raster {
         z: [f32; 3],
         c: [Color32; 3],
         blend: Option<f32>,
-        kept: Option<([V3; 3], &dyn Fn(V3) -> bool)>,
+        kept: Option<Kept<'_>>,
     ) {
         let ss = self.ss as f32;
         let q = p.map(|p| {

@@ -1375,3 +1375,106 @@ side against a luthier's profile.
    not lose itself into the body.
 5. *Specks*: the three above that are mine and the flecks in his hair.
 6. `arcus_figure_shape`'s deltoid (above), the budget's idle re-measure, the WSL Linux check.
+
+## arcus-hands, pass 3 (2026-11-26): the fingers' form, the joints, the hands' own skin
+
+Merged first: r42/arcus-polish at 4f9e99efe (970f119b7: his regenerated figure, `man_skin`
+2048², the concert light and hall); the figures rebuilt from the merged `build_figures.py`
+(woman.fig byte-identical to the branch's) and `lids.py` run. ADR 0159 amended ("Pass 3").
+
+The coordinator's review of pass 2 at ~400 % against crop-08/11/02: the fingers "rubber-glove
+sausages" (one cross-section base to tip, blunt tips, no nails, no joint definition, no pad
+fat), the skin "flat orange-yellow", the raised index of the first position floating far over
+the strings, chips at the hand's right edge high up, the table's rule breaks, the budget.
+
+**Found**:
+- MakeHuman's weights blend each finger's PIP and DIP over ~2 cm (measured on her middle
+  finger: the middle phalanx's share rises from 0.2 at 0.9 cm before the PIP to 0.94 at 1.1
+  cm past it) — the middle phalanx never moved as a rigid bone: a bent finger bowed like a
+  tube. That, more than the girth, was the sausage. `sharpen_joints` (`JOINT_BLEND` 0.32 cm).
+- The pass-2 fingers already tapered (her index 1.57 → 1.29 → 1.08 cm PIP → DIP → nail) but
+  the pulp was a wedge (its pad ran straight from the DIP to the nail's edge: depth 0.92 →
+  0.33 cm), read as a blunt cut end at 400 %. `finger_form` (profiles below).
+- The skin: hue 26–28°, blue over red 0.47 against the photographs' 11–24° and 0.48–0.68
+  (the arms' `SKIN_WARM` on the concert's warm skin gain). `arcus_draw_skin.rs`.
+- The table's free fingertips hovered 2–3.4 cm over the fingerboard's top (her
+  woman-violin-2-0-1: the middle, ring and little at 2.9, 2.9, 2.2) — the raised index.
+
+**Numbers** (`finger_profile.py`, as the app loads the figure, her / his):
+- PIP breadth (`FINGER_W`): 1.62 / 1.92 index, 1.66 / 1.96 middle, 1.55 / 1.85 ring,
+  1.36 / 1.60 little — Greiner 1991 (US Army hand anthropometry) means 1.8 / 2.1 at the PIP
+  and 1.55 / 1.8 at the DIP; hers a slim violinist's under the mean (crop-08, crop-02 against
+  the fingerboard's 2.4 cm at the nut: the index ~1.6–1.7 at the PIP, the nail's free edge
+  0.70–0.75 of it); his crop-11's 1.9–2.0. The gate (`arcus_hand_shape`, past the PIP):
+  her 1.59 / 1.63 / 1.52 / 1.33, his 1.88 / 1.90 / 1.80 / 1.56 — in bounds.
+- Along the finger (share of the PIP's breadth): the first phalanx's shaft 0.9, the PIP 0.98,
+  the middle phalanx's waist 0.89, the DIP 0.89 (Greiner's DIP/PIP 0.86), the nail 0.8 →
+  0.74 at its free edge, the tip rounding as a half circle (0.47 at 94 % of the way).
+- The pads: 1.07 mid-phalanx, 0.92–0.95 at the creases; the pulp 0.50 → 0.37 of the PIP's
+  breadth below the bone under the nail, rounding to the end (her index's pulp 0.53 cm at its
+  end, was 0.33; 0.75-0.78 under the nail, was 0.64-0.78).
+- Segment lengths unchanged from pass 1 (`FINGER_STRETCH`): her index 3.75 / 2.16 / 2.58 cm,
+  middle 4.40 / 2.62 / 2.55, ring 3.97 / 2.32 / 2.53, little 3.08 / 1.84 / 1.87; his 4.14 /
+  2.38 / 2.72, 4.80 / 2.80 / 2.75, 4.33 / 2.54 / 2.72, 3.37 / 2.00 / 2.03 (wrist → middle
+  knuckle 8.33 / 9.25).
+- The skin under the concert light, measured on the 400 % shots: hue 26–28° → 23–25°, green
+  over red 0.70 → 0.69–0.73, blue over red 0.46 → 0.51–0.56.
+
+**The table** (`left_hand.py`, `assets/figures/left_hand.bin` re-solved on these figures:
+`solve --seed=` the pass-2 caches, then `fix --dense` twice on `hand_check.py --pen --dense`'s
+rows and the A and E strings' low rows): free fingertips within `HOVER_UP` 1.7 cm of the
+fingerboard (were 2-3.4: the first position's raised fingers now hover over the strings);
+`HIGH_RISE` 0.6; `HAND_UP` 84 / 1.5, `UPRIGHT_W` 600, `WRIST_TOTAL_W` 6; the gate's
+`KNUCKLES_UP` −1.6 … 3.4 cm, the photographs' span (ADR 0159 pass 3 gives the reason).
+
+**Cost** (`arcus_hold_budget --ignored`, release, the machine loaded by two other builders and
+twelve solver processes): High's live arms on the violinists **+4.4 / +4.6 ms at 100 %**
+(her / him; pass 2 +7.9 / +10.4) and **+8.0 / +8.4 ms at 200 %** (pass 2 +20.7 / +29.2) — the
+depth raster over the hand's rectangle only. Still over the ADR's 4 ms at 200 %. The test
+fails on Light's p95 ceilings (+0.8–1.2 ms, Light's code untouched: the loaded machine).
+
+**Gates on this tree** (release, `CANTUS_FIGURE_DIR` = the installed assets):
+- green: `arcus_scene` (nothing allocated at rest with the outside painted each frame),
+  `scene_identity`, `figure_contract`, `kit_lint`, clippy `-D warnings` on cantus-ui (lib,
+  tests, examples), rustfmt on the touched files; `arcus_hand_form`'s nails (0.55–0.8 of the
+  finger: `NAIL_ARC` widened for the fuller nail beds) and proportions; `arcus_hold`'s
+  photographs' angles (her viola's wrist, 17.6° in pass 2, now in).
+- `arcus_hand_table::the_tables_hand_plays_as_a_violinists_does` **red, 54 rule breaks**
+  (pass 2: 132): 19 the index's base 2.2–3.1 cm out from the E edge on the viola low down
+  (the stronger `HAND_UP` swung it out), 11 the hand 62–67° to the neck, 11 the tip 31–33°
+  off upright, 8 the index's base against the thumb's tip at +14, 4 palm widths.
+- `the_left_hand_keeps_out_of_the_neck_and_the_body` **red, 65 cases** (pass 2: 55): 41 the
+  palm, almost all at **+12 and +14** — the gate plays those from the hand at the 7th and 9th
+  semitone with the little finger reaching 5 up (`hand::target`), and those reach rows are
+  the ones the solver cannot satisfy (cost 1 600–2 000: the tip on its stop and the palm off
+  the body's shoulder fight; 3–11 mm in). `hand_check.py --dense` on the solver's own
+  skinning reads them 1–3 mm: the solver's linear skin and sampled solid against the gate's
+  `repose_arm` and `solid_of` differ by a factor ~2 there. **First thing next**: those rows
+  (`--keys=s-3-7,s-3-9` for every string) with the palm freer round the shoulder
+  (`PALM_FREE_HIGH`) or the wrist out further (`WRIST_X_HIGH`), checked by the gate itself.
+- `arcus_hand_shape` red on the lobe only (her 0.22 / 0.19, his 0.20 / 0.16 against 0.19;
+  breadths in: her 1.59 / 1.63 / 1.51 / 1.32, his 1.89 / 1.90 / 1.80 / 1.56). A build-time
+  slimming of the ulnar edge (35 % more) moved it 0.00–0.01: the lobe is the pose's (the palm
+  seen turning), not the edge's — reverted.
+- `arcus_hand_form::no_dark_specks_on_the_hands`: 3 one-pixel specks (pass 2: 6; her left
+  hand none, her bow hand 1, his left hand 2).
+- `arcus_hold::the_left_hand_passes_behind_the_neck` fails on the cello as before (polish's).
+
+**Sheets** (outside the tree, the photographs beside are study material only):
+`F:\projects\daw-r42\tmp\hands3-sheet\` — `hands-{photo,drawn}-{night,paper}.png` (sheet v14:
+both figures, first, third and high position and the bow hand, 100 % own pixels and 2x,
+200 %, before = 970f119b7's merge, after = this pass) and `{woman,man}-left-hand-400-
+{photo-night,drawn-night,photo-paper}.png` (~400 % from the app's camera, before / after /
+crop-08, crop-02, crop-11).
+
+**Open, in order**: (1) the reach rows at +12/+14 into the body (above); (2) the chips at the
+hand's right edge in third position are still there — a fingertip seen over the
+fingerboard's far edge and a sliver of the palm under the neck, both cut in saw teeth: the
+per-sample cut (`Raster::tri_kept`) covers split hand patches only, these are cut elsewhere
+(the neck's stamp or a non-split class) — find which with the pen view; (3) the index's base
+out from the E edge on the viola after `HAND_UP`; (4) the budget at 200 % (+8 ms: the patches'
+points lit per point, `FINE_MAX` 2 cuts); (5) the lobe (the pose); (6) at 400 % the fingers
+still read smooth and young: dorsal wrinkles over the bent PIPs (kept at 0.45 now), the nail
+plate's cuticle and free edge per point, a normal map for creases and tendons; a better CC0
+hand (Blender Studio's Human Base Meshes) still not evaluated — Blender is not on this
+machine and studio.blender.org refuses automated fetches.

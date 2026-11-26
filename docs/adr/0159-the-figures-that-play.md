@@ -281,7 +281,12 @@ occluding capsules in its live painter.
         as the gate does (`hand_check.py`'s bent wrist from the 9th semitone, as the gate's).
       - *Cost*: High's depth raster covers the hand's own rectangle only; the sleeve and
         the forearm outside it are painted in depth order as Light's are (a triangle across
-        the rectangle's edge both ways).
+        the rectangle's edge both ways): High's live arms on the violinists +4.4 / +4.6 ms at
+        100 % (her / him, pass 2 +7.9 / +10.4) and +8.0 / +8.4 ms at 200 % (pass 2 +20.7 /
+        +29.2), measured on a loaded machine — still over the 4 ms at 200 %. A hand patch
+        across the neck's edge is cut sample by sample in the raster (`Raster::tri_kept`).
+        The hands' skin has its own light map; each vertex blends it with the arm's by its
+        share of the hand's bones, so the forearm keeps the body's tone.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

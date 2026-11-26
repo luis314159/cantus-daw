@@ -222,6 +222,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let curved = vec![0; tris.len()];
     let (tri_edges, n_edges) = edge_index(&tris);
     let vtex = vertex_tex(fig, s, &verts);
+    let vhand = hand_share(fig, s, &verts);
     ArmMesh {
         verts,
         tris,
@@ -237,7 +238,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         marks: Vec::new(),
         tri_edges,
         n_edges,
-        vhand: hand_share(fig, s, &verts),
+        vhand,
         vtex,
         live,
         sleeve,
@@ -376,6 +377,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
     let marks = super::marks::build(fig, s, &verts, &tris, &stuff);
     let (tri_edges, n_edges) = edge_index(&tris);
     let vtex = vertex_tex(fig, s, &verts);
+    let vhand = hand_share(fig, s, &verts);
     ArmMesh {
         verts,
         tris,
@@ -391,7 +393,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         marks,
         tri_edges,
         n_edges,
-        vhand: hand_share(fig, s, &verts),
+        vhand,
         vtex,
         live,
         sleeve,

@@ -1764,7 +1764,9 @@ def warmth(pos, J, sex):
 # r42:arcus-hands — how far round the finger from its back a nail reaches (deg).
 # (MakeHuman's numbering: 1 the thumb ... 5 the little finger; the little finger's nail
 # lies rolled off the hand's back, so it is given more.)
-NAIL_ARC = {1: 54.0, 2: 58.0, 3: 52.0, 4: 54.0, 5: 68.0}
+# (r42:arcus-hands, pass 3: wider — the fuller nail beds of finger_form left the nails
+# 0.48-0.58 of the finger, a real one's 0.6-0.7; were 58, 52, 54, 68.)
+NAIL_ARC = {1: 54.0, 2: 70.0, 3: 60.0, 4: 60.0, 5: 78.0}
 
 
 def nail_field(pos, W, sk, J):
