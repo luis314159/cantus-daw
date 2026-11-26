@@ -189,8 +189,12 @@ fn bows(w: &[Written], pattern: Pattern) -> Vec<(usize, usize)> {
     out
 }
 
+/// A section played: the fiddle's notes, the drone's, and the fiddle's CC1, CC11 and CC21.
+pub type Played = (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>; 3]);
+
 /// The fiddle's notes and its CC1, CC11 and CC21 lanes for one section, and the drone's notes.
-pub fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>; 3]) {
+#[allow(clippy::needless_range_loop)]
+pub fn fiddle(sec: &Section, seed: u64) -> Played {
     let part = Part {
         who: Who::Violin,
         section: 0,
@@ -298,10 +302,8 @@ pub fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f
         for (n, x) in notes.iter().zip(&w) {
             let d = if x.flags.contains('x') {
                 Some(x.key - 3) // the train whistle: a third under, sliding with it
-            } else if x.flags.contains('c') {
-                Some(69) // the chop: D and A together
-            } else if x.key >= 76 {
-                Some(69)
+            } else if x.flags.contains('c') || x.key >= 76 {
+                Some(69) // the chop (D and A together), or the A under an E-string note
             } else if x.key >= 69 {
                 Some(62)
             } else {
