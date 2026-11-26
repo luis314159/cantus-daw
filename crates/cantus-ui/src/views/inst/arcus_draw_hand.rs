@@ -543,7 +543,7 @@ pub fn hidden_by_body(
         }
     };
     let a = loc(p);
-    if !(0.0..=d.body).contains(&a.y) || a.z >= -rib(&d, a.y) - margin {
+    if !(0.0..=d.body).contains(&a.y) || a.z >= -rib(d, a.y) - margin {
         return false;
     }
     let e = loc(eye);
@@ -563,7 +563,7 @@ pub fn hidden_by_body(
         Bowed::Violin => 2,
         Bowed::Viola => 3,
     }];
-    let back = -rib(&d, a.y);
+    let back = -rib(d, a.y);
     [back, 0.0].iter().any(|&z| {
         let t = (z - a.z) / dir.z;
         inside(o, a.x + dir.x * t, a.y + dir.y * t)
