@@ -9,7 +9,8 @@
 //!     --candidate <spec file> [--partials <csv>] [--levels <csv>] [--name <label>]
 //!     [--downloads <dir>] [--key <dir>] [--wav]
 //! cargo run --release -p cantus-ui --example chorda_abx -- <dir> --shipped
-//!     [--previous <lab spec>] [--previous-name <label>] [--name <label>] …
+//!     [--previous <lab spec>] [--previous-name <label>] [--name <label>]
+//!     [--catch <phrase>,<phrase>] …
 //! ```
 //!
 //! Round 42 (kit 17): `--shipped` plays "Chorda 3" as the app ships it — a new Chorda's own
@@ -112,12 +113,15 @@ struct Args {
     /// Round 42: Chorda 2's lab spec (empty: beta.14's) and its name in the key.
     previous: String,
     previous_name: String,
+    /// Round 42 (kit 18): the catch questions' phrases (the recorded piano's, the candidate's;
+    /// none: drawn).
+    catch: Option<(String, String)>,
 }
 
 fn usage() -> ! {
     eprintln!(
         "usage: chorda_abx <dir> --candidate <spec file> [--partials <csv>] [--levels <csv>] \
-         [--name <label>] [--downloads <dir>] [--key <dir>] [--wav]"
+         [--name <label>] [--downloads <dir>] [--key <dir>] [--wav] [--catch <phrase>,<phrase>]"
     );
     std::process::exit(2);
 }
@@ -127,6 +131,7 @@ fn args() -> Args {
     let (mut dir, mut downloads, mut key, mut spec_file) = (None, None, None, None);
     let (mut partials, mut levels, mut name, mut flac) = (None, None, None, true);
     let (mut shipped, mut previous, mut previous_name) = (false, String::new(), None);
+    let mut catch = None;
     while let Some(a) = it.next() {
         let mut val = || it.next().unwrap_or_else(|| usage());
         match a.as_str() {
@@ -141,6 +146,11 @@ fn args() -> Args {
             "--previous" => previous = val(),
             "--previous-name" => previous_name = Some(val()),
             "--flac" => flac = true,
+            "--catch" => {
+                let v = val();
+                let (a, b) = v.split_once(',').unwrap_or_else(|| usage());
+                catch = Some((a.to_string(), b.to_string()));
+            }
             _ if a.starts_with("--") => usage(),
             _ if dir.is_none() => dir = Some(PathBuf::from(a)),
             // Kit 4's form: the downloads folder as the second word.
@@ -193,6 +203,7 @@ fn args() -> Args {
             }
         }),
         previous,
+        catch,
     }
 }
 
@@ -242,8 +253,19 @@ fn main() {
     let listen: Vec<phrases::Phrase> = phrases::all().into_iter().filter(|p| p.listen).collect();
     // The catch questions: two phrases drawn, one the recorded piano against itself, one the
     // candidate against itself (the same file under two names). (phrase, piano, token)
-    let c1 = rng.below(listen.len());
-    let c2 = (c1 + 1 + rng.below(listen.len() - 1)) % listen.len();
+    let mut c1 = rng.below(listen.len());
+    let mut c2 = (c1 + 1 + rng.below(listen.len() - 1)) % listen.len();
+    if let Some((x, y)) = &a.catch {
+        // Round 42 (kit 18): chosen, not drawn (a listener who took kit 17 heard other ones).
+        let at = |id: &str| {
+            listen
+                .iter()
+                .position(|p| p.id == id)
+                .unwrap_or_else(|| panic!("no listening phrase {id}"))
+        };
+        (c1, c2) = (at(x), at(y));
+        assert!(c1 != c2, "the two catch questions need two phrases");
+    }
     let catch = [(listen[c1].id, 1usize, 3usize), (listen[c2].id, 0, 4)];
     // Every file's name drawn first, redrawn until none shares structure with another.
     let count = listen.len() * PIANOS.len() + catch.len();

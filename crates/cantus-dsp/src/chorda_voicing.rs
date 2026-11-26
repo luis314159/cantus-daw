@@ -26,6 +26,8 @@ pub mod unison;
 
 #[path = "chorda_voicing_c17.rs"]
 pub mod c17;
+#[path = "chorda_voicing_c18.rs"]
+pub mod c18;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Voicing {
@@ -441,11 +443,17 @@ impl Voicing {
         v
     }
 
-    /// What ships (`DSP_VERSION` 16, round 42, `docs/round42/chorda-c17.md`): the unison
-    /// pass, then candidate 17 — [`c17::SPEC`] applied over it (the action's knock as the
-    /// case rings it, middle C's third partial voiced).
+    /// What ships (`DSP_VERSION` 18, round 42, `docs/round42/chorda-c18.md`): candidate 17,
+    /// then candidate 18 — [`c18::SPEC`] applied over it (the top keys' click dry, the bass's
+    /// knock under its strings', middle C's fifth partial voiced).
     pub fn shipped() -> Self {
-        Voicing::c17()
+        let mut v = Voicing::c17();
+        let ok = v.apply(c18::SPEC);
+        debug_assert!(
+            ok,
+            "candidate 18's spec names a key the voicing does not have"
+        );
+        v
     }
 
     /// Candidate 17 (`DSP_VERSION` 16, the owner's blind test of 2026-11-26): the unison pass,

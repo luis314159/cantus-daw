@@ -565,3 +565,54 @@ amendment, `no_unison_beats_deeper_than_a_recorded_grands`): cut 21–24 dB, A�
 and D♯7's second left the board's share of each to beat against the strings past the ceiling;
 A♯6 is not voiced and D♯7's second partial is cut 15 dB. The tuning kits measure with the
 action's noises off since this amendment (the knock moved A0's measured fundamental 4 cents).
+
+## Amended by candidate 18: the top's mechanics dry (round 42, `DSP_VERSION` 18 — awaiting the owner's ear)
+
+The owner's blind test of candidate 17 (2026-11-26, `docs/round42/chorda-abx17-verdict.md`): told
+from the Salamander 16 of 16 again, the Salamander preferred on five phrases of seven; the top
+phrase back to candidate 16, its knock "a knock with reverb", not the Salamander's "hammer and
+mechanism … there are details there"; "something in the very low notes (the first two)"; middle
+C "a mid that gives it away … but both sound real". `docs/round42/chorda-c18.md` has every number.
+
+### 14. What made the knock a reverb, and the dry mechanics
+
+1. **Measured under the fundamental at a millisecond** (`probes/c18/mech.py`, `mech2.py`; C7–C8,
+   both grands): the grands' top keys burst 5–30 ms after the strike, broadband to about 3 kHz,
+   −4 … −6 dB under the note, their highs dying first (1–3 kHz falls 100–120 dB/s from 20 ms; the
+   late part 20 dB under the burst). Candidate 17's knock was a 2 ms click and then its slow stage:
+   −12 dB at 5–20 ms, falling 63 dB/s, as much energy after 30 ms as before — a decaying noise of
+   the same colour throughout, which is what a room sounds like. Neither the room nor the body made
+   it (`room=0` moves it under 1 dB): the knock's own second stage did.
+2. **The knock gets two parts and a top shape**, each neutral at its default: the first stage's
+   rise over a share of its fall (`knock.rise`), the slow stage's own low-pass (`knock.tail_hi`),
+   and the top keys' shape from C6 to its values at C7 and above (`Voicing::knock_treble_shape`:
+   the fall, the band, the slow stage's share and fall as factors, the rise and the slow stage's
+   band as values; `knock.*_treble`). Candidate 18: a 15 ms burst rising over its first quarter,
+   its band to 2.7 kHz, the slow stage at three quarters of its share and fall under 1.5 kHz.
+3. **The bass's thump before its tone.** A bass string's tone reaches the bridge 10–15 ms after
+   the hammer; candidate 17's knock and the hammer's blow stood there alone, loud enough that the
+   note began with a thump and its tone 20 ms later (A0–D♯1 rising in 21–34 ms; the grands in
+   5–13). `knock_bass` and `blow_bass` scale both at A0 (log to 1 at C4): at 0.3 the bass's rise
+   is the grands'. The bass's release "click" the analysis listed is under both grands' recording
+   floor in absolute level (−77 … −80 dB re the note, the grands −70 … −86): not a cue.
+4. **Middle C's fifth partial** (1.31 kHz) stood 5–10 dB over both grands' span in the phrase's
+   sustain: `partial5.60` −10. Its second (523 Hz) too, but cutting it took middle C's stereo
+   correlation from 0.49 to 0.30 (the grands 0.52 / 0.86): left.
+
+### What the tests hold (seventh amendment)
+
+| What | Test |
+|---|---|
+| The new parts are nothing at their defaults; candidate 17 keeps its bits | `tests_voicing5::the_new_knobs_at_their_defaults_are_nothing`, `tests_voicing3::model_2_at_candidate_17_renders_to_the_bits_it_did` |
+| The top's shape moves C6 and up alone and is whole at C7 | `tests_voicing5::the_trebles_shape_moves_the_top_alone_and_reaches_its_value_at_c7` |
+| The rise takes the first milliseconds and keeps the peak; the slow stage's band takes its highs, rests, and set back is never set | `tests_voicing5::the_clicks_rise_…`, `the_rings_own_band_…` |
+| The bass's knock and blow move the bass alone | `tests_voicing5::the_bass_knock_and_blow_scale_the_bass_alone` |
+| Every part on: every block size and thread count, idle as new, rest | `tests_voicing4` (its `pass` sets every new part) |
+| The shipped voicing is candidate 18 over candidate 17 | `tests_voicing3::the_shipped_voicing_is_candidate_18_over_candidate_17_and_a_new_unit_plays_it` |
+
+### The size of the change (`DSP_VERSION` 16 → 18)
+
+| Render | max \|Δ\| | RMS of Δ | |
+|---|---|---|---|
+| Every other unit's goldens, model 1, every earlier voicing (beta.14's, candidate 16's, the technician's, the unison pass's, candidate 17's) | 0 | 0 | pinned, held |
+| Model 2 at its default (the pinned 0.5 s phrase), against candidate 17 | 0.0870 | 0.01385 (−37.2 dBFS) | the phrase's RMS 0.2191 → 0.2178 (−0.05 dB); new pin `0xb19b_545c_67c3_0ee9`; candidate 17 named and pinned (`MODEL_2_C17`, `0x9fe3_49b2_b228_bc8f`) |

@@ -39,11 +39,18 @@ fn the_trebles_shape_moves_the_top_alone_and_reaches_its_value_at_c7() {
         assert_eq!(v.knock_shape_of(m), base.knock_shape_of(m), "key {m}");
     }
     for k in [1, 3, 4, 5, 8, 9] {
-        assert_eq!(v.knock_shape_of(96)[k], v.knock_shape_of(108)[k], "part {k}");
+        assert_eq!(
+            v.knock_shape_of(96)[k],
+            v.knock_shape_of(108)[k],
+            "part {k}"
+        );
     }
     let (a, b) = (v.knock_shape_of(108), base.knock_shape_of(108));
     for (k, g) in [(1, 4.0), (3, 2.0), (4, 0.25), (5, 0.5)] {
-        assert!((a[k] - b[k] * g).abs() < 1e-9 * b[k].abs().max(1.0), "part {k}");
+        assert!(
+            (a[k] - b[k] * g).abs() < 1e-9 * b[k].abs().max(1.0),
+            "part {k}"
+        );
     }
     assert!((a[8] - 0.3).abs() < 1e-12 && (a[9] - 900.0).abs() < 1e-6);
     for k in [0, 2, 6, 7] {
@@ -106,7 +113,7 @@ fn the_rings_own_band_takes_its_highs_and_it_rests() {
         t.set_tail(fs, 0.5, 0.1);
         t.set_tail_band(fs, hz);
         t.strike([0.0, 0.0], 1.0, 11);
-        let x: Vec<f64> = (0..96_000).map(|_| t.tick()).collect();
+        let x: Vec<f64> = (0..192_000).map(|_| t.tick()).collect();
         assert!(!t.busy(), "the ring never rested");
         x
     };
