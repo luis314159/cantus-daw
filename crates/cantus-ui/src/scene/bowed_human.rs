@@ -390,10 +390,13 @@ pub const HAND_SCALE: [f32; 2] = [1.08, 0.93];
 /// his): the owner found her hand "tosca", the palm bulging out of a slim wrist (her palm
 /// 1.25–1.64 times her wrist from the picture's camera; the photographs' about 1.25). The
 /// fingers' bases come in with it. `hand_rig.py::PALM_SLIM` is the same.
-/// (r42:arcus-hands, pass 6 — 0.86 had drawn her hand's breadth across the knuckles to 6.4
-/// cm, ANSUR II's 0th percentile for her stature (7.7 ± 0.34), his 1.0 to the 4th: hers
-/// 0.99 and his 1.04 bring both to the slim end of the middle half, `hand_anthro.py`.)
-pub const PALM_SLIM: [f32; 2] = [0.99, 1.04];
+/// (r42:arcus-hands, pass 6 — kept, though it draws her hand's breadth across the knuckles
+/// to 6.4 cm, ANSUR II's 0th percentile for her stature (7.7 ± 0.34; his 8.1, the 4th):
+/// 0.99 and 1.04 brought both to the middle half, but the slim factor moves the thumb's base
+/// out with the fingers', and the hands' outline at the middle stood 1.8–2.1 times the wrist
+/// from the camera (`arcus_hand_table`'s `PALM_WIDE`, the photographs' 1.1–1.3: the owner's
+/// "tosca"). Widening the knuckles alone is open, `hand_anthro.py` measures it.)
+pub const PALM_SLIM: [f32; 2] = [0.86, 1.0];
 
 fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
     let o = side(s);

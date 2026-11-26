@@ -157,9 +157,11 @@ HAND_SCALE = {"woman.fig": 1.08, "man.fig": 0.93}
 # r42:arcus-hand — each figure's palm drawn in across, toward the hand's middle line (the
 # owner: her hand "tosca", the palm bulging out of a slim wrist; her palm measured 1.25-1.64
 # times her wrist from the picture's camera, the photographs' about 1.25).
-# (r42:arcus-hands, pass 6: 0.86 / 1.0 drew the breadth across the knuckles to ANSUR II's
-# 0th / 4th percentile for their statures — hand_anthro.py; bowed_human.rs::PALM_SLIM.)
-PALM_SLIM = {"woman.fig": 0.99, "man.fig": 1.04}
+# (r42:arcus-hands, pass 6: kept, though 0.86 / 1.0 draw the breadth across the knuckles to
+# ANSUR II's 0th / 4th percentile for their statures — hand_anthro.py; 0.99 / 1.04 moved the
+# thumb's base out too and broke arcus_hand_table's PALM_WIDE, the owner's "tosca":
+# bowed_human.rs::PALM_SLIM says more.)
+PALM_SLIM = {"woman.fig": 0.86, "man.fig": 1.0}
 
 
 def slim_palm(fig, s, k):

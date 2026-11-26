@@ -134,6 +134,9 @@ def rules(pose, x, at):
         return True
     # (and the thumb's tip past the neck's far side from the app's eye: left_hand's
     # thumb_peek.)
+    qt = pose.neck.loc(P[0, 3])
+    if qt[2] < pose.neck.top(qt[1]) - 1.5 or qt[0] > -pose.neck.hw(qt[1]) * 0.5:
+        return True
     most = pose.peek_most()
     return any(pose.peek(P[0, k]) + r * pose.k - most > 0.1 for k, r in ((2, 0.75), (3, 0.6)))
 

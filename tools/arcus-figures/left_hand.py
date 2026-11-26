@@ -649,6 +649,10 @@ class Pose:
         for k_, r_ in ((2, 0.75), (3, 0.6)):
             add(f"thumb_peek{k_}", THUMB_PEEK_W * max(0.0, self.peek(P[0, k_]) + r_ * self.k
                                                          - self.peek_most()))
+        # (and, hidden, still the gate's thumb: its tip no lower than 1.3 cm under the
+        # fingerboard's top and on the G side's half — arcus_hand_table's −1.6 and −hw/2.)
+        add("thumb_floor", 20.0 * max(0.0, nk.top(qt[1]) - 1.3 - qt[2]))
+        add("thumb_side", 10.0 * max(0.0, qt[0] + nk.hw(qt[1]) * 0.5 + 0.2))
         # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
         # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
         # abultada gorda").
