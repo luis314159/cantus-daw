@@ -242,7 +242,9 @@ fn unbent(line: &Line, tris: &[[u16; 3]], pts: &[V3]) -> f32 {
         .clamp(-1.0, 1.0)
         .acos()
         .to_degrees();
-    1.0 - ((bend - BEND_FADE.0) / (BEND_FADE.1 - BEND_FADE.0)).clamp(0.0, 1.0)
+    // (r42:arcus-hands, pass 3: never quite gone — `skin::crease_floor`.)
+    let floor = super::skin::crease_floor();
+    1.0 - (1.0 - floor) * ((bend - BEND_FADE.0) / (BEND_FADE.1 - BEND_FADE.0)).clamp(0.0, 1.0)
 }
 
 /// r42:arcus-hands — a crease's colour from the skin's under it: darker, and toward the

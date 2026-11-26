@@ -447,6 +447,167 @@ def slim_hand(pos, wt, J):
     return out
 
 
+# r42:arcus-hands, pass 3 — the fingers' form along their length (the coordinator at 400 %:
+# "rubber-glove sausages" — one cross-section from base to tip, blunt tips, no narrowing
+# between the joints, no fat on the pads). Each finger's breadth at its middle joint
+# (cm, index … little), a slim adult woman's / a man's: see FINGER_W's numbers in the
+# handoff (Greiner 1991's means, the photographs measured against the fingerboard).
+# (As the app draws them: the build's are these over the load's HAND_SCALE, her 1.08, his
+# 0.93 — bowed_human.rs::HAND_SCALE.)
+FINGER_W = {"female": {2: 1.62, 3: 1.66, 4: 1.55, 5: 1.36},
+            "male": {2: 1.92, 3: 1.96, 4: 1.85, 5: 1.6}}
+LOAD_SCALE = {"female": 1.08, "male": 0.93}
+# The breadth along the finger as a share of its PIP's (u = phalanx + t along it; the last
+# phalanx by v, its share of the way from the DIP to the skin's end): the first phalanx's
+# shaft narrower than its ends (its base the web's), the PIP's condyles, the middle
+# phalanx's waist (soft: the owner's "con artritis" was knobby joints; and the first
+# phalanges slimmer than an average hand's — the coordinator: "slender next to the palm",
+# her palm drawn in by PALM_SLIM), the DIP 0.86-0.9 of the PIP (Greiner), the pulp a little wider under the
+# nail, then the tip rounding off in plan as a half circle of the nail's free edge's width.
+FORM_B = [(0.3, 0.98), (0.62, 0.9), (0.95, 0.98), (1.1, 0.97), (1.5, 0.89), (1.9, 0.89)]
+FORM_TIP_B = [(0.0, 0.86), (0.2, 0.83), (0.45, 0.8), (0.7, 0.74), (0.85, 0.64),
+              (0.94, 0.47), (1.0, 0.2)]
+# The pad side (palmar half-depth, a factor on the mesh's own): full mid-phalanx, drawn in
+# at the joints' creases; the back (dorsal) a little flatter along the shafts, the middle
+# knuckle a touch higher; under the nail flat, the pulp full and round to the end (MakeHuman's
+# tip ran its pad straight down to the nail's edge: a wedge, the coordinator's blunt tips).
+FORM_PAD = [(0.35, 1.0), (0.6, 1.07), (0.98, 0.9), (1.12, 0.93), (1.5, 1.09), (1.95, 0.9)]
+# The last phalanx's pad by its depth below the bone (a share of the PIP's breadth): her
+# index's pulp 0.84-0.88 cm below the bone to the nail's middle, 0.66 at its free edge's root,
+# rounding off to the end (the pulp's arc in crop-08's raised index; was a straight slope
+# from 0.92 at the DIP to 0.33 at the end).
+FORM_TIP_PAD = [(0.0, 0.54), (0.3, 0.52), (0.55, 0.48), (0.75, 0.41), (0.88, 0.31),
+                (0.96, 0.19), (1.0, 0.08)]
+FORM_BACK = [(0.35, 1.0), (0.65, 0.97), (0.97, 1.01), (1.15, 1.0), (1.5, 0.96), (1.95, 1.0)]
+FORM_TIP_BACK = [(0.0, 1.0), (0.3, 0.96), (0.8, 0.95), (1.0, 0.92)]
+# Over which part of the first phalanx the form takes over from the web's own (u).
+FORM_RAMP = (0.15, 0.45)
+# How far along the finger (u) a ring's own measure is taken from its neighbours.
+FORM_WIN = 0.07
+
+
+def _interp(x, table):
+    return np.interp(x, [a for a, _ in table], [b for _, b in table])
+
+
+def finger_form(pos, wt, J, sex):
+    """r42:arcus-hands, pass 3 — ``FINGER_W`` and the ``FORM_*`` profiles: each finger's
+    skin, ring by ring, scaled about its bones' axis to the breadth the profile asks for
+    (side to side, about the ring's own middle) and its pad and back halves by their
+    factors, so the mesh keeps its own small irregularity and takes a real finger's form.
+    The thumb is left as it is."""
+    out = pos.copy()
+    for s_ in SIDES:
+        back = -PALMAR[s_]
+        for f in range(2, 6):
+            names = [f"finger{f}-{k}.{s_}" for k in (1, 2, 3)]
+            if any(n not in wt for n in names):
+                continue
+            share = np.zeros((len(pos), 3))
+            for k, n in enumerate(names):
+                for i, w in wt[n]:
+                    if i < len(pos):
+                        share[i, k] += w
+            tot = share.sum(1)
+            ids = np.where(tot > 0.3)[0]
+            if len(ids) == 0:
+                continue
+            kk = share[ids].argmax(1)
+            heads = np.array([J[f"{n}____head"] for n in names])
+            tails = np.array([J[f"{n}____tail"] for n in names])
+            ax = tails - heads
+            L = np.linalg.norm(ax, axis=1)
+            a = ax / L[:, None]
+            q = pos[ids]
+            t = np.einsum("ij,ij->i", q - heads[kk], a[kk]) / L[kk]
+            u = kk + t
+            axis = heads[kk] + (t * L[kk])[:, None] * a[kk]
+            r = q - axis
+            dd = back[None, :] - a[kk] * (a[kk] @ back)[:, None]
+            dd /= np.linalg.norm(dd, axis=1)[:, None]
+            side = np.cross(a[kk], dd)
+            x = np.einsum("ij,ij->i", r, side)
+            y = np.einsum("ij,ij->i", r, dd)
+            # The skin's end past the last bone.
+            u_end = max(u[kk == 2].max(), 2.9) if (kk == 2).any() else 3.0
+            v = np.clip((u - 2.0) / (u_end - 2.0), 0.0, 1.0)
+            Wp = FINGER_W[sex][f] / LOAD_SCALE[sex]
+            tb = np.where(u < 2.0, _interp(u, FORM_B), _interp(v, FORM_TIP_B)) * Wp * 0.5
+            kp = _interp(u, FORM_PAD)
+            kb = np.where(u < 2.0, _interp(u, FORM_BACK), _interp(v, FORM_TIP_BACK))
+            # Each ring's own half-breadth and middle, from the skin within FORM_WIN of it.
+            hb = np.zeros(len(ids))
+            cx = np.zeros(len(ids))
+            pd = np.zeros(len(ids))
+            for j in range(len(ids)):
+                m = np.abs(u - u[j]) < FORM_WIN
+                hb[j] = 0.5 * (x[m].max() - x[m].min())
+                cx[j] = 0.5 * (x[m].max() + x[m].min())
+                pd[j] = max(-y[m].min(), 1e-3)
+            # The last phalanx's pad to its own depth (FORM_TIP_PAD).
+            tip_pad = np.clip(_interp(v, FORM_TIP_PAD) * Wp / pd, 0.6, 1.8)
+            kp = np.where(u < 2.0, kp, tip_pad)
+            sx = np.clip(tb / np.maximum(hb, 1e-3), 0.6, 1.6)
+            sy = np.where(y < 0.0, kp, kb)
+            g = smooth01((u - FORM_RAMP[0]) / (FORM_RAMP[1] - FORM_RAMP[0]))
+            g = g * np.clip(tot[ids], 0.0, 1.0)
+            nx = cx + (x - cx) * (1.0 + (sx - 1.0) * g)
+            ny = y * (1.0 + (sy - 1.0) * g)
+            out[ids] = q + side * (nx - x)[:, None] + dd * (ny - y)[:, None]
+    return out
+
+
+# r42:arcus-hands, pass 3 — how far (cm, her hand; his by his hand's length) either side of
+# a finger's middle and last joint its skin passes from one phalanx to the next. MakeHuman's
+# weights blend each over some 2 cm — nearly the whole middle phalanx — so a bent finger
+# bowed like a rubber tube (the coordinator's "rubber-glove sausages", the owner's "con
+# artritis": no corner at the knuckle, no straight phalanx between). A real finger's
+# phalanges are rigid and its skin turns over the joint within a few millimetres: the
+# knuckle's corner and the straight backs either side of it in crop-02 and crop-11.
+JOINT_BLEND = 0.32
+
+
+def sharpen_joints(pos, wt, J):
+    """r42:arcus-hands, pass 3 — ``JOINT_BLEND``: each finger's three phalanges' share of a
+    vertex's weight (MakeHuman's, kept as a total) split again by where the vertex lies
+    along the finger at rest — smoothly within ``JOINT_BLEND`` of the PIP and the DIP, all
+    one phalanx's elsewhere. The base knuckle (the web's) and the thumb are left as they
+    are. Returns a new weight table."""
+    out = {b: list(v) for b, v in wt.items()}
+    for s_ in SIDES:
+        hand = np.linalg.norm(J[f"finger3-1.{s_}____head"] - J[f"wrist.{s_}____head"])
+        hw = JOINT_BLEND * hand / 7.7
+        for f in range(2, 6):
+            names = [f"finger{f}-{k}.{s_}" for k in (1, 2, 3)]
+            if any(n not in wt for n in names):
+                continue
+            tot = {}
+            for n in names:
+                for i, w in wt[n]:
+                    tot[i] = tot.get(i, 0.0) + w
+            ids = np.array(sorted(tot))
+            T = np.array([tot[i] for i in ids])
+            q = pos[ids]
+            ws = []
+            for k in (1, 2):
+                j = J[f"{names[k]}____head"]
+                a_in = j - J[f"{names[k - 1]}____head"]
+                a_out = J[f"{names[k]}____tail"] - j
+                d = a_in / np.linalg.norm(a_in) + a_out / np.linalg.norm(a_out)
+                d /= np.linalg.norm(d)
+                ws.append(smooth01(((q - j) @ d + hw) / (2.0 * hw)))
+            # Only where the vertex was the finger's past its first phalanx's base (the web's
+            # own blend into the hand is MakeHuman's).
+            first = np.array([dict(wt[names[0]]).get(i, 0.0) for i in ids]) / np.maximum(T, 1e-9)
+            new = [T * (1.0 - ws[0]), T * ws[0] * (1.0 - ws[1]), T * ws[0] * ws[1]]
+            for k, n in enumerate(names):
+                old = dict(wt[n])
+                keep = (first > 0.98) & (ws[0] < 1e-3)
+                out[n] = [(int(i), float(old.get(int(i), 0.0) if kp else w))
+                          for i, w, kp in zip(ids, new[k], keep) if (old.get(int(i), 0.0) if kp else w) > 1e-4]
+    return out
+
+
 def _profile(t, table):
     xs = np.array([a for a, _ in table])
     ys = np.array([b for _, b in table])
@@ -1197,9 +1358,10 @@ def make(sex, data, assets):
     pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
     palmar_ways(J)  # r42:arcus-hands
     pos = slim_fingers(pos, wt, J, sex)
+    pos = finger_form(pos, wt, J, sex)  # r42:arcus-hands, pass 3
     pos = shape_arms(pos, wt, J, sex)  # r42:arcus-polish
     pos = slim_hand(pos, wt, J)  # r42:arcus-polish
-    W = scene_weights(len(pos), wt, m2s)
+    W = scene_weights(len(pos), sharpen_joints(pos, wt, J), m2s)  # r42:arcus-hands, pass 3
     tris_all, tuv_all = triangulate(faces)
     pos = relief(pos, tris_all, J, sex)  # r42:arcus-polish
     pos = hand_relief(pos, tris_all, wt, J)  # r42:arcus-hands

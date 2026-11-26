@@ -342,6 +342,10 @@ WRIST_TOTAL = (14.0, 28.0)
 # (r42:arcus-hands, pass 2: looser — a finger close to its neighbours rather than over its
 # own note; was 1.2, 1.4, 1.8, 2.6.)
 HOVER_SLACK = (2.2, 2.2, 2.4, 3.0)
+# r42:arcus-hands, pass 3 — how high over the fingerboard's top a free fingertip may hover
+# (cm, her hand; the strings stand 0.3-0.7 over it), and the rule's weight.
+HOVER_UP = 1.7
+HOVER_UP_W = 4.0
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
 KNUCKLES = (-0.8, 2.0)
@@ -501,6 +505,11 @@ class Pose:
                 want = self.tips[f] + self.kx * (0.35 * (f - max(p, 0)))
                 miss = np.linalg.norm(tip - want)
                 add(f"hover{f}", 3.0 * max(0.0, miss - HOVER_SLACK[f] * self.k))
+                # r42:arcus-hands, pass 3 — and close over the strings (the coordinator on the
+                # first position: the raised index floated far above them; in crop-08 and
+                # crop-02 the free fingers hover curved a centimetre or so over the strings).
+                qh = loc(tip)
+                add(f"hover_up{f}", HOVER_UP_W * max(0.0, qh[2] - nk.top(qh[1]) - HOVER_UP * self.k))
             rng = PLAY if f == p else HOVER
             for k in range(3):
                 wk = 3.0 if f == p else 1.0
@@ -1133,8 +1142,17 @@ def pen_look(dump, outdir, who="woman", inst="violin", string=2, finger=1, at=1.
     return out
 
 
+def dense():
+    """r42:arcus-hands, pass 3 — ``--dense``: every skin point of the hand and the forearm
+    kept out of the instrument (as ``arcus_hand_table``'s gate measures it), not the thinned
+    ~1 000 — for ``fix`` and ``hand_check.py``."""
+    Hand.SKIN_MOST = {k: 1 << 30 for k in Hand.SKIN_MOST}
+
+
 def main():
     cmd, dump_path = sys.argv[1], sys.argv[2]
+    if "--dense" in sys.argv:
+        dense()
     dump = json.load(open(dump_path))
     here = os.path.dirname(os.path.abspath(dump_path))
     only = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--only=")), None)

@@ -652,7 +652,10 @@ fn hand_detail(
             // The fingertips' pads warmer (blood near the skin).
             if k == 2 {
                 let tipw = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
-                d = [d[0] * (1.0 - 0.04 * tipw), d[1] + 0.42 * tipw];
+                d = [
+                    d[0] * (1.0 - 0.04 * tipw),
+                    d[1] + super::skin::tip_red() * tipw,
+                ];
             }
             let near_head = (1.0 - (t / 0.22).abs()).max(0.0);
             let on_back = (p - (bn.head + ax * t)).norm().dot(back).max(0.0);
@@ -662,7 +665,10 @@ fn hand_detail(
                 // skin round them redder.)
                 let w = near_head * on_back * [1.0, 1.0, 0.6][k];
                 let top = near_head.powi(3) * on_back.powi(4) * (k == 0) as u8 as f32;
-                d = [d[0] * (1.0 - 0.05 * w + 0.05 * top), d[1] + 0.4 * w];
+                d = [
+                    d[0] * (1.0 - 0.05 * w + 0.05 * top),
+                    d[1] + super::skin::knuckle_red() * w,
+                ];
             }
             // (r42:arcus-hands: the joints' creases are the marks' — `marks`, soft lines a
             // pixel and a half wide on the skinned surface; a band per vertex here, narrower
@@ -1016,7 +1022,7 @@ impl LutAt<'_> {
         // occlusion.
         if matches!(st, Stuff::Skin | Stuff::Lips) {
             let (lum, red) = (detail[0].min(1.1), detail[1]);
-            let f = [1.0 + 0.22 * red, 1.0 - 0.12 * red, 1.0 - 0.18 * red];
+            let f = super::skin::blood(red); // r42:arcus-hands, pass 3
             for (ck, fk) in c.iter_mut().zip(f) {
                 *ck *= lum * fk;
             }
@@ -1219,7 +1225,9 @@ fn concert_colour(
     let albedo: [f32; 3] = match st {
         Stuff::Skin | Stuff::Lips | Stuff::Nail => {
             let a = lin(rgbf(hp::REAL_SKINS[tone.min(4) as usize]));
-            let a = [0, 1, 2].map(|i| a[i] * 0.48 * SKIN_WARM[i] * c.skin_gain[i]);
+            // (r42:arcus-hands, pass 3: the hands' own gains — `skin::gain`.)
+            let hg = super::skin::gain();
+            let a = [0, 1, 2].map(|i| a[i] * 0.48 * hg[i] * c.skin_gain[i]);
             let (lum, red) = (skin_detail[0].min(1.25), skin_detail[1]);
             [
                 (a[0] * lum * (1.0 + 0.22 * red)).max(0.0),
@@ -1262,8 +1270,14 @@ fn concert_colour(
             (18, 0.035)
         };
         let sp = n.dot(h).max(0.0).powi(pw) * k * ao * (ndl > 0.0) as u8 as f32;
+        // r42:arcus-hands, pass 3 — the skin's soft sheen (`skin::sheen`).
+        let (lobe, glance) = if st == Stuff::Nail {
+            (0.0, 0.0)
+        } else {
+            super::skin::sheen(n, e, l, ao)
+        };
         for (i, r) in rad.iter_mut().enumerate() {
-            *r += kc[i] * sp;
+            *r += kc[i] * (sp + lobe) + (kc[i] + amb[i]) * glance;
         }
     } else {
         for (i, r) in rad.iter_mut().enumerate() {

@@ -3,7 +3,7 @@ solver's own pose (the wrist's whole bend, the playing tip's lean from the finge
 normal, its joints' ranges, the skin into the instrument), as ``--keys=`` lists for
 ``left_hand.py fix`` per figure, instrument and string share.
 
-    python tools/arcus-figures/hand_check.py <dump.json> [--pen]
+    python tools/arcus-figures/hand_check.py <dump.json> [--pen] [--dense]
 """
 import glob
 import json
@@ -22,6 +22,8 @@ def main():
     dump = sys.argv[1]
     D = json.load(open(dump))
     pen = "--pen" in sys.argv
+    if "--dense" in sys.argv:
+        L.dense()
     for F in D["figs"]:
         who, inst = F["who"], F["inst"]
         c = {}
