@@ -17,6 +17,9 @@ use egui::{Color32, Pos2, Rect};
 /// r42:arcus-hands, pass 3 — a triangle's corners in the room and the test each sample's
 /// place there must pass to be filled (`Raster::tri_kept`).
 type Kept<'a> = ([V3; 3], &'a dyn Fn(V3) -> bool);
+/// r42:arcus-hands, pass 5 — a triangle's corners at rest and the skin's fine grain there (a
+/// luminance factor per sample: `Raster::tri_grain`).
+type Grain<'a> = ([V3; 3], &'a dyn Fn(V3) -> f32);
 
 /// The samples over one arm's rectangle (physical pixels from `x0`, `y0`).
 #[derive(Default)]
@@ -63,7 +66,23 @@ impl Raster {
     /// it where it is nearer than what the sample holds (`blend`: laid over instead, where
     /// it is no deeper than the surface there by `slack` — a crease on its skin).
     pub fn tri(&mut self, p: [Pos2; 3], z: [f32; 3], c: [Color32; 3], blend: Option<f32>) {
-        self.fill(p, z, c, blend, None);
+        self.fill(p, z, c, blend, None, None);
+    }
+
+    /// r42:arcus-hands, pass 5 — [`tri`](Self::tri) (or [`tri_kept`](Self::tri_kept) with
+    /// `kept`) with each sample's colour scaled by `grain` at its place at rest (`rest`, the
+    /// corners'): the skin's pores and fine lines, the knuckles' wrinkles, finer than the
+    /// patches' points.
+    pub fn tri_grain(
+        &mut self,
+        p: [Pos2; 3],
+        z: [f32; 3],
+        c: [Color32; 3],
+        kept: Option<([V3; 3], &dyn Fn(V3) -> bool)>,
+        rest: [V3; 3],
+        grain: &dyn Fn(V3) -> f32,
+    ) {
+        self.fill(p, z, c, None, kept, Some((rest, grain)));
     }
 
     /// r42:arcus-hands, pass 3 — [`tri`](Self::tri) where only the samples whose place in
@@ -78,7 +97,7 @@ impl Raster {
         room: [V3; 3],
         keep: &dyn Fn(V3) -> bool,
     ) {
-        self.fill(p, z, c, None, Some((room, keep)));
+        self.fill(p, z, c, None, Some((room, keep)), None);
     }
 
     fn fill(
@@ -88,6 +107,7 @@ impl Raster {
         c: [Color32; 3],
         blend: Option<f32>,
         kept: Option<Kept<'_>>,
+        grain: Option<Grain<'_>>,
     ) {
         let ss = self.ss as f32;
         let q = p.map(|p| {
@@ -149,7 +169,16 @@ impl Raster {
                 }
                 let d = z[0] * w0 + z[1] * w1 + z[2] * w2;
                 let i = y * sw + x;
-                let rgba = [0, 1, 2, 3].map(|ch| cf[0][ch] * w0 + cf[1][ch] * w1 + cf[2][ch] * w2);
+                let mut rgba =
+                    [0, 1, 2, 3].map(|ch| cf[0][ch] * w0 + cf[1][ch] * w1 + cf[2][ch] * w2);
+                if let Some((rest, g)) = &grain {
+                    if d < self.depth[i] {
+                        let k = g(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
+                        for v in rgba.iter_mut().take(3) {
+                            *v = (*v * k).min(255.0);
+                        }
+                    }
+                }
                 match blend {
                     None => {
                         if d < self.depth[i] {

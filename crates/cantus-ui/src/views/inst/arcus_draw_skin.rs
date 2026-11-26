@@ -37,7 +37,7 @@ const KNUCKLE_RED: f32 = 0.5;
 /// r42:arcus-hands, pass 3 — `CANTUS_HAND_TUNE="a,b,_,d…"`: the hands' look's numbers
 /// overridden while designing it in `shoot_arcus` (index `i`: 0–2 the gains, 3–5 the sheen,
 /// 6–8 the blood, 9 the tips, 10 the knuckles, 11 the creases' floor, 12–14 the nail's bed
-/// and free edge, 15 its folds; `_` keeps one).
+/// and free edge, 15 its folds, 16–17 the grain, 18–19 the wrinkles; `_` keeps one).
 /// Read once; unset in the app.
 pub fn tune(i: usize, d: f32) -> f32 {
     static T: OnceLock<Vec<Option<f32>>> = OnceLock::new();
@@ -133,4 +133,125 @@ pub fn fold(d: [f32; 2], t: f32) -> [f32; 2] {
     let root = 1.0 - ((t - 0.55) / 0.15).clamp(0.0, 1.0);
     let k = tune(15, 0.14) * (0.5 + 0.5 * root);
     [d[0] * (1.0 - k), d[1] + 0.3 + 0.2 * root]
+}
+
+/// r42:arcus-hands, pass 5 — the skin's fine grain at rest (the coordinator: "smooth and
+/// young"; crop-08's back of the hand): a pore-scale value noise (two octaves, cells of
+/// `GRAIN.0` and half that, `GRAIN.1` of the luminance) and, over a finger joint's back, its
+/// dorsal wrinkles — fine arcs across the finger `WRINKLE.0` cm apart, `WRINKLE.1` darker at
+/// their deepest, over `WRINKLE.2` cm either side of the joint.
+const GRAIN: (f32, f32) = (0.07, 0.05);
+const WRINKLE: (f32, f32, f32) = (0.11, 0.16, 0.32);
+
+/// The grain of one hand triangle: the finger joint nearest it, if any (its place, the
+/// finger's way and the back's, at rest).
+pub struct Grain {
+    joint: Option<(V3, V3, V3)>,
+}
+
+fn hash3(x: i32, y: i32, z: i32) -> f32 {
+    let mut h = (x as u32).wrapping_mul(0x8DA6_B343)
+        ^ (y as u32).wrapping_mul(0xD816_3841)
+        ^ (z as u32).wrapping_mul(0xCB1A_B31F);
+    h ^= h >> 13;
+    h = h.wrapping_mul(0x85EB_CA6B);
+    h ^= h >> 16;
+    (h & 0xFFFF) as f32 / 65535.0 - 0.5
+}
+
+/// Trilinear value noise at `p` (cells of 1), −0.5 … 0.5.
+fn noise(p: V3) -> f32 {
+    let (fx, fy, fz) = (p.x.floor(), p.y.floor(), p.z.floor());
+    let (x, y, z) = (fx as i32, fy as i32, fz as i32);
+    let s = |t: f32| t * t * (3.0 - 2.0 * t);
+    let (u, v, w) = (s(p.x - fx), s(p.y - fy), s(p.z - fz));
+    let l = |a: f32, b: f32, t: f32| a + (b - a) * t;
+    let c = |dx: i32, dy: i32, dz: i32| hash3(x + dx, y + dy, z + dz);
+    l(
+        l(
+            l(c(0, 0, 0), c(1, 0, 0), u),
+            l(c(0, 1, 0), c(1, 1, 0), u),
+            v,
+        ),
+        l(
+            l(c(0, 0, 1), c(1, 0, 1), u),
+            l(c(0, 1, 1), c(1, 1, 1), u),
+            v,
+        ),
+        w,
+    )
+}
+
+impl Grain {
+    /// Triangle `tri` (the arm's vertices `verts`) of figure `fig`'s arm `s`.
+    pub fn of(
+        fig: &crate::scene::bowed_human::Figure,
+        s: usize,
+        verts: &[u32],
+        tri: &[u16; 3],
+    ) -> Grain {
+        use crate::scene::bowed_human as hu;
+        let o = hu::side(s);
+        let g = verts[tri[0] as usize] as usize;
+        let c = tri
+            .iter()
+            .map(|&i| fig.pos[verts[i as usize] as usize])
+            .fold(V3::default(), |a, b| a + b)
+            * (1.0 / 3.0);
+        let bone = fig.bw[g]
+            .iter()
+            .fold(
+                (0u8, -1.0f32),
+                |b, &(x, w)| if w > b.1 { (x, w) } else { b },
+            )
+            .0 as usize;
+        let first = o + hu::finger(1, 0);
+        if !(first..=o + hu::finger(4, 2)).contains(&bone) {
+            return Grain { joint: None };
+        }
+        let k = (bone - o - hu::finger(0, 0)) % 3;
+        let bn = &fig.bones[bone];
+        let mut best: Option<(f32, V3, V3)> = None;
+        if k >= 1 {
+            let prev = &fig.bones[bone - 1];
+            best = Some(((c - bn.head).len(), bn.head, (bn.tail - prev.head).norm()));
+        }
+        if k <= 1 {
+            let next = &fig.bones[bone + 1];
+            let d = (c - bn.tail).len();
+            if best.is_none_or(|b| d < b.0) {
+                best = Some((d, bn.tail, (next.tail - bn.head).norm()));
+            }
+        }
+        let kn = |f: usize| fig.bones[o + hu::finger(f, 0)].head;
+        let wr = fig.bones[o + hu::HAND].head;
+        let mut back = (kn(1) - kn(4)).cross((kn(2) + kn(3)) * 0.5 - wr).norm();
+        if (back.x < 0.0) == (s == 0) {
+            back = back * -1.0;
+        }
+        Grain {
+            joint: best.map(|(_, j, ax)| (j, ax, (back - ax * back.dot(ax)).norm())),
+        }
+    }
+
+    /// The luminance factor at `q` (rest, cm).
+    pub fn at(&self, q: V3) -> f32 {
+        let f = 1.0 / tune(16, GRAIN.0);
+        let n = noise(q * f) * 0.65 + noise(q * (2.0 * f)) * 0.35;
+        let mut k = 1.0 + tune(17, GRAIN.1) * n;
+        if let Some((j, ax, back)) = self.joint {
+            let r = q - j;
+            let s = r.dot(ax);
+            let up = (r - ax * s).norm().dot(back);
+            if up > 0.2 && s.abs() < WRINKLE.2 {
+                let fade = (1.0 - (s / WRINKLE.2).powi(2)) * ((up - 0.2) / 0.5).clamp(0.0, 1.0);
+                // (Arcs: the lines bow back toward the hand away from the knuckle's top.)
+                let side = (r - ax * s - back * r.dot(back)).len();
+                let ph = (s + 0.08 * side * side) / tune(18, WRINKLE.0);
+                let line = (0.5 + 0.5 * (ph * std::f32::consts::TAU).cos()).powi(6);
+                k *= 1.0 - tune(19, WRINKLE.1) * fade * line;
+            }
+        }
+        k
+    }
 }

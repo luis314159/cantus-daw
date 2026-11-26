@@ -1866,12 +1866,27 @@ pub fn arm(
                         }
                         let mut r = sc.ras.borrow_mut();
                         // (r42:arcus-hands, pass 3: a split patch cut sample by sample.)
+                        // (r42:arcus-hands, pass 5: the skin's grain per sample.)
+                        let grain = (am.stuff[k as usize] == Stuff::Skin).then(|| {
+                            super::skin::Grain::of(fig, s, &am.verts, &am.tris[k as usize])
+                        });
                         fine_tri(
-                            &mut |p, q, c| match only {
-                                Some((want, hid)) => {
+                            &mut |p, q, c, rp| match (only, &grain) {
+                                (Some((want, hid)), Some(g)) => r.tri_grain(
+                                    p,
+                                    q.map(depth_of),
+                                    c,
+                                    Some((q, &|x| hid(x) == want)),
+                                    rp,
+                                    &|x| g.at(x),
+                                ),
+                                (None, Some(g)) => {
+                                    r.tri_grain(p, q.map(depth_of), c, None, rp, &|x| g.at(x))
+                                }
+                                (Some((want, hid)), None) => {
                                     r.tri_kept(p, q.map(depth_of), c, q, &|x| hid(x) == want)
                                 }
-                                None => r.tri(p, q.map(depth_of), c, None),
+                                (None, None) => r.tri(p, q.map(depth_of), c, None),
                             },
                             &fc,
                             sc,
@@ -1883,7 +1898,7 @@ pub fn arm(
                         );
                     } else {
                         fine_tri(
-                            &mut |p, _, c| b.shaded_tri(p, c),
+                            &mut |p, _, c, _| b.shaded_tri(p, c),
                             &fc,
                             sc,
                             am,
@@ -2292,7 +2307,7 @@ fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
 /// corners' detail and occlusion between.
 #[allow(clippy::too_many_arguments)]
 fn fine_tri(
-    out: &mut dyn FnMut([Pos2; 3], [V3; 3], [Color32; 3]),
+    out: &mut dyn FnMut([Pos2; 3], [V3; 3], [Color32; 3], [V3; 3]),
     fc: &FineCtx,
     sc: &Scratch,
     am: &ArmMesh,
@@ -2441,6 +2456,14 @@ fn fine_tri(
         }
     }
     drop(cache);
+    // r42:arcus-hands, pass 5 — each point's place at rest (the skin's grain is laid there).
+    let mut rests = [V3::default(); 15];
+    for i in 0..=n {
+        for j in 0..=(n - i) {
+            let (w1, w2) = (j as f32 / n as f32, i as f32 / n as f32);
+            rests[row(i) + j] = rest[0] * (1.0 - w1 - w2) + rest[1] * w1 + rest[2] * w2;
+        }
+    }
     for i in 0..n {
         for j in 0..(n - i) {
             let (a, bb, c) = (row(i) + j, row(i) + j + 1, row(i + 1) + j);
@@ -2457,6 +2480,7 @@ fn fine_tri(
                     [pts[a], pts[bb], pts[c]],
                     [room[a], room[bb], room[c]],
                     [cols[a], cols[bb], cols[c]],
+                    [rests[a], rests[bb], rests[c]],
                 );
             }
             if j + 1 < n - i {
@@ -2466,6 +2490,7 @@ fn fine_tri(
                         [pts[bb], pts[d], pts[c]],
                         [room[bb], room[d], room[c]],
                         [cols[bb], cols[d], cols[c]],
+                        [rests[bb], rests[d], rests[c]],
                     );
                 }
             }

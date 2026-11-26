@@ -284,7 +284,11 @@ HOVER = ((12, 55), (35, 85), (3, 24))
 # (Measured, MakeHuman's rest hand fans its fingers 15.6, -10.2 and -18.6 degrees off the
 # middle finger — index, ring, little; a turn of +0.1 rad fans a finger 5.8 degrees out the
 # index's way: three quarters of the fan taken back, the fingers nearly parallel.)
-SPREAD = np.array([-0.204, 0.0, 0.134, 0.243])
+# (r42:arcus-hands, pass 5 — the coordinator: "real fingers are never glued parallel"; in
+# crop-11 light shows between the free fingers: each finger's fan 4, 3 and 5 deg wider than
+# pass 2's — the index 7.9 deg off the middle, the ring 5.5, the little 9.7, neighbours 4-8
+# apart; was -0.204, 0, 0.134, 0.243.)
+SPREAD = np.array([-0.135, 0.0, 0.082, 0.157])
 SPREAD_MAX = 8.0
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
