@@ -211,7 +211,10 @@ fn hits(out: &Path, kit: &str, args: &[String]) {
                     next += len;
                     // a closed hat as a song without a pedal plays it (CC4 at 0): a kit's
                     // nearly-closed articulation (Tympanum's 0.1) is closed here
-                    let open = a.openness.map(|o| o.at).map(|o| if o <= 0.15 { 0.0 } else { o });
+                    let open = a
+                        .openness
+                        .map(|o| o.at)
+                        .map(|o| if o <= 0.15 { 0.0 } else { o });
                     let _ = writeln!(
                         csv,
                         "{},{:?},{},{},{},{},{},{}",
@@ -243,7 +246,10 @@ fn hits(out: &Path, kit: &str, args: &[String]) {
 fn notes_csv(out: &Path, kit: &str, file: &Path, args: &[String]) {
     let text = std::fs::read_to_string(file).expect("notes csv");
     let mut notes = Vec::new();
-    for line in text.lines().filter(|l| !l.starts_with('#') && !l.is_empty()) {
+    for line in text
+        .lines()
+        .filter(|l| !l.starts_with('#') && !l.is_empty())
+    {
         let f: Vec<&str> = line.split(',').map(str::trim).collect();
         let Ok(at) = f[0].parse::<f64>() else {
             continue; // a header
@@ -280,7 +286,12 @@ fn main() {
             println!("{name}");
         }
         "hits" => hits(Path::new(&args[3]), &args[4], &args[5..]),
-        "notes" => notes_csv(Path::new(&args[3]), &args[4], Path::new(&args[5]), &args[6..]),
+        "notes" => notes_csv(
+            Path::new(&args[3]),
+            &args[4],
+            Path::new(&args[5]),
+            &args[6..],
+        ),
         _ => eprintln!("modes: info, hits, notes (see the file's header)"),
     }
 }

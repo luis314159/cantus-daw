@@ -215,7 +215,7 @@ through `CantusApp::assemble`.
 1. **The onset** (§4.4): the generated snare's bands peak 5–10 ms early; the grooves' crest 2–10 dB
    high. Model 6's contact-driven onset, the wires' cavity lag, the knock as the head's push.
 2. **The re-strike while ringing:** struck 1 s after the last hit, the studio kick at 96 sounded
-   3.4 dB under its 80 (alone, 4 s apart, it is 2.7 dB over it): the new hit's mode phasors add to
+   3.4 dB under its 80 (alone, 4 s apart, about 2 dB over it): the new hit's mode phasors add to
    the ringing ones, and a drum's re-strike also takes the cymbals' "bloom". Measure a drummer's
    repeated strokes against the recordings' (DRSKit's repeated hits) before changing it.
 3. **The blend's cause:** a hit between two layers takes its onset phases from the main layer and
