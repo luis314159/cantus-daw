@@ -64,7 +64,12 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
     let yn = nut_y(d);
     let ye = yn - d.board;
     let rb = board_r(d);
-    let thick = d.board_w.0 * 0.36;
+    // r42:arcus-polish2 — a violin's or a viola's as a luthier makes it (the owner: "hazlo
+    // más delgado, compáralo con violines reales"): the fingerboard about 5 mm thick at its
+    // edges, the neck 19 mm deep at the nut and 21.5 at the heel with the fingerboard (a
+    // viola's in proportion, a little deeper) — ours had been 39 and 51 mm.
+    let k = d.body / 35.6;
+    let thick = if d.held { 0.5 * k } else { d.board_w.0 * 0.36 };
     let at = |x: f32, y: f32, z: f32| pose.at(x, y, z);
     let top = move |x: f32, y: f32| board_z(d, y) - x * x / (2.0 * rb);
     let (ez, ex, ey) = (pose.ez, pose.ex, pose.ey);
@@ -154,10 +159,15 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
     ));
     // ---- the neck under the board, its heel down to the back's button ----
     let heel = d.board_w.1 * 1.8;
-    let base = (d.board_w.0 * 1.3, d.board_w.1 * 1.0);
+    let base = if d.held {
+        (NECK_DEEP.0 * k - thick, NECK_DEEP.1 * k - thick)
+    } else {
+        (d.board_w.0 * 1.3, d.board_w.1 * 1.0)
+    };
     let nrows = 28;
     let ny = move |r: usize| d.body - 0.8 + (yn - d.body + 0.8) * r as f32 / (nrows - 1) as f32;
-    let neck_c = move |y: f32| v(0.0, y, board_z(d, y) - thick - 1.0);
+    let mid = if d.held { base.0 * 0.5 } else { 1.0 };
+    let neck_c = move |y: f32| v(0.0, y, board_z(d, y) - thick - mid);
     m.patches.push((
         Role::Maple,
         grid(
@@ -186,6 +196,11 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
     ));
     head(m, d, pose, yn, nz);
 }
+
+/// r42:arcus-polish2 — a violin's neck's depth with its fingerboard, from the fingerboard's
+/// top at its middle to the neck's back, at the nut and at the heel (cm; a viola's scaled
+/// by its body).
+pub const NECK_DEEP: (f32, f32) = (1.9, 2.15);
 
 /// The pegbox, the scroll and the pegs or machines, from the nut's top (`yn`, `nz`).
 fn head(m: &mut Mesh, d: &Dims, pose: &Pose, yn: f32, nz: f32) {
