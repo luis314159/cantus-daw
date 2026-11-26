@@ -8,7 +8,15 @@
 //! cargo run --release -p cantus-ui --example chorda_abx -- <dir>
 //!     --candidate <spec file> [--partials <csv>] [--levels <csv>] [--name <label>]
 //!     [--downloads <dir>] [--key <dir>] [--wav]
+//! cargo run --release -p cantus-ui --example chorda_abx -- <dir> --shipped
+//!     [--previous <lab spec>] [--previous-name <label>] [--name <label>] …
 //! ```
+//!
+//! Round 42 (kit 17): `--shipped` plays "Chorda 3" as the app ships it — a new Chorda's own
+//! spec through the engine's offline render, the path a song's render takes (the test
+//! `the_kits_shipped_chorda_is_the_apps` holds it to the instrument picker's Chorda, bit for
+//! bit) — and `--previous` gives "Chorda 2" a lab spec instead of beta.14's (`base=unison`:
+//! candidate 16 as it shipped from `DSP_VERSION` 11 to 15).
 //!
 //! `--candidate` is the voicing lab's `key=value,…` spec (its first line); `--partials` and
 //! `--levels` its per-key tables (`CHORDA_PARTIALS` / `CHORDA_LEVELS`, as the lab reads them;
@@ -99,6 +107,11 @@ struct Args {
     levels: Option<String>,
     name: String,
     flac: bool,
+    /// Round 42: Chorda 3 through the engine at a new Chorda's own spec (what ships).
+    shipped: bool,
+    /// Round 42: Chorda 2's lab spec (empty: beta.14's) and its name in the key.
+    previous: String,
+    previous_name: String,
 }
 
 fn usage() -> ! {
@@ -113,6 +126,7 @@ fn args() -> Args {
     let mut it = std::env::args().skip(1);
     let (mut dir, mut downloads, mut key, mut spec_file) = (None, None, None, None);
     let (mut partials, mut levels, mut name, mut flac) = (None, None, None, true);
+    let (mut shipped, mut previous, mut previous_name) = (false, String::new(), None);
     while let Some(a) = it.next() {
         let mut val = || it.next().unwrap_or_else(|| usage());
         match a.as_str() {
@@ -123,6 +137,9 @@ fn args() -> Args {
             "--downloads" => downloads = Some(PathBuf::from(val())),
             "--key" => key = Some(PathBuf::from(val())),
             "--wav" => flac = false,
+            "--shipped" => shipped = true,
+            "--previous" => previous = val(),
+            "--previous-name" => previous_name = Some(val()),
             "--flac" => flac = true,
             _ if a.starts_with("--") => usage(),
             _ if dir.is_none() => dir = Some(PathBuf::from(a)),
@@ -132,10 +149,15 @@ fn args() -> Args {
         }
     }
     let dir = dir.unwrap_or_else(|| usage());
-    let spec_file = spec_file.unwrap_or_else(|| usage());
-    let text = std::fs::read_to_string(&spec_file)
-        .unwrap_or_else(|e| panic!("the candidate's spec {spec_file}: {e}"));
-    let spec = text.lines().next().unwrap_or("").trim().to_string();
+    let (spec_file, spec) = if shipped {
+        ("(shipped)".to_string(), String::new())
+    } else {
+        let spec_file = spec_file.unwrap_or_else(|| usage());
+        let text = std::fs::read_to_string(&spec_file)
+            .unwrap_or_else(|e| panic!("the candidate's spec {spec_file}: {e}"));
+        let spec = text.lines().next().unwrap_or("").trim().to_string();
+        (spec_file, spec)
+    };
     let partials = partials.or_else(|| std::env::var("CHORDA_PARTIALS").ok());
     let levels = levels.or_else(|| std::env::var("CHORDA_LEVELS").ok());
     for f in partials.iter().chain(levels.iter()) {
@@ -162,7 +184,27 @@ fn args() -> Args {
         levels,
         name,
         flac,
+        shipped,
+        previous_name: previous_name.unwrap_or_else(|| {
+            if previous.is_empty() {
+                "beta.14".into()
+            } else {
+                previous.clone()
+            }
+        }),
+        previous,
     }
+}
+
+/// Round 42: Chorda as the app ships it — a new Chorda's own spec (`NativeSpec::new`, as the
+/// instrument picker adds one) rendered by the engine.
+fn shipped_render(root: &std::path::Path, ph: &phrases::Phrase) -> Stereo {
+    let _ = root;
+    render::render_spec(
+        cantus_core::NativeSpec::new(cantus_core::InstrumentKind::Chorda),
+        ph,
+    )
+    .unwrap_or_else(|e| panic!("the shipped Chorda {}: {e}", ph.id))
 }
 
 /// The three pianos: an id (the key's, the owner's summary's), what plays it.
@@ -219,15 +261,19 @@ fn main() {
     let (mut list, mut files, mut key_files) = (String::new(), String::new(), String::new());
     let mut bytes = 0u64;
     for ph in &listen {
-        let mut renders: Vec<Stereo> = vec![lab::render(&a.spec, ph)];
+        let mut renders: Vec<Stereo> = vec![if a.shipped {
+            shipped_render(&root, ph)
+        } else {
+            lab::render(&a.spec, ph)
+        }];
         for src in &sources {
             renders.push(
                 render::render_source(src, &root, ph)
                     .unwrap_or_else(|e| panic!("{} {}: {e}", src.label(), ph.id)),
             );
         }
-        // Chorda 2: beta.14's voicing (the lab's empty spec).
-        renders.push(lab::render("", ph));
+        // Chorda 2: beta.14's voicing (the lab's empty spec), or `--previous`'s.
+        renders.push(lab::render(&a.previous, ph));
         let n = renders.iter().map(|s| s.len()).min().unwrap_or(0);
         // One length, a 30 ms fade at the end, one loudness for the three (`abx_kit`).
         let m = {
@@ -347,13 +393,16 @@ fn main() {
         .unwrap_or(0);
     let opt = |o: &Option<String>| o.as_deref().map(js).unwrap_or_else(|| "null".into());
     let key = format!(
-        "{{\n \"kit\": {},\n \"created\": {created},\n \"candidate\": {{\"name\": {}, \"spec_file\": {}, \"spec\": {}, \"partials\": {}, \"levels\": {}}},\n \"tokens\": {table},\n \"catch\": [{}, {}],\n \"files\": {{{key_files}}},\n \"bytes\": {bytes}\n}}\n",
+        "{{\n \"kit\": {},\n \"created\": {created},\n \"candidate\": {{\"name\": {}, \"spec_file\": {}, \"spec\": {}, \"partials\": {}, \"levels\": {}}},\n \"previous\": {{\"name\": {}, \"spec\": {}}},
+ \"tokens\": {table},\n \"catch\": [{}, {}],\n \"files\": {{{key_files}}},\n \"bytes\": {bytes}\n}}\n",
         js(&kit),
         js(&a.name),
         js(&a.spec_file),
         js(&a.spec),
         opt(&a.partials),
         opt(&a.levels),
+        js(&a.previous_name),
+        js(&a.previous),
         js(catch[0].0),
         js(catch[1].0),
     );
@@ -370,6 +419,46 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    /// Round 42 (kit 17): the kit's "Chorda 3" with `--shipped` is the Chorda the instrument
+    /// picker adds, rendered as the app renders a song — the same spec, the same bits.
+    #[test]
+    fn the_kits_shipped_chorda_is_the_apps() {
+        use cantus_core::InstrumentKind;
+        let d = tempfile::tempdir().unwrap();
+        std::env::set_var("CANTUS_DATA_DIR", d.path());
+        let files = cantus_ui::app::Files::read(d.path(), Some(cantus_ui::i18n::Locale::En));
+        let ctx = egui::Context::default();
+        let (engine, _proc) = cantus_engine::EngineHandle::manual(48_000.0);
+        let mut app =
+            cantus_ui::CantusApp::assemble(&ctx, files, None, engine, None, None, None, false);
+        app.apply_pick(
+            cantus_ui::picker::PickPurpose::AddInstrument { index: None },
+            cantus_ui::picker::PickChoice::Instrument(InstrumentKind::Chorda),
+        );
+        let picked = app
+            .project()
+            .tracks
+            .iter()
+            .find_map(|t| {
+                t.instrument
+                    .native()
+                    .filter(|n| n.kind == InstrumentKind::Chorda)
+                    .cloned()
+            })
+            .expect("the picker's Chorda");
+        let ph = super::phrases::all()
+            .into_iter()
+            .find(|p| p.id == "middle_c")
+            .unwrap();
+        let app_render = super::render::render_spec(picked, &ph).unwrap();
+        let kit = super::shipped_render(std::path::Path::new("."), &ph);
+        assert!(kit.l.iter().any(|x| *x != 0.0));
+        assert!(
+            kit.l == app_render.l && kit.r == app_render.r,
+            "the kit's Chorda is not the app's"
+        );
+    }
+
     #[test]
     fn the_subject_is_a_subject() {
         let s = super::kit::subject_line(super::SUBJECT);

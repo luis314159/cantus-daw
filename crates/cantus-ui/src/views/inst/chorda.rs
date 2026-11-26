@@ -669,7 +669,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             "preset.style.film",
             "preset.style.pop"
         ], "concert" / "black",
-        ["colour" => 1.0, "gain" => 4.8]
+        ["colour" => 1.0, "gain" => 4.1]
     ),
     preset!("chorda.preset.studio", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "black", ["hardness" => 0.25, "tilt" => 1.5, "room" => 0.25, "width" => 0.85, "persp" => 0.25, "roomsize" => 0.3, "gain" => 3.5]),
     preset!("chorda.preset.ballad", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.worship", "preset.style.pop"], "grand" / "white", ["hardness" => -0.3, "tilt" => -2.0, "sympathy" => 1.25, "decay" => 1.15, "room" => 0.5, "persp" => 0.3, "roomsize" => 0.55, "gain" => 4.0]),

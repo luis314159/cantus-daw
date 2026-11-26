@@ -142,7 +142,26 @@ grand's other values); *Concert Grand* keeps Chorda's own. `hardness` (the felt)
 Named previews (not blind), each with `escuchar.html` in Spanish and 16-bit WAVs:
 `F:\projects\cantus-work\listen\chorda-c17\` (v1, c17c: had hiss), `v2\` (c17d), `v3\` (c17e),
 `v4\` (c17g = what ships but for D♯7/A♯6, in no phrase). The owner on v2: "Va sonando muy bien".
-The blind kit (`chorda_abx`, kit 17) waits for his word.
+**Blind kit 17** (built 2026-11-26 at the coordinator's word, the owner having asked for a new
+ABX after the analysis): `F:\projects\cantus-work\listen\chorda-abx17\` (zip
+`F:\projects\cantus-work\listen\ABX-Chorda17.zip`, 24.3 MB, no key inside), the key beside it in
+`chorda-abx17-key\`. Kit 5's design (`abx5-50f5d1b224`): the seven phrases, ABX 16 trials against
+the Salamander, preferences on both pairs, two catch questions (ballad, top). "Chorda 3" is
+candidate 17 **as the app ships it** — a new Chorda's own spec through the engine's offline render
+(`chorda_abx --shipped`; the test `the_kits_shipped_chorda_is_the_apps` holds it to the
+instrument picker's Chorda bit for bit on middle C); "Chorda 2" is candidate 16 as it shipped in
+`DSP_VERSION` 11–15 (`--previous base=unison`, through the voicing lab: its strikes' variation is
+seeded by the phrase's note order where the engine seeds by the clip note's id — the same piano
+drawn anew, as round 40 found) — so the kit also says whether 17 beats 16. The browser check:
+190 checks pass in Edge; Chrome would not launch on this machine while in use, Firefox is not
+installed (4 launch failures, none of the page's).
+
+## Kit and level checks
+
+- `preset_render`: every Chorda preset inside its ±2 LU window at candidate 17 (+0.7 … +1.6);
+  *Recorded Grand Colour* read +2.09 at the concert grand's gain, trimmed 4.8 → 4.1 dB.
+- `cantus-engine --test listen`: 14 passed (334 s under three parallel builds — the run killed
+  earlier had not hung, only crawled).
 
 ## Open
 
