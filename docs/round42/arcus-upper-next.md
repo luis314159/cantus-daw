@@ -919,3 +919,90 @@ the offline palm thinning (`build_figures.py::slim_hand`, `PALM_VOLAR`) narrows 
 the camera — handed to the arcus-hands builder, who now owns the hands. Clippy 
 (`-p cantus-ui --all-targets -D warnings`): one finding fixed (`cloth::contact`'s loop), 
 re-run at the session's end (see the final commit).
+
+## arcus-hands (2026-11-25): the hands — fingers, bow hold, the neck's edge, creases, nails
+
+Branch `r42/arcus-hands` (worktree `F:\projects\daw-r42\arcus-hands`), from r42/arcus-polish
+c8f40a583; arcus-polish merged to bffb9f682 and arcus-polish2's WIPs c0a8fd443 and 76eca6dce. The owner
+(2026-11-25): "the musicians can still look much, much better… especially the fingers of the
+hand"; the coordinator: the fingers short and stubby, curled tight near the board under a big
+back of the hand, dark speckles and stair-steps, the bow hands a blob at 100 %. ADR 0159
+amended ("The hands").
+
+**What changed** (each with where it lives):
+1. *Finger proportions* (`build_figures.py::lengthen_fingers`, `FINGER_STRETCH`): each finger's
+   segments stretched along its own bones (index 1.08 on its first phalanx, middle and ring
+   1.04, the little finger 1.03 / 1.25 on its middle phalanx) and the joints moved with them.
+   Measured (`tests/arcus_hand_form.rs`): segments 1 : 0.57–0.60 : 0.55–0.69 (the last to the
+   skin's tip), the index and the ring 0.90 / 0.94 of the middle finger, the little finger's
+   tip at the ring's last joint (−0.1 cm), the middle finger 1.13 of the back of the hand.
+2. *The finger's form* (`slim_fingers`): the PIP and DIP fuller than the shafts
+   (`JOINT` 1.06 / `SHAFT` 0.965), each phalanx 3.5 % slimmer than the one before (`TAPER`),
+   the pad side flattened 12 % (`FLAT`, a rounded D section) but the tip's pad kept full.
+3. *Nails* (`nail_field`, `NAIL_ARC` per finger): the nail within 52–68° of the finger's
+   back (was 65° for all: 0.8–0.85 of the slimmed middle and ring fingers' width); now
+   0.60–0.75 (gate 0.55–0.8).
+4. *Fingers bend with all three joints* (`scene/figure/fingers.rs::curl`, mirrored in
+   `hand_rig.py::curl`): the last joint follows the middle one (0.7 of it), found by bisection
+   for the knuckle-to-tip distance; the earlier reach bent a finger at its middle joint only.
+   `RELAX` 0.55–0.86 (was 0.7).
+5. *The bow hold* (`grip.rs::bow_frog`, its numbers in `BOW`, `hand_design.py` mirrors them):
+   the knuckles high over the stick, the hand leant toward the index (the knuckles' line
+   falling toward the tip, `lean` 0.6), the fingers draped round the stick and slanting
+   toward the tip, the little finger on top — against "Right hand position on bow.jpg"
+   (Commons, CC BY-SA 3.0, study only, `refs-violin/bow/`). `CANTUS_BOW_GRIP="kc=..;hd=..;
+   lean=..;along=..;mid=..;hang=..;slant=..;tip_far=..;little_mid=..;little_tip=..;
+   thumb_tip=..;thumb_ip=.."` overrides them in the app without a compile (DEVELOPING §4).
+   Pronating by lifting the wrist (`hd`) opened her sleeve's end to the camera: kept.
+6. *The left hand's table* re-solved (`left_hand.py`, `left_hand.bin`) as **open arches**
+   (the coordinator on sheet hands-1: hooks): the first phalanx leaning over the board
+   (within 50° of its normal), the PIP carrying the bend (55–100°), the DIP nearly straight
+   (4–25°), the tip within 25°; **the hand and the forearm standing up from the neck**
+   (`HAND_UP` 78°, `FORE_UP` 64°, seen from the E side — the table had the hand at 55° to
+   the neck in the picture, the photographs 70–89°; now ~65°), the wrist's turn 0–12°
+   resting at 8 (the photographs 3–23°, median ~10; `arcus_hold` and `arcus_hand_table`
+   hold it within 16°, was 8), the back turned 10° toward the scroll (was 30°). The
+   elbow rule `UPPER_BELOW` (35–60° below level) is written but not yet solved: on this
+   hold the arm cannot reach it (one row: 9° below level), waiting for polish2's new hold.
+7. *The neck's edge* (`arcus_draw_flesh::arm`, `CLS_SPLIT`, `fine_tri(..., only)`): a hand
+   patch with some corners behind the neck is drawn in both passes, cut four a side, each
+   small triangle in the pass its own middle belongs to — the neck's stamp no longer cuts
+   the fingers along their triangles (the dark board shards and stair-steps on the fingers).
+8. *Creases* (`views/inst/arcus_draw_marks.rs`): three soft creases over each PIP and two
+   over each DIP and the thumb's IP, anchored at rest to the arm's triangles by casting from
+   the joint's axis round the finger's back, carried with the skin, sorted with the
+   triangles, faded where the skin turns away; at least 1.6 px wide (thinner, fainter),
+   0.3 darker at most, gone under 12 points a centimetre. The per-vertex crease band in
+   `hand_detail` is gone (it was the bow hand's dark 1–3 px dashes, polish2's gate).
+9. *The wrist band*: the flat triangles round the wrist now take the skin texture and the
+   back's relief per vertex (`vertex_tex`) as the patches do per point.
+10. *Cost*: the patches' corners and edge midpoints are worked out once a frame and shared
+    (`FineCache`, `edge_index`).
+
+**Tools**: `hand_sheet_v12.py <before> <after> <out> [--refs=]`, `hand_design.py` and
+`left_hand.py` read `CANTUS_FIGURE_DIR`, the app reads `left_hand.bin` from it too.
+
+**Gates** (this session): `tests/arcus_hand_form.rs` (new) — the phalanx ratios, the fingers
+against the middle and the back of the hand, the little finger at the ring's DIP, the nails'
+width share (all pass), and `no_dark_specks_on_the_hands` (the hands' skin in the app's
+shots at 100 % and 200 %); `arcus_hand_table`'s joint ranges for open arches and the wrist
+within 16°; `arcus_hold`'s wrist within 16°.
+
+**Open** (in the order the owner will see them):
+1. *The table on polish2's new hold* with the elbow rule (one re-solve: `left_hand.py solve`
+   ×4, ~1 h on this machine; the dump from `arcus_hand_table -- --ignored dump`). On the
+   current table `arcus_hand_table` fails two photo rules: the index's base 2.2–3.5 cm out
+   from the E edge (≤ 2.2; the upright hand and the crook fight in the solve) and a few
+   viola rows' tips at 31° (≤ 30).
+2. *Dark one-pixel slivers between the fingers* (a finger's shaded side seen between two
+   others) — softer occlusion helped; real antialiasing of the live layer (MSAA or analytic
+   coverage of the inner silhouettes) is the lever left.
+3. *Her bow hand's sleeve end* shows a dark oval (the cuff's inside) since polish2's
+   76eca6dce — polish2's.
+4. *Girths at the PIP* through the probe: hers 1.4–1.9 cm (the brief's ≤ 1.8 index/middle,
+   ≤ 1.5 little: her viola index 1.91, little 1.56–1.65), his ≤ 2.1 / 1.7 met but for
+   noise; `arcus_hand_shape`'s finger ceilings not yet tightened.
+5. *Nails' sheen and lunula, veins, subsurface warmth*: per-vertex as polish left them; a
+   per-point nail model (cuticle line, free edge, specular) is not done.
+6. *Normal maps / a denser hand mesh in High*: not done; the thinned MakeHuman hand with
+   PN patches carries the forms at the app's scales.
