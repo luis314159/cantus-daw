@@ -109,7 +109,7 @@ pub const CONCERT: Concert = Concert {
     key_el: 45.0,
     key_dist: 420.0,
     key_size: 12.0,
-    key_e: 1.75,
+    key_e: 1.6,
     key_warm: 0.22,
     key_r: 70.0,
     key_feather: 2.2,
