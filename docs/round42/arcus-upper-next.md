@@ -1547,3 +1547,20 @@ budget ran the test binaries and were current. Build the example with `cargo bui
   (`GAP_FREE`). `finger_gap.py` (adopted) measured pass 4's table: the middle and ring glued
   at 0.9–2.1 mm, and the playing finger nearer its neighbours (1.2–2.8) than the free ones
   each other (2.2–3.7).
+- *The table re-solved* on the pass-4 figures with the spread and the gaps (`solve --seed=`
+  the pass-3 caches; no `fix` round yet). Measured by `finger_gap.py`, the middle and ring
+  are now 3.8–4.2 mm apart (median, was 0.9–2.1); the playing finger 3.8–5.0 mm from its
+  neighbours, the free pairs 3.7–3.9; 1–2 % of rows have a pair under 1 mm.
+  `arcus_hand_table`: 49 rules broken (pass 4: 53), but **63 penetration cases** (pass 4:
+  48). The spread fingers go into the fingerboard and strings at +1, +12, +14 and +17, and
+  the palm at +9. A `fix --dense` round on `hand_check.py --pen --dense`'s rows comes next.
+- Gates (test binaries of this tree, except that the rounded neck test is not yet in them):
+  clippy `-D warnings` green, `arcus_scene` green, `arcus_hold` green but the cello's neck
+  (as before), `arcus_hand_shape`'s lobe (0.22 / 0.20 as before), 3 one-pixel specks.
+- Sheets: `F:\projects\daw-r42\tmp\hands5-sheet\` (sheet v14 before = 970f119b7 / after =
+  pass 5, and the 400 % sheets before = pass 4 as shown / after = pass 5), all from the
+  example built at a10a41ff1's sources.
+- New at 400 %, high position: a thin dark wedge in her palm near the wrist. Look at it with
+  the rounded neck test (it may be skin now taken for visible behind the neck's heel).
+- Open after this: the `fix` round for the 63 cases, the index's base on the viola, the
+  budget at 200 % (the grain adds a noise lookup per hand sample: re-measure).
