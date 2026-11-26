@@ -149,7 +149,7 @@ Tests and the soak harness can keep their files away from your own settings with
 ### Sound references and measurement
 
 The sound tools (`tools/soundlab`, `tools/arcus` and its study, `tools/listening` and the
-`*_abx` examples, `tools/chorda-voicing`, `tools/tympanum-fit`, `tools/test/scala-archive.sh`)
+`*_abx` examples, `tools/chorda-voicing`, `tools/tympanum-fit`, `tools/tympanum-real`, `tools/test/scala-archive.sh`)
 measure against recordings that never enter the repository. They live in one folder outside
 every round's folder, so deleting a round deletes no data; the catalogue rebuilds it on any
 machine. [`tools/sound-refs/setup.md`](../tools/sound-refs/setup.md) is the walk-through.
@@ -178,6 +178,7 @@ machine. [`tools/sound-refs/setup.md`](../tools/sound-refs/setup.md) is the walk
   cnsm, friction, bowing) and compares it with the distributions committed in
   `research/instruments-next/bowed-refdb/`; `make_abx.py`, `synth_bar.py refs` and
   `tools/content/strings/map.sh` remake the other derived sets.
+- **Tympanum against real kits** (round 42, `tools/tympanum-real/`; `docs/round42/tympanum-real.md`): the `drums-*` sets (DrumGizmo's Aasimonster, Cantus's CC0 drum packs joined by `content_root.py`, Freesound's real playing by `freesound.py`, the Groove MIDI Dataset's MIDI), the `tympanum_real` example (any kit's hits, notes, DrumGizmo builds), `pipeline.py` (hits, grooves, compare), `transcribe.py` (real drumming to MIDI), `position.py`, `gmd_levels.py`, `law.py` (model 5's level law), `preview.py` and `report.py` (the owner's named previews and Spanish report). Remote zips whose chain Python's store refuses are read through curl (the system's store), never with `-k`.
 - **By hand only:** the EBU loudness test set (tech.ebu.ch answers scripts with a browser
   challenge), the study's papers, MDB Drums: `fetch.py manual` prints the steps, `fetch.py
   record <set>` then writes their checksums.
