@@ -349,6 +349,18 @@ WRIST_TOTAL_W = 6.0
 # (r42:arcus-hands, pass 2: looser — a finger close to its neighbours rather than over its
 # own note; was 1.2, 1.4, 1.8, 2.6.)
 HOVER_SLACK = (2.2, 2.2, 2.4, 3.0)
+# r42:arcus-hands, pass 5 — the gap between neighbouring fingers' skins past the webs (cm,
+# her hand): the playing finger stands apart from its neighbours, the free ones are never
+# glued (crop-11's light between them). Measured on pass 4's table (finger_gap.py): the
+# middle and ring fingers 0.9-2.1 mm apart, the playing finger nearer its neighbours (1.2-2.8)
+# than the free ones each other (2.2-3.7) — the wrong way round. Each finger as capsules
+# along its outer first phalanx, its middle and its last (radii GAP_R of its PIP's breadth,
+# FINGER_W's, her hand's), and the rule's weight.
+GAP_PLAY = 0.28
+GAP_FREE = 0.15
+GAP_W = 8.0
+GAP_PIP = (1.62, 1.66, 1.55, 1.36)
+GAP_R = (0.47, 0.45, 0.4)
 # r42:arcus-hands, pass 3 — how high over the fingerboard's top a free fingertip may hover
 # (cm, her hand; the strings stand 0.3-0.7 over it), and the rule's weight.
 HOVER_UP = 1.7
@@ -530,6 +542,18 @@ class Pose:
                 wk = 3.0 if f == p else 1.0
                 add(f"ang{f}{k}", wk * over(ang[f + 1, k], *rng[k]))
                 add(f"mid{f}{k}", 0.08 * (ang[f + 1, k] - MID[k]))
+            # r42:arcus-hands, pass 5 — apart from the next finger (GAP_PLAY, GAP_FREE).
+            if f < 3:
+                segs = []
+                for g in (f, f + 1):
+                    Pg = P[g + 1]
+                    segs.append([(Pg[0] * 0.5 + Pg[1] * 0.5, Pg[1], GAP_R[0] * GAP_PIP[g]),
+                                 (Pg[1], Pg[2], GAP_R[1] * GAP_PIP[g]),
+                                 (Pg[2], Pg[3], GAP_R[2] * GAP_PIP[g])])
+                gap = min(seg_dist(a0, a1, b0, b1) - ra * self.k - rb * self.k
+                          for a0, a1, ra in segs[0] for b0, b1, rb in segs[1])
+                need = (GAP_PLAY if p in (f, f + 1) else GAP_FREE) * self.k
+                add(f"gap{f}", GAP_W * max(0.0, need - gap))
             sp = x[6 + 4 * f + 1] - SPREAD[f]
             add(f"spread{f}", 12.0 * sp + 2.0 * over(np.degrees(sp), -SPREAD_MAX, SPREAD_MAX))
             # The arch: the middle joint high over the fingerboard.
@@ -648,6 +672,18 @@ class Pose:
         if self.want_names:
             return names
         return np.array(r, float)
+
+
+def seg_dist(a0, a1, b0, b1):
+    """The nearest distance between segments a0-a1 and b0-b1."""
+    d1, d2, r = a1 - a0, b1 - b0, a0 - b0
+    a, e, f = d1 @ d1, d2 @ d2, d2 @ r
+    c, b = d1 @ r, d1 @ d2
+    den = a * e - b * b
+    s_ = np.clip((b * f - c * e) / den, 0.0, 1.0) if den > 1e-9 else 0.0
+    t = np.clip((b * s_ + f) / e, 0.0, 1.0) if e > 1e-9 else 0.0
+    s_ = np.clip((b * t - c) / a, 0.0, 1.0) if a > 1e-9 else 0.0
+    return float(np.linalg.norm(a0 + d1 * s_ - (b0 + d2 * t)))
 
 
 def lm(fun, x0, iters=80, lam=1e-2):
