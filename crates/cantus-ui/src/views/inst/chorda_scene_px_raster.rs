@@ -1761,9 +1761,18 @@ pub fn bake(
                 let c = colr[y * w + x];
                 let (u, v) = (x as f32 / w as f32 - 0.5, y as f32 / h as f32 - 0.47);
                 let r = (u * u * 1.6 + v * v * 2.2).sqrt();
-                let vig = 1.0 - 0.38 * ((r - 0.38) / 0.55).clamp(0.0, 1.0).powf(1.6);
                 let dither = (noise(x as f32 * 0.73, y as f32 * 0.91, 7) - 0.5) / 255.0;
-                let t = tone(c.map(|v| v * vig * ex), sat);
+                // r42:arcus-polish3 — the concert's own curve and vignette.
+                let t = match &rig.concert {
+                    Some(cc) => {
+                        let vig = 1.0 - cc.vig * ((r - 0.30) / 0.6).clamp(0.0, 1.0).powf(1.4);
+                        cc.tone(c.map(|v| v * vig))
+                    }
+                    None => {
+                        let vig = 1.0 - 0.38 * ((r - 0.38) / 0.55).clamp(0.0, 1.0).powf(1.6);
+                        tone(c.map(|v| v * vig * ex), sat)
+                    }
+                };
                 let to8 = |t: f32| {
                     ((egui::ecolor::gamma_u8_from_linear_f32(t) as f32 / 255.0 + dither)
                         .clamp(0.0, 1.0)
@@ -1791,7 +1800,10 @@ fn post(rig: &Rig, cam: &Camera, col: &mut [Lin], pdepth: &[f32], w: usize, h: u
     let far_end = rig.focus_far;
     let mut far = col.to_vec();
     // r42:arcus-upper — behind a realistic figure: a wider blur, reached sooner.
-    let (radius, ramp) = if rig.soft_bg > 0.0 {
+    // (r42:arcus-polish3: the concert hall farther out of focus, `Concert::blur`.)
+    let (radius, ramp) = if let Some(cc) = &rig.concert {
+        (((cam.k / 300.0 * cc.blur) as usize).clamp(2, 24), 0.22)
+    } else if rig.soft_bg > 0.0 {
         (((cam.k / 300.0) as usize).clamp(2, 9), 0.22)
     } else {
         (((cam.k / 700.0) as usize).clamp(1, 4), 0.6)

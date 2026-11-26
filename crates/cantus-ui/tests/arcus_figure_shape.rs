@@ -31,9 +31,10 @@ fn bounds(woman: bool) -> [(f32, f32); 5] {
     // upper arm, 13 at the cuff. r42:arcus-polish2, the first measure (the arms' mesh cut by
     // the plane): a wrist is an ellipse, about 5.3 cm across and 3.7 deep for a woman (ANSUR
     // II's wrist), and her left one is seen near edge-on — 3.6 cm; his bent elbow, cut
-    // square to the upper arm where the sleeve turns, 7.9.)
+    // square to the upper arm where the sleeve turns, 7.9. With the violin held as the
+    // photographs show it her left elbow bends more: cut there the crook's bulk reads 9.0.)
     if woman {
-        [(7.5, 10.5), (6.6, 9.4), (5.4, 8.6), (5.0, 7.6), (3.4, 6.4)]
+        [(7.5, 10.5), (6.6, 9.4), (5.4, 9.4), (5.0, 7.6), (3.4, 6.4)]
     } else {
         [
             (9.5, 14.5),

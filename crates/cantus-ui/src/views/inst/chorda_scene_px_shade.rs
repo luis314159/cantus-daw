@@ -890,6 +890,26 @@ fn skin_sheen(n: V3, v: V3, l: V3, kc: Lin, kv: f32, ndl: f32) -> Lin {
     std::array::from_fn(|i| kc[i] * k)
 }
 
+/// r42:arcus-polish3 — black cloth's broad sheen from the concert's key (`k` its strength):
+/// a soft lobe round the half-way vector, brighter toward grazing, in the key's shadow none.
+#[allow(clippy::too_many_arguments)]
+fn cloth_spec(
+    c: &crate::scene::figure::concert::Concert,
+    k: f32,
+    n: V3,
+    v: V3,
+    l: V3,
+    kc: Lin,
+    kv: f32,
+) -> Lin {
+    let h = (l + v).norm();
+    let ndh = n.dot(h).max(0.0);
+    let ndl = n.dot(l).max(0.0);
+    let graze = 0.6 + 0.4 * (1.0 - n.dot(v).clamp(0.0, 1.0));
+    let s = k * ndh.powf(c.cloth_pow) * ndl * kv * graze;
+    std::array::from_fn(|i| kc[i] * s)
+}
+
 /// The light leaving the surface of `m` at `p` toward `eye`. `n` is the shading normal,
 /// `turn` how far it turns over one sample (a thin tube's: its mirror is spread over it),
 /// `t` the grain (`dP/du`), `vis` how much of the key reaches (its shadow), `ao` the
@@ -913,7 +933,13 @@ pub fn shade(
     if m.kind == Kind::Emit {
         return m.emit;
     }
-    let sf = surf(rig, m, p, uv, fp);
+    let mut sf = surf(rig, m, p, uv, fp);
+    // r42:arcus-polish3 — under the concert light, skin graded warmer (its spots' tungsten
+    // on it, the photographs' saturated skin).
+    let cc = rig.concert.as_ref();
+    if let (Some(c), Tex::Skin) = (cc, m.tex) {
+        sf.albedo = std::array::from_fn(|i| sf.albedo[i] * c.skin_gain[i]);
+    }
     // A traced reflection already found (at half resolution, `raster.rs`) stands in for
     // tracing it here.
     let traced = |rough: f32, panels: bool, f: &dyn Fn() -> Lin| match given {
@@ -958,11 +984,13 @@ pub fn shade(
     let kv = if lit { vis(p, n) } else { 0.0 };
     let ndl = if m.tex == Tex::Skin {
         // r42:arcus-upper — light through skin: the terminator wrapped wide and soft (the
-        // owner, 2026-11-24: skin, not paint).
-        ((n.dot(l) + 0.2) / 1.2).max(0.0)
+        // owner, 2026-11-24: skin, not paint). (r42:arcus-polish3: narrower under the
+        // concert's spot — the face's shadow side.)
+        let w = cc.map_or(0.2, |c| c.skin_wrap);
+        ((n.dot(l) + w) / (1.0 + w)).max(0.0)
     } else if hairy.is_some() {
         // r42:arcus-hair — light through hair: a head of hair's terminator is softer still.
-        let w = 0.35;
+        let w = cc.map_or(0.35, |c| c.hair_wrap);
         ((n.dot(l) + w) / (1.0 + w)).max(0.0)
     } else {
         n.dot(l).max(0.0)
@@ -994,9 +1022,10 @@ pub fn shade(
         // (stronger: the light under skin is red), a little red in the shade, and a soft
         // high-key fill from the camera's side on whatever faces it (a portrait's light).
         let t = (1.0 - n.dot(l).max(0.0)) * ndl;
-        e[0] += kc[0] * kv * t * 0.18 + amb[0] * ao * 0.06;
-        e[1] += kc[1] * kv * t * 0.04 + amb[1] * ao * 0.015;
-        let front = ndv.powf(2.0) * 0.07;
+        let sss = cc.map_or(0.18, |c| c.skin_sss);
+        e[0] += kc[0] * kv * t * sss + amb[0] * ao * 0.06;
+        e[1] += kc[1] * kv * t * sss * 0.22 + amb[1] * ao * 0.015;
+        let front = ndv.powf(2.0) * cc.map_or(0.07, |c| c.skin_front);
         for (i, ei) in e.iter_mut().enumerate() {
             *ei += (kc[i] + amb[i]) * front;
         }
@@ -1008,7 +1037,12 @@ pub fn shade(
         Tex::Floor | Tex::Rug | Tex::Wall | Tex::Wall2 | Tex::Curtain
     );
     // Skin takes a little of it (r42:arcus-upper: a full rim read as a white halo).
-    let rim_k = if m.tex == Tex::Skin { 0.3 } else { 1.0 };
+    let rim_k = match (m.tex, cc) {
+        (Tex::Skin, Some(c)) => c.skin_rim,
+        (Tex::Skin, None) => 0.3,
+        (_, Some(c)) if hairy.is_some() => c.hair_rim,
+        _ => 1.0,
+    };
     for &(d, c) in rig.rims.iter().filter(|_| !room) {
         let k = n.dot(d).max(0.0) * (1.0 - ndv).powi(2) * rim_k;
         rim = ladd(rim, lscale(c, k));
@@ -1083,7 +1117,9 @@ pub fn shade(
             // catch it and their creases go dark; an edge's roll catches it as well.
             let g = 1.0 - ndv;
             let fold = sf.fold;
-            let pile = (g * g * 0.28 + g.powi(5) * 0.42 + sf.edge * 0.22) * (1.0 + 0.85 * fold);
+            let pile = (g * g * 0.28 + g.powi(5) * 0.42 + sf.edge * 0.22)
+                * (1.0 + 0.85 * fold)
+                * cc.map_or(1.0, |c| c.velvet_pile);
             let lift = 1.0 + 0.35 * fold.min(0.0) + 0.2 * fold.max(0.0);
             let back: f32 = rig
                 .rims
@@ -1093,21 +1129,37 @@ pub fn shade(
             let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.8)));
             let sheen = lmul(m.light, ladd(lscale(kc, kv.max(0.35)), amb));
             let rimc = rig.rims.first().map_or([0.0; 3], |r| r.1);
+            // r42:arcus-polish3 — under the concert's spot, the pile's broad sheen where the
+            // fold's crest turns toward it (the photographs' black dress lit along its folds).
+            let (vb, spec) = match cc {
+                Some(c) => (c.velvet_back, cloth_spec(c, c.velvet_spec, n, v, l, kc, kv)),
+                None => (VELVET_BACK, [0.0; 3]),
+            };
             lscale(
                 ladd(
-                    ladd(d, lscale(sheen, pile.max(0.0))),
-                    lscale(lmul(m.light, rimc), back * VELVET_BACK),
+                    ladd(ladd(d, lscale(sheen, pile.max(0.0))), lmul(m.light, spec)),
+                    lscale(lmul(m.light, rimc), back * vb),
                 ),
                 lift,
             )
         }
         Kind::Matte => {
-            let sheen = sf.sheen * (1.0 - ndv).powi(3);
+            let sheen = sf.sheen
+                * (1.0 - ndv).powi(3)
+                * match (cc, m.tex) {
+                    (Some(c), Tex::Wool) => c.wool_sheen,
+                    _ => 1.0,
+                };
             let d = lmul(sf.albedo, ladd(e, lscale(rim, 0.8)));
-            ladd(
+            let c = ladd(
                 d,
                 lscale(lmul(sf.albedo, ladd(kc, amb)), sheen * kv.max(0.3)),
-            )
+            );
+            // r42:arcus-polish3 — wool's soft sheen along its folds where the spot hits.
+            match (cc, m.tex) {
+                (Some(cn), Tex::Wool) => ladd(c, cloth_spec(cn, cn.wool_spec, n, v, l, kc, kv)),
+                _ => c,
+            }
         }
         _ => {
             let f = schlick(sf.f0[0], ndv) * sf.coat;

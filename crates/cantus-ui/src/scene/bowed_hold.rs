@@ -143,7 +143,7 @@ pub fn pose(b: Bowed, h: Holder) -> Pose {
     }
     // r42:arcus-polish2 — the realistic violinists hold it as the photographs do.
     if d.held && matches!(h.hold, Hold::Woman | Hold::Man) {
-        return super::bowed_upper::held_real(&d);
+        return super::bowed_upper::held_real(d);
     }
     Pose::of(b)
 }

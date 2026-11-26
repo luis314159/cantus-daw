@@ -359,6 +359,33 @@ occluding capsules in its live painter.
   - **The polish, pass 2** (amendment, 2026-11-25, r42:arcus-polish2 — the owner: "the
     musicians can still look much, much better"; then "no te preocupes por los tiempos,
     luego optimizamos o hacemos configurable": the look first):
+    - **The hold and the arms** (the owner on sheet v12: "ese brazo aún se ve raro"; the
+      coordinator's measure of `refs-violin`). The realistic violinists hold the violin
+      and the viola with the scroll 3° under level, not 18° over it (side views put it
+      0–9° under the chin's end), the top still turned ~35° toward the E side, the end
+      button pinned at the neck so the chin keeps its rest (`bowed_upper::held_real`,
+      chosen by `bowed_hold::pose` for the woman and the man; the stylised musician and
+      the mannequin keep `held`); the bow arm's elbow falls out to the side
+      (`BOW_POLE`). `tests/arcus_arm_pose.rs` measures the drawn joints on the screen with
+      the bow at 0.3, 0.55 and 0.8 of its length against front photographs (ref-06,
+      ref-10: at the frog the upper arm 69–77° under level, the elbow's corner 55–65°, the
+      elbow level with the hand): ours 63–89° and 57–98° at 0.3, the elbow opening toward
+      the tip; the left upper arm 30–80° under level, its elbow under the violin's body.
+      **Open**: the bow hand still sits 1.1–1.4 upper arms over the elbow at 0.3 (the
+      photographs': level) and over the shoulder nearer the frog — the strings stand
+      higher over the bow shoulder than a player's; the skeleton's shoulder and
+      collarbone heights are the next lever. The left elbow is the left-hand table's
+      (arcus-hands' `left_hand.py`), re-solved on this hold.
+    - **The neck, the camera, the light** (the owner beside ref-04, ref-06 and ref-10). The
+      violin's and the viola's neck as a luthier makes it: 19 mm deep at the nut and 21.5 at
+      the heel with the fingerboard (39 and 51 had been drawn), the fingerboard 5 mm thick
+      at its edges and its radius 42 mm (`bowed_head::NECK_DEEP`, `board_r`; the widths,
+      the strings' spacing and the lengths were right; `hand::neck_depth` follows). The
+      realistic violinists' camera from about chest height, as ref-04 is taken (8° under
+      the room's, square to the neck as before). The **Concert** light (`figure::Lighting`,
+      Settings ▸ Appearance ▸ Light; the default): a realistic figure on the stage
+      (`Room::Stage`: warm spots from above and in front, the hall dim); **Studio** keeps
+      the even light before it.
     - **The shoulders' band.** Where an arm's part meets the body (the band, in both parts)
       the live arm fades into the baked body. The bake poses the band with the arms at rest;
       the live arm poses it raised, so the faded live triangles stood off the baked ones —
@@ -478,6 +505,14 @@ occluding capsules in its live painter.
   a figure) and the eyes' textures (128² linear RGB, 0.2 MB each). The binary grows by the maps (`woman_hair.png`
   1.26 MB, `man_hair.png` 0.99 MB, from 0.58 / 0.43) and the eyes (2 × 28 KB).
 
+- **Optimise later** (the owner, 2026-11-25: "no te preocupes por los tiempos, luego
+  optimizamos o hacemos configurable"; r42:arcus-polish2): the look first; High is the
+  default, Light and Auto the fast paths (`arcus_figure_auto` holds Auto's step down). The
+  last measure (release, best of five, a machine loaded by two other builds): High's
+  realistic violinists +4.1 to +5.5 ms at 100 % and +7.3 to +8.7 at 200 %, their cellists
+  +2.9 / +3.9 at 100 %, the stylised figures up to +1.7, Light up to +1.5. The ceilings are
+  that plus a quarter (7.0 / 11.0 ms, 2.1, Light 1.85), so a large regression still fails.
+  The profile and the levers: BACKLOG §4b "The realistic figures' frame cost".
 - **The polish's cost** (r42:arcus-polish, `arcus_hold_budget`, release, best of five, 
   2026-11-25, the machine loaded by two other builders): the live arms' extra, 100 % / 200 %, 
   High — her violin +3.65 / +5.04 ms, his +4.51 / +5.77, her cello +2.59 / +2.69, his 

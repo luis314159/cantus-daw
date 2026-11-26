@@ -161,6 +161,18 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                     // Velvet: its pile catches the light where it turns away.
                     col = add(col, hp::VELVET_SHEEN, (1.0 - ndv).powi(2) * 0.55);
                 }
+                // r42:arcus-polish3 — the concert's back lights: a clean warm line along
+                // the edges that turn toward them (the hair, the shoulders, the face's
+                // edge), as a stage photograph's rim.
+                let rim = c.light.rim(n, vv);
+                if rim > 0.0 && !inside {
+                    let k = match role {
+                        Role::Skin(_) => 0.35,
+                        Role::Velvet | Role::Wool => 0.5,
+                        _ => 1.0,
+                    };
+                    col = add(col, [1.0, 0.88, 0.72], rim * k);
+                }
                 cols[k] = col;
             }
             c.p.at(cam.depth(ctr), Part::Bowed);

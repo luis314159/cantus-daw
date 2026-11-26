@@ -98,43 +98,6 @@ pub mod probe {
     pub(super) fn keep_bow(frog: egui::Pos2, tip: egui::Pos2, scale: f32) {
         BOW.with(|b| *b.borrow_mut() = Some((frog, tip, scale)));
     }
-
-    // TEMP r42:arcus-polish2 — where the live arms' time goes (removed before the end).
-    thread_local! {
-        static TIMING: RefCell<Option<Vec<(&'static str, f64, u32)>>> = const { RefCell::new(None) };
-    }
-
-    /// Start (or stop) timing the live layer's parts on this thread.
-    pub fn timing(on: bool) {
-        TIMING.with(|t| *t.borrow_mut() = on.then(Vec::new));
-    }
-
-    /// A start time when timing is on.
-    pub fn t0() -> Option<std::time::Instant> {
-        TIMING.with(|t| t.borrow().is_some().then(std::time::Instant::now))
-    }
-
-    /// Add the time since `t0` to `name`.
-    pub fn lap(name: &'static str, t0: Option<std::time::Instant>) {
-        let Some(t0) = t0 else { return };
-        let ms = t0.elapsed().as_secs_f64() * 1e3;
-        TIMING.with(|t| {
-            if let Some(v) = t.borrow_mut().as_mut() {
-                match v.iter_mut().find(|x| x.0 == name) {
-                    Some(x) => {
-                        x.1 += ms;
-                        x.2 += 1;
-                    }
-                    None => v.push((name, ms, 1)),
-                }
-            }
-        });
-    }
-
-    /// The parts' totals (ms, calls).
-    pub fn times() -> Vec<(&'static str, f64, u32)> {
-        TIMING.with(|t| t.borrow().clone().unwrap_or_default())
-    }
 }
 
 use crate::app::CantusApp;
@@ -249,13 +212,21 @@ pub fn scene_view(
     fs: &ArcusSettings,
     s: &Style,
     holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+    light: crate::scene::figure::Lighting,    // r42:arcus-polish2
 ) -> crate::scene::SceneView {
+    // r42:arcus-polish2 — a realistic figure on the concert stage unless Studio is chosen.
+    let concert = light == crate::scene::figure::Lighting::Concert
+        && crate::scene::bowed_human::who(holder.hold).is_some();
     crate::scene::SceneView {
         subject: crate::scene::Subject::Bowed {
             instrument: bowed_of(fs),
             holder, // r42:arcus-upper
         },
-        room: crate::scene::Room::Studio,
+        room: if concert {
+            crate::scene::Room::Stage
+        } else {
+            crate::scene::Room::Studio
+        },
         look: Default::default(),
         dark: s.t.dark,
         selected: None,
@@ -290,7 +261,7 @@ pub fn picture(
         eyes: app.settings.figure_eyes,
         ..holder
     };
-    let view = scene_view(fs, s, holder); // r42:arcus-upper
+    let view = scene_view(fs, s, holder, app.settings.figure_light); // r42:arcus-upper
     let painter = ui.painter_at(d);
     let time = ui.input(|i| i.time);
     let entry = app
@@ -359,12 +330,12 @@ pub fn picture(
         hand: hand.0,      // r42:arcus-upper
         light,             // r42:arcus-upper
         accent: s.t.focus, // r42:arcus-upper
+        // r42:arcus-polish3 — the stage is the concert's (a realistic figure, Concert).
+        concert: view.room == crate::scene::Room::Stage,
     };
     // r42:arcus-upper — a figure's left hand behind the neck, then the neck stamped back
     // over it from the picture itself, then the rest in front.
-    let tt = probe::t0();
     crate::kit::with_brush(&painter, |br| body::live_behind(br, &v, &pl, s));
-    probe::lap("LIVE_BEHIND", tt);
     if let (Some(corners), Some(tex)) = (body::neck_for_stamp(&v, &pl), scene_tex) {
         // The stamps change only with the picture (its place, its texture, what is shown):
         // kept, so at rest a frame allocates nothing for them.
@@ -388,9 +359,7 @@ pub fn picture(
             painter.add(egui::Shape::Mesh(m));
         }
     }
-    let tt = probe::t0();
     crate::kit::with_brush(&painter, |br| body::live(br, &v, &pl, s));
-    probe::lap("LIVE", tt);
     if moving || (n.live && n.level > 0.0) || hand.1 {
         crate::views::workspace_ticker::moving(
             ui.ctx(),

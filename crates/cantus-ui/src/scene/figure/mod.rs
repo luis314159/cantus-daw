@@ -18,6 +18,7 @@
 
 pub mod cards;
 pub mod cloth; // r42:arcus-polish
+pub mod concert; // r42:arcus-polish3
 pub mod fingers; // r42:arcus-hands
 pub mod grip;
 pub mod live;
@@ -80,6 +81,35 @@ pub fn frames_long(avg_ms: f32, was: bool) -> bool {
         avg_ms > 7.0
     } else {
         avg_ms > 12.0
+    }
+}
+
+/// r42:arcus-polish2 — how the realistic figures are lit (the owner, 2026-11-25: "an
+/// orchestral concert presentation, dramatic, elegant and professional"). A preference of
+/// this machine; the picture is baked again when it changes.
+///
+/// - **Concert** (the default): the stage — warm spots from above and in front, the hall dim
+///   behind, the figure's edge lit from behind (`Room::Stage`).
+/// - **Studio**: the even studio light the pictures had before.
+#[derive(
+    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Lighting {
+    #[default]
+    Concert,
+    Studio,
+}
+
+impl Lighting {
+    pub const ALL: [Lighting; 2] = [Lighting::Concert, Lighting::Studio];
+
+    /// Its name's string key.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Lighting::Concert => "arcus_upper.light.concert",
+            Lighting::Studio => "arcus_upper.light.studio",
+        }
     }
 }
 

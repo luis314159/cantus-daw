@@ -158,7 +158,14 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
         ),
     ));
     // ---- the neck under the board, its heel down to the back's button ----
-    let heel = d.board_w.1 * 1.8;
+    // (r42:arcus-polish3: a violin's or a viola's heel as a luthier cuts it — the neck keeps
+    // its depth to within about 1.8 cm of the body, then curves down to the button; over
+    // the board's width × 1.8, some 7.6 cm, it was already 2.4–3.5 cm deep 2–5 cm out.)
+    let heel = if d.held {
+        1.8 * d.body / 35.6
+    } else {
+        d.board_w.1 * 1.8
+    };
     let base = if d.held {
         (NECK_DEEP.0 * k - thick, NECK_DEEP.1 * k - thick)
     } else {

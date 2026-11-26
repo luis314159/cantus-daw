@@ -98,6 +98,10 @@ pub struct PlayRig {
     /// Left, right.
     pub hands: [Hand; 2],
     pub occluders: Vec<Occluder>,
+    /// r42:arcus-polish3 — each shoulder raised (cm, left and right) by its collarbone's
+    /// turn: a violinist's bow shoulder carries the arm so the hand at the frog is level
+    /// with the elbow, as the photographs show. 0 for a body at rest.
+    pub shrug: [f32; 2],
 }
 
 /// The figure's own turn: its left (+x at rest) to the rig's left, its front to the rig's
@@ -237,6 +241,19 @@ pub fn pose(fig: &Figure, rig: &PlayRig) -> (Posed, f32) {
             x: Some(turn.mul(&g).apply(b[o + FOOT].x)),
             len: None,
         });
+        if rig.shrug[sd].abs() > 1e-3 {
+            // The collarbone turned up about its inner end so its outer end rises.
+            let inner = first.at(o + CLAV, b[o + CLAV].head);
+            let outer = first.at(o + CLAV, b[o + UPPER1].head);
+            let to = outer + UP * rig.shrug[sd];
+            aims[o + CLAV] = Some(Aim {
+                head: None,
+                y: (to - inner).norm(),
+                x: None,
+                len: None,
+            });
+            first = hu::pose(fig, &aims, &root, off);
+        }
         let sh = first.at(o + CLAV, b[o + UPPER1].head);
         let a = arm_for(fig, sd, sh, &rig.hands[sd]);
         arm_aims(fig, &mut aims, sd, &a, sh);

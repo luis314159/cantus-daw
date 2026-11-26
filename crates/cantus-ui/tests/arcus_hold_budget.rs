@@ -8,8 +8,9 @@
 //! five rounds). Two levels (`figure::Quality`, the owner, 2026-11-24: "I'd rather it look
 //! good than save ms, or make it configurable"):
 //!
-//! - **Light** keeps the views' budget: the arms may cost at most 1 ms more than the
-//!   instrument alone at the median, and the slow frames (p95) at most half again plus 1 ms.
+//! - **Light** is the fast path: the arms may cost at most [`LIGHT_MS`] more than the
+//!   instrument alone at the median (the views' +1 ms until r42:arcus-polish2), and the slow
+//!   frames (p95) at most half again plus 1 ms.
 //! - **High** (the default) costs what the full look costs; its measured cost is written
 //!   here as its own ceiling ([`HIGH_CEILING_MS`], with headroom), so it cannot grow
 //!   unnoticed.
@@ -30,10 +31,19 @@ use std::time::Instant;
 /// shadows; measured +1.9 to +3.5 ms at 100 % and +2.2 to +4.1 at 200 % (the realistic
 /// violinists' camera is closer: their hands are drawn larger); the owner allows High
 /// about 4 ms if it buys the look ("I'd rather it look good than save ms").
+///
+/// r42:arcus-polish2 (the owner, 2026-11-25: "no te preocupes por los tiempos, luego
+/// optimizamos o hacemos configurable" — the look first; optimise later, BACKLOG §4b "The
+/// realistic figures' frame cost"): the ceilings are the last measure plus a quarter, so
+/// the test still catches a large regression — High's realistic violinists +4.1 to +5.5 ms
+/// at 100 % and +7.3 to +8.7 at 200 % (release, a machine loaded by two other builds), the
+/// stylised figures up to +1.7, Light up to +1.5.
 const HIGH_CEILING_MS: [f32; 2] = [HIGH_100, HIGH_200];
-const HIGH_100: f32 = 4.0;
-const HIGH_200: f32 = 4.5;
-const HIGH_STYLISED_MS: f32 = 1.6;
+const HIGH_100: f32 = 7.0;
+const HIGH_200: f32 = 11.0;
+const HIGH_STYLISED_MS: f32 = 2.1;
+/// Light's ceiling (was the views' +1 ms; see above).
+const LIGHT_MS: f32 = 1.85;
 
 fn rig(inst: f32, hold: Hold, k: f32, q: Quality) -> (CantusApp, egui::Context) {
     let ctx = egui::Context::default();
@@ -62,9 +72,7 @@ fn frame(app: &mut CantusApp, ctx: &egui::Context, size: egui::Vec2, i: usize) -
     let t0 = Instant::now();
     let mut out = ctx.run_ui(input, |ui| views::inst::window_in(app, ui));
     out.textures_delta.clear();
-    let tt = views::inst::arcus::probe::t0();
     let prims = ctx.tessellate(out.shapes, out.pixels_per_point);
-    views::inst::arcus::probe::lap("TESSELLATE", tt);
     std::hint::black_box(prims);
     t0.elapsed().as_secs_f64() * 1e3
 }
@@ -76,17 +84,7 @@ fn measure(inst: f32, hold: Hold, k: f32, q: Quality) -> (f64, f64) {
     for i in 0..30 {
         let _ = frame(&mut app, &ctx, size, i);
     }
-    let timed = hold != Hold::Air && std::env::var_os("CANTUS_BUDGET_TIMES").is_some();
-    views::inst::arcus::probe::timing(timed);
     let mut ms: Vec<f64> = (30..230).map(|i| frame(&mut app, &ctx, size, i)).collect();
-    if timed {
-        let parts: Vec<String> = views::inst::arcus::probe::times()
-            .iter()
-            .map(|(n, t, c)| format!("{n} {:.3} ms ({:.1}/f)", t / 200.0, *c as f64 / 200.0))
-            .collect();
-        println!("  {hold:?} {q:?} {k}: {}", parts.join(", "));
-        views::inst::arcus::probe::timing(false);
-    }
     ms.sort_by(f64::total_cmp);
     (ms[ms.len() / 2], ms[ms.len() * 95 / 100])
 }
@@ -140,7 +138,7 @@ fn the_figures_live_arms_draw_in_the_frame_budget() {
                     let ceiling = match (q, real) {
                         (Quality::High, true) => f64::from(HIGH_CEILING_MS[ki]),
                         (Quality::High, false) => f64::from(HIGH_STYLISED_MS),
-                        _ => 1.0,
+                        _ => f64::from(LIGHT_MS),
                     };
                     let slow = q == Quality::Light && f95 > r95 * 1.5 + 1.0;
                     if extra > ceiling || slow {

@@ -39,3 +39,7 @@ arcus_upper.eyes = Ojos
 arcus_upper.eyes.closed = Cerrados
 arcus_upper.eyes.open = Abiertos
 arcus_upper.eyes.hint = Los ojos de los músicos: cerrados, como escuchando lo que tocan, o abiertos sobre las cuerdas.
+arcus_upper.light = Luz
+arcus_upper.light.concert = Concierto
+arcus_upper.light.studio = Estudio
+arcus_upper.light.hint = Cómo se ilumina a los músicos: en un escenario de concierto, con focos cálidos desde arriba y la sala en penumbra detrás, o con la luz pareja de un estudio.

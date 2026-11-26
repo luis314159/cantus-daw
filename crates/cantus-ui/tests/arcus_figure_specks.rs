@@ -410,7 +410,6 @@ fn shot(
 }
 
 #[test]
-#[ignore = "open (r42:arcus-polish handoff): 40 strays at this commit, listed there, to be fixed or told apart from detail"]
 fn no_stray_pixels_round_or_on_the_violinists() {
     views::inst::chorda::scene::hybrid::register();
     scene::set_blocking(true);
