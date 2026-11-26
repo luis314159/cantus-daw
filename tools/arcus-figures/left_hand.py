@@ -266,7 +266,9 @@ class Neck:
 # (r42:arcus-hands, the coordinator on sheet hands-1: still hooks — in crop-08 and crop-11
 # each finger is a smooth open arch, the last phalanx coming down nearly straight onto
 # the string: the DIP 5-20 deg on a playing finger, the bend spread over MCP and PIP.)
-PLAY = ((18, 60), (55, 100), (4, 25))
+# (r42:arcus-hands: the PIP to 110 — on the thinner neck, held at 100, the finger turned its
+# plane toward the bridge to reach its string, the index slanting 3.8 cm along the neck.)
+PLAY = ((18, 65), (55, 110), (4, 25))
 HOVER = ((12, 55), (35, 85), (3, 24))
 # Each finger's spread at rest (rad): the index a little toward the scroll, the little
 # finger a little away.
@@ -300,10 +302,12 @@ def PALM_WAY(pose):
 ROLL = (20.0, 26.0)
 # (r42:arcus-hands: 10 — turned 30 deg toward the scroll the hand leant along the neck.)
 YAW = 10.0
-PALM_MIN = 0.996
+PALM_MIN = 0.985
 PALM_W = 150.0
 # Each finger's middle joint over the fingerboard's top (cm): index, middle, ring, little.
-ARCHES = (3.5, 3.8, 3.6, 3.0)
+# (r42:arcus-hands: the photographs' median arch, 1.3 neck thicknesses, on the thinner neck —
+# 2.03 cm deep; 3.5-3.8 held the knuckles 1.9 cm over the fingerboard's top.)
+ARCHES = (2.7, 2.9, 2.8, 2.3)
 # The playing finger's last phalanx within this of the fingerboard's normal (cos 25 deg; was 24 — with the last joint nearly straight, the middle joint takes the
 # bend).
 UPRIGHT_COS = 0.906
@@ -311,7 +315,8 @@ UPRIGHT_COS = 0.906
 # crop-08 and crop-11, so the bend is spread over three joints, not folded at two).
 RISE_COS = 0.64
 # The wrist under the neck (cm across from the E edge, below the top).
-WRIST_X = (0.0, 3.5)
+# (r42:arcus-hands: the photographs' -1.7 … +2.0, as left_hand_refs.md has it; was 0 … 3.5.)
+WRIST_X = (-1.7, 2.0)
 # The wrist's deviation toward the little finger (deg): its range and where it rests.
 # (r42:arcus-hands: 0-14, resting at 9 — the photographs' hand stands steeper than the
 # forearm by 3-23 deg, median ~10; at most 6 the hand could not stand up from the neck;
@@ -329,6 +334,8 @@ HAND_LEN = 7.61
 KNUCKLES_OUT = (0.5, 4.0)
 # The index finger's base against the E side: out from the edge, and its height (cm).
 CROOK_X = 0.85
+# (r42:arcus-hands: 15 — at 5 the upright hand stood its index base 2.3 cm out.)
+CROOK_W = 15.0
 CROOK_Z = (-1.2, 0.3)
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
@@ -346,13 +353,14 @@ UPPER_BELOW = (35.0, 60.0)
 BOUT = (8.5, 12.0)
 CLEAR = 0.4
 HAND_UP = 78.0
+HAND_UP_W = 0.6
 FORE_UP = 64.0
 # r42:arcus-hands — the skin kept out of the instrument as the app draws it
 # (``hand_solid.Solid``: the neck's rounded back, the fingerboard, the strings, the body):
 # the playing fingertip's pad may press its string by PAD_PRESS (the gate: 1 mm), the rest
 # of the hand clears everything by SKIN_GAP, the forearm the body by SLEEVE (its sleeve).
 PAD_PRESS = 0.07
-SKIN_GAP = 0.06
+SKIN_GAP = 0.12
 SLEEVE = 0.35
 PEN_W = 30.0
 # r42:arcus-hands — high up the neck (the owner: "cuando se toca muy cerca del cuerpo del
@@ -496,7 +504,7 @@ class Pose:
         # fingerboard's top.
         base = P[1, 0] * 0.7 + P[1, 1] * 0.3
         qb = loc(base)
-        add("crook_x", 5.0 * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
+        add("crook_x", CROOK_W * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
         # (r42:arcus-hands: high up, over the body, the knuckles and the crook rise with the
         # hand over the upper bout's shoulder — HIGH_RISE at the most.)
         rise = HIGH_RISE * self.high
@@ -517,7 +525,7 @@ class Pose:
         add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6 + 0.2 * hi, 0.3 + 0.3 * hi))
         y12 = self.y12
         yt = y12 if y12 >= self.yh else self.yh - THUMB_LAG * (self.yh - y12)
-        add("thumb_y", 2.0 * over(qt[1] - yt, -0.8, 1.2))
+        add("thumb_y", 4.0 * over(qt[1] - yt, -0.8, 1.2))
         # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
         # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
         # abultada gorda").
@@ -545,7 +553,7 @@ class Pose:
         # hand leant toward the scroll, its fingers crossing the board slantwise, a ring).
         hd = hr.norm((P[2, 0] + P[3, 0]) * 0.5 - W)
         up_h = np.degrees(np.arctan2(hd @ self.z, hd @ (-self.bw)))
-        add("hand_up", 0.6 * over(up_h, HAND_UP - HAND_UP_HIGH * self.high, 100.0))
+        add("hand_up", HAND_UP_W * over(up_h, HAND_UP - HAND_UP_HIGH * self.high, 100.0))
         up_f = np.degrees(np.arctan2(-way @ self.z, -way @ (-self.bw)))
         add("fore_up", 0.4 * over(up_f, FORE_UP - FORE_UP_HIGH * self.high, 100.0))
         if len(x) > 28:

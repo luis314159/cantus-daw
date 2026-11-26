@@ -43,6 +43,8 @@ import thin  # noqa: E402
 
 # The live arms' shortest edge after thinning (cm).
 THIN = 0.62
+# r42:arcus-hands — the phalanges never thinned (1 the first, 3 the last).
+FINGER_KEEP = (1, 2, 3)
 
 # The scene's bones: (name, MakeHuman bones merged into it, parent).
 SIDES = ("L", "R")
@@ -1959,8 +1961,13 @@ def main():
         movable = ((part & 1) == 0) & ((part & 6) != 0)
         # (Never the fingertips: thinned, a fingertip's round pad folded to a point — the
         # owner's review: claws.)
-        tipv = np.array([bone_share(d, tuple(f"f{f}_3.{s_}" for f in range(1, 6)
-                                             for s_ in SIDES)) for d in fig.w])
+        # (r42:arcus-hands: nor any finger — thinned to edges of 6 mm, a phalanx kept one
+        # ring of seven or eight points a joint, so a bent finger folded there as a paper
+        # hinge, kinked and faceted: the owner's "artritis", "dedos muy raros". The fingers
+        # keep MakeHuman's own rings; the palm and the forearm are still thinned.)
+        tipv = np.array([bone_share(d, tuple(f"f{f}_{k}.{s_}" for f in range(1, 6)
+                                             for k in FINGER_KEEP for s_ in SIDES))
+                         for d in fig.w])
         movable &= tipv[fig.tris].max(1) < 0.3
         uv = [fig.uv[:, 0], fig.uv[:, 1]]
         p2, w2, ex, t2, m2, part = thin.thin(fig.pos, fig.w, [fig.lum, fig.red] + uv,
