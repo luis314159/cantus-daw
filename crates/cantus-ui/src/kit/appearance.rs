@@ -50,8 +50,8 @@ pub type PresetEntry = (&'static str, fn() -> Theme);
 /// 2026-11-18), then Slate, then the two optional families; the themes of rounds 24–38,
 /// redrawn in round 39's design system and
 /// under their old ids (`slate` is Pewter and `paper` is Chalk now, the FL-derived pair
-/// renamed); the themes new in round 39; the high-contrast pair.
-pub const PRESETS: [PresetEntry; 24] = [
+/// renamed); the themes new in round 39 and round 42's Violet Paper; the high-contrast pair.
+pub const PRESETS: [PresetEntry; 25] = [
     ("slate_lapis_night", theme::slate_lapis_night),
     ("slate_lapis_paper", theme::slate_lapis_paper),
     ("slate_night", theme::slate_night),
@@ -74,6 +74,7 @@ pub const PRESETS: [PresetEntry; 24] = [
     ("evergreen_paper", crate::theme_added::evergreen_paper),
     ("bordeaux", crate::theme_added::bordeaux),
     ("print", crate::theme_added::print),
+    ("violet_paper", crate::theme_added::violet_paper),
     ("contrast", theme::high_contrast),
     ("contrast_light", theme::high_contrast_light),
 ];

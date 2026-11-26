@@ -996,8 +996,8 @@ use crate::theme_redrawn as redrawn;
 /// families — Slate Lapis the default (Slate in a night-blue room, lapis on the selection
 /// and gold details, to go with the logo's metal; ADR 0111, amended 2026-11-18); Slate,
 /// round 39's default, Graphite and gold and Studio ink as options —; the themes
-/// of rounds 24–38, redrawn in round 39's system; the themes new in round 39; the
-/// high-contrast pair. The tiles are numbered in this order across the groups (their ids,
+/// of rounds 24–38, redrawn in round 39's system; the themes new in round 39 and after
+/// (round 42's Violet Paper); the high-contrast pair. The tiles are numbered in this order across the groups (their ids,
 /// `("look-family", n)`).
 const GROUPS: [(&str, &[Tile]); 4] = [
     (
@@ -1083,6 +1083,10 @@ const GROUPS: [(&str, &[Tile]); 4] = [
             ),
             dark_only("look.family.bordeaux", ("bordeaux", added::bordeaux_tokens)),
             light_only("look.family.print", ("print", added::print_tokens)),
+            light_only(
+                "look.family.violet_paper",
+                ("violet_paper", added::violet_paper_tokens),
+            ),
         ],
     ),
     (

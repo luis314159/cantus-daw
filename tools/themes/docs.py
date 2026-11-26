@@ -90,4 +90,12 @@ ADDED = """//! **Themes new in round 39** (the owner, 2026-11-10: "add more if y
 //!   and one spot of vermilion — every surface a neutral grey, the keys and the selection
 //!   in ink, vermilion for the playhead, the loop, record and clip; the meters in greys;
 //!   the user's colours under a heavier veil; the cables drawn as a printed diagram.
+//!
+//! New in round 42 (the owner, 2026-11-26: "un violet paper theme"):
+//!
+//! - **Violet Paper** (light, Slate's system): a warm lavender sheet — Slate Paper's ladder
+//!   turned to 278° at its own light, a shade under white — violet-grey inks, amethyst on
+//!   the keys, the selection and every selected fill, deep violet readouts, the logo's
+//!   gold on the playhead and the loop; automation in cobalt, so it is never taken for the
+//!   selection.
 """

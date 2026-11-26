@@ -1,6 +1,6 @@
 //! Round 39, *themes*: the ten themes of rounds 24–38 back, redrawn in round 39's design
-//! system, and four new ones (`theme_redrawn.rs`, `theme_added.rs`, made by
-//! `tools/themes/themes.py`). What holds them, beyond what every shipped theme is held to
+//! system, four new ones and round 42's Violet Paper (`theme_redrawn.rs`, `theme_added.rs`,
+//! made by `tools/themes/themes.py`). What holds them, beyond what every shipped theme is held to
 //! (`theme::tests`, `kit::tokens::tests`, the skins' and the views' own per-preset tests):
 //!
 //! - each keeps every promise of the kit as written, and resolves to exactly its tokens;
@@ -70,8 +70,16 @@ const NEW: [Entry; 4] = [
     ("print", added::print, added::print_tokens),
 ];
 
+/// New in round 42 (the owner, 2026-11-26: "un violet paper theme"), made and held as the
+/// round-39 ones are.
+const R42: [Entry; 1] = [(
+    "violet_paper",
+    added::violet_paper,
+    added::violet_paper_tokens,
+)];
+
 fn all() -> impl Iterator<Item = &'static Entry> {
-    RESTORED.iter().chain(NEW.iter())
+    RESTORED.iter().chain(NEW.iter()).chain(R42.iter())
 }
 
 #[test]
@@ -115,6 +123,10 @@ fn every_theme_is_of_round_39_s_system() {
         assert_eq!(t.system.face, System::GRAPHITE.face);
     }
     assert_eq!(added::print_tokens().system.cables, CableStyle::Subway);
+    // Violet Paper: Slate's system (its face, its keys, its cables), light only.
+    let v = added::violet_paper_tokens();
+    assert_eq!(v.system, System::SLATE);
+    assert!(!v.dark);
 }
 
 #[test]

@@ -71,3 +71,6 @@ look.family.evergreen = Siempreverde, Noche · Papel
 look.family.bordeaux = Burdeos
 look.family.print = Imprenta
 look.family.contrast = Alto contraste
+# round 42, violet-paper: Violet Paper, a light theme of its own (Settings ▸ Appearance, the New group).
+theme.violet_paper = Papel violeta (claro)
+look.family.violet_paper = Papel violeta

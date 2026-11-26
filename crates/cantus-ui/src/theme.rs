@@ -516,14 +516,15 @@ pub type Preset = (&'static str, fn() -> Theme);
 /// system ([`crate::theme_redrawn`]: Cantus Night and Paper, Blue Hour and Daylight, Pewter
 /// and Chalk — the FL-derived Slate and Paper renamed —, Ink & Gold and Parchment,
 /// Ultraviolet, Lagoon); the themes new in round 39 ([`crate::theme_added`]: Evergreen Night
-/// and Paper, Bordeaux, Print); and the high-contrast pair for low vision.
+/// and Paper, Bordeaux, Print), and round 42's Violet Paper; and the high-contrast pair for
+/// low vision.
 ///
 /// The constructors of rounds 24–38 as they were ([`cantus_night`], [`slate`], [`paper`],
 /// …, Classic's raised keys and gradients) stay in the code, named nowhere in the interface:
 /// the tests that hold the kit's machinery (the gradients, the materials, the golden
 /// sheets) draw with them, and an old `theme.json` that is exactly one of them is
 /// recognised by them ([`crate::kit::appearance::CLASSIC`]).
-pub const PRESETS: [Preset; 24] = [
+pub const PRESETS: [Preset; 25] = [
     ("theme.slate_lapis_night", slate_lapis_night),
     ("theme.slate_lapis_paper", slate_lapis_paper),
     ("theme.slate_night", slate_night),
@@ -546,6 +547,7 @@ pub const PRESETS: [Preset; 24] = [
     ("theme.evergreen_paper", crate::theme_added::evergreen_paper),
     ("theme.bordeaux", crate::theme_added::bordeaux),
     ("theme.print", crate::theme_added::print),
+    ("theme.violet_paper", crate::theme_added::violet_paper),
     ("theme.contrast", high_contrast),
     ("theme.contrast_light", high_contrast_light),
 ];

@@ -3,8 +3,8 @@
 //! see-through"). Its own test binary: a theme installs the kit's tokens for the process.
 //!
 //! Through `CantusApp::assemble` on a 2 880 × 1 800 screen at Windows' 200 %, in Slate Night,
-//! Slate Paper, Slate (Pewter), Paper (Chalk), Bordeaux, Lagoon, Print and High contrast
-//! light, once the list's opening fade has settled:
+//! Slate Paper, Slate (Pewter), Paper (Chalk), Bordeaux, Lagoon, Print, Violet Paper and High
+//! contrast light, once the list's opening fade has settled:
 //!
 //! - every row's empty right part is **the sheet's colour, opaque** (the theme's menu colour
 //!   in the unit's face, alpha 255) — nothing of the editor under it shows;
@@ -32,7 +32,7 @@ fn with_unda() -> (Project, TrackId) {
     (p, id)
 }
 
-const LOOKS: [&str; 8] = [
+const LOOKS: [&str; 9] = [
     "slate_night",
     "slate_paper",
     "slate",
@@ -40,6 +40,7 @@ const LOOKS: [&str; 8] = [
     "bordeaux",
     "lagoon",
     "print",
+    "violet_paper",
     "contrast_light",
 ];
 
