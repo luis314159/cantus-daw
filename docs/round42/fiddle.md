@@ -382,3 +382,38 @@ The lab, n4-8 re the level (dB):
 Against bite 0, the preset's crescendo gains 0, +1.2, +2.3 and +2.6 dB of noise from p to f.
 Re the level, a louder stroke at one contact is cleaner, and the bite holds the scratch up as
 the bow presses.
+
+### 6.4 The gates (Windows, release)
+
+- `cantus-dsp` `arcus::`: 54 passed, 0 failed (43 ignored probes). Among them:
+  - the same bits at every block size with the fiddle on;
+  - `the_player_off_keeps_pass_six_s_bits` and the held-out pitch gate unchanged;
+  - the new `the_bite_shares_out_the_grit_by_the_dynamic`.
+  Bite only acts where there is grit, which no classical preset and no golden render has, so
+  no golden hash, `LOWER_HASHES` render or held-out row moved. `DSP_VERSION` stays 17
+  (unreleased): only the Fiddle preset sounds otherwise.
+- `cantus-engine`:
+  - `inst_arcus` 9, with the fiddle shape carrying a bite, and the bite without grit added to
+    the defaults' null;
+  - `null_tests` 26;
+  - `arcus_image` 1;
+  - `rt_memory` (arcus) 3, `an_arcus_fiddle_never_allocates` with the bite.
+- `cantus-project`: 222 passed; `schema_85_keeps_arcus_s_strings_under_one_bow` holds the
+  bite (fixture v85 regenerated).
+- `cantus-ui`:
+  - `arcus_fiddle_e2e`, two tests:
+    - the double stop's weaker note −9.4 dB under the stronger (−36.7 without the pair);
+    - F#5 −9.50 cents;
+    - the sympathetic tail +4.2 dB;
+    - the close mic and bridge +18.2 dB at 1.6–3.2 kHz (bridge 1.3);
+    - **the bite through the app**: the noise between the harmonics −28.0, −27.5, −26.5,
+      −26.1 dB at bite 0, 1/3, 2/3, 1;
+  - `arcus_level_e2e` (every bowed preset at one level, the fiddle's included);
+  - `arcus_upper_e2e`.
+- The scratch measures and the owner's report: `tools/arcus/fiddle/fiddle_scratch.py`,
+  `fiddle_analysis.py`, `fiddle_analysis_page.py`, `fiddle_analysis_text.py`, and
+  `$CANTUS_WORK/listen/arcus-analisis/` (index.html, resumen.html).
+- The takes are in `$CANTUS_WORK/listen/fiddle/` (`escuchar.html`). The *Tren* versions are
+  `raspado-antes/`, `raspado-A/`, `raspado-B/` and `raspado-C/`; the dynamic bite is in
+  `ahora/` and `ahora-aeae/`. The demos' `FIDDLE_SET="key=value,…"` sets any keys after the
+  preset.
