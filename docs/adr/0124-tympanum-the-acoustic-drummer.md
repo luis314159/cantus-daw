@@ -505,7 +505,7 @@ step +0.7 dB, the 12″ tom 2.8 dB down from 80 to 96, the jazz ride 5.7 dB quie
 104. Real drummers play mostly there — in the Groove MIDI Dataset the median snare stroke is
 velocity 45 and 41 % of snare strokes are ghost notes — so each table now adds, per velocity, the
 level that brings its first 80 ms to a law: the studio kit's tables to DRSKit's own (as Tympanum's
-recorded path plays it), the jazz kit's to its own made monotone (Virtuosity's 60-dB span from
+recorded path plays it), the jazz kit's to its own made monotone and rising at least 0.1 dB a velocity unit (Virtuosity's 60-dB span from
 16 to 127 is that library's curve, which the jazz kit already follows). The hardest hit keeps its
 calibrated level; each velocity keeps its colour (only the level moves). `tools/tympanum-real/
 law.py` regenerates the table from the `level_law_dump` test whenever the blob changes. The cause
