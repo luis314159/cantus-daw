@@ -122,6 +122,46 @@ occluding capsules in its live painter.
     tie told apart with clean edges (`smooth_tie`, a two-neighbour majority), the suit
     1.2 mm further off the skin (`lift_suit`), and the bow arm's shoulder-band triangles
     the live arm covers or the bake's pose stretches left out of the bake (`emit`).
+    **The hands** (amendment, 2026-11-25, r42:arcus-hands — the owner: "the musicians can
+    still look much, much better… especially the fingers of the hand"; earlier "un
+    desastre", "artritis", "tosca/gorda"; the reference is photographs of professional
+    violinists):
+    - *Proportions.* MakeHuman's index and little fingers were short against the middle
+      (7.7 and 6.0 cm against 8.6 on her; a real hand's index ~0.93 of the middle, the
+      little finger's tip at the ring's last joint) and the little finger's middle phalanx
+      0.49 of its first. Each finger's segments are stretched along their own bones when the
+      figure is built (`build_figures.py::lengthen_fingers`); measured, 1 : 0.57–0.60 :
+      0.55–0.69 (the last to the skin's tip; the bones' 1 : 0.63 : 0.45 plus the pad), the
+      index and the ring 0.90 / 0.94 of the middle, the middle finger 1.13 of the back.
+    - *Form.* The joints fuller than the shafts, each phalanx a little slimmer than the one
+      before, the pad's side flatter than the nail's (a rounded D), the tip's pad full
+      (`slim_fingers`); the nails 0.6–0.75 of the finger's width (`NAIL_ARC`).
+    - *Bending.* A finger posed to a tip bends all three joints, the last following the
+      middle at 0.7 of it (`figure::fingers::curl`, Kapandji; mirrored in `hand_rig.py`):
+      the bow hand's fingers curl round the stick, slanting toward its tip, the knuckles
+      higher over it (`grip::bow_frog`, against Commons "Right hand position on bow.jpg").
+    - *The left hand's table, re-solved* as open arches (the coordinator on sheet hands-1:
+      the fingers read as hooks): the first phalanx leaning over the board toward its string
+      (within 50° of the board's normal, was 31–40°), the middle joint carrying the bend
+      (55–100°), the last nearly straight onto the string (4–25°, was 15–45), the tip within
+      25° of the normal; and the hand and the forearm standing up from the neck as the
+      photographs' front views show them (the table had the hand's line 55° to the neck in
+      the picture, the photographs 70–89°): `HAND_UP`, `FORE_UP`, the wrist's turn toward
+      the little finger 0–12° resting at 8 (the photographs 3–23°, median ~10; the gates
+      `arcus_hold` and `arcus_hand_table` hold it within 16°, was 8), the back turned 10°
+      toward the scroll (was 30°).
+    - *The neck's edge.* A hand patch with some corners behind the neck is drawn in both of
+      the left arm's passes, cut four a side, each small triangle in the pass its own middle
+      belongs to (`CLS_SPLIT`): painted behind whole, the neck's stamp had cut the fingers
+      along their triangles — the dark board-coloured shards and stair-steps.
+    - *Creases* as marks on the skinned surface (`views/inst/arcus_draw_marks.rs`): three
+      over each middle joint, two over each last joint and the thumb's, anchored at rest to
+      the arm's triangles, carried, sorted and hidden with the skin; soft (at most 0.3
+      darker), at least 1.6 px wide, gone below 12 points a centimetre. The per-vertex crease
+      band (dark 1–3 px dashes at 100 %) is gone.
+    - The flat skin round the wrist takes the patches' texture and relief per vertex (a
+      lighter band had marked where the patches end); the patches' corners and edge
+      midpoints are lit once a frame and shared.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

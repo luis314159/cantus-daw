@@ -40,9 +40,9 @@ def g(name, d):
     return P.get(name, d)
 
 
-kc = at(*g('kc', [0.8, 4.0, -1.6]))  # (r42:arcus-hands: grip.rs's)
+kc = at(*g('kc', [0.6, 4.4, -1.2]))  # (r42:arcus-hands: grip.rs's)
 hd = hr.norm(F * g('hdf', 0.8) - U * g('hdu', 0.45) + D * g('hdd', 0.2))
-kx = hr.norm(D - U * g('kxu', 0.3))
+kx = hr.norm(D - U * g('kxu', 0.6))
 wrist = kc - hd * 8.6 * k
 along = g('along', [2.0, 0.5, -1.1, -2.6])
 fingers = []
@@ -54,8 +54,8 @@ for j in range(4):
     elif j == 3:
         mid, tip = at(*g('m3', [u, 1.3, 0.55])), at(*g('t3', [u - 0.2, -0.2, 0.95]))
     else:
-        hang = g('hang', [0.3, 0.5, 0.5])[j]
-        mid, tip = at(u, *g('mid', [1.9, 1.0])), at(u + g('tipu', [1.0, 0.6, 0.2])[j], -hang, g('tipf', 0.2))
+        hang = g('hang', [0.7, 0.6, 0.5])[j]
+        mid, tip = at(u, *g('mid', [2.0, 1.1])), at(u + g('tipu', [1.1, 0.6, 0.2])[j], -hang, g('tipf', 0.1))
     fingers.append([knuckle, mid, mid * 0.45 + tip * 0.55, tip])
 palm = kc - hd * 3.6 * k
 t3 = at(*g('t3t', [0.3, -0.35, -0.45]))

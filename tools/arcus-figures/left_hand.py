@@ -255,9 +255,10 @@ RISE_COS = 0.64
 WRIST_X = (0.0, 3.5)
 # The wrist's deviation toward the little finger (deg): its range and where it rests.
 # (r42:arcus-hands: 0-14, resting at 9 — the photographs' hand stands steeper than the
-# forearm by 3-23 deg, median ~10; at most 6 the hand could not stand up from the neck.)
-WRIST_DEV = (0.0, 14.0)
-WRIST_DEV_MID = 9.0
+# forearm by 3-23 deg, median ~10; at most 6 the hand could not stand up from the neck;
+# the gates hold the wrist within 16.)
+WRIST_DEV = (0.0, 12.0)
+WRIST_DEV_MID = 8.0
 # How far a finger that does not play may hover from over its note (cm).
 HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
 WRIST_Z = (-10.5, -5.0)
@@ -268,8 +269,7 @@ HAND_LEN = 7.61
 # How far out from the E edge the base knuckles stand (cm): beside the neck.
 KNUCKLES_OUT = (0.5, 4.0)
 # The index finger's base against the E side: out from the edge, and its height (cm).
-# (r42:arcus-hands: 1.4, the knuckles a little further out with the hand upright.)
-CROOK_X = 1.4
+CROOK_X = 0.85
 CROOK_Z = (-1.2, 0.3)
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
@@ -279,6 +279,9 @@ THUMB = ((5, 35), (5, 35))
 THUMB_CMC = 30.0
 # r42:arcus-hands — the hand's line (wrist to the middle knuckles) and the forearm's at
 # least this steep to the neck, seen from the E side (deg; left_hand_refs.md).
+# r42:arcus-hands — the upper arm this far below level, shoulder to elbow (deg; the
+# photographs ~52; polish2's tests/arcus_arm_pose.rs holds it within 30-80).
+UPPER_BELOW = (35.0, 60.0)
 HAND_UP = 78.0
 FORE_UP = 64.0
 
@@ -420,6 +423,12 @@ class Pose:
         add("fore_up", 0.4 * over(up_f, FORE_UP, 100.0))
         add("wrist_dev", 1.5 * over(np.degrees(dev), *WRIST_DEV) + 0.05 * (np.degrees(dev) - WRIST_DEV_MID))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
+        # r42:arcus-hands — the upper arm hanging from the shoulder to an elbow under the
+        # violin, not out to the side like a wing (the owner: "ese brazo aún se ve raro";
+        # ref-10: ~52 deg below level; the table had hers at 2 and his at 26).
+        ua = el - self.sh
+        below = np.degrees(np.arcsin(np.clip(-ua[1] / max(np.linalg.norm(ua), 1e-6), -1, 1)))
+        add("elbow_down", 1.0 * over(below, *UPPER_BELOW))
         qe = loc(el)
         add("elbow_y", 1.0 * over(qe[1], 2.0, nk.body - 2.0))
         add("elbow_z", 1.0 * max(0.0, qe[2] + 13.0))

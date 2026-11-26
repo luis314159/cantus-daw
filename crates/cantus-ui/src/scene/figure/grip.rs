@@ -175,14 +175,14 @@ struct BowDesign {
 }
 
 const BOW: BowDesign = BowDesign {
-    kc: [0.8, 4.0, -1.6],
+    kc: [0.6, 4.4, -1.2],
     hd: [0.8, 0.45, 0.2],
-    lean: 0.3,
+    lean: 0.6,
     along: [2.0, 0.5, -1.1, -2.6],
-    mid: [1.9, 1.0],
-    hang: [0.3, 0.5, 0.5],
-    slant: [1.0, 0.6, 0.2],
-    tip_far: 0.2,
+    mid: [2.0, 1.1],
+    hang: [0.7, 0.6, 0.5],
+    slant: [1.1, 0.6, 0.2],
+    tip_far: 0.1,
     little_mid: [-2.2, 2.8, -0.6],
     little_tip: [-2.9, 0.55, 0.0],
     thumb_tip: [0.3, -0.35, -0.45],

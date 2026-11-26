@@ -205,6 +205,9 @@ THUMB_SLIM = 0.92
 # r42:arcus-polish — per finger (MakeHuman's numbering: 3 the middle, 4 the ring, 5 the
 # little), on top of FINGER_SLIM.
 FINGER_EXTRA = {3: 0.9, 4: 0.95, 5: 0.84}
+# r42:arcus-hands — and per figure (her fingers measured 1.4-2.0 cm at the middle joints
+# through the app, a slim woman's 1.4-1.8; his 1.7-2.0, a man's 1.6-2.1).
+FINGER_SEX = {"female": 0.94, "male": 0.97}
 
 
 # r42:arcus-hands — each finger's three segments stretched along their own bones (index,
@@ -250,7 +253,7 @@ def lengthen_fingers(pos, wt, J):
     return out
 
 
-def slim_fingers(pos, wt, J):
+def slim_fingers(pos, wt, J, sex="female"):
     """Each finger's skin drawn in toward its phalanges' axes (by its weight to them), so
     the fingers read slender and long; the bones stay where they are."""
     out = pos.copy()
@@ -259,7 +262,7 @@ def slim_fingers(pos, wt, J):
             # (r42:arcus-polish: the middle and the little finger a little more — measured
             # from the app at their middle joints her 1.9 and 1.8 cm, an adult woman's 1.7
             # and 1.4; tests/arcus_hand_shape.rs.)
-            k_slim = THUMB_SLIM if f == 1 else FINGER_SLIM * FINGER_EXTRA.get(f, 1.0)
+            k_slim = THUMB_SLIM if f == 1 else FINGER_SLIM * FINGER_EXTRA.get(f, 1.0) * FINGER_SEX[sex]
             for k in range(1, 4):
                 bone = f"finger{f}-{k}.{s}"
                 if bone not in wt:
@@ -302,8 +305,8 @@ def slim_fingers(pos, wt, J):
 # r42:arcus-hands — the fingers' joints fuller than their shafts (the share of girth kept
 # at a joint over the finger's, the shafts' over it), how far along a phalanx a joint's
 # fullness reaches, each phalanx's taper toward the tip, and the pad side's flattening.
-JOINT = 1.06
-SHAFT = 0.965
+JOINT = 1.03
+SHAFT = 0.94
 JOINT_W = 0.2
 TAPER = 0.035
 FLAT = 0.12
@@ -1051,7 +1054,7 @@ def make(sex, data, assets):
     pos = close_lids(pos, wt, J)
     pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
     palmar_ways(J)  # r42:arcus-hands
-    pos = slim_fingers(pos, wt, J)
+    pos = slim_fingers(pos, wt, J, sex)
     pos = shape_arms(pos, wt, J, sex)  # r42:arcus-polish
     pos = slim_hand(pos, wt, J)  # r42:arcus-polish
     W = scene_weights(len(pos), wt, m2s)

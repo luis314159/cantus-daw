@@ -1452,23 +1452,6 @@ pub fn arm(
                         };
                     }
                 }
-                // DEBUG-HANDS (taken out before the commit): flat colour per stuff and bone.
-                if show && std::env::var_os("CANTUS_DBG_PARTS").is_some() {
-                    let o = hu::side(s);
-                    let main = |g: usize| fig.bw[g].iter().fold((0u8, -1.0f32), |b, &(x, w)| if w > b.1 { (x, w) } else { b }).0 as usize;
-                    cc = t.map(|i| {
-                        let bone = main(am.verts[i as usize] as usize);
-                        match st {
-                            Stuff::Skin | Stuff::Nail if bone >= o + hu::HAND => Color32::from_rgb(230, 60, 60),
-                            Stuff::Skin | Stuff::Nail => Color32::from_rgb(240, 200, 60),
-                            Stuff::Wool | Stuff::Velvet if bone >= o + hu::HAND => Color32::from_rgb(60, 220, 60),
-                            Stuff::Wool | Stuff::Velvet if bone >= o + hu::FORE1 => Color32::from_rgb(40, 80, 230),
-                            Stuff::Wool | Stuff::Velvet => Color32::from_rgb(40, 200, 220),
-                            Stuff::Shirt => Color32::WHITE,
-                            _ => Color32::from_rgb(200, 0, 200),
-                        }
-                    });
-                }
                 sc.col.push(cc);
             }
         });

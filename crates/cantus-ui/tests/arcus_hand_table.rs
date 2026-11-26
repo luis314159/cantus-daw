@@ -295,12 +295,12 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     worst[0] = worst[0].max(upright);
                     worst[1] = worst[1].max((mcp - 57.5).abs());
                     worst[2] = worst[2].max((pip - 85.0).abs());
-                    worst[3] = worst[3].max((dip - 35.0).abs());
-                    if !(30.0..=80.0).contains(&mcp)
-                        || !(60.0..=110.0).contains(&pip)
-                        // (The little finger, the shortest, may land with its last joint
-                        // near straight, as a violist's often does on a long reach.)
-                        || !((if j == 3 { 0.0 } else { 10.0 })..=60.0).contains(&dip)
+                    worst[3] = worst[3].max((dip - 15.0).abs());
+                    // (r42:arcus-hands: open arches — the last joint nearly straight onto the
+                    // string, 5-20° in crop-08 and crop-11, the middle joint carrying the bend.)
+                    if !(15.0..=80.0).contains(&mcp)
+                        || !(50.0..=110.0).contains(&pip)
+                        || !(0.0..=45.0).contains(&dip)
                         || upright > UPRIGHT
                     {
                         bad.push(format!(
