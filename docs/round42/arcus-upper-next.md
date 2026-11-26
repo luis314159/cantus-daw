@@ -1564,3 +1564,64 @@ budget ran the test binaries and were current. Build the example with `cargo bui
   the rounded neck test (it may be skin now taken for visible behind the neck's heel).
 - Open after this: the `fix` round for the 63 cases, the index's base on the viola, the
   budget at 200 % (the grain adds a noise lookup per hand sample: re-measure).
+
+### Pass 6 (2026-11-26): the table between its rows, the wedge, the last phalanges, the thumb
+
+Work folder: `F:\projects\daw-r42\tmp\hands6\` (`s6\` the table's caches and dump, `fig1\`
+the figures built from this pass's `build_figures.py`, `fig1s\` those with a packed table,
+`z6a\` the first 400 % sheets, `blend6.sh` / `solve6.sh` / `gates.sh` the drivers).
+
+- *The wedge in her palm* (high position, 400 %) was the **body's** hidden test, not pass 5's
+  neck test (`CANTUS_HAND_TUNE` 20 switched the body test off and the wedge went): every
+  skin point under the back plate was taken for hidden, painted before the body's stamp and
+  stamped over with the picture round the body's edge. `hand::hidden_by_body` (in
+  `arcus_draw_hand.rs`, called from `arcus_draw_body.rs::real_left`): hidden only where the
+  ray to the eye crosses the back's or the top's plane inside the body's outline. Gone on
+  her and on him (he had a smaller one). Tune slot 20 no longer does anything.
+- *The last phalanges* (the owner: "las últimas falanges sí se ven un poco largas").
+  `phalanx_ratio.py <figures>` measures, as the app loads them, the joints' spacing, the skin
+  past the DIP, the dorsum's crest-to-crest lengths and the ratios:
+
+  | skin past the DIP / middle phalanx | index | middle | ring | little |
+  |---|---|---|---|---|
+  | her, before | 1.20 | 0.94 | 1.11 | 1.05 |
+  | her, after | 0.95 | 0.82 | 0.92 | 1.00 |
+  | his, before | 1.15 | 0.95 | 1.09 | 1.05 |
+  | his, after | 0.91 | 0.83 | 0.91 | 1.00 |
+  | anatomy (bones; Buryanov & Kotiuk 2010) | 0.6–0.75 | 0.6–0.75 | 0.6–0.75 | ~1 |
+  | dorsum crest-to-crest D/M, her before → after | 1.12 → 0.89 | 1.02 → 0.91 | 0.98 → 0.82 | 1.10 → 1.05 |
+
+  Middle over proximal 0.58 → 0.62 / 0.61 on the index and the ring (anatomy 0.6–0.65), so
+  the index stays 0.90 and the ring 0.94 of the middle finger; the middle finger's MCP-to-tip
+  over wrist-to-MCP her 1.13 → 1.09, his 1.10 → 1.06 (the 1.05–1.1 band). On the skin the
+  pulp and the nail past the bone bring the last segment nearer the middle one than the bones
+  are, still shorter on the first three fingers. The photographs show no finger side-on:
+  crop-08's raised index reads 1.5 (its tip tilted toward the camera), crop-11's index ~1.1 —
+  they do not pin the ratio. (`FINGER_STRETCH`'s last column; the full paper refused an
+  automated fetch, the ranges are the brief's.)
+- *The table between its rows.* Pass 5's rows were each nearly clean; the gate's cases and the
+  app's hand are **blends** of two rows (`neck_hand::row`: the wrist lerped, the turns
+  nlerped, then the shift onto the stop). A thumb under the neck at the 9th semitone and
+  beside the heel at the 12th cut 8–10 mm through the neck between them (the gate's +14 and
+  +17), and 500 of the rows' thirds went into the instrument (up to 20 mm), some rows never
+  clean (a forearm 11–13 mm into the viola's body at the 7th). `blend_check.py <dump>
+  [--mid]` rebuilds the gate's cases in Python (it agrees with `arcus_hand_table` to 0.1 mm)
+  and, with `--mid`, every row and every pair of rows at thirds; `blend_fix.py <dump>
+  --only=<who-inst> --strings=0,1 [--sweeps=2] [--keys=]` solves rows again with their
+  blends' skin (halfway and the thirds either side) held out of the instrument beside their
+  own residuals, on the thinned skin near the instrument, checked on every point; it takes
+  the rows that go in, break `hand_check.py`'s rules, stand the index out or show the thumb.
+  Its caches are `left_hand_cache-<who-inst>-s01blend.json` (sorted after the solve's, before
+  a `fix`'s: do not mix `fix` and `blend_fix` in one folder).
+- *The index's base* on the viola (2.2–3.4 cm out): `left_hand.py::INDEX_OUT` 1.8 cm on the
+  base joint itself (the crook's point a third up the first phalanx stood at 0.85 while the
+  joint stood out).
+- *The thumb past the neck's far side* (the coordinator: a stray fingertip right of the
+  fingerboard in third position). `Pose.peek` measures how far a point stands past the
+  neck's far silhouette from the app's eye (the section polygons as drawn); `thumb_peek`
+  holds the thumb's last joint and tip, with their skin, within `peek_most`: 0.6 cm in first
+  position (crop-08 shows the tip's end over the neck), 0.15 from the 3rd semitone (crop-02,
+  crop-11 show none), +0.2 past the heel. Before: the tip itself 0.8 cm past, its skin ~1.4
+  (median of the rows).
+- *The grain's numbers* are read once a triangle (`skin::Grain::numbers`), not four tune
+  lookups a sample.

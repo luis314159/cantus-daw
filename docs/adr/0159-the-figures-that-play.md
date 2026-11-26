@@ -347,6 +347,13 @@ occluding capsules in its live painter.
       - *The index's base joint within 1.8 cm of the E edge* (`left_hand.py::INDEX_OUT`):
         the crook's point a third up the first phalanx stood at 0.85 cm while the joint, the
         hand upright, stood 2.2–3.4 cm out on the viola low down (the gate's bound 2.2).
+      - *The thumb under the neck's far side from the app's eye* (`left_hand.py::Pose.peek`,
+        `thumb_peek`): the thumb's last joint and tip, with their skin, stand at most 0.6 cm
+        past the neck's far silhouette in first position (crop-08 shows the tip's end over
+        the neck), 0.15 from the 3rd semitone (crop-02 and crop-11 show none), 0.2 more past
+        the heel. The tables' thumb tips had stood ~0.8 cm past it (a stray fingertip beside
+        the fingerboard at 400 %).
+      - *The grain's tuned numbers* are read once a triangle, not once a sample.
       - *The body's hidden test follows the body as drawn* (`hand::hidden_by_body`): skin
         under the back plate is behind the body only where its ray to the eye crosses the
         back's or the top's plane inside the body's outline. Skin whose ray passed beside
