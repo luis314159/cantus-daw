@@ -13,6 +13,8 @@
 # subject is the lab's (`tools/soundlab/subjects/arcus-cello`); the violin's, the viola's and the
 # bass's are this pass's (`subjects/`, the analysis's scratch subjects kept here). Renders and
 # reports go to $CANTUS_WORK/arcus-classical/runs/<run>/ and the lab's own run folders.
+# INSTS (default all four) names the instruments to measure, e.g. INSTS="violin cello";
+# ARCUS_SHAPE=name=value,… is handed to the renders (a stroke shape to try, `shape::Knobs`).
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/../../.." && pwd)
@@ -22,9 +24,14 @@ before=${3:-analisis-clasico}
 work=${CANTUS_WORK:-/f/projects/cantus-work}
 out=$work/arcus-classical/runs/$run
 py=${CANTUS_PY:-/f/projects/cantus-refs/venv/Scripts/python.exe}
+insts=${INSTS:-violin viola cello bass}
 mkdir -p "$out"
-"$bin/arcus_match" render "$out/lower" > "$out/render-lower.log" 2>&1
-"$bin/arcus_upper_listen" "$out/upper" study > "$out/render-upper.log" 2>&1
+case " $insts " in *" cello "* | *" bass "*)
+  "$bin/arcus_match" render "$out/lower" > "$out/render-lower.log" 2>&1 ;;
+esac
+case " $insts " in *" violin "* | *" viola "*)
+  "$bin/arcus_upper_listen" "$out/upper" study > "$out/render-upper.log" 2>&1 ;;
+esac
 subj() {
   case $1 in
     cello) echo "$repo/tools/soundlab/subjects/arcus-cello/subject.json" ;;
@@ -41,11 +48,19 @@ lab() {
   SOUNDLAB_WORKERS=${SOUNDLAB_WORKERS:-2} "$py" -I "$repo/tools/soundlab/lab.py" all "$(subj "$1")" "$run" \
     --from "$(from "$1")" --before "$before" > "$out/lab-$1.log" 2>&1
 }
-lab violin & lab viola & wait
-lab cello & lab bass & wait
+set -- $insts
+while [ $# -gt 0 ]; do
+  lab "$1" &
+  if [ $# -gt 1 ]; then
+    lab "$2" &
+    shift
+  fi
+  shift
+  wait
+done
 sl=$work/soundlab
-"$py" -I "$here/summary.py" "$out/summary.json" \
-  "violin<=$sl/arcus-violin/runs/$before" "violin=$sl/arcus-violin/runs/$run" \
-  "viola<=$sl/arcus-viola/runs/$before" "viola=$sl/arcus-viola/runs/$run" \
-  "cello<=$sl/arcus-cello/runs/$before" "cello=$sl/arcus-cello/runs/$run" \
-  "bass<=$sl/arcus-bass/runs/$before" "bass=$sl/arcus-bass/runs/$run" | tee "$out/summary.txt"
+cols=()
+for i in $insts; do
+  cols+=("$i<=$sl/arcus-$i/runs/$before" "$i=$sl/arcus-$i/runs/$run")
+done
+"$py" -I "$here/summary.py" "$out/summary.json" "${cols[@]}" | tee "$out/summary.txt"

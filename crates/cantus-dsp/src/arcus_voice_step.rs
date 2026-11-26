@@ -255,11 +255,11 @@ impl Voice {
             }
         }
         if self.released && !self.bowing {
-            // r42 arcus-classical: with the player, a string the bow has left rings at its free
-            // decay — the bow's damping is gone (the bowed table's T60 holds it: the violin's G
-            // 0.6 s, its releases 150–260 dB/s against the players' ≤ 60–150) — the family's
-            // measured pluck T60 at the note (`pizz_t60`), never longer than `ring`.
-            if s.player > 0.0 && !plucked && !spec.pizz_t60.is_empty() {
+            // r42 arcus-classical (model 2): a string the bow has left rings at its free decay —
+            // the bow's damping is gone (the bowed table's T60 holds it: the violin's G 0.6 s,
+            // its releases 150–260 dB/s against the players' ≤ 60–150) — the family's measured
+            // pluck T60 at the note (`pizz_t60`), never longer than `ring`.
+            if s.model >= 2 && !plucked && !spec.pizz_t60.is_empty() {
                 let free =
                     super::super::tables::t60_at(spec.pizz_t60, f) * s.decay.max(0.05) as f64;
                 t60 = t60.max(free);
@@ -291,8 +291,12 @@ impl Voice {
             self.shape.step(dt);
         }
         if self.shape.tapered() && matches!(self.phase, Phase::Attack | Phase::Hold) {
+            // The taper has spent `bow.release`'s time: the hair leaves the string as a stopped
+            // bow's does (`STOP_LIFT_S`) — held on at a light force for 0.2 s more it damped the
+            // string it had just eased (the violin's release 140 dB/s against ≤ 77).
             self.phase = Phase::Release;
             self.t = 0;
+            self.stop_lift = true;
         }
         let (kv, dd) = self
             .shape
@@ -386,14 +390,37 @@ impl Voice {
         } else {
             0.0
         };
+        // r42 arcus-classical (model 2): the corner sharpens with the bow's force — Cremer's
+        // rounding of the Helmholtz corner goes as 1/F, so a heavier bow is a brighter one (the
+        // loud cello's octaves 2–3 sat 5–7 dB under the cellos', the bass's top 6–13 dB): the
+        // force now against the mf force of the same bowing, to `bright`'s powers
+        // (`shape::Knobs`), within ×0.5 … ×3 and under 0.4 of the rate.
+        let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+        let mut corner = super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
+            * super::pair::steel_corner(s); // r42 fiddle
+        if s.model >= 2 && !plucked && self.bow_on && knobs.bright != (0.0, 0.0) {
+            let f_mf = bowing(
+                spec,
+                0.5,
+                pos as f64,
+                s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f),
+                (s.bow_speed * spd) as f64
+                    * super::super::upper::speed_scale(self.inst, st.open_hz(), f),
+                st.z0(),
+                sr as f64 / f,
+            )
+            .force;
+            let r = (self.force as f64 / f_mf.max(1e-6)).max(1e-3);
+            let g = if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
+            corner = (corner * math::powf(r, g as f64).clamp(0.5, 3.0)).min(0.4 * sr as f64);
+        }
         let step = StringStep {
             f0: f * math::exp2(-corr / 1200.0),
             t60,
             p: p_loss,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
-            corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
-                * super::pair::steel_corner(s), // r42 fiddle
+            corner_hz: corner,
         };
         if self.first {
             self.string.start(st.z0() as f32, &step, true);

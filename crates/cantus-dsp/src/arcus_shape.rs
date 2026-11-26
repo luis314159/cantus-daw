@@ -65,6 +65,10 @@ pub struct Knobs {
     /// 0.04–0.12 s (median; up to 0.25 s); Arcus's ran on from the last note, at 0 s.
     pub vib_back_s: (f32, f32),
     pub vib_floor: f32,
+    /// The string's, not the player's (model 2; here so the tools can try it): how the bridge's
+    /// corner (`InstrumentSpec::corner_hz`) moves with the bow's force against the same bowing's
+    /// mf force — its power above and below (0: the corner fixed, as before).
+    pub bright: (f32, f32),
 }
 
 /// The measured shape (`docs/round42/arcus-classical.md`).
@@ -84,6 +88,7 @@ pub const KNOBS: Knobs = Knobs {
     taper_k: 1.5,
     vib_back_s: (0.08, 0.38),
     vib_floor: 0.1,
+    bright: (0.0, 0.0),
 };
 
 impl Knobs {
@@ -121,6 +126,8 @@ impl Knobs {
                 "vib_back_a" => self.vib_back_s.0 = v,
                 "vib_back_b" => self.vib_back_s.1 = v,
                 "vib_floor" => self.vib_floor = v,
+                "bright_hi" => self.bright.0 = v,
+                "bright_lo" => self.bright.1 = v,
                 _ => {}
             }
         }
