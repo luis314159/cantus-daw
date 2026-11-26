@@ -250,8 +250,57 @@ FINGER_SEX = {"female": 1.03, "male": 1.03}
 # first three. Now the skin past the DIP ~0.95 / 0.82 / 0.92 / 1.0 of the middle phalanx,
 # the index's and the ring's middle phalanges 0.62 / 0.61 of the first (so they stay 0.9 and
 # 0.94 of the middle finger), the middle finger's MCP-to-tip 1.10 of wrist-to-MCP (was 1.13).)
-FINGER_STRETCH = {2: (1.08, 1.08, 0.855), 3: (1.04, 1.0, 0.875), 4: (1.04, 1.05, 0.87),
-                  5: (1.03, 1.25, 0.95)}
+# (r42:arcus-hands, pass 6, second step — the owner: "compararlas con tamaños promedio para
+# el tamaño del músico". `hand_anthro.py` sets the hands against ANSUR II's regressions on
+# stature (Gordon et al. 2014; her 160.3 cm, his 173.2) and Chatzioglou, Pinar & Govsa 2024's
+# finger lengths: the hand's length was in (her 33rd percentile, his 54th) but the fingers
+# long for it — the middle finger 0.421 / 0.419 of the hand's length, ANSUR's 0.399 ± 0.019 /
+# 0.397 ± 0.020 (87th / 86th percentile) — and the palm short (11th / 22nd) and narrow (0th /
+# 4th: `hand_rig.py::PALM_SLIM`). So the first phalanges of the middle, ring and little
+# fingers are no longer stretched, the last segments shorter again (index 0.77, middle 0.83,
+# ring 0.80 of MakeHuman's — the bones' distal/middle within 0.6-0.75 counting ~3 mm of pulp
+# past the tuft) and the palm a little longer (`PALM_STRETCH`).)
+FINGER_STRETCH = {2: (1.045, 1.08, 0.772), 3: (1.005, 1.0, 0.833), 4: (1.0, 1.015, 0.80),
+                  5: (1.0, 1.25, 0.95)}
+# r42:arcus-hands, pass 6 — the metacarpals lengthened (cm, as built; the app's hand scale
+# then 1.08 hers, 0.93 his) and the fingers carried out with them.
+PALM_STRETCH = {"female": 0.32, "male": 0.34}
+
+
+def lengthen_palm(pos, wt, J, sex):
+    """r42:arcus-hands, pass 6 — ``PALM_STRETCH``: each metacarpal (index … little)
+    lengthened along itself, its skin stretched with it (by its weight) and its finger's
+    joints and skin carried out by the same amount; ``J`` is updated in place."""
+    out = pos.copy()
+    d_len = PALM_STRETCH[sex]
+    for s in SIDES:
+        for m in range(1, 5):
+            mc = f"metacarpal{m}.{s}"
+            if mc not in wt or f"{mc}____head" not in J:
+                continue
+            h, t = J[f"{mc}____head"].copy(), J[f"{mc}____tail"].copy()
+            a = t - h
+            L = max(np.linalg.norm(a), 1e-9)
+            a = a / L
+            d = a * d_len
+            ids = np.array([i for i, _ in wt[mc] if i < len(pos)])
+            w = np.array([x for i, x in wt[mc] if i < len(pos)])
+            if len(ids):
+                u = np.clip((pos[ids] - h) @ a, 0.0, L)
+                out[ids] += (u / L)[:, None] * d[None, :] * w[:, None]
+            for k in (1, 2, 3):
+                n = f"finger{m + 1}-{k}.{s}"
+                if n not in wt:
+                    continue
+                ids = np.array([i for i, _ in wt[n] if i < len(pos)])
+                w = np.array([x for i, x in wt[n] if i < len(pos)])
+                if len(ids):
+                    out[ids] += d[None, :] * w[:, None]
+                for e in ("head", "tail"):
+                    if f"{n}____{e}" in J:
+                        J[f"{n}____{e}"] = J[f"{n}____{e}"] + d
+            J[f"{mc}____tail"] = t + d
+    return out
 
 
 def lengthen_fingers(pos, wt, J):
@@ -1430,6 +1479,7 @@ def make(sex, data, assets):
     pos = shaped(base, data, sex, mix)
     J = mh.joint_positions(sk, pos)
     pos = close_lids(pos, wt, J)
+    pos = lengthen_palm(pos, wt, J, sex)  # r42:arcus-hands, pass 6
     pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
     palmar_ways(J)  # r42:arcus-hands
     pos = slim_fingers(pos, wt, J, sex)
