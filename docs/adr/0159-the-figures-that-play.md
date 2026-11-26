@@ -269,6 +269,23 @@ occluding capsules in its live painter.
   - **The polish, pass 2** (amendment, 2026-11-25, r42:arcus-polish2 — the owner: "the
     musicians can still look much, much better"; then "no te preocupes por los tiempos,
     luego optimizamos o hacemos configurable": the look first):
+    - **The hold and the arms** (the owner on sheet v12: "ese brazo aún se ve raro"; the
+      coordinator's measure of `refs-violin`). The realistic violinists hold the violin
+      and the viola with the scroll 3° under level, not 18° over it (side views put it
+      0–9° under the chin's end), the top still turned ~35° toward the E side, the end
+      button pinned at the neck so the chin keeps its rest (`bowed_upper::held_real`,
+      chosen by `bowed_hold::pose` for the woman and the man; the stylised musician and
+      the mannequin keep `held`); the bow arm's elbow falls out to the side
+      (`BOW_POLE`). `tests/arcus_arm_pose.rs` measures the drawn joints on the screen with
+      the bow at 0.3, 0.55 and 0.8 of its length against front photographs (ref-06,
+      ref-10: at the frog the upper arm 69–77° under level, the elbow's corner 55–65°, the
+      elbow level with the hand): ours 63–89° and 57–98° at 0.3, the elbow opening toward
+      the tip; the left upper arm 30–80° under level, its elbow under the violin's body.
+      **Open**: the bow hand still sits 1.1–1.4 upper arms over the elbow at 0.3 (the
+      photographs': level) and over the shoulder nearer the frog — the strings stand
+      higher over the bow shoulder than a player's; the skeleton's shoulder and
+      collarbone heights are the next lever. The left elbow is the left-hand table's
+      (arcus-hands' `left_hand.py`), re-solved on this hold.
     - **The shoulders' band.** Where an arm's part meets the body (the band, in both parts)
       the live arm fades into the baked body. The bake poses the band with the arms at rest;
       the live arm poses it raised, so the faded live triangles stood off the baked ones —

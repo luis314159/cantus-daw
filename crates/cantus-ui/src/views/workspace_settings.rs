@@ -782,6 +782,24 @@ fn look(app: &mut CantusApp, ui: &mut Ui) {
         w::row_label(ui, "", LABEL_W, 18.0);
         ui.vertical(|ui| note(ui, &t("arcus_upper.eyes.hint"), false));
     });
+    // How the realistic figures are lit (the owner, 2026-11-25). r42:arcus-polish2
+    ui.horizontal(|ui| {
+        w::row_label(ui, "arcus_upper.light", LABEL_W, 24.0);
+        use crate::scene::figure::Lighting;
+        let mut sel = Lighting::ALL
+            .iter()
+            .position(|l| *l == app.settings.figure_light)
+            .unwrap_or(0);
+        let labels = Lighting::ALL.map(|l| Src::Key(l.label_key()));
+        if segmented(ui, &mut sel, &labels, &t("arcus_upper.light"), 160.0).changed() {
+            app.settings.figure_light = Lighting::ALL[sel];
+            app.store_settings();
+        }
+    });
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 18.0);
+        ui.vertical(|ui| note(ui, &t("arcus_upper.light.hint"), false));
+    });
     ui.horizontal(|ui| {
         w::row_label(ui, "settings.colours", LABEL_W, 24.0);
         if w::button(ui, Src::Key("settings.edit_colours"), 0.0, true).clicked() {

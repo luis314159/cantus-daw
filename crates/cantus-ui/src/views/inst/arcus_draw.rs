@@ -245,13 +245,21 @@ pub fn scene_view(
     fs: &ArcusSettings,
     s: &Style,
     holder: crate::scene::bowed_hold::Holder, // r42:arcus-upper
+    light: crate::scene::figure::Lighting,    // r42:arcus-polish2
 ) -> crate::scene::SceneView {
+    // r42:arcus-polish2 — a realistic figure on the concert stage unless Studio is chosen.
+    let concert = light == crate::scene::figure::Lighting::Concert
+        && crate::scene::bowed_human::who(holder.hold).is_some();
     crate::scene::SceneView {
         subject: crate::scene::Subject::Bowed {
             instrument: bowed_of(fs),
             holder, // r42:arcus-upper
         },
-        room: crate::scene::Room::Studio,
+        room: if concert {
+            crate::scene::Room::Stage
+        } else {
+            crate::scene::Room::Studio
+        },
         look: Default::default(),
         dark: s.t.dark,
         selected: None,
@@ -286,7 +294,7 @@ pub fn picture(
         eyes: app.settings.figure_eyes,
         ..holder
     };
-    let view = scene_view(fs, s, holder); // r42:arcus-upper
+    let view = scene_view(fs, s, holder, app.settings.figure_light); // r42:arcus-upper
     let painter = ui.painter_at(d);
     let time = ui.input(|i| i.time);
     let entry = app

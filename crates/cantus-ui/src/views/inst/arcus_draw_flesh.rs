@@ -1599,9 +1599,10 @@ pub fn arm(
                                 return o;
                             }
                             let m = m.normalized();
-                            // (A sharp turn keeps the edge's own way: a long miter spikes.)
+                            // (A sharp turn keeps the edge's own way: a long miter spikes —
+                            // and reached past the neck's stamp over a cello's neck.)
                             let c = m.dot(o);
-                            if c < 0.5 {
+                            if c < 0.8 {
                                 o
                             } else {
                                 m / c

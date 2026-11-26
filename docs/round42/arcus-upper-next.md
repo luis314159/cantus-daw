@@ -919,3 +919,63 @@ the offline palm thinning (`build_figures.py::slim_hand`, `PALM_VOLAR`) narrows 
 the camera — handed to the arcus-hands builder, who now owns the hands. Clippy 
 (`-p cantus-ui --all-targets -D warnings`): one finding fixed (`cloth::contact`'s loop), 
 re-run at the session's end (see the final commit).
+
+## arcus-polish2 (2026-11-25): the musicians' polish, pass 2
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from bffb9f682. The
+owner: "the musicians can still look much, much better"; mid-session "no te preocupes por los
+tiempos, luego optimizamos o hacemos configurable" (the look first) and, on sheet v12, "ese
+brazo aún se ve raro". ADR 0159 amended ("The polish, pass 2"). Sheets: v13
+(`docs/round42/arcus-upper/sheet-v13-polish2/`, the app's own renders; before = sheet v11's
+after) and the arms beside photographs in `F:\projects\daw-r42\tmp\polish2-arms\` (never
+committed).
+
+**How to tune without rebuilding** (a release build of cantus-ui takes 20–35 minutes with
+three builders on the machine): `CANTUS_HELD="tx,ty,tz,ux,uy,uz,dx,dy,dz"` (the realistic
+violinists' hold), `CANTUS_ARM_POLE_BOW` / `CANTUS_ARM_POLE_LEFT="down,right,forward"`, read
+once per process by `shoot_arcus` and the tests; `tests/arcus_arm_pose.rs --nocapture`
+prints the arms' screen angles along the stroke.
+
+**Done** (where):
+1. *The frame budget* (stopped by the owner's decision after the profile; ADR 0159 "The
+   polish's cost", BACKLOG §4b "The realistic figures' frame cost" with the profile and the
+   levers): the trunk's shadow from the arm's three pieces, the lighting table borrowed once a
+   loop, the left arm's two passes sharing their classes. `arcus_figure_auto` (new) holds
+   Light's coarse arms and Auto's step down on long frames and back.
+2. *The shoulders*: the band where each arm meets the body keeps the bake's surface until the
+   live arm is opaque, then turns with the arm (`BAND_TURN`; `ARM_COVERS` 0.38) — her
+   bow-side shards gone in both looks; dual-quaternion skinning of the live arms; the bow
+   band's turned-away faces drawn as the cloth's inside near the shoulder (the bake's gap).
+3. *Sleeves*: a sleeve's vertices follow the forearm (no twist with the wrist); the cuff's
+   inside lit as the sleeve's own (no black ring); the sleeve's end shades the wrist
+   (`cuff_shadow`); over-stretched sleeve triangles outside the band left out.
+4. *Antialiasing*: the live outline's strips mitred and drawn halfway toward the inner
+   corner's colour (the dotted rim lines); strings even in both looks (`Geo::wires`,
+   `WIRE_PX`; `TubeOpts::flat`).
+5. *Hair*: hers along the strands only (roots by the hairline, underlayer, lighter lengths;
+   the isotropic "sections" were tried and removed — camouflage), her baby hairs and
+   flyaways (`Role::Wisp`); his warm broken band, his hairline feathered; Drawn: the pink
+   hairline stripe gone, a darker underlayer, strand lines.
+6. *Details*: his tie knot (`tie_knot`), the suit's part lines smoothed (`smooth_borders`),
+   the shade under cloth edges (`under_edges`, `Tex::Shirt`), the tie matte; the lids'
+   crease, lash line and lash shadow (`lid_shade`); gold earrings; rosin dust
+   (`with_rosin`); cloth edge rolls over a centimetre.
+7. *The hold* (03888c909, its own commit): the scroll 3° under level, the end button pinned;
+   the bow elbow's pole; `tests/arcus_arm_pose.rs`.
+
+**Open** (in the order the owner will see them):
+1. *The bow hand's height*: at 0.3 of the bow the hand sits 1.1–1.4 upper arms over the elbow
+   (photographs: level), and over the shoulder nearer the frog. The strings stand higher over
+   the bow shoulder than a player's: the skeleton's shoulder and collarbone heights
+   (`bowed_figure::skeleton`) are the next lever; re-run `arcus_arm_pose` and every hold gate.
+2. *The left elbow*: from the left-hand table (arcus-hands' `left_hand.py`), to be re-solved
+   on the new hold (`arcus_hold`'s "Violin Man 12 st: elbow 49°" until then).
+3. *The stray-pixel gate*: see the final report for the count at the end; the hands' strays
+   are arcus-hands' (creases, notches between fingers).
+4. *Collar thickness*: the collar is painted on the suit's surface (no geometry of its own):
+   the shade under its edge needs a modelled collar band (raised shirt vertices round the
+   neck) — not done.
+5. *Fabric seams* (the dress's princess seams, the jacket's sleeve head): `cloth::fold`'s
+   seam code exists, no data assigns it — not done.
+6. The temporary timing probes (`probe::t0/lap`) and the debug tints (`CANTUS_ARM_DEBUG`)
+   — see the final commit (taken out or kept as documented aids).
