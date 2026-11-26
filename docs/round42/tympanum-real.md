@@ -111,7 +111,7 @@ velocities before anything changed.
    follows a law (`pulsus_measured_law.rs`, written by `law.py`): the studio kit's DRSKit's, the
    jazz kit's its own made monotone; the hardest hit unchanged. After: every table grows at every
    step (the dump at 17 velocities; the jazz ride flat within 0.7 dB above 104). Weighted measures
-   outside the recorded kits' range: **studio 22.9 → 13.3, jazz 38.1 → 22.6**; no step falls.
+   outside the recorded kits' range (with the burst below): **studio 23.2 → 13.7, jazz 38.1 → 25.7**; no step falls; the jazz toms' 0–3 ms centroid at the hardest 4 875 → 1 745 Hz (the recordings 549–2 083).
 2. **The jazz rack toms' attack (changed).** Table 22 alone had a stick burst; its first 3 ms
    ranged 0.4–10 kHz from take to take at one velocity (Virtuosity's own tom 1.3–2.1 kHz, every
    recorded tom 0.4–2.1 kHz). `BURST` scales it to 0; the knock stays.

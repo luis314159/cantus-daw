@@ -520,8 +520,8 @@ without CC4 plays it, 241 ms at 8 kHz against the recordings' 193–224); bright
 level holds for kick, toms and cymbals but not for a snare (four of seven recorded snares are
 brighter soft — the wires dominate a ghost note).
 
-**Consequences.** The weighted measures outside the recorded kits' range: studio 22.9 → 13.3,
-jazz 38.1 → 22.6 (before the burst); no velocity step falls. Pulsus never plays model 5: no Pulsus
+**Consequences.** The weighted measures outside the recorded kits' range: studio 23.2 → 13.7,
+jazz 38.1 → 25.7; no velocity step falls. Pulsus never plays model 5: no Pulsus
 song changes and no golden hash holds Tympanum. Open (the doc's list): the grooves' crest 2–10 dB
 above the recordings', the 1 kHz band, the jazz closed hat's take-to-take variation, brushes,
 per-genre kits measured off Aasimonster / Gogodze / Big Rusty, strike position measured with the
