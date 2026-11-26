@@ -119,6 +119,21 @@ fn grit_gain(grit: f32, f: f32, f_max: f32, beta: f32) -> f32 {
     math::db_to_gain(grit.clamp(0.0, 2.0) * (GRIT_F_DB * by_f + GRIT_B_DB * by_b))
 }
 
+/// r42 fiddle — the bite's dynamics: a note's share of the grit rises smoothly from none at
+/// the dynamic `BITE_D0` to all of it at `BITE_D1` (at `bow.bite` 1 twice as fast). Chosen
+/// on the owner's three takes (2026-11-26): the demos' ordinary notes (velocity 84–92,
+/// the dynamic 0.66–0.72) then sit at take C's grit (0.4 of the preset's 0.75 at bite 0.5),
+/// the soft ones at B's (none) and the accents at A's (all).
+pub(super) const BITE_D0: f32 = 0.4;
+pub(super) const BITE_D1: f32 = 0.9;
+
+/// r42 fiddle — the share of the grit a note at the dynamic `d` gets at the bite `bite`:
+/// `min(1, 2·bite·w(d))`, `w` a smoothstep from `BITE_D0` to `BITE_D1`.
+pub(super) fn bite_share(bite: f32, d: f32) -> f32 {
+    let w = smooth((d - BITE_D0) / (BITE_D1 - BITE_D0));
+    (2.0 * bite.clamp(0.0, 1.0) * w).min(1.0)
+}
+
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
     x * x * (3.0 - 2.0 * x)
@@ -344,10 +359,17 @@ impl Voice {
         if self.bow_on && s.bow_noise_db > -60.0 {
             // r42 arcus-classical: the hair's noise rides the shape's speed (the friction's
             // roughness goes with the force, and the force with the speed; exactly 1 unshaped).
-            let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
-                                                                                                   // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+            let mut lvl =
+                ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
+            // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+            // The bite gives each note its share of it by the dynamic (a chop all of it).
             if s.grit > 0.0 {
-                lvl *= grit_gain(s.grit, self.force, self.f_max, self.beta);
+                let share = if self.tech == NoteTech::Chop {
+                    1.0
+                } else {
+                    bite_share(s.bite, self.d)
+                };
+                lvl *= grit_gain(s.grit * share, self.force, self.f_max, self.beta);
             }
             // r42 fiddle: the chop's scratch while the bow presses.
             if self.tech == NoteTech::Chop && matches!(self.phase, Phase::Attack | Phase::Hold) {

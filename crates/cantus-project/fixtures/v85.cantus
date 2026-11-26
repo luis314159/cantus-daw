@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 85,
   "app_version": "fixture",
-  "saved_at": 1795692048,
+  "saved_at": 1795708681,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3091,7 +3091,6 @@
           "type": "Native",
           "kind": "Chorda",
           "params": {
-            "colour": 0.6,
             "model": 2.0,
             "o3.level": -3.0,
             "rec.z0.lo": 60.0
@@ -3529,6 +3528,7 @@
           "params": {
             "body.bridge": 1.0,
             "body.mic": 1.0,
+            "bow.bite": 0.7,
             "bow.grit": 1.0,
             "bow.pair": 1.0,
             "bow.tilt": 0.6,
@@ -3852,7 +3852,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "d48a5110a4b2b0e016f497cf1f60dbdc11cd72e155aa590ae7bb0c286064340b"
+          "content": "7ef334d91c1c45fc7cfb3987c56bec70b28e70fdb48c2d558a83b620bf7d4b81"
         }
       },
       {
@@ -7713,5 +7713,5 @@
     },
     "next_id": 155
   },
-  "integrity": "3e23d959c6d2f4958f4890d3ef1eb14272c8a9d3b777486bc4275b60b9bfdfc8"
+  "integrity": "89a3ccafba254b42849f899f84fdd5aceb5e4f39fc0d1f9c95cb65d470eb15ba"
 }

@@ -1900,6 +1900,7 @@ mod tests {
             "bow.tilt",
             "dstop.just",
             "bow.grit",
+            "bow.bite",
             "sym",
             "steel",
             "tuning.strings",
@@ -1907,10 +1908,10 @@ mod tests {
             "body.bridge",
         ];
         let got: Vec<f32> = keys.iter().map(|k| s.get(k)).collect();
-        assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 1.2, 1.0, 1.0, 1.0, 1.0]);
+        assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 0.7, 1.2, 1.0, 1.0, 1.0, 1.0]);
         let (_, old) = arcus("v83.cantus");
         let got: Vec<f32> = keys.iter().map(|k| old.get(k)).collect();
-        assert_eq!(got, vec![0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+        assert_eq!(got, vec![0.0, 0.5, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0]);
     }
 
     /// r42 arcus-expr — Schema 83 (ADR 0162): the fixture's second note keeps its bow start,

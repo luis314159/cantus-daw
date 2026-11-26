@@ -2167,6 +2167,7 @@ fn main() {
                 ("bow.tilt", 0.6),
                 ("dstop.just", 0.6),
                 ("bow.grit", 1.0),
+                ("bow.bite", 0.7),
                 ("sym", 1.2),
                 ("steel", 1.0),
                 ("tuning.strings", 1.0),

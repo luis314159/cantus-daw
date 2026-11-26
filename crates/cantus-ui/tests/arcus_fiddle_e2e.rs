@@ -208,3 +208,90 @@ fn the_fiddle_bows_two_strings_with_one_bow_and_rings_through_the_app() {
     println!("the 1.6–3.2 kHz band with one close mic and a fiddle's bridge: {lift:+.1} dB");
     assert!(lift > 3.0, "{lift:+.1} dB");
 }
+
+/// The aperiodic share of `x` over `from…to` s: the residual of the signal against itself one
+/// period later (the period searched in 0.01-sample steps around `SR / f0`, the delayed copy
+/// read by a four-point Lagrange interpolation), over both copies' energy — YIN's d', the
+/// noise between the harmonics (a strict period → 0, noise → 1).
+fn aperiodic(x: &[f32], f0: f64, from: f64, to: f64) -> f64 {
+    let (a, b) = ((from * SR) as usize, (to * SR) as usize);
+    let at = |t: f64| {
+        let i = t.floor() as usize;
+        let u = t - i as f64;
+        let p = |k: usize| x[k] as f64;
+        let (y0, y1, y2, y3) = (p(i - 1), p(i), p(i + 1), p(i + 2));
+        y1 + u
+            * ((y2 - y0) / 2.0
+                + u * ((2.0 * y0 - 5.0 * y1 + 4.0 * y2 - y3) / 2.0
+                    + u * (3.0 * (y1 - y2) + y3 - y0) / 2.0))
+    };
+    let t0 = SR / f0;
+    let mut best = f64::MAX;
+    let mut k = -50;
+    while k <= 50 {
+        let t = t0 * (1.0 + k as f64 * 1e-4);
+        let (mut d, mut e) = (0.0, 0.0);
+        for (n, v) in x.iter().enumerate().take(b).skip(a) {
+            let (p, q) = (*v as f64, at(n as f64 + t));
+            d += (p - q) * (p - q);
+            e += p * p + q * q;
+        }
+        best = best.min(d / e.max(1e-30));
+        k += 1;
+    }
+    best
+}
+
+/// r42 fiddle — the bite (`bow.bite`), moved through the app by its command as the knob, an
+/// automation lane or a learned controller moves it: one held B4 at an ordinary dynamic
+/// (velocity 76) on the *Fiddle* preset, its vibrato off so the period holds still. The noise
+/// between the harmonics rises with every step of the bite (0 → 1/3 → 2/3 → 1), and the bite
+/// is a key a lane, a learned controller and a modulator may drive.
+#[test]
+fn the_bite_raises_the_noise_between_the_harmonics_through_the_app() {
+    assert!(InstrumentKind::BowedString.automatable("bow.bite"));
+    assert!(InstrumentKind::BowedString.modulatable("bow.bite"));
+    let take = |bite: f32| {
+        let data = tempfile::tempdir().unwrap();
+        let (mut app, mut proc_) = app_with_song(data.path());
+        let purpose = PickPurpose::AddInstrument { index: None };
+        app.open_picker(purpose.clone());
+        app.apply_pick(purpose, PickChoice::Instrument(InstrumentKind::BowedString));
+        app.picker = None;
+        let track = app.project().tracks.last().unwrap().id;
+        app.open_preset_browser(Target::Track(track));
+        assert!(app.apply_preset_id("arcus.preset.violin_fiddle"));
+        app.close_preset_browser();
+        for (key, value) in [("vib.depth", 0.0), ("bow.bite", bite)] {
+            assert!(app.exec(Command::SetInstrumentValue {
+                track,
+                key: key.into(),
+                value,
+            }));
+        }
+        let mut p = app.project().clone();
+        let mut c = p.make_clip("Fiddle", Ticks(PPQ / 2), Ticks::beats(2));
+        c.notes
+            .push(p.make_note(Ticks::ZERO, Ticks(PPQ * 3 / 2), 71, 76));
+        assert!(app.exec(Command::InsertClip {
+            track,
+            clip: Box::new(c)
+        }));
+        assert!(app.exec(Command::SetTempo { bpm: 60.0 }));
+        let out = play(&mut app, &mut proc_, 3);
+        assert!(out.iter().all(|x| x.is_finite()));
+        let b4 = 440.0 * cantus_dsp::math::exp2(2.0 / 12.0);
+        let f0 = peak_hz(&out, b4, 1.0, 1.8);
+        aperiodic(&out, f0, 1.0, 1.8)
+    };
+    let r: Vec<f64> = [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]
+        .iter()
+        .map(|b| take(*b))
+        .collect();
+    let db: Vec<f64> = r.iter().map(|v| 10.0 * v.max(1e-12).log10()).collect();
+    println!("the noise between the harmonics at bite 0, 1/3, 2/3, 1: {db:.1?} dB");
+    for w in db.windows(2) {
+        assert!(w[1] > w[0], "the noise rises with the bite: {db:.1?}");
+    }
+    assert!(db[3] - db[0] > 1.0, "the bite is heard: {db:.1?}");
+}
