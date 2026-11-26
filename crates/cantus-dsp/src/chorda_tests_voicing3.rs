@@ -251,10 +251,15 @@ fn rests(mut c: Chorda) {
 /// default, and its bits are the same.
 const MODEL_2_BETA14: u64 = 0x663b_f285_d17a_ebdd;
 
-/// Model 2 as it ships since `DSP_VERSION` 16 (round 42: candidate 17 over the unison pass,
+/// Model 2 as it ships since `DSP_VERSION` 18 (round 42: candidate 18 over candidate 17,
 /// a new unit's own voicing with no `set_voicing`), on its own keyboard, hashed — the same
 /// phrase as [`MODEL_2_BETA14`]'s.
-const MODEL_2_SHIPPED: u64 = 0x9fe3_49b2_b228_bc8f;
+const MODEL_2_SHIPPED: u64 = 0xb19b_545c_67c3_0ee9;
+
+/// Model 2 at candidate 17 (`DSP_VERSION` 16, as the owner's blind kit 17 played it) — the
+/// hash `MODEL_2_SHIPPED` held then; since `DSP_VERSION` 18 it is named ([`Voicing::c17`])
+/// and its bits are the same.
+const MODEL_2_C17: u64 = 0x9fe3_49b2_b228_bc8f;
 
 /// Model 2 at the unison pass as it shipped from `DSP_VERSION` 11 to 15 (beta.16, beta.17;
 /// the owner's blind test of 2026-11-25) — the hash `MODEL_2_SHIPPED` held then; since
@@ -316,7 +321,7 @@ fn shipped_piano() -> Chorda {
 /// over it (its spec, then its table) — and a new unit plays it as `set_voicing` of it
 /// would, to the bit.
 #[test]
-fn the_shipped_voicing_is_candidate_17_over_the_unison_pass_and_a_new_unit_plays_it() {
+fn the_shipped_voicing_is_candidate_18_over_candidate_17_and_a_new_unit_plays_it() {
     use super::body::BodyVoicing;
     use super::room::RoomVoicing;
     let mut lab = Voicing::beta14();
@@ -343,7 +348,13 @@ fn the_shipped_voicing_is_candidate_17_over_the_unison_pass_and_a_new_unit_plays
         lab.apply(super::voicing::c17::SPEC),
         "a key of candidate 17's spec is not one"
     );
+    assert_eq!(Voicing::c17(), lab);
+    assert!(
+        lab.apply(super::voicing::c18::SPEC),
+        "a key of candidate 18's spec is not one"
+    );
     assert_eq!(Voicing::default(), lab);
+    assert_ne!(Voicing::default(), Voicing::c17());
     assert_eq!(Voicing::default(), Voicing::shipped());
     assert_ne!(Voicing::default(), Voicing::unison());
     assert_ne!(Voicing::default(), Voicing::technician());
@@ -386,13 +397,11 @@ fn the_shipped_voicing_is_candidate_17_over_the_unison_pass_and_a_new_unit_plays
 fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
     let (l, r) = perform(&mut shipped_piano(), &phrase(), 24_000, 256, 1);
     let h = hash(&l, &r);
-    eprintln!(
-        "model 2 (shipped voicing: candidate 17 over the unison pass) phrase hash: {h:#018x}"
-    );
+    eprintln!("model 2 (shipped voicing: candidate 18 over candidate 17) phrase hash: {h:#018x}");
     assert!(l.iter().chain(&r).any(|x| *x != 0.0));
     if std::env::var_os("CANTUS_GOLDEN_DUMP").is_some() {
-        // The size of the change from the unison pass (`DSP_VERSION` 15 → 16).
-        let (cl, cr) = perform(&mut piano_for(Voicing::unison()), &phrase(), 24_000, 256, 1);
+        // The size of the change from candidate 17 (`DSP_VERSION` 16 → 18).
+        let (cl, cr) = perform(&mut piano_for(Voicing::c17()), &phrase(), 24_000, 256, 1);
         let d: Vec<f64> = l
             .iter()
             .zip(&cl)
@@ -411,7 +420,7 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
         };
         let (was, now) = (rms_of(&cl, &cr), rms_of(&l, &r));
         eprintln!(
-            "against DSP_VERSION 15: max |Δ| {max:.4}, RMS Δ {rms:.5} ({:.1} dBFS); the phrase's RMS {was:.4} -> {now:.4} ({:+.2} dB)",
+            "against candidate 17 (DSP_VERSION 16): max |Δ| {max:.4}, RMS Δ {rms:.5} ({:.1} dBFS); the phrase's RMS {was:.4} -> {now:.4} ({:+.2} dB)",
             20.0 * crate::math::log10(rms.max(1e-12)),
             20.0 * crate::math::log10(now / was)
         );
@@ -420,6 +429,14 @@ fn model_2_at_its_shipped_voicing_renders_to_the_bits_it_does() {
         h, MODEL_2_SHIPPED,
         "model 2 at its shipped voicing moved: {h:#018x}"
     );
+}
+
+#[test]
+fn model_2_at_candidate_17_renders_to_the_bits_it_did() {
+    let (l, r) = perform(&mut piano_for(Voicing::c17()), &phrase(), 24_000, 256, 1);
+    let h = hash(&l, &r);
+    eprintln!("model 2 (candidate 17, the owner's blind kit 17) phrase hash: {h:#018x}");
+    assert_eq!(h, MODEL_2_C17, "model 2 at candidate 17 moved: {h:#018x}");
 }
 
 #[test]

@@ -7,7 +7,7 @@
 use super::noise::Thud;
 use super::tests_engine::{perform, Ev};
 use super::tests_model2::piano2;
-use super::voice::KNOCK_AS_IS;
+use super::voice::{KNOCK_AS_IS, KNOCK_PARTS};
 use super::voicing::Voicing;
 use super::*;
 use crate::math;
@@ -21,8 +21,13 @@ fn voiced(v: &Voicing) -> Chorda {
 /// Every round-42 knob away from its default, over the shipped voicing.
 fn pass() -> Voicing {
     let mut v = Voicing::unison();
-    v.knock_shape = [2_000.0, 0.007, 250.0, 3_500.0, 0.25, 0.09, 2.5, -0.4];
+    v.knock_shape = [
+        2_000.0, 0.007, 250.0, 3_500.0, 0.25, 0.09, 2.5, -0.4, 0.2, 900.0,
+    ];
     v.knock_noise_reg = [0.6, 2.0];
+    v.knock_treble_shape = [0.5, 1.5, 0.3, 0.6, 0.25, 1_200.0];
+    v.knock_bass = 0.3;
+    v.blow_bass = 0.5;
     v.knock_treble = 0.05;
     v
 }
@@ -95,15 +100,15 @@ fn the_knock_as_is_is_the_round_40_thud() {
 fn the_knocks_noise_sits_in_its_band_and_its_tail_rings_on() {
     // A top key's knock with its noise raised: more of the 0.5–2.8 kHz band under the
     // fundamental; with the tail, more 80–250 ms later, the first 20 ms nearly the same.
-    let strike = |shape: [f64; 8]| {
+    let strike = |shape: [f64; KNOCK_PARTS]| {
         let mut v = Voicing::unison();
         v.knock_shape = shape;
         let ev = vec![(0, Ev::On(108, 0.7, 1))];
         perform(&mut voiced(&v), &ev, 14_400, 256, 1).0
     };
     let base = strike(KNOCK_AS_IS);
-    let noisy = strike([3_000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]);
-    let tail = strike([3_000.0, 0.0, 0.0, 0.0, 0.3, 0.1, 1.0, 0.0]);
+    let noisy = strike([3_000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
+    let tail = strike([3_000.0, 0.0, 0.0, 0.0, 0.3, 0.1, 1.0, 0.0, 0.0, 0.0]);
     // What the shape adds: the renders less the round-40 thud's (the strings are the same).
     let e = |x: &[f32], a: usize, b: usize| {
         x[a..b]

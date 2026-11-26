@@ -83,6 +83,12 @@ pub struct Thud {
     lp4: f64,
     hp2_x: f64,
     hp2_y: f64,
+    /// Round 42 (`chorda-c18`): the second stage's own low-pass — twice a one-pole, its
+    /// coefficient (0: none, the stage in the first's band, every voicing before) and states.
+    /// A grand's top keys click bright and dry; what rings on after is the case's low wood.
+    tail_lp_a: f64,
+    tl1: f64,
+    tl2: f64,
 }
 
 /// Below this (N) a thud has ended.
@@ -123,7 +129,20 @@ impl Thud {
             lp4: 0.0,
             hp2_x: 0.0,
             hp2_y: 0.0,
+            tail_lp_a: 0.0,
+            tl1: 0.0,
+            tl2: 0.0,
         }
+    }
+
+    /// Round 42 (`chorda-c18`): the second stage low-passed at `hz` (12 dB an octave; 0: in
+    /// the first stage's band alone). Allocates nothing.
+    pub fn set_tail_band(&mut self, fs: f64, hz: f64) {
+        self.tail_lp_a = if hz > 0.0 {
+            math::exp(-std::f64::consts::TAU * hz / fs)
+        } else {
+            0.0
+        };
     }
 
     /// Round 42 (`chorda-c17`): the same thud made to another shape, its ringing kept (a key
@@ -203,6 +222,8 @@ impl Thud {
         self.hp_y = 0.0;
         self.env_a = 0.0;
         self.env_t = 0.0;
+        self.tl1 = 0.0;
+        self.tl2 = 0.0;
         self.busy = false;
     }
 
@@ -238,10 +259,26 @@ impl Thud {
         let n = if self.env_t > 1e-9 {
             let t = self.rng.next() * self.env_t * self.noise_gain;
             self.env_t *= self.fall_t;
-            n + t
+            if self.tail_lp_a != 0.0 {
+                // Round 42 (`chorda-c18`): the stage in its own, lower band.
+                let a = self.tail_lp_a;
+                self.tl1 = t + a * (self.tl1 - t);
+                self.tl2 = self.tl1 + a * (self.tl2 - self.tl1);
+                n + self.tl2
+            } else {
+                n + t
+            }
         } else {
             self.env_t = 0.0;
-            n
+            if self.tail_lp_a != 0.0 && (self.tl1 != 0.0 || self.tl2 != 0.0) {
+                // Its filter rings down after it.
+                let a = self.tail_lp_a;
+                self.tl1 *= a;
+                self.tl2 = self.tl1 + a * (self.tl2 - self.tl1);
+                n + self.tl2
+            } else {
+                n
+            }
         };
         self.lp = n + self.lp_a * (self.lp - n);
         let hp = self.hp_a * (self.hp_y + self.lp - self.hp_x);
@@ -270,6 +307,8 @@ impl Thud {
             && self.lp2.abs() < QUIET
             && self.lp3.abs() < QUIET
             && self.lp4.abs() < QUIET
+            && self.tl1.abs() < QUIET
+            && self.tl2.abs() < QUIET
         {
             self.silence();
         }

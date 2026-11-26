@@ -670,6 +670,13 @@ impl Chorda {
             if kt != 1.0 {
                 v.knock *= kt;
             }
+            if self.voicing.knock_bass != 1.0 {
+                // Round 42 (`chorda-c18`): the bass's knock and blow under its strings'.
+                v.knock *= Voicing::bass_scale(k.key, self.voicing.knock_bass);
+            }
+            if self.voicing.blow_bass != 1.0 {
+                v.blow *= Voicing::bass_scale(k.key, self.voicing.blow_bass);
+            }
             v.knock_shape = self.voicing.knock_shape_of(k.key);
             if self.voicing.vmin != 1.0 {
                 v.v_min *= self.voicing.vmin;

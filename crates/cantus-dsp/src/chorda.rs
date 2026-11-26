@@ -113,6 +113,10 @@ mod tests_voicing3;
 mod tests_voicing4;
 
 #[cfg(test)]
+#[path = "chorda_tests_voicing5.rs"]
+mod tests_voicing5;
+
+#[cfg(test)]
 #[path = "chorda_tunekit.rs"]
 mod tunekit;
 

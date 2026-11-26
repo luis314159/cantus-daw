@@ -15,12 +15,14 @@ use cantus_dsp::chorda::{Chorda, ChordaSettings};
 pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
     // Round 42 (`chorda-c17`): a spec may start with `base=<voicing>` — `shipped` (what a new
     // Chorda plays), `unison` (`DSP_VERSION` 11–15's: candidate 16 with the technician's and the
-    // unison passes) or `c16` (candidate 16 alone, what the owner's ABX kit 16 played) — and is
+    // unison passes), `c17` (round 42's candidate 17 over the unison pass, `chorda-c18`) or `c16`
+    // (candidate 16 alone, what the owner's ABX kit 16 played) — and is
     // then read over that voicing, its own tables kept unless `CHORDA_BASE_TABLES` is set (then
     // the environment's tables replace them).
     let (mut v, spec, tables) = match spec.split_once(',').unwrap_or((spec, "")) {
         ("base=shipped", rest) => (Voicing::shipped(), rest, false),
         ("base=unison", rest) => (Voicing::unison(), rest, false),
+        ("base=c17", rest) => (Voicing::c17(), rest, false),
         ("base=c16", rest) => (Voicing::candidate16(), rest, false),
         _ => (Voicing::beta14(), spec, true),
     };

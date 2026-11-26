@@ -1,0 +1,1 @@
+base=c17,knock.tau_treble=7.2,knock.hi_treble=1.6,knock.noise_treble=38,knock.rise_treble=0.25,knock.tail_treble=0.75,knock.tail_tau_treble=0.85,knock.tail_hi_treble=1500,knock_bass=0.3,blow_bass=0.3,partial5.60=-10
