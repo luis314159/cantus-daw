@@ -702,6 +702,97 @@ kind = "url"
 base = "https://zenodo.org/records/17207713/files/"
 match = ["ReadMe_*", "MusicScore_*", "BeginningsDurationsR3.csv"]
 
+[[set]]
+id = "strings-hq"
+dir = "strings-hq"
+title = "Bowed strings, the better references (r42 strings-refs): Iowa MIS 2012 (anechoic, 24/96) violin, viola, cello and bass; Musopen's Mozart K465 session (one spot microphone per player, 24/96); the Good-sounds double bass"
+urls = ["https://theremin.music.uiowa.edu/MIS.html", "https://theremin.music.uiowa.edu/MISviolin2012.html", "https://theremin.music.uiowa.edu/MISviola2012.html", "https://theremin.music.uiowa.edu/MIScello2012.html", "https://theremin.music.uiowa.edu/MISdoublebass2012.html", "https://archive.org/details/musopen-mozart-quartet-in-c-major-k465-compressed", "https://archive.org/details/musopen-lossless-dvd-flac", "https://zenodo.org/records/820937"]
+doi = "10.5281/zenodo.820937 (Good-sounds)"
+licence = "custom (Iowa MIS) + public domain (Musopen) + CC-BY-4.0 (Good-sounds)"
+terms = "Iowa: 'may be downloaded and used for any projects, without restrictions'; Musopen: 'recorded and released into the public domain' (the Kickstarter recordings, K465 among them; licence field PDM 1.0); Good-sounds CC BY 4.0 (MTG-UPF)"
+use = "measure (Iowa); ship (Musopen, public domain); ship-credit (Good-sounds)"
+tools = ["tools/soundlab/subjects/arcus-violin", "tools/soundlab/subjects/arcus-viola", "tools/soundlab/subjects/arcus-cello", "tools/soundlab/subjects/arcus-bass", "tools/soundlab/adapters/strings_hq.py", "tools/soundlab/adapters/strings_hq_phrases.py"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.pages]
+kind = "url"
+base = "https://theremin.music.uiowa.edu/"
+match = ["pages/iowa-*.html"]
+strip = "pages/iowa-"
+loose = true
+# The records as served on 2026-11-26 (archive.org's and Zenodo's JSON change on every request: saved, not fetched again)
+[set.origins.pages-musopen-k465]
+kind = "meta"
+url = "https://archive.org/metadata/musopen-mozart-quartet-in-c-major-k465-compressed"
+match = ["pages/musopen-k465-metadata.json"]
+loose = true
+[set.origins.pages-musopen-dvd]
+kind = "meta"
+url = "https://archive.org/metadata/musopen-lossless-dvd-flac"
+match = ["pages/musopen-lossless-dvd-flac-metadata.json"]
+loose = true
+[set.origins.pages-musopen-collection]
+kind = "meta"
+url = "https://archive.org/metadata/musopen"
+match = ["pages/musopen-collection-metadata.json"]
+loose = true
+[set.origins.pages-zenodo]
+kind = "meta"
+url = "https://zenodo.org/api/records/820937"
+match = ["pages/zenodo-820937.json"]
+loose = true
+[set.origins.iowa-violin-arco]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/violin2012/Violin.arco.mono.2496.zip"
+size = 125829643
+match = ["iowa2012/violin/Violin.arco.*"]
+[set.origins.iowa-violin-pizz]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/violin2012/Violin.pizz.mono.2496.zip"
+size = 51643520
+match = ["iowa2012/violin/Violin.pizz.*"]
+[set.origins.iowa-viola-arco]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/viola2012/Viola.arco.mono.2496.zip"
+size = 514485548
+match = ["iowa2012/viola/Viola.arco.*"]
+[set.origins.iowa-viola-pizz]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/viola2012/Viola.pizz.mono.2496.zip"
+size = 336116696
+match = ["iowa2012/viola/Viola.pizz.*"]
+[set.origins.iowa-cello-arco]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/cello2012/Cello.arco.mono.2496.zip"
+size = 474719404
+match = ["iowa2012/cello/Cello.arco.*"]
+[set.origins.iowa-cello-pizz]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/cello2012/Cello.pizz.mono.2496.zip"
+size = 202033479
+match = ["iowa2012/cello/Cello.pizz.*"]
+[set.origins.iowa-bass-arco]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/doublebass2012/Bass.arco.mono.2496.zip"
+size = 397009709
+match = ["iowa2012/bass/Bass.arco.*"]
+[set.origins.iowa-bass-pizz]
+kind = "zip"
+url = "https://theremin.music.uiowa.edu/sound%20files/MIS/Strings/doublebass2012/Bass.pizz.mono.2496.zip"
+size = 368288113
+match = ["iowa2012/bass/Bass.pizz.*"]
+[set.origins.musopen-k465]
+kind = "zip"
+url = "https://archive.org/download/musopen-mozart-quartet-in-c-major-k465-compressed/Mozart_Quartet_in_C_Major_K465.zip"
+size = 8621082102
+match = ["musopen-k465/*.wav"]
+[set.origins.good-sounds]
+kind = "zip"
+url = "https://zenodo.org/records/820937/files/good-sounds.zip"
+size = 13906331564
+match = ["good-sounds-bass/*"]
+
 # ============================================================ the other instruments and the lab
 
 [[set]]

@@ -1,0 +1,34 @@
+{
+ "id": "arcus-viola",
+ "name": "Arcus, the viola (r42)",
+ "kind": {"arco": "sustained", "pizz": "decaying"},
+ "f_range": [120, 2200],
+ "lowest_note": 48,
+ "features": {
+  "arco": ["loudness", "pitch", "harmonics", "inharmonicity", "centroid", "noise", "attack", "t_steady", "decay", "vibrato", "room"],
+  "pizz": ["loudness", "pitch", "harmonics", "inharmonicity", "centroid", "noise", "attack", "decay", "band_decay", "room"]
+ },
+ "exclude": ["loudness.integrated_lufs", "loudness.momentary_max_lufs", "loudness.short_term_max_lufs", "loudness.sample_peak_dbfs", "loudness.true_peak_dbtp", "centroid.at_s"],
+ "references": {
+  "root": "$SOUNDLAB_REFS",
+  "catalogue": "references.json",
+  "also_allowed": {
+   "Iowa-MIS": "The University of Iowa Electronic Music Studios' Musical Instrument Samples \"may be downloaded and used for any projects, without restrictions\" (theremin.music.uiowa.edu)."
+  },
+  "made_by": "python -I tools/soundlab/adapters/study_catalogue.py <study refdb>/catalog.json viola $SOUNDLAB_REFS base.json && python -I tools/soundlab/adapters/strings_hq.py viola $SOUNDLAB_REFS base.json references.json"
+ },
+ "phrases": {
+  "catalogue": "phrases.json",
+  "made_by": "python -I tools/soundlab/adapters/strings_hq_phrases.py pick $SOUNDLAB_REFS tools/soundlab/subjects",
+  "measure": "python -I tools/soundlab/adapters/strings_hq_phrases.py measure tools/soundlab/subjects/arcus-viola $SOUNDLAB_REFS <out.json> [arcus=<render.wav>:viola]"
+ },
+ "split": {"rule": "mod", "expr": "(note + dyn) % 3 == 0", "dyn_index": {"pp": 0, "p": 0, "mp": 1, "mf": 1, "f": 2, "ff": 2},
+           "why": "Arcus's own held-out rule (crates/cantus-dsp/examples/arcus_match: (key + dynamic) % 3 == 0), the cello's and the bass's too"},
+ "candidate": {
+  "inst": "arcus",
+  "render": ["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_match", "--", "render", "{out}", "viola"],
+  "cwd": "{repo}",
+  "files": "arcus-viola-(?P<art>arco|pizz)-(?P<note>\\d+)-(?P<dyn>pp|mf|ff)\\.wav",
+  "what": "the held-out cells of the viola, every key C3-A6, arco and pizzicato, at pp / mf / ff (velocity 0.2 / 0.55 / 0.95), each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono, Arcus at its defaults"
+ }
+}

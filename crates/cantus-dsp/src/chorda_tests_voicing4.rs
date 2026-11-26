@@ -109,7 +109,10 @@ fn the_knocks_noise_sits_in_its_band_and_its_tail_rings_on() {
         x[a..b]
             .iter()
             .zip(&base[a..b])
-            .map(|(p, q)| ((*p - *q) as f64).powi(2))
+            .map(|(p, q)| {
+                let d = (*p - *q) as f64;
+                d * d
+            })
             .sum::<f64>()
     };
     let (early, late) = ((0, 960), (4_800, 12_000));
