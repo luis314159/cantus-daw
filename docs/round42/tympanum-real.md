@@ -233,3 +233,27 @@ through `CantusApp::assemble`.
 7. Catalogue: `drums-dg` and `drums-packs` are not `record`ed (the raw Aasimonster files were
    deleted after the build for disk; the packs are the app's own); `fetch.py record` once they are
    on disk again.
+
+## 8. Where the session stopped (2026-11-26)
+
+Clean at the last commit. Verified on the final code: cantus-dsp `pulsus::measured` 32/32
+(the jazz ride's monotone test at 1 dB included), cantus-engine's Tympanum lib tests 14/14; on
+the law alone (before the burst): `inst_contract` 51/51, `rt_memory` 68/68. Still running when
+the session stopped (`F:\projects\cantus-work\tr-batch4.log`): cantus-ui `tympanum_e2e`,
+`tympanum_pick_e2e`, `tympanum_hybrid_e2e` and `cargo clippy --release -D warnings` on
+cantus-dsp (lib + tests) and cantus-ui's `tympanum_real` example and `tympanum_e2e` — read that
+log first; the dsp tests' maths were moved to `cantus_dsp::math` for the disallowed-methods lint.
+Not run: the WSL Linux check, the whole workspace suite.
+
+**Next, in the coordinator's order (2026-11-26):**
+1. **Model 6's onset** (§4.4): each mode driven through the contact force (a half-sine ≈ 0.8–1.8
+   ms by velocity, longer for a mallet), the wires lagged through the cavity, the knock as the
+   head's push; fitted to the recorded snares' band-peak timing (5–11 ms, lows last) and checked
+   by the grooves' crest against the seven kits. Model 5 stays loadable and bit-identical for old
+   projects (a new model number, as model 4 → 5 was).
+2. **The re-strike** (§7.2) through the same contact force; then the e2e strikes 1 s apart again.
+3. **The jazz hat's table refit** (§4.3).
+4. **Brushes** (§5).
+Then re-render the previews (`tools/tympanum-real/pipeline.py`, `preview.py`, `report.py`; the
+work folder `F:\projects\cantus-work\tympanum-real`, the report's text
+`tools/tympanum-real/informe-r42.md`).
