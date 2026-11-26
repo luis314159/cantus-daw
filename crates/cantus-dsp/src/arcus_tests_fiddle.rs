@@ -4,8 +4,8 @@
 //! voice, a crossing's ring and the sympathetic ring.
 
 use super::voice::NoteTech;
-use crate::math;
 use super::*;
+use crate::math;
 
 const SR: f32 = 48_000.0;
 
@@ -113,7 +113,10 @@ fn the_fiddle_renders_the_same_bits_at_every_block_size() {
     assert!(a.iter().any(|x| *x != 0.0));
     for bs in [1usize, 31, 64, 1000] {
         let b = out(&s, bs);
-        let diff = a.iter().zip(&b).position(|(x, y)| x.to_bits() != y.to_bits());
+        let diff = a
+            .iter()
+            .zip(&b)
+            .position(|(x, y)| x.to_bits() != y.to_bits());
         assert_eq!(diff, None, "block size {bs}: the first sample that differs");
     }
 }
@@ -122,7 +125,10 @@ fn the_fiddle_renders_the_same_bits_at_every_block_size() {
 fn the_fiddle_comes_to_rest() {
     let s = fiddle();
     let (a, l) = render(&s, &line(), 16.0, 256);
-    assert!(a.at_rest(), "every voice, the sympathetic strings and the body still");
+    assert!(
+        a.at_rest(),
+        "every voice, the sympathetic strings and the body still"
+    );
     assert!(l[l.len() - 4800..].iter().all(|x| *x == 0.0));
 }
 
@@ -145,7 +151,10 @@ fn a_double_stop_is_one_voice_under_one_bow() {
     // A4 open; F#5 stopped, tuned 0.6 of the way to the major sixth's 5/3 (−15.6 cents).
     assert!((f1 - a4).abs() / a4 < 1e-3, "the open A: {f1}");
     let ct = 1200.0 * math::log2(f2 / fs5);
-    assert!((ct + 0.6 * 15.64).abs() < 1.5, "F#5 {ct:.2} cents from tempered");
+    assert!(
+        (ct + 0.6 * 15.64).abs() < 1.5,
+        "F#5 {ct:.2} cents from tempered"
+    );
     // Its key let go: the bow leans off it; the voice plays on.
     a.note_off(78, 2);
     a.process(&mut l, &mut r);
@@ -210,11 +219,17 @@ fn the_open_strings_ring_in_sympathy_after_the_bow_lifts() {
         let mut r = vec![0.0f32; 72_000];
         a.process(&mut l, &mut r);
         // 0.6–1.4 s after the key.
-        l[28_800..67_200].iter().map(|x| (x * x) as f64).sum::<f64>()
+        l[28_800..67_200]
+            .iter()
+            .map(|x| (x * x) as f64)
+            .sum::<f64>()
     };
     let (dry, rung) = (tail(0.0), tail(1.0));
     let db = 10.0 * (rung / dry.max(1e-30)).log10();
-    assert!(db > 6.0, "the ring after the bow lifts: {db:.1} dB over none");
+    assert!(
+        db > 6.0,
+        "the ring after the bow lifts: {db:.1} dB over none"
+    );
 }
 
 /// The double stop's level against its two notes alone (`--ignored --nocapture`).
@@ -237,7 +252,11 @@ fn probe_double_stop_levels() {
         let mut l = vec![0.0f32; 48_000];
         let mut r = vec![0.0f32; 48_000];
         a.process(&mut l, &mut r);
-        let e: f64 = l[19_200..48_000].iter().map(|x| (x * x) as f64).sum::<f64>() / 28_800.0;
+        let e: f64 = l[19_200..48_000]
+            .iter()
+            .map(|x| (x * x) as f64)
+            .sum::<f64>()
+            / 28_800.0;
         10.0 * e.max(1e-30).log10()
     };
     for (lo, hi) in [(69u8, 78u8), (69, 76), (62, 69), (69, 73), (64, 73)] {
@@ -293,7 +312,10 @@ fn a_chop_scratches_where_a_staccato_speaks() {
     let (pc, ps) = (periodicity(&chop, p), periodicity(&stac, p));
     let db = 10.0 * (high_share(&chop) / high_share(&stac)).log10();
     println!("periodicity: the chop {pc:.2}, the staccato {ps:.2}; the chop's top {db:+.1} dB");
-    assert!(pc < ps - 0.15, "the chop is raucous: {pc:.2} against {ps:.2}");
+    assert!(
+        pc < ps - 0.15,
+        "the chop is raucous: {pc:.2} against {ps:.2}"
+    );
     assert!(db > 1.0, "the chop's top over the staccato's: {db:.1} dB");
 }
 

@@ -20,10 +20,10 @@ mod step;
 pub(crate) use run::REBOW_FINGER; // r42:arcus-p5
 #[cfg(test)]
 pub(crate) use step::{CHANGE_KNOBS, SPIC_KNOBS, TREM_KNOBS}; // r42:arcus-p5
-#[path = "arcus_upper_voice.rs"] // r42:arcus-upper
-mod upper; // r42:arcus-upper
 #[path = "arcus_voice_pair.rs"] // r42 fiddle
-mod pair; // r42 fiddle
+mod pair;
+#[path = "arcus_upper_voice.rs"] // r42:arcus-upper
+mod upper; // r42:arcus-upper // r42 fiddle
 pub use pair::JUST_CT; // r42 fiddle
 
 /// r42 fiddle — a steel set's ring over the table's (exactly 1 at `steel` 0).

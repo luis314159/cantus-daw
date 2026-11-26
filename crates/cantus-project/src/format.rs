@@ -1307,7 +1307,8 @@ fn migrate_83_to_84(_value: &mut Value) -> Result<(), String> {
 /// Schema 85 (round 42, ADR 0164): an Arcus may bow two strings with one bow (`bow.pair`,
 /// `bow.tilt`, `dstop.just`), its open strings ring in sympathy (`sym`), its bow has grit
 /// (`bow.grit`), its strings may be steel (`steel`) and cross-tuned (`tuning.strings`), and
-/// its body heard by one close microphone (`body.mic`). Absent — every older song — is each
+/// its body heard by one close microphone (`body.mic`) through a fiddle's bridge
+/// (`body.bridge`). Absent — every older song — is each
 /// one's default, which plays what it played (one string a voice, no sympathy, no grit, the
 /// measured set), so nothing is written; an older build would drop them and play the song as
 /// before them.
@@ -1863,7 +1864,14 @@ mod tests {
         };
         let (ok, s) = arcus("v85.cantus");
         assert!(ok);
-        let keys = ["bow.pair", "bow.tilt", "dstop.just", "bow.grit", "sym", "steel"];
+        let keys = [
+            "bow.pair",
+            "bow.tilt",
+            "dstop.just",
+            "bow.grit",
+            "sym",
+            "steel",
+        ];
         let got: Vec<f32> = keys.iter().map(|k| s.get(k)).collect();
         assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 1.2, 1.0]);
         let (_, old) = arcus("v83.cantus");

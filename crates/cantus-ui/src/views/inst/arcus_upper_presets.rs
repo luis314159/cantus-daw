@@ -88,7 +88,10 @@ pub const PRESETS: &[FactoryPreset] = &[
          // r42 fiddle: the bow nearer the bridge (0.82 → 0.73) and heavier (1.15 → 1.32) — in
          // the lab the fast notes' re-articulation 0.48 → 0.17 of the onsets (the references'
          // 0.10–0.17), the steady noise between the harmonics −16.5 → −10.7 dB.
-         "body.mic" => 1.0]),
+         "body.mic" => 1.0,
+         // … through a fiddle's bridge: its hill raised, its top falling sooner (the stems'
+         // 1.6–3.2 kHz −15 … −17 → −12.7 dB re the total, the bluegrass references' −11 … −13).
+         "body.bridge" => 1.0]),
     preset!("arcus.preset.violin_pizz", PLUCKED,
         ["inst" => 2.0, "tech" => 1.0, "mode" => 0.0, "pizz.decay" => 1.0, "ring" => 0.4,
          "gain" => 2.4]),

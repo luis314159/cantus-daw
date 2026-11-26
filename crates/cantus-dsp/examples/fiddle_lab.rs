@@ -66,6 +66,7 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
         steel: 1.0,
         just: 0.6,
         mic: 1.0,
+        bridge: 1.0,
         // The fiddle preset's bow since r42 fiddle: nearer the bridge (×0.73), heavier (×1.32).
         bow_pos: (-2.0 * math::log2(0.73f32)).clamp(-1.0, 1.0),
         bow_force: math::log2(1.32f32),
@@ -90,6 +91,7 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
             "body" => s.body_mix = *v,
             "speed" => s.bow_speed = *v,
             "mic" => s.mic = *v,
+            "bridge" => s.bridge = *v,
             _ => panic!("unknown setting {k}"),
         }
     }
@@ -156,8 +158,24 @@ fn write(path: &Path, x: &[f32]) {
 
 /// Two notes struck together (`hi` over `lo`) for `len`, one bow.
 fn dstop(v: &mut Vec<N>, at: f64, len: f64, lo: u8, hi: u8, vel: f32, art: Art, dir: BowDir) {
-    v.push(N { at, len, key: hi, vel, art, dir, low: false });
-    v.push(N { at, len, key: lo, vel, art, dir, low: true });
+    v.push(N {
+        at,
+        len,
+        key: hi,
+        vel,
+        art,
+        dir,
+        low: false,
+    });
+    v.push(N {
+        at,
+        len,
+        key: lo,
+        vel,
+        art,
+        dir,
+        low: true,
+    });
 }
 
 fn flip(d: BowDir) -> BowDir {
@@ -175,9 +193,18 @@ fn dobles() -> Vec<N> {
     let mut t = 0.1;
     // (lower, upper, eighths)
     let lick: [(u8, u8, f64); 12] = [
-        (73, 76, 1.0), (71, 76, 1.0), (69, 76, 2.0), (69, 78, 1.0), (69, 76, 1.0),
-        (68, 76, 1.0), (66, 73, 1.0), (64, 73, 2.0), (69, 73, 1.0), (69, 76, 1.0),
-        (68, 71, 1.0), (69, 73, 4.0),
+        (73, 76, 1.0),
+        (71, 76, 1.0),
+        (69, 76, 2.0),
+        (69, 78, 1.0),
+        (69, 76, 1.0),
+        (68, 76, 1.0),
+        (66, 73, 1.0),
+        (64, 73, 2.0),
+        (69, 73, 1.0),
+        (69, 76, 1.0),
+        (68, 71, 1.0),
+        (69, 73, 4.0),
     ];
     for (lo, hi, n) in lick {
         let len = n * e - 0.02;
@@ -193,8 +220,8 @@ fn rapidas() -> Vec<N> {
     let mut v = Vec::new();
     let e = 60.0 / 160.0 / 2.0;
     let run: [u8; 32] = [
-        81, 76, 73, 76, 69, 73, 76, 81, 80, 76, 71, 76, 68, 71, 76, 80, 81, 78, 74, 78, 69, 74,
-        78, 81, 83, 81, 80, 76, 73, 71, 69, 69,
+        81, 76, 73, 76, 69, 73, 76, 81, 80, 76, 71, 76, 68, 71, 76, 80, 81, 78, 74, 78, 69, 74, 78,
+        81, 83, 81, 80, 76, 73, 71, 69, 69,
     ];
     let mut dir = BowDir::Down;
     let mut t = 0.1;
@@ -205,9 +232,23 @@ fn rapidas() -> Vec<N> {
             dir = flip(dir);
         }
         let last = i + 1 == run.len();
-        let len = if last { 0.6 } else if i % 4 == 0 { e } else { e - 0.012 };
+        let len = if last {
+            0.6
+        } else if i % 4 == 0 {
+            e
+        } else {
+            e - 0.012
+        };
         let vel = if i % 2 == 0 { 0.74 } else { 0.68 };
-        v.push(N { at: t, len, key: *k, vel, art, dir, low: false });
+        v.push(N {
+            at: t,
+            len,
+            key: *k,
+            vel,
+            art,
+            dir,
+            low: false,
+        });
         t += e;
     }
     v
@@ -218,8 +259,16 @@ fn bordon() -> Vec<N> {
     let mut v = Vec::new();
     let e = 60.0 / 116.0 / 2.0;
     let tune: [(u8, f64); 10] = [
-        (76, 1.0), (78, 1.0), (80, 2.0), (81, 1.0), (80, 1.0), (78, 1.0), (76, 1.0),
-        (78, 2.0), (76, 2.0), (76, 4.0),
+        (76, 1.0),
+        (78, 1.0),
+        (80, 2.0),
+        (81, 1.0),
+        (80, 1.0),
+        (78, 1.0),
+        (76, 1.0),
+        (78, 2.0),
+        (76, 2.0),
+        (76, 4.0),
     ];
     let mut dir = BowDir::Down;
     let mut t = 0.1;
@@ -237,15 +286,45 @@ fn agudas() -> Vec<N> {
     let mut v = Vec::new();
     let e = 60.0 / 116.0 / 2.0;
     let line: [(u8, f64); 26] = [
-        (81, 1.0), (83, 1.0), (85, 1.0), (86, 1.0), (81, 2.0), (78, 2.0),
-        (79, 1.0), (81, 1.0), (83, 1.0), (79, 1.0), (76, 2.0), (73, 2.0),
-        (74, 1.0), (78, 1.0), (81, 1.0), (78, 1.0), (79, 1.0), (78, 1.0), (76, 1.0), (74, 1.0),
-        (73, 1.0), (76, 1.0), (81, 1.0), (76, 1.0), (73, 1.0), (69, 3.0),
+        (81, 1.0),
+        (83, 1.0),
+        (85, 1.0),
+        (86, 1.0),
+        (81, 2.0),
+        (78, 2.0),
+        (79, 1.0),
+        (81, 1.0),
+        (83, 1.0),
+        (79, 1.0),
+        (76, 2.0),
+        (73, 2.0),
+        (74, 1.0),
+        (78, 1.0),
+        (81, 1.0),
+        (78, 1.0),
+        (79, 1.0),
+        (78, 1.0),
+        (76, 1.0),
+        (74, 1.0),
+        (73, 1.0),
+        (76, 1.0),
+        (81, 1.0),
+        (76, 1.0),
+        (73, 1.0),
+        (69, 3.0),
     ];
     let mut dir = BowDir::Down;
     let mut t = 0.1;
     for (k, n) in line {
-        v.push(N { at: t, len: n * e - 0.002, key: k, vel: 0.72, art: Art::Sustain, dir, low: false });
+        v.push(N {
+            at: t,
+            len: n * e - 0.002,
+            key: k,
+            vel: 0.72,
+            art: Art::Sustain,
+            dir,
+            low: false,
+        });
         dir = flip(dir);
         t += n * e;
     }
@@ -258,7 +337,15 @@ fn simpatia() -> Vec<N> {
     let mut v = Vec::new();
     let mut t = 0.1;
     for k in [74u8, 81, 67, 76] {
-        v.push(N { at: t, len: 0.9, key: k, vel: 0.7, art: Art::Sustain, dir: BowDir::Down, low: false });
+        v.push(N {
+            at: t,
+            len: 0.9,
+            key: k,
+            vel: 0.7,
+            art: Art::Sustain,
+            dir: BowDir::Down,
+            low: false,
+        });
         t += 2.2;
     }
     v
@@ -282,11 +369,23 @@ fn main() {
                 f[2].parse().unwrap(),
                 f[3].parse().unwrap(),
             );
-            notes.push(N { at: at + 0.1, len: (len - 0.002).max(0.03), key, vel, art: Art::Sustain, dir, low: false });
+            notes.push(N {
+                at: at + 0.1,
+                len: (len - 0.002).max(0.03),
+                key,
+                vel,
+                art: Art::Sustain,
+                dir,
+                low: false,
+            });
             dir = flip(dir);
         }
         let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
-        let name = Path::new(tsv).file_stem().unwrap().to_string_lossy().to_string();
+        let name = Path::new(tsv)
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
         let now = render(&[(after(&[]), notes.clone())], secs);
         write(&out.join(format!("{name}-cantus.wav")), &now);
         let before = render(&[(preset(), notes)], secs);
@@ -313,7 +412,13 @@ fn main() {
                 .join("-")
         )
     };
-    for (name, notes) in [("dobles", dobles()), ("rapidas", rapidas()), ("bordon", bordon()), ("simpatia", simpatia()), ("agudas", agudas())] {
+    for (name, notes) in [
+        ("dobles", dobles()),
+        ("rapidas", rapidas()),
+        ("bordon", bordon()),
+        ("simpatia", simpatia()),
+        ("agudas", agudas()),
+    ] {
         let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
         let (hi, lo): (Vec<N>, Vec<N>) = notes.iter().partition(|n| !n.low);
         let before = render(&[(preset(), hi), (preset(), lo)], secs);

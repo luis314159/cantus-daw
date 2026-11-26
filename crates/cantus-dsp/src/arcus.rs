@@ -341,6 +341,9 @@ pub struct ArcusSettings {
     /// its own radiation above 700 Hz), 1 one close microphone (both sides alike: a mono sum
     /// loses nothing).
     pub mic: f32,
+    /// r42 fiddle — a fiddle's bridge on the violin's and the viola's body (0 the measured
+    /// violin's … 1: the bridge hill raised, the top falling sooner).
+    pub bridge: f32,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -410,6 +413,7 @@ impl Default for ArcusSettings {
             steel: 0.0,      // r42 fiddle
             cross: 0,        // r42 fiddle
             mic: 0.0,        // r42 fiddle
+            bridge: 0.0,     // r42 fiddle
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,

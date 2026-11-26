@@ -23,3 +23,5 @@ arcus.cross_kind.calico = Calico (La Mi La Do#)
 arcus.cross_kind.ddad = DDAD (Re Re La Re)
 arcus.body.mic = Micrófono cercano
 arcus.body.mic.short = Mic. cerca
+arcus.body.bridge = Puente de fiddle
+arcus.body.bridge.short = Puente

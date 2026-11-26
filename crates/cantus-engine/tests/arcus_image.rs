@@ -33,7 +33,7 @@ unsafe impl std::alloc::GlobalAlloc for Counting {
 static GLOBAL: Counting = Counting;
 
 /// `approx_bytes`'s figure for Arcus (KB at 48 kHz).
-const ARCUS_KB: f64 = 425.0;
+const ARCUS_KB: f64 = 770.0; // r42 fiddle: a second string a voice, the sympathetic strings
 
 /// The bytes a fork of Arcus's unit holds, playing four notes in poly, at `sr`.
 fn fork_bytes(sr: f32) -> f64 {

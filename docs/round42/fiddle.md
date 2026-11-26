@@ -112,9 +112,14 @@ See the ADR for the model. In short:
 - **`Articulation::Chop`**: from the air at the frog, landing past the Helmholtz region at 2.5 ×
   its upper limit, at 0.3 of the stroke's speed, the hair noise +12 dB, stopped on the string
   after 60 ms.
+- **`tuning.strings`**: the violin's cross-tunings (standard, AEAE, GDGD, ADAE, calico, DDAD).
+- **`body.mic`**: one close microphone instead of the pair (§3.1).
+- **`body.bridge`**: a fiddle's bridge. Its rocking mode's hill is raised (+4 dB at 2.3 kHz,
+  ±1.1 octaves) and its top falls from 4.5 kHz (−8 dB), on the body's modes themselves; it is
+  not an EQ.
 
 Every new key is off at its default: nothing changes, to the bit. The *Fiddle* preset turns
-them on.
+them on, with the bow nearer the bridge (×0.73) and heavier (×1.32).
 
 The demos (`crates/cantus-ui/examples/arcus_demo/fiddle.rs`, `fiddle2.rs`), as measured:
 
@@ -157,9 +162,59 @@ and −8 … −9 (`fiddle_ltas.py`, `fiddle_quick.py`).
 - The pair stays the classical presets' default. Each side of a stereo listener's pair sounds
   as the match measured it, and the classical presets' held-out rows are untouched.
 
+### 3.2 The fiddle's own stem, before and after (`fiddle_quick.py`)
+
+| | Tren before | Tren after | Hoedown before | Hoedown after | references |
+|---|---|---|---|---|---|
+| centroid / f0 | 1.29 | 2.16 | 1.24 | 2.10 | 2.21 (bluegrass) |
+| above 2 kHz, dB re total | −13.8 | −8.2 | −15.4 | −10.1 | −6.6 |
+| fast onsets with a re-articulation cue | 0.71 | 0.08 | 0.77 | 0.04 | 0.10–0.17 |
+| the previous note 60 ms into the next, dB | −29.6 | −8.2 | −31.2 | −4.3 | −10 … −16 dry, −6 … −9 rooms |
+| fast notes starting an octave off | 0.00 | 0.00 | 0.00 | 0.00 | 0.06 |
+| a double stop's lower minus upper voice, dB | (two instruments) | −2.4 | (two) | −4.0 | +1.7 |
+
+- "After" here is the second render (the close mic, the bow nearer and heavier); the first
+  one-bow render, before the close mic, measured flux 0.25 / 0.24 and the previous note −15.2 /
+  −19.9 dB, its timbre still the pair's mono sum (1.25 / 1.23).
+- The noise between the harmonics in the songs reads −3 dB, but it counts a double stop's
+  second voice as noise. On single lines the lab reads −10.7 dB (the references −6.7 with
+  their rooms, dry classical −22).
+- AEAE *Tren* (the take for the owner to compare): 2.13 and −8.2 dB, its double stops'
+  lower voice +1.5 dB over the upper.
+
+### 3.3 The lab's phrases (`examples/fiddle_lab.rs`, both sides summed)
+
+| | rapidas before | rapidas after | the references |
+|---|---|---|---|
+| fast onsets with a re-articulation cue | 0.68 | 0.17 | 0.10–0.17 |
+| the previous note at +60 ms | −28.7 dB | −5.8 dB | −10 … −16 dry |
+| steady noise between the harmonics (2–8 kHz) | −17.4 dB | −10.7 dB | −22 dry classical, −6.7 fiddle in rooms |
+| the sympathetic tail 0.2–1 s after the bow lifts (re the note) | −40.2 dB | −29.6 dB (sym 1) | — |
+| a chop's periodicity (the open D, 60 ms) | 0.72 (a staccato) | 0.00 | — |
+
 ## 4. For the owner's ears
 
-`F:\projects\cantus-work\listen\fiddle\escuchar.html` (Spanish); `chat\` holds 16-bit WAV copies.
+`F:\projects\cantus-work\listen\fiddle\escuchar.html` (Spanish, `tools/arcus/fiddle/listen_page.py`).
+`chat\` holds 16-bit WAV copies:
+
+- the demos: `ahora-tren.wav`, `ahora-hoedown.wav`, `ahora-pasaje-country.wav`,
+  `ahora-pasaje-clasico.wav`, each beside its `antes-*.wav`, and `ahora-aeae-tren.wav` (*Tren*
+  in AEAE);
+- the lab's phrases: `lab-{dobles,rapidas,bordon,simpatia}-{antes,ahora}.wav`;
+- the comparison: `comparar-hornpipe-ref.wav`, a CC BY 4.0 hornpipe phrase by
+  TheFlyFishingFilmmaker, beside `comparar-hornpipe-cantus.wav`, our fiddle playing the notes
+  `transcribe.py` read from it (automatic, approximate). This is for the owner's ear only and is
+  never shipped.
+
+The full takes are in `ahora\` and `ahora-aeae\`: each 24-bit export, its stems and its
+`.cantus`.
+
+To render them again:
+
+- the demos: `cargo run -p cantus-ui --release --example arcus_demo -- <dir> fiddle`
+  (`FIDDLE_TREN_AEAE=1` for the AEAE *Tren*);
+- the lab: `cargo run -p cantus-dsp --release --example fiddle_lab -- <dir> [key=value …]`;
+- the page: `python -I tools/arcus/fiddle/listen_page.py`.
 
 ## 5. Open
 

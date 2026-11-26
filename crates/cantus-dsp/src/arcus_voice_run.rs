@@ -69,8 +69,8 @@ impl Voice {
             && self.inst == s.instrument
             && self.cross == s.cross // r42 fiddle
             && self.same_rate(sh); // r42:arcus-upper
-        // r42 fiddle: one bow on two strings — the note's string found first, the voice's two
-        // strings placed so the first is on it (`pair::place`); a string the bow leaves rings.
+                                   // r42 fiddle: one bow on two strings — the note's string found first, the voice's two
+                                   // strings placed so the first is on it (`pair::place`); a string the bow leaves rings.
         let mut fresh = false;
         if keep && Self::paired(s) && tech.is_bowed() {
             let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
@@ -243,14 +243,13 @@ impl Voice {
             z0,
             sh.sr as f64 / f,
         );
-        let (accel, mut f_attack) =
-            attack_of(
-                s,
-                self.velocity,
-                &bw,
-                matches!(tech, NoteTech::Staccato | NoteTech::Chop), // r42 fiddle
-                1.0 / f,
-            );
+        let (accel, mut f_attack) = attack_of(
+            s,
+            self.velocity,
+            &bw,
+            matches!(tech, NoteTech::Staccato | NoteTech::Chop), // r42 fiddle
+            1.0 / f,
+        );
         // r42 arcus-expr: a stroke from silence starts where its direction and part put the
         // bow, with the arm's weight there, from the string or from the air (`bow`).
         self.kind = 0;

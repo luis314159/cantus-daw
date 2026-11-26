@@ -136,6 +136,8 @@ params! {
     CROSS = ("tuning.strings", "arcus.tuning.strings", 0.0, 5.0, 0.0, "", false, true),
     // r42 fiddle: the violin's and the viola's microphones — 0 The pair · 1 One close mic.
     MIC = ("body.mic", "arcus.body.mic", 0.0, 1.0, 0.0, "", false, true),
+    // r42 fiddle: a fiddle's bridge (0: the measured violin's, to the bit).
+    BRIDGE = ("body.bridge", "arcus.body.bridge", 0.0, 2.0, 0.0, "%", false, false),
 
     // ---- MPE ----
     MPE_PRESS = ("mpe.press", "arcus.mpe.press", 0.0, 1.0, 1.0, "%", false, false),

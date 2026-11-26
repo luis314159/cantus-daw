@@ -304,7 +304,7 @@ impl Voice {
         }
         if self.bow_on && s.bow_noise_db > -60.0 {
             let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
-            // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+                                                                                              // r42 fiddle: the bow's grit, rising near the bridge and with the force.
             if s.grit > 0.0 {
                 lvl *= grit_gain(s.grit, self.force, self.f_max, self.beta);
             }
@@ -702,10 +702,8 @@ impl Voice {
             self.pos = b;
             i += k;
             if grid_end {
-                let rang_out = !self.bow_on
-                    && self.pluck.done()
-                    && !self.string.is_live()
-                    && !self.sec.on; // r42 fiddle
+                let rang_out =
+                    !self.bow_on && self.pluck.done() && !self.string.is_live() && !self.sec.on; // r42 fiddle
                 let faded = self.fade_step > 0.0 && self.fade <= 0.0;
                 if rang_out || faded {
                     self.end();

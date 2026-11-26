@@ -8,7 +8,9 @@
 //!   command, the second note slurs out of the first as before and the open A is gone;
 //! - F#5 is tuned most of the way to the just sixth over the open A (`dstop.just` 0.6);
 //! - the open strings ring in sympathy after the bow lifts — `sym` off by its command, the
-//!   tail is quieter.
+//!   tail is quieter;
+//! - one close microphone and a fiddle's bridge (`body.mic`, `body.bridge`) lift the bridge
+//!   hill's band of the two sides' sum against the classical pair and bridge.
 
 use cantus_core::note_art::{Articulation, Bow, NoteArt};
 use cantus_core::{Command, InstrumentKind, Project, Ticks, PPQ};
@@ -169,7 +171,10 @@ fn the_fiddle_bows_two_strings_with_one_bow_and_rings_through_the_app() {
     let one = db(sa.min(sf), sa.max(sf));
     println!("the double stop's weaker note: {both:.1} dB under the stronger with one bow on two strings, {one:.1} dB without");
     assert!(both > -12.0, "both notes sound: {both:.1} dB");
-    assert!(one < both - 20.0, "without the pair one note is gone: {one:.1} dB");
+    assert!(
+        one < both - 20.0,
+        "without the pair one note is gone: {one:.1} dB"
+    );
     // F#5 tuned towards the just sixth (5/3, −15.6 cents) by 0.6 over the open A.
     let ct = 1200.0 * cantus_dsp::math::log2(peak_hz(&on, fs5, 0.7, 1.4) / fs5);
     println!("F#5 over the open A: {ct:+.2} cents from tempered (just ×0.6: −9.4)");
@@ -179,4 +184,23 @@ fn the_fiddle_bows_two_strings_with_one_bow_and_rings_through_the_app() {
     let ring = db(energy(&on, 3.2, 4.5), energy(&dry, 3.2, 4.5));
     println!("the tail with the open strings in sympathy: {ring:+.1} dB over none");
     assert!(ring > 2.0, "{ring:+.1} dB");
+    // The close microphone and the fiddle's bridge: the bridge hill's band (1.6–3.2 kHz) over
+    // the whole, both sides summed, against the pair through the measured violin's bridge.
+    let paired = session(&["body.mic", "body.bridge"]);
+    let hill = |x: &[f32]| {
+        let band: f64 = (0..33)
+            .map(|k| {
+                bin(
+                    x,
+                    1600.0 * cantus_dsp::math::exp2(k as f64 / 32.0),
+                    0.6,
+                    1.4,
+                )
+            })
+            .sum();
+        band / energy(x, 0.6, 1.4)
+    };
+    let lift = db(hill(&on), hill(&paired));
+    println!("the 1.6–3.2 kHz band with one close mic and a fiddle's bridge: {lift:+.1} dB");
+    assert!(lift > 3.0, "{lift:+.1} dB");
 }

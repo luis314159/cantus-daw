@@ -341,7 +341,10 @@ impl Processor {
             // 18.4 Hz, r42 fix2-arcus: 359 KB when they held 25 Hz — and its torsion's, in
             // proportion to the rate: 655 at 96; the lanes; the upper body's 104 modes and its
             // power lattice): `tests/arcus_image.rs` holds it within 10 %.
-            I::BowedString => 425.0,
+            // r42 fiddle (ADR 0164): 769 KB — each voice's second string (one bow on two
+            // strings), the lines sized for the violin's DDAD too (D3 at 4x), and the four
+            // sympathetic strings' loops.
+            I::BowedString => 770.0,
         };
         let n = &self.nodes;
         let lines: usize = (0..n.lines.len())

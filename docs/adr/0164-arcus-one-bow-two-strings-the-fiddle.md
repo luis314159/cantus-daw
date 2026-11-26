@@ -29,7 +29,7 @@ catalogued as the `fiddle` set) measured what the ear heard:
 
 ## Decision
 
-Five settings, each **off at its default — nothing changes, to the bit** — and on in the
+Seven settings, each **off at its default — nothing changes, to the bit** — and on in the
 *Fiddle* preset:
 
 1. **`bow.pair`** (0/1) — **one bow on two strings.** A voice gets a second `BowedString`
@@ -81,8 +81,18 @@ Five settings, each **off at its default — nothing changes, to the bit** — a
    the crossed table; a voice keeps its tuning while it rings; the lines are sized for the lowest
    (DDAD's D3). Standard is the violin's own table, the same reference, to the bit.
 
-The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1 and `dstop.just`
-0.6. The demos put each drone in the fiddle's own clip, at the melody note's velocity.
+7. **`body.mic`** (stepped) — the violin's and the viola's microphones: 0 the pair (each side
+   hears each mode above 700 Hz with its own sign and strength, Weinreich's directional tone
+   colour), 1 one close microphone (both sides the left one's).
+   - The pair summed to mono cancels part of the upper modes. The fiddle songs' stems, summed
+     as the study (and a mono listener) hears them, read centroid / f0 1.24 and −17 dB above
+     2 kHz, against each side alone's 1.9 and −11 and the references' 2.21 and −6.6.
+   - A fiddle is close-miked for country; with one mic, the songs read 2.10–2.16 and −8 …
+     −10 dB.
+
+The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1, `dstop.just` 0.6
+and `body.mic` 1, with its bow nearer the bridge (×0.73, was 0.82) and heavier (×1.32, was
+1.15). The demos put each drone in the fiddle's own clip, at the melody note's velocity.
 
 ## Consequences
 

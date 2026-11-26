@@ -240,8 +240,7 @@ impl Arcus {
         let silent = self.voices.iter().all(|v| !v.active());
         // r42 fiddle (ADR 0164): a note that starts with the last one on another string is
         // its double stop under the same bow (`pair`, a mono instrument).
-        if self.s.pair >= 0.5 && self.s.mode != PlayMode::Poly && self.last_on == Some(self.clock)
-        {
+        if self.s.pair >= 0.5 && self.s.mode != PlayMode::Poly && self.last_on == Some(self.clock) {
             let v = self.newest.min(MAX_VOICES - 1);
             let tech = NoteTech::of(self.s.technique, art);
             if matches!(tech, NoteTech::Arco | NoteTech::Staccato | NoteTech::Chop)
@@ -440,7 +439,9 @@ impl Arcus {
                         v.release_note();
                     }
                 }
-                Action::Glide { voice, id: back, .. } if !done => {
+                Action::Glide {
+                    voice, id: back, ..
+                } if !done => {
                     if let Some(v) = self.voices.get_mut(voice) {
                         v.release_to(back);
                     }

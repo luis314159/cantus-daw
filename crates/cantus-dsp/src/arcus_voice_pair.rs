@@ -286,7 +286,11 @@ impl Voice {
         let (lo, hi) = self.tilt_shares(s);
         let w = if ix < self.string_ix { lo } else { hi };
         self.sec.w = (w, w);
-        self.w1 = if ix < self.string_ix { (hi, hi) } else { (lo, lo) };
+        self.w1 = if ix < self.string_ix {
+            (hi, hi)
+        } else {
+            (lo, lo)
+        };
         true
     }
 
