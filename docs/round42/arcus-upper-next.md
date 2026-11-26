@@ -1091,16 +1091,41 @@ parts on the figure (the man's chest reads flat without them); (2) the collar as
 with a thickness and the tie's dimple; (3) the cuffs as short tubes with an edge; (4) the
 set-in sleeve seam and the shoulder seam as a soft ridge in the figure's mesh.
 
-**Open** (in the order the owner will see them):
-1. The clothing items the table lists as lacking: the jacket's and the shirt's buttons and
-   placket, the collar as a modelled band with the tie's dimple, the cuffs' thickness, the
-   set-in sleeve and shoulder seams (`cloth::fold` has no seam data).
-2. His hair: a cut with more texture and strand direction on top needs a hair proxy of its
-   own (MakeHuman's `short02` is the only short one extracted; `short01/03/04` are in the CC0
-   pack); the hairline's tufts are in, the volume and the strands' direction are not.
-3. The left elbow (arcus-hands' re-solve; `the_violinists_left_arms_are_posed_as_the_
-   photographs` ignored).
-4. The stray-pixel gate's non-hand strays (the dotted sleeve outlines, the Drawn top's
-   reflections — the Drawn varnish now has no strip blotches —, the Drawn neck's grey dots,
-   his jagged left cuff): see the gates' run below.
-5. The WSL Linux check.
+**Gates at the end** (build 6 = 9f0eaafcd's tree, release): `arcus_light_measure` ✓ (her face
+0.36, his 0.25; R/B 3.6 / 4.1; sides 2.5 / 2.3; face over the hall 20 / 14; contrast 2054 /
+2425; the silhouette and the edges far over their floors), `kit_lint` ✓, `figure_contract` ✓,
+`arcus_scene` ✓, `scene_identity` ✓, `arcus_figure_auto` ✓, `arcus_arm_pose` ✓ (the bow arm;
+the left arm's test ignored for arcus-hands), clippy `-D warnings` on cantus-ui ✓.
+`arcus_figure_shape` ✗ — her bow arm's deltoid 11.4 cm against 7.5–10.5; not pass 3's: the
+polish2 binary of 19:54 and `CANTUS_SHRUG=0,0` give the same 11.5 (decide on realism: if the
+photographs say a velvet sleeve's cap is 11.4 cm across there, re-baseline with the measure in
+the commit, else fix the band's shape). `arcus_hold` ✗ on arcus-hands' two (the left table's
+"Violin Man 12 st: elbow 49°", the Vector Cello Woman strip). `arcus_figure_specks` ✗ 62, all
+on the figure, none in the room (the hall is clean): most round the bow hand in the earlier
+camera's Photographic shots (arcus-hands'); mine: light dots at her right shoulder's edge
+(Woman Viola camera (115, 273)), a speck on the velvet ((335, 355)), the Drawn neck dot
+((192, 277)). `arcus_hold_budget` ✗ by p95 on Light (+1.4–1.75 ms, the man and her cello) with
+three builds on the machine; High's violinists +9–10 ms at 200 % (ceiling 11): re-measure idle
+(the owner: cost does not gate the look). The neck heel (da0ad2fc2) is not yet seen from the
+side against a luthier's profile.
+
+**Open — the coordinator's list after iteration 3** (in this order):
+1. *The Drawn violin*: the deeper amber reads as flat saturated orange; the photographs'
+   varnish is red-brown with darker flames and a specular ridge along the arching — less
+   saturation, value variation across the plates (`Light::shade`'s concert lacquer branch
+   multiplies the colour by `[1.0, 0.8, 0.62]`: start there).
+2. *His hair*: still a helmet with a hard hairline (and in Drawn a bright rim and white flecks
+   on the crown). A new hair proxy with volume and strand direction (the top swept back,
+   longer on top than the sides as ref-06), a soft broken edge at the temples and the nape
+   (MakeHuman's CC0 `short01/03/04` are in the system assets pack; only `short02` is
+   extracted on this machine).
+3. *Her skin*: the face, neck and neckline too uniform and pale-pink beside ref-04's warm skin
+   — warmth and the redness under the skin at the ears, the nose and the knuckles, the
+   clavicles' and the sternum's form (`relief`'s `RELIEF["female"]`), less matte uniformity;
+   her bun reads as a carved shell — strands and flyaways at its outline.
+4. *The clothes* (the owner asked twice): the study's lacking items — real folds at the elbow
+   crook and the armpit in the geometry, his lapel's edge, buttons and placket, a modelled
+   collar, the tie's knot and dimple, the cuffs' thickness, the seams; her sleeve's end must
+   not lose itself into the body.
+5. *Specks*: the three above that are mine and the flecks in his hair.
+6. `arcus_figure_shape`'s deltoid (above), the budget's idle re-measure, the WSL Linux check.
