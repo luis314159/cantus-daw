@@ -772,6 +772,27 @@ fn every_table_grows_with_velocity_at_every_step() {
         for w in lv.windows(2) {
             assert!(w[1] > w[0] - 0.5, "table {table}: {lv:?}");
         }
-        assert!(lv[7] - lv[0] >= 12.0, "table {table} spans {:.1} dB", lv[7] - lv[0]);
+        assert!(
+            lv[7] - lv[0] >= 12.0,
+            "table {table} spans {:.1} dB",
+            lv[7] - lv[0]
+        );
     }
+}
+
+/// The law (r42:tympanum-real) is linear between its velocities, exact at them, and a table
+/// without one adds nothing — every such table's hit as before, to the bit.
+#[test]
+fn the_level_law_interpolates_and_a_table_without_one_adds_nothing() {
+    use super::law::{law_db, LAW, LAW_VELS};
+    assert_eq!(law_db(200, 64.0), 0.0);
+    let (id, c) = LAW[0];
+    for (i, v) in LAW_VELS.iter().enumerate() {
+        assert!((law_db(id, *v) - 0.01 * c[i] as f32).abs() < 1e-5);
+    }
+    let mid = law_db(id, 0.5 * (LAW_VELS[3] + LAW_VELS[4]));
+    assert!((mid - 0.005 * (c[3] + c[4]) as f32).abs() < 1e-4);
+    // clamped outside the range
+    assert_eq!(law_db(id, 0.0), law_db(id, 1.0));
+    assert_eq!(law_db(id, 200.0), law_db(id, 127.0));
 }

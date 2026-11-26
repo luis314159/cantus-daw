@@ -37,6 +37,16 @@ PAIRS = {
     "hiphop": (["drskit", "unruly"], "un bombo grave y largo, la caja con cuerpo"),
 }
 TYMP = [("studio", "Tympanum Studio Maple"), ("jazz", "Tympanum Jazz Birch")]
+# Real playing, transcribed (`transcribe.py`, templates off DRSKit) and played back: the
+# recording itself (a Freesound CC0 preview), DRSKit and Tympanum playing its transcription.
+REAL = [
+    ("real50721", "Drums Funk Groove 6 (RutgerMuller, CC0)", "50721.mp3",
+     "una grabación real de funk, transcrita a MIDI y tocada de nuevo: la caja y el charles"),
+    ("real50722", "Drums Funk Groove 7 Ride (RutgerMuller, CC0)", "50722.mp3",
+     "el ride de una grabación real, transcrito"),
+    ("real478563", "Doom Metal Drums Improvisation (RutgerMuller, CC0)", "478563.mp3",
+     "metal lento y pesado: bombo, crash y toms"),
+]
 
 
 def kweight(x, fs):
@@ -117,6 +127,42 @@ def main():
             meta.append({"groove": name, "clip": lab, "file": f"{name}/{fn}", "source": str(p),
                          "gain_db": g - drop, "lufs": TARGET - drop})
         page.append((name, mid, hint, items, TARGET - drop))
+    for name, title, mp3, hint in REAL:
+        src = P.REFS / "drums" / "freesound" / mp3
+        clips = [("grabación original", src, 0.0)]
+        for kid, lab, t in [("drskit", "grabada · DRSKit, la transcripción", "ref")] + [
+                (k, f"{l} · {'antes' if t == 'before' else 'después'}, la transcripción", t)
+                for k, l in TYMP for t in tags]:
+            p = work / "grooves" / t / f"{name}--{kid}.wav"
+            if p.exists():
+                clips.append((lab, p, 0.5))
+        if len(clips) < 2 or not src.exists():
+            continue
+        audio = []
+        for lab, p, skip in clips:
+            x, fs = sf.read(str(p), dtype="float64", always_2d=True)
+            if x.shape[1] == 1:
+                x = np.repeat(x, 2, axis=1)
+            if fs != 48000:
+                x = signal.resample_poly(x, 48000, fs, axis=0)
+                fs = 48000
+            x = x[int(skip * fs): int((skip + 20.0) * fs)]
+            fade = int(0.1 * fs)
+            x[-fade:] *= np.linspace(1, 0, fade)[:, None]
+            audio.append((lab, p, x, fs))
+        gains = [TARGET - lufs(x, fs) for _, _, x, fs in audio]
+        peaks = [20 * np.log10(np.abs(x).max() + 1e-12) + g for (_, _, x, _), g in zip(audio, gains)]
+        drop = max(0.0, max(peaks) - CEIL)
+        d = listen / name
+        d.mkdir(parents=True, exist_ok=True)
+        items = []
+        for i, ((lab, p, x, fs), g) in enumerate(zip(audio, gains)):
+            fn = f"{i + 1:02d}-{lab.split(',')[0].replace(' · ', '-').replace(' ', '_').lower()}.wav"
+            sf.write(str(d / fn), to16(x * 10 ** ((g - drop) / 20), rng), fs, subtype="PCM_16")
+            items.append((lab, f"{name}/{fn}"))
+            meta.append({"groove": name, "clip": lab, "file": f"{name}/{fn}", "source": str(p),
+                         "gain_db": g - drop, "lufs": TARGET - drop})
+        page.append((title, mp3, hint, items, TARGET - drop))
     write_page(listen, page)
     (listen / "previews.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False), encoding="utf-8")
     print(f"{len(meta)} clips in {listen}")
@@ -132,7 +178,7 @@ h1{font-size:1.6rem;margin:.2em 0}h2{font-size:1.15rem;margin:1.6em 0 .3em;text-
 p.lead,p.hint{color:var(--muted)}section{border-top:1px solid var(--line);padding-top:8px}
 .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;align-items:center;
 background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:6px 0}
-.row.t{border-left:4px solid var(--acc)}audio{width:100%}small{color:var(--muted)}
+.row.t{border-left:4px solid var(--acc)}.row.o{border-left:4px solid var(--muted)}audio{width:100%}small{color:var(--muted)}
 @media (max-width:600px){.row{grid-template-columns:1fr}}
 """
     out = ["<!doctype html><html lang='es'><head><meta charset='utf-8'><meta name='viewport' "
@@ -149,6 +195,8 @@ background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8p
                    f"{html.escape(hint)}. <small>({html.escape(mid.split('/')[-1])}, {lv:.1f} LUFS)</small></p>")
         for lab, f in items:
             t = " t" if lab.startswith("Tympanum") else ""
+            if lab.startswith("grabación original"):
+                t = " o"
             out.append(f"<div class='row{t}'><div>{html.escape(lab)}</div>"
                        f"<audio controls preload='none' src='{html.escape(f)}'></audio></div>")
         out.append("</section>")

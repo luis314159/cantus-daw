@@ -584,3 +584,46 @@ fn the_jazz_kit_plays_its_own_measured_voices() {
     let s = offline(&mut app, &jazz("model:studio"), frames, 512);
     assert!(a != s, "its own voices, not the studio kit's");
 }
+
+/// The modelled kits' level law (r42:tympanum-real, `DSP_VERSION` 19), through the boot path
+/// and the real engine: every piece of the studio and jazz kits grows with the velocity at
+/// every step a drummer plays (the studio kick at 56 was louder than at 80).
+#[test]
+fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
+    const VELS: [u8; 9] = [16, 32, 48, 56, 64, 80, 96, 112, 127];
+    for kit in ["model:studio", "model:jazz"] {
+        for key in [36u8, 38, 45, 41, 42, 49, 51] {
+            let mut p = Project::new("Law");
+            p.tempo_bpm = 60.0;
+            let mut t = p.make_track("Drums");
+            let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+            spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
+            t.instrument = InstrumentSpec::Native(spec);
+            // one hit a second (a beat at 60 BPM): each its own window
+            let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(VELS.len() as i64 + 1));
+            for (i, v) in VELS.iter().enumerate() {
+                c.notes
+                    .push(p.make_note(Ticks::beats(i as i64), Ticks(PPQ / 8), key, *v));
+            }
+            t.clips.push(c);
+            p.tracks.push(t);
+            let (mut app, _proc) = boot(p.clone());
+            let x = offline(&mut app, &p, VELS.len() * 48_000, 512);
+            let lv: Vec<f32> = (0..VELS.len())
+                .map(|i| {
+                    let w = &x[i * 96_000..i * 96_000 + 2 * 3_840];
+                    let e = w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32;
+                    10.0 * e.max(1e-20).log10()
+                })
+                .collect();
+            for (j, w) in lv.windows(2).enumerate() {
+                assert!(
+                    w[1] > w[0] - 1.0,
+                    "{kit} key {key}: velocity {} → {} falls ({lv:?})",
+                    VELS[j],
+                    VELS[j + 1]
+                );
+            }
+        }
+    }
+}

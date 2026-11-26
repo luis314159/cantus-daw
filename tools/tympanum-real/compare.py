@@ -81,6 +81,11 @@ def style(ax):
     ax.tick_params(colors=MUTED, labelsize=8)
 
 
+def shape(kid):
+    """Studio Maple a circle, Jazz Birch a square (the colour says before or after)."""
+    return "o" if kid.startswith("studio") else "s"
+
+
 def feature_chart(kind, rows, kits, path):
     """Each feature on its own scale: the references' range as a bar, each reference a grey
     dot, each Tympanum a coloured mark; the axis is the references' min … max (0 … 1)."""
@@ -107,7 +112,7 @@ def feature_chart(kind, rows, kits, path):
             if role == "ref" or not finite(v):
                 continue
             p = max(-0.6, min(1.6, pos(v)))
-            ax.scatter([p], [y], s=46, marker=MARK[role], color=COL[role], zorder=3,
+            ax.scatter([p], [y], s=46, marker=shape(k), color=COL[role], zorder=3,
                        edgecolor=SURFACE, linewidth=1.5)
             txt.append(f"{kits[k]['label']} {v:.3g}")
         ax.text(1.68, y, f"ref {lo:.3g} … {hi:.3g}   " + "  ".join(txt), va="center",
@@ -119,11 +124,13 @@ def feature_chart(kind, rows, kits, path):
     ax.set_xticks([0, 1])
     ax.set_xticklabels(["mín. de las referencias", "máx."], fontsize=8, color=MUTED)
     handles = [plt.Line2D([], [], marker="o", ls="", color=REF, label="kits grabados")]
-    for role, name in (("before", "Tympanum antes"), ("after", "Tympanum después")):
-        if any(kits[k]["role"] == role for k in kits):
-            handles.append(plt.Line2D([], [], marker=MARK[role], ls="", color=COL[role], label=name))
+    for role, name in (("before", "antes"), ("after", "después")):
+        for kid, kit in (("studio", "Studio Maple"), ("jazz", "Jazz Birch")):
+            if any(kits[k]["role"] == role and k.startswith(kid) for k in kits):
+                handles.append(plt.Line2D([], [], marker=shape(kid), ls="", color=COL[role],
+                                          label=f"{kit} {name}"))
     ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(0, 1.0 + 0.9 / len(feats)),
-              ncol=3, frameon=False, fontsize=8.5)
+              ncol=5, frameon=False, fontsize=8.5)
     ax.set_title(f"{KIND_ES.get(kind, kind)}: cada medida sobre el rango de los kits grabados",
                  loc="left", fontsize=11, color=INK, pad=22)
     fig.subplots_adjust(left=0.33, right=0.62)
@@ -149,10 +156,11 @@ def curves(kind, kits, hits, path):
         role = kit["role"]
         c = REF if role == "ref" else COL[role]
         lw = 1.0 if role == "ref" else 2.0
-        axs[0].plot(v, [lv[x] - top for x in v], color=c, lw=lw, alpha=0.8 if role == "ref" else 1,
+        ls = "--" if k.startswith("jazz") else "-"
+        axs[0].plot(v, [lv[x] - top for x in v], color=c, lw=lw, ls=ls, alpha=0.8 if role == "ref" else 1,
                     zorder=3 if role != "ref" else 2)
         ce = S.by_vel(hs, "cent_c")
-        axs[1].plot([lv[x] - top for x in v if x in ce], [ce[x] for x in v if x in ce], color=c,
+        axs[1].plot([lv[x] - top for x in v if x in ce], [ce[x] for x in v if x in ce], color=c, ls=ls,
                     lw=lw, alpha=0.8 if role == "ref" else 1, zorder=3 if role != "ref" else 2)
         if role != "ref":
             axs[0].text(v[-1] + 2, 0, kit["label"], color=INK, fontsize=7.5, va="center")
