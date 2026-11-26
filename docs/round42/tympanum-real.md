@@ -142,3 +142,30 @@ velocities before anything changed.
    recordings 193–224); brightness rising with level (true for kicks, toms and cymbals in the
    recordings, and in Tympanum; not for a snare — four of seven recorded snares are brighter soft,
    the wires carrying a ghost note — so a snare must not be made to brighten).
+7. **Where the stick lands (changed, a control's range only).** `position.py` reads centre and
+   off-centre strokes from the packs' own files. On Virtuosity's rack tom, the (1,1) region
+   (1.35–1.75 × the fundamental) over the fundamental is −16 … −24 dB struck at the centre and
+   −7 … −13 dB off it, layer by layer — the nodal-diameter modes a centre stroke leaves still. Big
+   Rusty's snare (wires on) moves the same way by 3–6 dB at the louder layers; Virtuosity's snare,
+   with the wires on or off, gives no steady difference in this measure (its f0 is hard to read
+   under the noise). So a drum's `p{n}.pos` towards the edge now also raises its (1,1) and (2,1)
+   regions by up to `EDGE_DB` (10 dB at the edge, as much lower at the very centre); at its
+   default (0, as measured) nothing moves. Test: `a_tom_struck_at_its_edge_rings_its_nodal_diameter_modes`.
+
+## 5. Brushes — the plan (not built)
+
+Tympanum has no brushes; the jazz and ballad grooves need them, and real players' soft strokes
+(41 % ghost notes) are where brushes live. The references are in the library: Big Rusty
+(`snare_14/{brush,bdig,bstir,bflutter,brelease}`, 4 takes a layer, close + overheads), Unruly
+(`02-kit-brushes.sfz`: dig, stir, flutter, the hat with a brush in six openings), Swirly dry
+(`snare_main`, `snare_dig`, `snare_stir`, `snare_flutter`, `snare_edge`; a brushed kit and
+percussion), Srirachasocks' and soneproject's brushed kits (Freesound CC0). The measures to take
+first: a brush tap's excitation (many bristles over 5–30 ms instead of one ~1-ms contact: the
+onset's length and its spectrum's top), a sweep's level and colour against the hand's speed (the
+stir loops), the wires' share (a brushed snare is mostly wires), the release's lift-off. The
+model: a tap as model 5 tables measured off those layers (the head's modes as they are, the
+excitation spread over the bristles' arrival); a sweep as a sustained friction noise through the
+head's bands, held by the note and shaped by its velocity and a controller (a hand's speed), the
+wires gated by the head's motion. Keys: GM has none — the articulation keys past 88 (ADR 0042),
+`brush`, `sweep`, `dig`, `flutter`, `release` on the snare, a brushed hat and ride. Built only
+against those recordings, as the drums were.
