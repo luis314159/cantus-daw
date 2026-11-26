@@ -281,3 +281,5 @@ To render them again:
   has are listed in §4.
 - **Numbers for the integrator:** schema 85 (84 left for Chorda's branch) and `DSP_VERSION` 17
   (16 left) may be renumbered; ADR 0164 is provisional.
+  *At integration (`r42/integration`, after chorda-c17): kept as they are — Chorda took
+  schema 84 and `DSP_VERSION` 16; v85.cantus written again by the merged code.*

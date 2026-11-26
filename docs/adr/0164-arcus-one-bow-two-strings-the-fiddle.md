@@ -1,9 +1,9 @@
 # ADR 0164 — Arcus's strings under one bow: double stops, a crossing's ring, the sympathetic strings, the grit and the steel set (the country fiddle)
 
-**Status:** Proposed (round 42, the `fiddle` builder; the number is provisional, the
-integrator's to confirm) · **Date:** 2026-11-25 · **Builds on:** ADR 0157 (Arcus), ADR 0162
-(the player) · **Schema:** 85 (84 reserved for Chorda's branch) · **`DSP_VERSION`:** 17 (16
-reserved for Chorda's branch)
+**Status:** Proposed (round 42, the `fiddle` builder; the number confirmed at integration,
+`r42/integration`) · **Date:** 2026-11-25 · **Builds on:** ADR 0157 (Arcus), ADR 0162
+(the player) · **Schema:** 85 (84 is Chorda's colour, chorda-c17) · **`DSP_VERSION`:** 17 (16
+is Chorda's candidate 17)
 
 ## Context
 
