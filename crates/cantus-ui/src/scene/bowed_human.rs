@@ -1684,7 +1684,7 @@ fn clear_of_the_body(
     // (Its top's side reaching up toward the jaw: the far collar point stood in front of
     // the lower bout from the camera.)
     let (top, back) = (
-        d.arch + tune("collar_top", 4.0),
+        d.arch + tune("collar_top", COLLAR_TOP),
         -(super::bowed::rib(d, d.body * 0.2) + d.arch_back + 1.0),
     );
     let (keep, ramp) = (
@@ -1692,6 +1692,7 @@ fn clear_of_the_body(
         tune("collar_ramp", COLLAR_RAMP).max(0.1),
     );
     let (tuck, drape) = (tune("collar_tuck", TUCK), tune("collar_drape", 0.0));
+    let rib = tune("collar_rib", COLLAR_RIB);
     let (n0, n1, r) = neck;
     let axis = n1 - n0;
     // How far past the neck's surface a point lies (its distance to the neck's axis, the
@@ -1719,8 +1720,15 @@ fn clear_of_the_body(
             if !(z < top && z > low && inside(&o, x, y)) {
                 continue;
             }
-            // (The band kept; the point under the back, as far as it lies past the band.)
-            let s = smooth_k((off_neck(*p) - keep) / ramp);
+            // (The band kept; the point under the back, as far as it lies past the band. Beside
+            // the body — under its top's level, by its ribs — the band goes under too, if
+            // `collar_rib` says so: kept there, the Drawn picture may sort it among the ribs'
+            // cells.)
+            let s = if z < d.arch + rib {
+                1.0
+            } else {
+                smooth_k((off_neck(*p) - keep) / ramp)
+            };
             if s <= 0.0 {
                 continue;
             }
@@ -1748,8 +1756,15 @@ const TUCK: f32 = 0.4;
 /// shirt collar stands 3.5–4 cm round the neck and its band lies within a couple of
 /// centimetres of the skin; the points reach 6–8 cm out over the chest), and over how far
 /// past it the point goes under the instrument.
-const COLLAR_KEEP: f32 = 2.2;
+const COLLAR_KEEP: f32 = 3.0;
 const COLLAR_RAMP: f32 = 1.5;
+
+/// r42:arcus-polish5 — how far over the top's highest point a collar's corner inside the
+/// body's outline is still the instrument's to tuck (cm: 4 took the band beside the throat
+/// as well; the far collar point lies on the top's edge, within 2), and how far under it a
+/// band corner is tucked anyway (off: the band beside the ribs is kept).
+const COLLAR_TOP: f32 = 2.0;
+const COLLAR_RIB: f32 = -100.0;
 
 /// r42:arcus-polish5 — the neck's radius posed (cm): the middle distance of its skin (the
 /// vertices the neck's bone carries most) from its axis `n0`–`n1`.
@@ -1820,12 +1835,12 @@ fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &
     use super::figure::tune::tune;
     let (most, often) = (
         tune("tips_n", HIS_TIPS as f32) as usize,
-        tune("tips_p", 0.12),
+        tune("tips_p", TIPS.0),
     );
     let (long, lifted, thick) = (
-        tune("tips_len", 1.0),
+        tune("tips_len", TIPS.1),
         tune("tips_lift", 1.0),
-        tune("tips_r", 1.0),
+        tune("tips_r", TIPS.2),
     );
     for &i in &top {
         if n >= most || hash(i, 1) > often {
@@ -1857,7 +1872,13 @@ fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &
 }
 
 /// r42:arcus-polish4 — how many tips stand out of his top at most.
-const HIS_TIPS: usize = 90;
+/// (r42:arcus-polish5: 250, was 90 — the top's outline still a cap.)
+const HIS_TIPS: usize = 250;
+
+/// r42:arcus-polish5 — how often a crown card's corner sends a tip out (was 0.12), how long
+/// (× 0.7–1.8 cm) and how thick (× the wisps' radius: a tip a pixel wide at 200 %, so it
+/// breaks the outline against the dark room) they are.
+const TIPS: (f32, f32, f32) = (0.35, 1.2, 2.0);
 
 /// r42:arcus-polish4 — how many loose hairs leave her bun's outline at most.
 const BUN_WISPS: usize = 12;

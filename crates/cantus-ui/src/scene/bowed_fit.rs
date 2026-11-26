@@ -345,13 +345,6 @@ pub fn fittings(m: &mut Mesh, d: &Dims, pose: &Pose, o: &[(f32, f32)]) {
         let b = pose.at(s * d.tail_w.0 * 0.25, 0.3, 1.05);
         let c = pose.at(s * 0.4, -0.4, -1.2);
         m.rods.push((Role::Rubber, Rod { a, b, r: 0.16 }));
-        // r42:arcus-polish5 — a held violin's or viola's tailgut stops at the saddle's back:
-        // its turn down round the end button lies against the player's neck, where the
-        // Drawn picture sorted a piece of it over the skin (the specks gate's dark dot on her
-        // neck, (192, 277)); the saddle and the button hide it from every camera.
-        if d.held && crate::scene::figure::tune::tune("tailgut_loop", 0.0) < 0.5 {
-            continue;
-        }
         m.rods.push((
             Role::Rubber,
             Rod {

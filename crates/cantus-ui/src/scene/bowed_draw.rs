@@ -385,14 +385,18 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             at[i] = at[i].min(at[i - 1]) - 0.002;
         }
     }
+    // r42:arcus-polish5 — `CANTUS_TUNE`'s `drawn_skip` (a bit each: 1 the decals, 2 the
+    // patches, 4 the figures' triangles, 8 the polygons, 16 the rods) leaves a kind out, to
+    // find what drew a stray pixel. Unset: everything.
+    let skip = super::figure::tune::tune("drawn_skip", 0.0) as u32;
     for (d, &a) in dec.iter().zip(&at) {
-        if a < f32::MAX {
+        if a < f32::MAX && skip & 1 == 0 {
             c.p.at(a - 0.01, Part::Bowed);
             c.p.poly(d.pts.clone(), d.paint.clone(), d.op, 0.0);
         }
     }
     for (role, p) in &m.patches {
-        if *role == Role::Purfling {
+        if *role == Role::Purfling || skip & 2 != 0 {
             continue;
         }
         let mat = material(b, *role);
@@ -466,9 +470,11 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             c.p.poly(sp, paint, 1.0, seam);
         }
     }
-    super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
+    if skip & 4 == 0 {
+        super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
+    }
     for (role, poly) in &m.polys {
-        if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) {
+        if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) || skip & 8 != 0 {
             continue;
         }
         let ctr = super::geo::centre(&poly.pts);
@@ -485,7 +491,7 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
     for (role, rod) in &m.rods {
         // (r42:arcus-polish2: her loose hairs are the Photographic picture's: drawn as
         // tubes a point wide they were wires.)
-        if matches!(role, Role::Wisp | Role::WispDark) {
+        if matches!(role, Role::Wisp | Role::WispDark) || skip & 16 != 0 {
             continue;
         }
         let mat = material(b, *role);

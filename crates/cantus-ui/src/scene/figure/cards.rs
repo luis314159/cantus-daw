@@ -265,22 +265,24 @@ pub fn hair_look(who: u8) -> HairLook {
         // their detail shows, though its crossing layers read as a weave above 0.3; a dark
         // brown, less red — ref-06.)
         // (r42:arcus-polish5: his numbers under study, `CANTUS_TUNE`'s `his_*` — read once,
-        // this is asked per pixel.)
+        // this is asked per pixel. The weave at 200 % was the tonal streaks' fine noise over
+        // the crossing cards, not the maps: streaks 0.9 → 0.15, broken 0.7 → 0.2, detail
+        // 0.3 → 0.2 — the strands' way still reads, the crosshatch is gone.)
         use super::tune::tune;
         static HIS: OnceLock<HairLook> = OnceLock::new();
         *HIS.get_or_init(|| HairLook {
             albedo: tune("his_albedo", 1.0),
             shine: (60.0, tune("his_shine", 0.32)),
             sheen: (22.0, tune("his_sheen", 0.2)),
-            detail: tune("his_detail", 0.3),
+            detail: tune("his_detail", 0.2),
             scalp: 0.55,
-            streaks: tune("his_streaks", 0.9),
+            streaks: tune("his_streaks", 0.15),
             rim: tune("his_rim", 2.0), // (r42:arcus-polish4: 1.4 — the top's outline read as a hard cap)
             sections: tune("his_sections", 0.2),
             lowlight: 1.0,
             under: tune("his_under", 0.25),
             warm: [1.05, 1.0, 0.94],
-            broken: tune("his_broken", 0.7),
+            broken: tune("his_broken", 0.2),
             roots: 0.12,
             ends: 0.0,
         })
