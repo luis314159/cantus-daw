@@ -29,7 +29,7 @@ catalogued as the `fiddle` set) measured what the ear heard:
 
 ## Decision
 
-Eight settings, each **off at its default — nothing changes, to the bit** — and on in the
+Nine settings, each **off at its default — nothing changes, to the bit** — and on in the
 *Fiddle* preset:
 
 1. **`bow.pair`** (0/1) — **one bow on two strings.** A voice gets a second `BowedString`
@@ -100,9 +100,31 @@ Eight settings, each **off at its default — nothing changes, to the bit** — 
    - A fiddle is close-miked for country; with one mic, the songs read 2.10–2.16 and −8 …
      −10 dB.
 
-The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1, `dstop.just` 0.6
-`body.mic` 1 and `body.bridge` 1, with its bow nearer the bridge (×0.73, was 0.82) and heavier (×1.32, was
-1.15). The demos put each drone in the fiddle's own clip, at the melody note's velocity.
+9. **`bow.bite`** (0 … 1, default 0.5; *Bite*, *Mordida*) — each note's share of the grit by
+   its dynamic (velocity, CC1, aftertouch, MPE pressure): `min(1, 2 · bite · w(d))`, `w` a
+   smoothstep from the dynamic 0.4 to 0.9. At 0.5 a soft note gets none, an mf one about half,
+   a loud or accented one all of it; 0 none, 1 all of it from mf up. A chop always gets all
+   of it. The force and the contact still raise the grit as before. With no grit it changes
+   nothing. It is automatable, learnable and modulatable.
+
+The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 0.75, `bow.bite` 0.5, `steel` 1,
+`dstop.just` 0.6, `body.mic` 1 and `body.bridge` 1.3. Its bow sits nearer the bridge (×0.73,
+was 0.82) and heavier (×1.32, was 1.15), with the measured violin's hair (`bow.noise` 0). The
+demos put each drone in the fiddle's own clip, at the melody note's velocity.
+
+**The scratch (the owner, 2026-11-26).** The first preset had `bow.noise` +4 dB and grit 1.
+At the heavy, near-bridge bow, the hair's roughness (it modulates the friction) took the
+string out of Helmholtz motion:
+
+- YIN d' read 0.15–0.19 and 35–44 % of the frames were raucous, against the references'
+  ≤ 0.04 and ≤ 0.15;
+- the 4–8 kHz noise between the harmonics read −25 dB re the level, against −37 dry and −38
+  bluegrass.
+
+Either half alone brought it back. The preset now has no flat hair noise, the grit at 0.75
+(the loudest notes') shared out by the bite, and the bridge at 1.3 to restore the 1.6–3.2 kHz
+bite the noise had carried. Single lines now read −38 … −39 dB and d' 0.01–0.03
+(`docs/round42/fiddle.md` §6).
 
 ## Consequences
 
@@ -129,7 +151,9 @@ The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1, `dsto
   - the open strings ring after the bow lifts (> 6 dB over none);
   - `probe_double_stop_levels`: each half of a double stop at its note's level alone, ±0.5 dB;
   - a chop's top over a staccato's (`a_chop_scratches_where_a_staccato_speaks`);
-  - every cross-tuning's open strings on their strings, open (`a_cross_tuning_moves_the_open_strings`).
+  - every cross-tuning's open strings on their strings, open (`a_cross_tuning_moves_the_open_strings`);
+  - the bite: at 0 the same bits as no grit, its share rising with the dynamic and the bite,
+    never over 1 (`the_bite_shares_out_the_grit_by_the_dynamic`).
 - The null at the defaults:
   - every golden render and `LOWER_HASHES` unchanged;
   - `cantus-engine` `inst_arcus::the_extras_at_their_defaults_change_no_sample` (the keys at
@@ -142,7 +166,10 @@ The *Fiddle* preset turns on `bow.pair`, `sym` 1, `bow.grit` 1, `steel` 1, `dsto
   - F#5 is tuned toward the just sixth;
   - the sympathetic tail is louder than with none;
   - the close mic and the fiddle's bridge lift the 1.6–3.2 kHz band of the two sides' sum
-    (+13 dB against the pair and the measured bridge).
+    (+13 dB against the pair and the measured bridge);
+  - `the_bite_raises_the_noise_between_the_harmonics_through_the_app`: the bite set by its
+    command at 0, 1/3, 2/3 and 1 on one held note, and the noise between the harmonics (the
+    comb residual, YIN's d') rises at every step.
 - `cantus-engine` `arcus_image`: a fork is 770 KB at 48 kHz (was 425: the second string a
   voice, the lines sized for DDAD's D3, the sympathetic loops), and `approx_bytes` follows it.
 - `cantus-project` `schema_85_keeps_arcus_s_strings_under_one_bow` (fixture v85; v83 reads the

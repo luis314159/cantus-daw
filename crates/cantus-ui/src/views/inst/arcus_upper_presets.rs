@@ -76,22 +76,32 @@ pub const PRESETS: &[FactoryPreset] = &[
     // bow nearer the bridge and heavier, more grit, short strokes, little vibrato and late,
     // quick fingers and changes, the open strings left ringing.
     preset!("arcus.preset.violin_fiddle", VIOLIN,
-        ["inst" => 2.0, "bow.pos" => 0.73, "bow.force" => 1.32, "bow.noise" => 4.0,
+        // r42 fiddle, the owner's "too scratchy": no flat +4 dB of hair noise (`bow.noise`
+        // 4 → 0) and the grit at 0.75 — at the bow's heavy, near-bridge contact the hair's
+        // roughness took the string out of Helmholtz motion (YIN d' 0.15–0.19, 35–44 % of the
+        // frames raucous, the 4–8 kHz noise between the harmonics −25 dB re the level against
+        // the references' −37/−38); now 0.01–0.03, 6–11 %, −37 … −38 dB
+        // (`docs/round42/fiddle.md` §6). The grit is the loudest notes' (take A); the bite
+        // at 0.5 gives each note its share by the dynamic — the soft ones none (take B), the
+        // ordinary ones about half (take C, the owner's middle), the accents all of it.
+        ["inst" => 2.0, "bow.pos" => 0.73, "bow.force" => 1.32,
          "bow.attack" => 0.7, "bow.release" => 70.0, "bow.change" => 14.0, "finger" => 14.0,
          "vib.depth" => 0.35, "vib.delay" => 450.0, "vib.var" => 0.35, "ring" => 1.8,
          "body.ring" => 0.9, "gain" => 5.4,
          // r42 fiddle (ADR 0164): one bow on two strings, the open strings in sympathy, the
          // grit, a steel set, double stops tuned most of the way to just.
-         "bow.pair" => 1.0, "sym" => 1.0, "bow.grit" => 1.0, "steel" => 1.0,
-         "dstop.just" => 0.6,
+         "bow.pair" => 1.0, "sym" => 1.0, "bow.grit" => 0.75, "steel" => 1.0,
+         "bow.bite" => 0.5, "dstop.just" => 0.6,
          // … and one close microphone, as a fiddle is miked (the pair's mono sum was dark);
          // r42 fiddle: the bow nearer the bridge (0.82 → 0.73) and heavier (1.15 → 1.32) — in
          // the lab the fast notes' re-articulation 0.48 → 0.17 of the onsets (the references'
          // 0.10–0.17), the steady noise between the harmonics −16.5 → −10.7 dB.
          "body.mic" => 1.0,
          // … through a fiddle's bridge: its hill raised, its top falling sooner (the stems'
-         // 1.6–3.2 kHz −15 … −17 → −12.7 dB re the total, the bluegrass references' −11 … −13).
-         "body.bridge" => 1.0]),
+         // 1.6–3.2 kHz −15 … −17 → −12.7 dB re the total, the bluegrass references' −11 … −13);
+         // at 1.3 since the scratch went (the hair's noise had carried part of the top: the
+         // bite back +0.6 dB, 5 kHz −0.6 dB more).
+         "body.bridge" => 1.3]),
     preset!("arcus.preset.violin_pizz", PLUCKED,
         ["inst" => 2.0, "tech" => 1.0, "mode" => 0.0, "pizz.decay" => 1.0, "ring" => 0.4,
          "gain" => 2.4]),

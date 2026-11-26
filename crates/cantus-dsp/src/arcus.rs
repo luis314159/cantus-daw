@@ -331,6 +331,11 @@ pub struct ArcusSettings {
     /// r42 fiddle — the bow's grit (0 none … 1 a fiddler's): the hair's noise rising as the
     /// contact nears the bridge and the force nears Schelleng's upper limit.
     pub grit: f32,
+    /// r42 fiddle — the bite (`bow.bite`, 0 … 1): how much of the grit a note gets, by its
+    /// dynamic (velocity, CC1, aftertouch, MPE pressure): at 0.5 a soft note has none, an mf
+    /// one about half, a loud or accented one all of it; 0 none at all, 1 all of it from mf
+    /// up. With no grit it changes nothing.
+    pub bite: f32,
     /// r42 fiddle — steel strings (0 the measured synthetic-core set … 1 steel): a sharper
     /// corner, less loss in the upper partials, a longer ring.
     pub steel: f32,
@@ -410,6 +415,7 @@ impl Default for ArcusSettings {
             just: 0.0,       // r42 fiddle
             sym: 0.0,        // r42 fiddle
             grit: 0.0,       // r42 fiddle
+            bite: 0.5,       // r42 fiddle
             steel: 0.0,      // r42 fiddle
             cross: 0,        // r42 fiddle
             mic: 0.0,        // r42 fiddle

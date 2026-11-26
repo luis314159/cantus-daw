@@ -4710,6 +4710,7 @@ fn an_arcus_fiddle_never_allocates() {
             ("bow.pair", 1.0),
             ("sym", 1.0 + extra),
             ("bow.grit", 1.0),
+            ("bow.bite", 0.8),
             ("steel", 1.0),
             ("dstop.just", 0.6),
         ]

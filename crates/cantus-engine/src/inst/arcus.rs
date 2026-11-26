@@ -89,6 +89,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         just: v[ix::JUST],
         sym: v[ix::SYM],
         grit: v[ix::GRIT],
+        bite: v[ix::BITE],
         steel: v[ix::STEEL],
         cross: round(ix::CROSS).clamp(0.0, 5.0) as u8,
         mic: round(ix::MIC),

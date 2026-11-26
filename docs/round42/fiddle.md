@@ -274,12 +274,149 @@ To render them again:
   D-string and E-string notes at one velocity (`probe_double_stop_levels`). That is the
   instrument's, not the pair's, and is for the violin's next pass.
 - **Turns, rolls and the swung feel as a groove** stay in the notes, as `arcus-expr.md` said.
-- **The 5 kHz band** sits about 4 dB over dry classical violins (and 9 over the bluegrass
-  previews). If the owner hears sizzle, the next knobs are the bridge's top (`BRIDGE_TOP_DB`)
-  or less steel.
+- **The 5 kHz band** sat about 4 dB over dry classical violins (and 9 over the bluegrass
+  previews). The owner heard it as scratch; it was the hair's noise (§6), and with it gone *Tren*
+  reads 5 kHz 1 dB over the dry violins (5 over the bluegrass previews, whose MP3s and rooms dull the top).
 - **The owner's ear decides.** Everything here is measured, not yet heard by him. The takes he
   has are listed in §4.
 - **Numbers for the integrator:** schema 85 (84 left for Chorda's branch) and `DSP_VERSION` 17
   (16 left) may be renumbered; ADR 0164 is provisional.
   *At integration (`r42/integration`, after chorda-c17): kept as they are — Chorda took
   schema 84 and `DSP_VERSION` 16; v85.cantus written again by the merged code.*
+
+## 6. The scratch, and the bite (the owner, 2026-11-26)
+
+The owner heard *Tren*, *Tren* in AEAE and the *Hoedown* and said (translated): "I think the
+bow sounds excessively scratchy, it has become annoying."
+
+### 6.1 Measured: what made the scratch
+
+`tools/arcus/fiddle/fiddle_scratch.py` measures what the ear calls scratch, on single lines
+only (a double stop's second voice counts as noise in the comb residual):
+
+- the noise between the harmonics in 2–4, 4–8 and 8–12 kHz, re the frame's level, on steady
+  frames, and the 4–8 kHz band's 90th percentile over every sounding frame (the attacks and
+  crossings);
+- the periodicity: YIN's d' and the share of frames over 0.25 (raucous or multi-slip);
+- the top's third-octaves, the centroid / f0 and the share above 2 kHz.
+
+The references (`refs`, cached in `$CANTUS_WORK/arcus/fiddle/scratch_refs.json`): the dry
+classical violins (the CNSM scales, PHENICX's anechoic first violins) and eight single-line
+bluegrass clips.
+
+| lab line (agudas / rapidas) | n4-8 dB | n2-4 dB | d' | raucous share |
+|---|---|---|---|---|
+| the fiddle as the owner heard it | −25.0 / −24.9 | −17.0 / −17.5 | 0.15 / 0.19 | 0.35 / 0.44 |
+| grit 0 | −36.3 / −36.4 | | 0.01 / 0.03 | |
+| `bow.noise` 4 → 0 | −36.2 / −36.0 | | 0.01 / 0.04 | |
+| the old contact (×0.82) | −29.4 / −29.4 | | 0.05 / 0.08 | |
+| the old force (×1.15) | −31.2 / −31.4 | | 0.04 / 0.06 | |
+| steel off | −20.2 / −20.0 | | 0.40 / 0.36 | 0.69 / 0.64 |
+| the pair of mics | −31.9 / −32.5 | | 0.12 / 0.14 | |
+| dry classical violins | −37.0 [−37.9, −36.4] | −31.9 | 0.01 | 0.03 |
+| bluegrass | −38.1 [−41.0, −36.9] | −23.3 | 0.04 | 0.14 [0.09, 0.15] |
+
+**The cause is the hair's roughness**, which modulates the friction (`force · (1 + rough)`).
+The preset carried a flat +4 dB of it (`bow.noise` 4), and at its heavy bow near the bridge
+the grit added up to +8.5 dB more. That took the string out of Helmholtz motion: it lost its
+period in 35–44 % of the frames.
+
+- Either half alone (grit 0, or `bow.noise` 0) brings it back.
+- The contact and the force moved it only through the grit they set off.
+- Steel is not a cause: without it the corner is duller, and the slip is less clean.
+- The close mic and the bridge scale the level they hear; they do not make the noise.
+
+### 6.2 The fix: the Fiddle character only, physical, no EQ
+
+- **`bow.noise` 4 → 0**: the measured violin's hair.
+- **`bow.grit` 1 → 0.75**, the loudest notes' grit: the owner's take A.
+- **`body.bridge` 1 → 1.3**. The hair's noise had carried part of the top; the bridge's
+  rocking-mode hill puts the bite back (1.6–3.2 kHz +0.6 dB), and its top cuts 5 kHz a
+  further 0.6 dB.
+
+The bow stays nearer the bridge and heavier, with steel and the close mic, so the
+re-articulation and the double stops are as before. *Tren*'s fiddle stem, before → A:
+
+| | before | A | C (grit 0.4) | B (grit 0) | references |
+|---|---|---|---|---|---|
+| n4-8 dB (double stops inflate it) | −22.8 | −36.1 | −37.3 | −39.1 | −37.0 dry, −38.1 bluegrass |
+| d' / raucous share | 0.18 / 0.40 | 0.05 / 0.14 | 0.04 / 0.13 | 0.04 / 0.13 | ≤ 0.04 / ≤ 0.15 |
+| 5 kHz, 8 kHz third-octaves dB re total | −17.4, −29.5 | −20.2, −35.0 | −20.3, −35.2 | −20.3, −35.5 | dry −21.2, −29.2; bluegrass −25.4, −36.9 |
+| centroid / f0, above 2 kHz dB | 2.26, −6.6 | 2.15, −6.9 | 2.16, −6.9 | 2.18, −6.9 | 2.21, −6.4 (bluegrass) |
+
+With the string clean, each separately bowed fast note shows its bow change. The share of
+fast onsets with a flux cue rises from 0.1 to about 0.4–0.6 in the lab, against the
+references' 0.15. Its burst is now the dry references': 13–15 dB over 50–60 ms, against
+14.5 dB over 62–117 ms. Before, the share read low only because the steady tone was as noisy
+as an attack. Our phrases bow separately more often than the references, which slur.
+
+### 6.3 The owner's choice: the bite
+
+He heard A, B and C (`chat/tren-raspado-{A,B,C}.wav`): "none annoys". A felt like more bow
+weight, scraping more. He asked whether all three can be reached by programming the bow.
+
+**`bow.bite`** (*Bite* / *Mordida*, 0 … 1, default 0.5) gives each note its share of the grit
+by its dynamic, `min(1, 2 · bite · w(d))`:
+
+- `w` is a smoothstep from the dynamic 0.4 to 0.9;
+- the dynamic is the velocity, CC1, aftertouch and MPE pressure, as `dyn.src` says;
+- the force and the contact still raise the grit as before. The player's bow weight at the
+  frog, an accent's heavier attack and a chop (which always gets all of it) reach it through
+  the force against Schelleng's limit.
+
+At 0.5 a soft note (velocity ≤ 0.4) gets none (take B), the demos' ordinary notes (0.66–0.72)
+about half (take C, the owner's middle) and the loud and accented ones all of it (take A). At
+0 no note gets any; at 1 every note from mf up gets all of it.
+
+- It is automatable, learnable and modulatable (every Arcus key but `model` and `poly`).
+- It is stored under schema 85: fixture v85 holds 0.7, v83 reads the default.
+- The Fiddle preset sets 0.5.
+- With no grit it changes nothing (the classical presets).
+
+The lab, n4-8 re the level (dB):
+
+| | agudas | rapidas | the crescendo, p → f by quarter |
+|---|---|---|---|
+| bite 0 (B everywhere) | −41.8 | −41.3 | −39.3, −40.9, −42.3, −41.2 |
+| bite 0.5 (the preset) | −39.3 | −39.1 | −39.5, −39.7, −40.0, −38.6 |
+| bite 1 | −38.3 | −37.3 | −39.3, −39.3, −38.4, −38.5 |
+
+Against bite 0, the preset's crescendo gains 0, +1.2, +2.3 and +2.6 dB of noise from p to f.
+Re the level, a louder stroke at one contact is cleaner, and the bite holds the scratch up as
+the bow presses.
+
+### 6.4 The gates (Windows, release)
+
+- `cantus-dsp` `arcus::`: 54 passed, 0 failed (43 ignored probes). Among them:
+  - the same bits at every block size with the fiddle on;
+  - `the_player_off_keeps_pass_six_s_bits` and the held-out pitch gate unchanged;
+  - the new `the_bite_shares_out_the_grit_by_the_dynamic`.
+  Bite only acts where there is grit, which no classical preset and no golden render has, so
+  no golden hash, `LOWER_HASHES` render or held-out row moved. `DSP_VERSION` stays 17
+  (unreleased): only the Fiddle preset sounds otherwise.
+- `cantus-engine`:
+  - `inst_arcus` 9, with the fiddle shape carrying a bite, and the bite without grit added to
+    the defaults' null;
+  - `null_tests` 26;
+  - `arcus_image` 1;
+  - `rt_memory` (arcus) 3, `an_arcus_fiddle_never_allocates` with the bite.
+- `cantus-project`: 222 passed; `schema_85_keeps_arcus_s_strings_under_one_bow` holds the
+  bite (fixture v85 regenerated).
+- `cantus-ui`:
+  - `arcus_fiddle_e2e`, two tests:
+    - the double stop's weaker note −9.4 dB under the stronger (−36.7 without the pair);
+    - F#5 −9.50 cents;
+    - the sympathetic tail +4.2 dB;
+    - the close mic and bridge +18.2 dB at 1.6–3.2 kHz (bridge 1.3);
+    - **the bite through the app**: the noise between the harmonics −28.0, −27.5, −26.5,
+      −26.1 dB at bite 0, 1/3, 2/3, 1;
+  - `arcus_level_e2e` (every bowed preset at one level, the fiddle's included);
+  - `arcus_upper_e2e`.
+- `cargo clippy --release --all-targets -- -D warnings` on cantus-dsp, -core, -engine, -project and -ui: clean (the e2e's residual loop as an iterator after the run, the same sums); rustfmt on every changed file. No `cfg(windows)` code was added.
+- The scratch measures and the owner's report: `tools/arcus/fiddle/fiddle_scratch.py`,
+  `fiddle_analysis.py`, `fiddle_analysis_page.py`, `fiddle_analysis_text.py`, and
+  `$CANTUS_WORK/listen/arcus-analisis/` (index.html, resumen.html).
+- The takes are in `$CANTUS_WORK/listen/fiddle/` (`escuchar.html`). The *Tren* versions are
+  `raspado-antes/`, `raspado-A/`, `raspado-B/` and `raspado-C/`; the dynamic bite is in
+  `ahora/` and `ahora-aeae/`. The demos' `FIDDLE_SET="key=value,…"` sets any keys after the
+  preset.

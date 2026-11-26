@@ -62,11 +62,13 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
     let mut s = ArcusSettings {
         pair: 1.0,
         sym: 1.0,
-        grit: 1.0,
+        // The owner's "too scratchy" (§6): the grit at 0.75 and no flat +4 dB of hair noise.
+        grit: 0.75,
+        bow_noise_db: 0.0,
         steel: 1.0,
         just: 0.6,
         mic: 1.0,
-        bridge: 1.0,
+        bridge: 1.3,
         // The fiddle preset's bow since r42 fiddle: nearer the bridge (×0.73), heavier (×1.32).
         bow_pos: (-2.0 * math::log2(0.73f32)).clamp(-1.0, 1.0),
         bow_force: math::log2(1.32f32),
@@ -92,6 +94,7 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
             "speed" => s.bow_speed = *v,
             "mic" => s.mic = *v,
             "bridge" => s.bridge = *v,
+            "bite" => s.bite = *v,
             _ => panic!("unknown setting {k}"),
         }
     }
@@ -332,6 +335,35 @@ fn agudas() -> Vec<N> {
     v
 }
 
+/// The bite growing (r42 fiddle, the owner's "can the bow's weight do it?"): a reel's phrase
+/// at 116 BPM played four times, each its own bow, from p to f — velocity 0.35 → 0.95, the
+/// dynamic the bite reads (soft notes take none of the grit, loud ones all of it).
+fn crescendo() -> Vec<N> {
+    let mut v = Vec::new();
+    let e = 60.0 / 116.0 / 2.0;
+    let phrase: [u8; 8] = [69, 73, 76, 81, 80, 76, 73, 76];
+    let total = 4 * phrase.len();
+    let mut dir = BowDir::Down;
+    let mut t = 0.1;
+    for i in 0..total {
+        let k = phrase[i % phrase.len()];
+        let last = i + 1 == total;
+        let u = i as f32 / (total - 1) as f32;
+        v.push(N {
+            at: t,
+            len: if last { 1.2 } else { e - 0.002 },
+            key: if last { 81 } else { k },
+            vel: 0.35 + 0.6 * u,
+            art: Art::Sustain,
+            dir,
+            low: false,
+        });
+        dir = flip(dir);
+        t += e;
+    }
+    v
+}
+
 /// Single notes whose partials an open string shares (D5 and A5: the open D's and A's
 /// octaves; G4 on the D string: the open G's), each let go and rung out.
 fn simpatia() -> Vec<N> {
@@ -419,6 +451,7 @@ fn main() {
         ("bordon", bordon()),
         ("simpatia", simpatia()),
         ("agudas", agudas()),
+        ("crescendo", crescendo()),
     ] {
         let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
         let (hi, lo): (Vec<N>, Vec<N>) = notes.iter().partition(|n| !n.low);
