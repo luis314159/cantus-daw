@@ -29,7 +29,7 @@ command; verified, never downloaded); `meta` a page saved when the set was first
 The network: a generic User-Agent, the system's proxy and certificates, never a bypass. A
 corporate proxy (Zscaler) may quarantine a download for ~10 minutes and answer with an HTML
 page meanwhile: every answer is checked (status, type, first bytes: PK, fLaC, RIFF, FORM,
-ID3, %PDF), and a page where data was expected waits `CANTUS_FETCH_WAIT` seconds (60) and
+ID3, OggS, %PDF), and a page where data was expected waits `CANTUS_FETCH_WAIT` seconds (60) and
 tries again, `CANTUS_FETCH_TRIES` times (20). A site that refuses automated clients (a
 browser challenge, HTTP 403) is never worked around: its set is `manual`.
 """
@@ -69,7 +69,8 @@ COLS = ("path", "size", "sha256", "origin", "member")
 # First bytes a file of each extension starts with (ID3 or an MPEG frame for an MP3).
 MAGIC = {".zip": [b"PK"], ".flac": [b"fLaC"], ".wav": [b"RIFF", b"RF64"], ".aif": [b"FORM"],
          ".aiff": [b"FORM"], ".mp3": [b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xfa", b"\xff\xf2"],
-         ".pdf": [b"%PDF"], ".gz": [b"\x1f\x8b"], ".mat": [b"MATLAB"], ".mid": [b"MThd"]}
+         ".pdf": [b"%PDF"], ".gz": [b"\x1f\x8b"], ".mat": [b"MATLAB"], ".mid": [b"MThd"],
+         ".ogg": [b"OggS"], ".oga": [b"OggS"]}
 
 
 def say(*a):

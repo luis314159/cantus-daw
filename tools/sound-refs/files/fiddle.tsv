@@ -1,0 +1,33 @@
+# fiddle: the files under $CANTUS_REFS/fiddle/ — written by `fetch.py record fiddle`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	5770	500599ac02ad6aefc960b4006f7a6576621f50fc56a6caf4611bb01f18a6dd54	source	
+commons/Bach_Chaconne_BWV1004_Ben_Goldstein.ogg	17635982	339769c23d6849a8e4c39aa9155d67455176c2a4c115fa65162d2b9c2f01e2ca	commons	https://upload.wikimedia.org/wikipedia/commons/4/49/Johann_Sebastian_Bach_-_Chaconne_for_violin_alone.ogg
+commons/The_Devil_s_Dream.ogg	2616904	082fdf7c7bba37580d9e0ed54da7ce33e2c3203534303ab13af2b0796c409ad7	commons	https://upload.wikimedia.org/wikipedia/commons/a/a9/The_Devil%27s_Dream.ogg
+commons/Violin_G_major_scale.ogg	159210	d9d29917c9937c362cb641ebccb10281329a2282803e00d959f7eae8d1553ff7	commons	https://upload.wikimedia.org/wikipedia/commons/3/3f/Violin_G_major_scale.ogg
+commons/Violin_chords.ogg	141227	8d4c0f9604a6dc9935421f6892cae3516edfd272b85d3ba8c810165208df9829	commons	https://upload.wikimedia.org/wikipedia/commons/f/f6/Violin_chords.ogg
+commons/Violin_double_stop.ogg	49446	1380272d94e7ef0a34998a2cf3d963f60675e5e7d24afe689839279eed41cefa	commons	https://upload.wikimedia.org/wikipedia/commons/0/04/Violin_double_stop.ogg
+commons/Violin_sounds_and_techniques.ogg	579050	91731dd5e59c3b1d9d5cba30daad515fc76957bf42dd941d5f32678e62f6fb4c	commons	https://upload.wikimedia.org/wikipedia/commons/6/6f/Violin_sounds_and_techniques.ogg
+commons/Willy_Wagtail.ogg	1337351	25ed9074a69ea377d04680967a9d8493ffacca60da93ef2bc8874faec1f0f161	commons	https://upload.wikimedia.org/wikipedia/commons/d/d7/Willy_Wagtail.ogg
+freesound/135128_Denver_Belle.preview-hq.mp3	2349304	70934c4b3f061290985ad6cb91dc58e76508ed5714744e7259da3232f3295fce	freesound	https://cdn.freesound.org/previews/135/135128_2337290-hq.mp3
+freesound/49783_080313_fiddle_run_on_G_major_scale.preview-hq.mp3	112861	b9029665e3f805f804a9ec1932c052d629258ea4283a5abda91053e1b6be01eb	freesound	https://cdn.freesound.org/previews/49/49783_571325-hq.mp3
+freesound/621590_Bluesy_Violin_Ascending_Arpegio.preview-hq.mp3	199514	532b7952a21e660caff8e00aa042f65bb3547fae4a06d4aaa08506cd0e047973	freesound	https://cdn.freesound.org/previews/621/621590_6501596-hq.mp3
+freesound/621591_Blues_Violin_improvisation.preview-hq.mp3	360576	b2d5844d015c0f1c35dfc64bd341b3a191c642db2492da7b964252b74e510a6a	freesound	https://cdn.freesound.org/previews/621/621591_6501596-hq.mp3
+freesound/621592_Bluegrass_Fiddle_Ending.preview-hq.mp3	131586	285ffd546eae462190d440dde8b571127a215c8c1db26d21dadb41a3ace654ba	freesound	https://cdn.freesound.org/previews/621/621592_6501596-hq.mp3
+freesound/621593_Bluegrass_Fiddle.preview-hq.mp3	543338	407635d3c329819416bec61bb35e3181cdbbc72d93f8bb85fb62248ee5a9a79f	freesound	https://cdn.freesound.org/previews/621/621593_6501596-hq.mp3
+freesound/621594_Bluesy_Violin_descending_lick_2.preview-hq.mp3	166230	621c61073213c2af04a020c8123f7cddff18d987b9d11e291b52a06e7add882c	freesound	https://cdn.freesound.org/previews/621/621594_6501596-hq.mp3
+freesound/621595_Bluesy_Violin_Harmonic_licks_long_improv.preview-hq.mp3	641773	31779e673a1715a03ff32f326f20a1a1b552d36d871e5f0851e689468ca6d69d	freesound	https://cdn.freesound.org/previews/621/621595_6501596-hq.mp3
+freesound/621596_Bluesy_Violin_Fast_liks.preview-hq.mp3	263282	9a3f9704e6c9a84a119212d7fb66dd5f90904ed2b9ca3aa8fab71c3b0e48fb1e	freesound	https://cdn.freesound.org/previews/621/621596_6501596-hq.mp3
+freesound/621597_Bluesy_Violin_Descending_lick_3.preview-hq.mp3	170929	12f67b125a18640a496b9c252e7ae1d286e26e3c8d6eb85b785703bd42b48190	freesound	https://cdn.freesound.org/previews/621/621597_6501596-hq.mp3
+freesound/621598_Bluesy_Violin_repeating_double_stops.preview-hq.mp3	439011	96480e248fc34fd4182ede31e73baa6ef0c44f126e6a447b831a1dae48ef132f	freesound	https://cdn.freesound.org/previews/621/621598_6501596-hq.mp3
+freesound/621599_Bluesy_Violin_descending_lick.preview-hq.mp3	201136	db8abc030a4aac312580181d0e96b07cb95f01b1b9de50ff26fe204f7f1f6788	freesound	https://cdn.freesound.org/previews/621/621599_6501596-hq.mp3
+freesound/641690_Solo_fiddle_playing_part_of_a_hornpipe.preview-hq.mp3	238230	5881959a00fa119a6d4499f9d72f51f071233d8688b5e5c135f8545af476ae08	freesound	https://cdn.freesound.org/previews/641/641690_6501596-hq.mp3
+freesound/641699_Sad_bluesy_violin.preview-hq.mp3	693396	c546cbf20bb8c9955d7ffb5d7cf6db00742ccaafcc8c9df68407a1adbccc16ad	freesound	https://cdn.freesound.org/previews/641/641699_6501596-hq.mp3
+freesound/641703_Violin_single_note_swell.preview-hq.mp3	137741	25229b26bfa009f215667ea32e82ca6f8732cebfaeb5f6430b466ba265dfda68	freesound	https://cdn.freesound.org/previews/641/641703_6501596-hq.mp3
+manifest.json	20906	52429caa87b4e5f299b9b3051c2b2f4c88f0781970a46be1ead71fce12bfaa9d	source	
+pd78/Don_Richardson-Mississippi_Sawyer-1916.flac	4667010	c507a2077d5d46ec8591fe01e38728cf8615adab35cf255dcb7278d98301b208	archive	https://archive.org/download/Don_Richardson_Mississippi_Sawyer_1916/Don_Richardson-Mississippi_Sawyer-1916.flac
+pd78/Eck_Robertson-Done_Gone-1922.mp3	2746661	0655e6aaff77ad2d696c91da20950f3b6ca640efb59c8a0ffcd2fba1152f0061	archive	https://archive.org/download/loc-jukebox-63079-done-gone/jukebox-63079_done-gone.mp3
+pd78/Eck_Robertson-Ragtime_Annie-1922.flac	5905296	9fd042f4b0d331e11572162190538db835def271e1df89e860ff314d8d893b1f	archive	https://archive.org/download/Eck_Robertson_Ragtime_Annie/Eck_Robertson-Ragtime_Annie.flac
+pd78/Eck_Robertson-Sallie_Gooden-Victor_18956-1922.flac	10504640	b12f11ed73077efce118fbb6ad66cc89a9306432ea732499b856aae3e4e7176b	archive	https://archive.org/download/ACEckRobertsonSallieGoodenVictor18956/AC%20Eck%20Robertson%20-%20Sallie%20Gooden%20-%20Victor%2018956.flac
+pd78/Eck_Robertson-Sallie_Johnson-1922.mp3	2804758	ad21349557d45dfb8732a442c6a204a6b166e780b7c3cf7994c20789bae8a46d	archive	https://archive.org/download/loc-jukebox-63074-sallie-johnson/jukebox-63074_sallie-johnson.mp3
+pd78/Fiddlin_Powers_and_Family-Cripple_Creek-Victor_19449-1924.flac	8115621	b272f0a295e43bd0ef2de6043a142ed333df2308010f25b70874b4e5b052ef8f	archive	https://archive.org/download/cripple-creek_202509/Cripple%20Creek.flac
+pd78/Gilliland_Robertson-Arkansaw_Traveler-Victor_18956-1922.flac	6621720	b86b26aeb4091a7c884edfa9a1b1d0012b0bd5d34e405d41b57eb53835d94923	archive	https://archive.org/download/Gilliland_and_Robertson-Arkansaw_Traveler/Henry_C_Gilliland_A_C_Robertson-Arkansaw_Traveler-Victor-18956-1922.flac
