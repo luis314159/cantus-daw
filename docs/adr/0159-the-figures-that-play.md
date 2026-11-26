@@ -353,7 +353,15 @@ occluding capsules in its live painter.
         the neck), 0.15 from the 3rd semitone (crop-02 and crop-11 show none), 0.2 more past
         the heel. The tables' thumb tips had stood ~0.8 cm past it (a stray fingertip beside
         the fingerboard at 400 %).
-      - *The grain's tuned numbers* are read once a triangle, not once a sample.
+      - *The grain's tuned numbers* are read once a triangle, not once a sample. Measured on
+        a loaded machine, High's live arms cost +6.3 / +7.0 ms at 100 % and +15.2 / +21.6 at
+        200 % (her / him; pass 3 +4.4 / +4.6 and +8.0 / +8.4): the per-sample grain and the
+        wider hand. The owner's rule stands: render cost never gates the look.
+      - *The table at the pass's end*: `arcus_hand_table`'s penetration 63 → 32 cases, the
+        worst skin 12.2 → 2.8 mm; its rule breaks 49 → 82 (the thumb against the index's
+        base, her outline's middle over the wrist on the reach and high rows, the knuckles
+        over the board at +12/+14, the index's base out from the E edge) are the handoff's
+        first open item. `arcus_hand_shape`'s lobe and `arcus_hand_form`'s specks are in.
       - *The hands set against average hands for each musician's stature* (the owner:
         "compararlas con tamaños promedio para el tamaño del músico"; `hand_anthro.py`):
         ANSUR II's hand length, palm length, breadth and middle finger by linear regression
