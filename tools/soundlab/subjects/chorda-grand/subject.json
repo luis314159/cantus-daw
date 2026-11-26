@@ -1,0 +1,24 @@
+{
+ "id": "chorda-grand",
+ "name": "Chorda's model 2 against two recorded grands (the Salamander, a Yamaha C5; the bitKlavier Grand)",
+ "kind": "decaying",
+ "f_range": [25, 4500],
+ "lowest_note": 21,
+ "features": ["harmonics", "inharmonicity", "centroid", "noise", "attack", "decay", "band_decay", "stereo"],
+ "exclude": ["centroid.at_s", "stereo.balance_db"],
+ "references": {
+  "root": "$SOUNDLAB_REFS",
+  "catalogue": "references.json",
+  "made_by": "{python} {subject}/make_refs.py refs"
+ },
+ "split": {"rule": "hash", "seed": 4217},
+ "candidate": {
+  "inst": "chorda",
+  "render": ["{python}", "{subject}/make_refs.py", "candidate", "{out}"],
+  "cwd": "{subject}",
+  "env": {},
+  "files": "chorda-(?P<note>\\d+)-(?P<dyn>pp|mf|ff)\\.wav",
+  "fixed": {"art": "struck"},
+  "what": "A0 ... C8 every minor third at velocity 30 / 75 / 115, held 3.5 s, through the voicing lab (CHORDA_EXE) at CHORDA_SPEC (default base=shipped: what a new Chorda plays)"
+ }
+}

@@ -1,0 +1,1802 @@
+[
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A0v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 21,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A0v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 21,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A0v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 21,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C1v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 24,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C1v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 24,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C1v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 24,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#1v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 27,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#1v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 27,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#1v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 27,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#1v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 30,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#1v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 30,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#1v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 30,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A1v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 33,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A1v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 33,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A1v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 33,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C2v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 36,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C2v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 36,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C2v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 36,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#2v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 39,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#2v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 39,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#2v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 39,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#2v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 42,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#2v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 42,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#2v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 42,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A2v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 45,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A2v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 45,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A2v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 45,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C3v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 48,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C3v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 48,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C3v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 48,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#3v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 51,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#3v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 51,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#3v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 51,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#3v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 54,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#3v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 54,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#3v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 54,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A3v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 57,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A3v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 57,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A3v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 57,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C4v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 60,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C4v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 60,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C4v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 60,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#4v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 63,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#4v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 63,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#4v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 63,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#4v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 66,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#4v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 66,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#4v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 66,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A4v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 69,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A4v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 69,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A4v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 69,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C5v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 72,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C5v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 72,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C5v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 72,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#5v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 75,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#5v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 75,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#5v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 75,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#5v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 78,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#5v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 78,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#5v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 78,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A5v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 81,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A5v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 81,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A5v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 81,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C6v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 84,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C6v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 84,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C6v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 84,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#6v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 87,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#6v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 87,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#6v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 87,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#6v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 90,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#6v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 90,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#6v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 90,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A6v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 93,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A6v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 93,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A6v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 93,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C7v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 96,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C7v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 96,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C7v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 96,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#7v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 99,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#7v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 99,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/D#7v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 99,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#7v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 102,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#7v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 102,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/F#7v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 102,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A7v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 105,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A7v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 105,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/A7v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 105,
+"dyn": "pp"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C8v15.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 108,
+"dyn": "ff"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C8v10.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 108,
+"dyn": "mf"
+},
+{
+"path": "piano/content/bitklavier-grand-stage-lid-ortf/C8v4.flac",
+"source": "bitklavier",
+"licence": "CC-BY-4.0",
+"credit": "The bitKlavier Grand, Princeton University: Dan Trueman, Andr\u00e9s Villalta, Matt Wang (CC BY 4.0)",
+"inst": "bitklavier",
+"art": "struck",
+"note": 108,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A0v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 21,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A0v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 21,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A0v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 21,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C1v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 24,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C1v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 24,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C1v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 24,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#1v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 27,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#1v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 27,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#1v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 27,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#1v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 30,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#1v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 30,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#1v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 30,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A1v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 33,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A1v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 33,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A1v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 33,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C2v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 36,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C2v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 36,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C2v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 36,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#2v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 39,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#2v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 39,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#2v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 39,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#2v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 42,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#2v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 42,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#2v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 42,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A2v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 45,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A2v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 45,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A2v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 45,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C3v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 48,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C3v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 48,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C3v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 48,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#3v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 51,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#3v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 51,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#3v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 51,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#3v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 54,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#3v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 54,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#3v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 54,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A3v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 57,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A3v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 57,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A3v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 57,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C4v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 60,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C4v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 60,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C4v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 60,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#4v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 63,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#4v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 63,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#4v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 63,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#4v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 66,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#4v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 66,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#4v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 66,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A4v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 69,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A4v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 69,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A4v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 69,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C5v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 72,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C5v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 72,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C5v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 72,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#5v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 75,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#5v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 75,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#5v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 75,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#5v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 78,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#5v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 78,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#5v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 78,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A5v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 81,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A5v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 81,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A5v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 81,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C6v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 84,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C6v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 84,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C6v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 84,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#6v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 87,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#6v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 87,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#6v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 87,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#6v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 90,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#6v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 90,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#6v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 90,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A6v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 93,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A6v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 93,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A6v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 93,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C7v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 96,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C7v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 96,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C7v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 96,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#7v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 99,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#7v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 99,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/D#7v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 99,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#7v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 102,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#7v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 102,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/F#7v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 102,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A7v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 105,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A7v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 105,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/A7v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 105,
+"dyn": "pp"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C8v15.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 108,
+"dyn": "ff"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C8v10.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 108,
+"dyn": "mf"
+},
+{
+"path": "piano/content/salamander-grand-piano/samples/C8v2.flac",
+"source": "salamander",
+"licence": "CC-BY-3.0",
+"credit": "Salamander Grand Piano V3, Alexander Holm (CC BY 3.0)",
+"inst": "salamander",
+"art": "struck",
+"note": 108,
+"dyn": "pp"
+}
+]
