@@ -37,6 +37,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import hand_rig as hr  # noqa: E402
+import hand_solid  # noqa: E402
 
 ROOT = os.path.join(HERE, "..", "..")
 # (r42:arcus-hands: CANTUS_FIGURE_DIR names a folder build_figures.py wrote, as the app reads it.)
@@ -119,6 +120,62 @@ class Hand:
                 a = self.axes[f, k]
                 self.rest[f, k] = np.arctan2(np.cross(prev, d) @ a, prev @ d)
                 prev = d
+        self.skin_setup()
+
+    # r42:arcus-hands — the skin the solver keeps out of the instrument: the hand's and
+    # the forearm's own vertices (each at least 0.6 theirs, as the gate takes them), thinned
+    # (the fingers kept densest), each skinned by its weights on the hand's, the fingers'
+    # and the forearm's bones (linear blend, as the app's ``repose_arm``).
+    SKIN_MOST = {"finger": 700, "thumb": 160, "palm": 260, "fore": 160}
+
+    def skin_setup(self):
+        fig = self.fig
+        self.bone_ids = [O + hr.FORE1, O + hr.FORE2, HAND] + [O + hr.finger(f, k)
+                                                             for f in range(5) for k in range(3)]
+        ids, ws, pos = fig["ids"], fig["ws"], fig["pos"]
+        mine = np.isin(ids, self.bone_ids)
+        share = (ws * mine).sum(1)
+        cand = np.nonzero(share > 0.6)[0]
+        w = np.where(mine[cand], ws[cand], 0.0)
+        w /= w.sum(1, keepdims=True)
+        top = ids[cand, np.argmax(w, 1)]
+        kind = np.where(np.isin(top, self.bone_ids[:2]), "fore",
+                        np.where(top == HAND, "palm",
+                                 np.where(np.isin(top, [O + hr.finger(0, k) for k in range(3)]),
+                                          "thumb", "finger")))
+        keep = []
+        for k, most in self.SKIN_MOST.items():
+            at = np.nonzero(kind == k)[0]
+            step = max(1, int(np.ceil(len(at) / most)))
+            keep.extend(at[::step].tolist())
+        keep = np.array(sorted(keep))
+        idx = cand[keep]
+        self.sk_pos = pos[idx]
+        self.sk_kind = kind[keep]
+        self.sk_top = top[keep]
+        lut = {b: i for i, b in enumerate(self.bone_ids)}
+        self.sk_ids = np.vectorize(lambda b: lut.get(b, 0))(ids[idx])
+        self.sk_w = w[keep]
+
+    def skin(self, W, Rh, Q, P, way=None):
+        """The kept skin points posed (the forearm on ``way`` from the wrist)."""
+        R = np.zeros((len(self.bone_ids), 3, 3))
+        c = np.zeros((len(self.bone_ids), 3))
+        Rf = Rh
+        if way is not None:
+            base = hr.norm(W - (P[2, 0] + P[3, 0]) * 0.5)
+            Rf = hr.between(base, np.asarray(way)) @ Rh
+        for i, (Rb, at, head) in enumerate(
+                [(Rf, W, self.wr), (Rf, W, self.wr), (Rh, W, self.wr)]
+                + [(Rh @ Q[f, k], P[f, k], self.heads[f, k]) for f in range(5) for k in range(3)]):
+            R[i] = Rb
+            c[i] = at - Rb @ head
+        out = np.zeros_like(self.sk_pos)
+        for j in range(4):
+            Rj = R[self.sk_ids[:, j]]
+            out += self.sk_w[:, j, None] * (np.einsum("nij,nj->ni", Rj, self.sk_pos)
+                                             + c[self.sk_ids[:, j]])
+        return out
 
     def local(self, th):
         """The bones' turns against the hand's (15 matrices) from the angles ``th``: per
@@ -290,6 +347,48 @@ BOUT = (8.5, 12.0)
 CLEAR = 0.4
 HAND_UP = 78.0
 FORE_UP = 64.0
+# r42:arcus-hands — the skin kept out of the instrument as the app draws it
+# (``hand_solid.Solid``: the neck's rounded back, the fingerboard, the strings, the body):
+# the playing fingertip's pad may press its string by PAD_PRESS (the gate: 1 mm), the rest
+# of the hand clears everything by SKIN_GAP, the forearm the body by SLEEVE (its sleeve).
+PAD_PRESS = 0.07
+SKIN_GAP = 0.06
+SLEEVE = 0.35
+PEN_W = 30.0
+# r42:arcus-hands — high up the neck (the owner: "cuando se toca muy cerca del cuerpo del
+# violín el músico suele subir la muñeca para no topar con el cuerpo"; crop-11, ref-02,
+# ref-12, ref-40): past the neck's heel the thumb stays in the heel's curve, then creeps
+# along the fingerboard's G side over the body; the wrist rises toward the top plate. HIGH
+# is how far (cm) past the heel the first and second fingers' middle has gone when that is
+# complete; HEEL how far up the neck from the body's edge the thumb's tip nests.
+HEEL = 1.6
+HIGH = 5.0
+THUMB_HIGH_X = 0.45
+# Past the heel the thumb moves this share of the fingers' way (it lags them, then leaves
+# the heel's curve for the fingerboard's G side over the body).
+THUMB_LAG = 0.5
+# High up: how much the knuckles and the crook rise (cm), how much freer the palm's way
+# (deg), how much further out from the E edge the wrist may go (cm: beside the upper bout's
+# rib, ref-40).
+HIGH_RISE = 1.4
+# The wrist's bend toward the palm (negative) or the back (positive), deg: low and high up.
+# High up the hand and the forearm may lean further from upright (HAND_UP_HIGH,
+# FORE_UP_HIGH deg less at the most).
+WRIST_FLEX = (-10.0, 10.0)
+WRIST_FLEX_HIGH = (-20.0, 30.0)
+HAND_UP_HIGH = 25.0
+FORE_UP_HIGH = 35.0
+PALM_FREE_HIGH = 70.0
+WRIST_X_HIGH = 5.0
+WRIST_Z_HIGH = (-7.0, -1.5)
+SOLIDS = {}
+
+
+def solid_of(F):
+    key = (F["who"], F["inst"])
+    if key not in SOLIDS:
+        SOLIDS[key] = hand_solid.Solid(F)
+    return SOLIDS[key]
 
 
 def over(x, lo, hi):
@@ -312,6 +411,13 @@ class Pose:
         self.tips = np.array(row["tips"])
         self.playing = row["playing"]
         self.want_names = False
+        self.solid = solid_of(F)
+        self.pen_w = PEN_W
+        # How far the hand is past the neck's heel, 0 (at or below it) to 1 (HIGH beyond).
+        y12 = neck.loc(self.tips[0])[1] * 0.6 + neck.loc(self.tips[1])[1] * 0.4
+        self.y12 = y12
+        self.yh = neck.body + HEEL
+        self.high = float(np.clip((self.yh - y12) / HIGH, 0.0, 1.0))
 
     def unpack(self, x):
         W = x[:3]
@@ -330,6 +436,14 @@ class Pose:
         across = P[1, 0] - P[4, 0]
         xp = hr.norm(across - base * (across @ base))
         way = hr.norm(base * np.cos(dev) - xp * np.sin(dev))
+        # r42:arcus-hands — and bent at the wrist toward the palm or the back by ``x[28]``
+        # (positive: the forearm toward the palm's side, the hand bent back): high up the
+        # neck the forearm leans along the instrument from an elbow the upper arm can reach
+        # while the hand stands up over the body's shoulder.
+        if len(x) > 28:
+            n = Rh @ self.h.n
+            n = hr.norm(n - way * (n @ way))
+            way = hr.norm(way * np.cos(x[28]) + n * np.sin(x[28]))
         return W + way * self.fore, way, dev
 
     def residuals(self, x, prev=None):
@@ -383,20 +497,27 @@ class Pose:
         base = P[1, 0] * 0.7 + P[1, 1] * 0.3
         qb = loc(base)
         add("crook_x", 5.0 * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
-        add("crook_z", 3.0 * over(qb[2] - nk.top(qb[1]), *CROOK_Z))
+        # (r42:arcus-hands: high up, over the body, the knuckles and the crook rise with the
+        # hand over the upper bout's shoulder — HIGH_RISE at the most.)
+        rise = HIGH_RISE * self.high
+        add("crook_z", 3.0 * over(qb[2] - nk.top(qb[1]), CROOK_Z[0] + rise, CROOK_Z[1] + rise))
         # The knuckles up beside the fingerboard (the owner's photograph 2: the hand rises
         # from the wrist just under the neck to the knuckles over it).
         for f in range(1, 5):
             qk = loc(P[f, 0])
-            add("knuckles", 4.0 * over(qk[2] - nk.top(qk[1]), *KNUCKLES))
+            add("knuckles", 4.0 * over(qk[2] - nk.top(qk[1]), KNUCKLES[0] + rise, KNUCKLES[1] + rise))
             add("knuckles_out", 3.0 * over(qk[0] - nk.hw(qk[1]), KNUCKLES_OUT[0], KNUCKLES_OUT[1] * self.k))
         # The thumb up the G side, its tip about level with the fingerboard, opposite the
         # first and second fingers.
+        # (r42:arcus-hands: past the heel the thumb stays in its curve, then creeps along
+        # the fingerboard's G side over the body, closer to the edge and a little higher.)
         qt = loc(P[0, 3])
-        add("thumb_x", 4.0 * (qt[0] + nk.hw(qt[1]) + 0.65))
-        add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6, 0.3))
-        y12 = loc(self.tips[0])[1] * 0.6 + loc(self.tips[1])[1] * 0.4
-        add("thumb_y", 2.0 * over(qt[1] - y12, -0.8, 1.2))
+        hi = self.high
+        add("thumb_x", 4.0 * (qt[0] + nk.hw(qt[1]) + 0.65 + (THUMB_HIGH_X - 0.65) * hi))
+        add("thumb_z", 6.0 * over(qt[2] - nk.top(qt[1]), -0.6 + 0.2 * hi, 0.3 + 0.3 * hi))
+        y12 = self.y12
+        yt = y12 if y12 >= self.yh else self.yh - THUMB_LAG * (self.yh - y12)
+        add("thumb_y", 2.0 * over(qt[1] - yt, -0.8, 1.2))
         # The thumb's base turned no more than a relaxed hand's (r42:arcus-hand: turned 65
         # degrees it pushed the thumb's ball out into a mitten's bulge — the owner's "parte
         # abultada gorda").
@@ -424,9 +545,13 @@ class Pose:
         # hand leant toward the scroll, its fingers crossing the board slantwise, a ring).
         hd = hr.norm((P[2, 0] + P[3, 0]) * 0.5 - W)
         up_h = np.degrees(np.arctan2(hd @ self.z, hd @ (-self.bw)))
-        add("hand_up", 0.6 * over(up_h, HAND_UP, 100.0))
+        add("hand_up", 0.6 * over(up_h, HAND_UP - HAND_UP_HIGH * self.high, 100.0))
         up_f = np.degrees(np.arctan2(-way @ self.z, -way @ (-self.bw)))
-        add("fore_up", 0.4 * over(up_f, FORE_UP, 100.0))
+        add("fore_up", 0.4 * over(up_f, FORE_UP - FORE_UP_HIGH * self.high, 100.0))
+        if len(x) > 28:
+            fl = np.degrees(x[28])
+            lo, hi_ = (WRIST_FLEX[i] + (WRIST_FLEX_HIGH[i] - WRIST_FLEX[i]) * self.high for i in (0, 1))
+            add("wrist_flex", 1.5 * over(fl, lo, hi_) + 0.04 * fl)
         add("wrist_dev", 1.5 * over(np.degrees(dev), *WRIST_DEV) + 0.05 * (np.degrees(dev) - WRIST_DEV_MID))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
         # r42:arcus-hands — the upper arm hanging from the shoulder to an elbow under the
@@ -437,23 +562,30 @@ class Pose:
         # the top plate's height by CLEAR where they lie over the upper bout (the body as a
         # slab: BOUT cm across, from the neck's root back), so in high positions the wrist
         # rises over the bout as players' does.
-        zt = nk.top(nk.body) - 1.6 + CLEAR
-        pts = [W + way * t for t in np.arange(0.0, self.fore, 2.0)]
-        pts += [P[f, k] for f in range(5) for k in range(4)]
-        for q in nk.loc(np.array(pts)):
-            if abs(q[0]) < BOUT[0] and nk.body - BOUT[1] < q[1] < nk.body + 0.3:
-                add("bout", 4.0 * max(0.0, zt - q[2]))
+        # (r42:arcus-hands: the slab is replaced by the body as drawn — "pen" below.)
+        sk = h.skin(W, Rh, Q, P, way)
+        q = self.solid.loc(sk)
+        dsol = self.solid.local_sd(q)
+        dstr = self.solid.strings_d(q)
+        pad = (h.sk_top == O + hr.finger(p + 1, 2)) if p >= 0 else np.zeros(len(q), bool)
+        fore = h.sk_kind == "fore"
+        need = np.where(pad, -PAD_PRESS, np.where(fore, SLEEVE, SKIN_GAP))
+        dd = np.where(pad | fore, dsol, np.minimum(dsol, dstr))
+        add("pen", *(self.pen_w * np.maximum(0.0, need - dd)))
         ua = el - self.sh
         below = np.degrees(np.arcsin(np.clip(-ua[1] / max(np.linalg.norm(ua), 1e-6), -1, 1)))
-        add("elbow_down", 1.0 * over(below, *UPPER_BELOW))
+        add("elbow_down", 3.0 * over(below, *UPPER_BELOW))
         qe = loc(el)
         add("elbow_y", 1.0 * over(qe[1], 2.0, nk.body - 2.0))
         add("elbow_z", 1.0 * max(0.0, qe[2] + 13.0))
         # The palm toward the neck and up toward the player.
-        add("palm_way", PALM_W * max(0.0, PALM_MIN - npalm @ PALM_WAY(self)))
+        # (r42:arcus-hands: high up the hand turns round the body's shoulder, its palm freer.)
+        pmin = np.cos(np.arccos(PALM_MIN) + np.radians(PALM_FREE_HIGH) * self.high)
+        add("palm_way", PALM_W * max(0.0, pmin - npalm @ PALM_WAY(self)))
         qw = loc(W)
-        add("wrist_x", 3.0 * over(qw[0] - nk.hw(qw[1]), *WRIST_X))
-        add("wrist_z", 3.0 * over(qw[2] - nk.top(qw[1]), WRIST_Z[0] * self.k, WRIST_Z[1] * self.k))
+        add("wrist_x", 3.0 * over(qw[0] - nk.hw(qw[1]), WRIST_X[0], WRIST_X[1] + WRIST_X_HIGH * self.high))
+        wz = [(WRIST_Z[i] + (WRIST_Z_HIGH[i] - WRIST_Z[i]) * hi) * self.k for i in (0, 1)]
+        add("wrist_z", 3.0 * over(qw[2] - nk.top(qw[1]), *wz))
         if prev is not None:
             add("prev", *((x - prev) * 0.15))
         if self.want_names:
@@ -494,9 +626,11 @@ def lm(fun, x0, iters=80, lam=1e-2):
 
 # ---- solving every row -----------------------------------------------------------------
 
-def start(h, row):
+def start(h, row, high=False):
     """A first guess: the knuckles along the neck's E side, the hand rising from under it,
-    the fingers half curled."""
+    the fingers half curled. ``high`` (r42:arcus-hands): the hand rising over the body's
+    shoulder from a wrist beside the upper bout's E rib (ref-40), the knuckles over the
+    fingerboard's E edge."""
     a, bw, kx, z = (np.array(row[k]) for k in ("a", "bw", "kx", "z"))
     tips = np.array(row["tips"])
     along = (tips[0] - a) @ bw
@@ -505,6 +639,9 @@ def start(h, row):
     rest_mid = (h.heads[2, 0] + h.heads[3, 0]) * 0.5
     ry = rest_mid - h.wr
     py = hr.norm(z * 0.9 + kx * 0.35)
+    if high:
+        k_idx = a + bw * (along - 1.2) + kx * (row["hw"] + 0.9) + z * 0.8
+        py = hr.norm(z - kx * 0.6)
     R0 = hr.frame(-bw, py) @ hr.frame(rx, ry).T
     mid = k_idx + bw * 2.4
     W = mid - R0 @ (rest_mid - h.wr)
@@ -513,7 +650,7 @@ def start(h, row):
         th[4 * (f - 1):4 * f] = [40 * RAD - h.rest[f, 0], SPREAD[f - 1],
                                  75 * RAD - h.rest[f, 1], 12 * RAD - h.rest[f, 2]]
     th[19:21] = [15 * RAD, 15 * RAD]
-    return R0, np.concatenate([W, np.zeros(3), th, [WRIST_DEV_MID * RAD]])
+    return R0, np.concatenate([W, np.zeros(3), th, [WRIST_DEV_MID * RAD, 0.0]])
 
 
 def entry(pose, x, cost):
@@ -529,7 +666,17 @@ def rows_of(F, string, finger):
     return [r for r in F["rows"] if r["string"] == string and r["finger"] == finger]
 
 
-def solve_fig(F, h, cache, verbose=False):
+def settle(pose, fun, x0, iters):
+    """r42:arcus-hands — LM in two steps: the instrument's walls soft first (a thumb or a
+    finger started inside the neck slides out where its rules want it, not to the nearest
+    wall), then at their full weight."""
+    pose.pen_w = PEN_W * 0.05
+    x, _ = lm(fun, x0, iters=max(10, iters // 3))
+    pose.pen_w = PEN_W
+    return lm(fun, x, iters=iters)
+
+
+def solve_fig(F, h, cache, verbose=False, save=None):
     """Every row of one figure on one instrument. Each row is solved from several starts —
     the same finger a position lower, the middle finger at this position, the same finger on
     the string below, a fresh guess and two moved off it — and the best kept; a row still
@@ -558,19 +705,27 @@ def solve_fig(F, h, cache, verbose=False):
                     xs = x0.copy()
                     xs[:3] += np.array(row["z"]) * dz
                     starts.append(xs)
+                if pose.high > 0.2:
+                    R1, x0 = start(h, row, high=True)
+                    x0[3:6] = rotlog(R1 @ R0.T)
+                    starts.append(x0)
                 fun = (lambda x: pose.residuals(x, prev))
                 best = None
                 for x_ in starts:
-                    x, cost = lm(fun, x_, iters=50)
+                    x, cost = settle(pose, fun, x_, 45)
                     if best is None or cost < best[1]:
                         best = (x, cost)
+                    # (r42:arcus-hands: a row solved well from the one a position lower is
+                    # kept — the table blends smoothly and a solve is ~10 s, not ~45.)
+                    if best[1] < GOOD:
+                        break
                 tries = 0
                 while best[1] > 250.0 and tries < 6:
                     xs = best[0].copy()
                     xs[:3] += rng.normal(0, 0.8, 3)
                     xs[3:6] += rng.normal(0, 0.15, 3)
                     xs[6:] += rng.normal(0, 0.12, len(xs) - 6)
-                    x, cost = lm(fun, xs, iters=80)
+                    x, cost = settle(pose, fun, xs, 60)
                     if cost < best[1]:
                         best = (x, cost)
                     tries += 1
@@ -578,10 +733,14 @@ def solve_fig(F, h, cache, verbose=False):
                 got[(string, finger, at)] = x
                 prev = x
                 cache[f'{key}-{string}-{finger}-{at:g}'] = entry(pose, x, cost)
+                if save:
+                    save(cache)
                 if verbose:
                     print(key, string, finger, at, "cost %.2f" % cost, flush=True)
 
 
+# A row's cost under which no further start is tried.
+GOOD = 30.0
 # Rows `fix` takes again whatever their cost (`--keys=0-3-1,0-3-3`: string-finger-position).
 FORCE = []
 
@@ -612,8 +771,12 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
         R1, x0 = start(h, row)
         x0[3:6] = rotlog(R1 @ R0.T)
         starts.append(x0)
+        if pose.high > 0.2:
+            R1, x0 = start(h, row, high=True)
+            x0[3:6] = rotlog(R1 @ R0.T)
+            starts.append(x0)
         for x_ in starts:
-            x, cost = lm(fun, x_, iters=80)
+            x, cost = settle(pose, fun, x_, 70)
             if cost < best[1]:
                 best = (x, cost)
         for _ in range(tries):
@@ -621,7 +784,7 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
             xs[:3] += rng.normal(0, 0.8, 3)
             xs[3:6] += rng.normal(0, 0.2, 3)
             xs[6:] += rng.normal(0, 0.15, len(xs) - 6)
-            x, cost = lm(fun, xs, iters=80)
+            x, cost = settle(pose, fun, xs, 70)
             if cost < best[1]:
                 best = (x, cost)
         x, cost = best
@@ -817,6 +980,109 @@ def look(dump, outdir, who="woman", inst="violin", string=2, finger=1, at=1.0, c
     return out
 
 
+def solid_mesh(solid):
+    """r42:arcus-hands — the neck and the fingerboard as the app draws them (the solid's
+    own sections, strip by strip), the strings as thin boxes and the body's upper half as a
+    prism to its top's arch: what the penetration is measured against."""
+    pts, tris, cols = [], [], []
+    for (ys, polys), c in ((solid.board, (0.07, 0.06, 0.06)), (solid.shaft, (0.50, 0.27, 0.13))):
+        m = polys.shape[1]
+        for i in range(len(ys) - 1):
+            n0 = len(pts)
+            for r in (i, i + 1):
+                for k in range(m):
+                    x, z = polys[r, k]
+                    pts.append(solid.o + np.array([x, ys[r], z]) @ solid.E)
+                    cols.append(c)
+            for k in range(m):
+                a, b = k, (k + 1) % m
+                tris.append([n0 + a, n0 + b, n0 + m + b])
+                tris.append([n0 + a, n0 + m + b, n0 + m + a])
+    o = solid.outline
+    o = o[o[:, 1] > solid.body_len * 0.45]
+    n0 = len(pts)
+    zt = solid.arch_h
+    for x, y in o:
+        for z in (-solid.rib(y), 0.42):
+            pts.append(solid.o + np.array([x, y, z]) @ solid.E)
+            cols.append((0.55, 0.28, 0.10))
+    cx = np.array([0.0, o[:, 1].mean(), zt])
+    ci = len(pts)
+    pts.append(solid.o + cx @ solid.E)
+    cols.append((0.60, 0.33, 0.12))
+    for k in range(len(o) - 1):
+        a, b = n0 + 2 * k, n0 + 2 * k + 2
+        tris += [[a, b, b + 1], [a, b + 1, a + 1], [a + 1, b + 1, ci]]
+    for a, b, r in solid.strings:
+        n1 = len(pts)
+        for q in (a, b):
+            for dx in (-0.04, 0.04):
+                for dz in (-0.04, 0.04):
+                    pts.append(solid.o + (q + np.array([dx, 0, dz])) @ solid.E)
+                    cols.append((0.82, 0.80, 0.74))
+        for f in ([0, 1, 5], [0, 5, 4], [2, 3, 7], [2, 7, 6], [0, 2, 6], [0, 6, 4], [1, 3, 7],
+                  [1, 7, 5]):
+            tris.append([n1 + i for i in f])
+    return np.array(pts), np.array(tris), np.array(cols)
+
+
+def pen_look(dump, outdir, who="woman", inst="violin", string=2, finger=1, at=1.0, cache=None):
+    """r42:arcus-hands — a row's skinned hand and forearm with what goes into the neck, the
+    fingerboard or the body in red (the playing pad's press, allowed to 1 mm, in orange; a
+    string touched in yellow), from the app's camera, from under the neck and from the G
+    side; prints the deepest of each."""
+    from PIL import Image
+    F = next(F for F in dump["figs"] if F["who"] == who and F["inst"] == inst)
+    h = Hand(who)
+    neck = Neck(F)
+    solid = solid_of(F)
+    row = next(r for r in F["rows"] if r["string"] == string and r["finger"] == finger
+               and abs(r["at"] - at) < 1e-3)
+    c = cache[f"{who}-{inst}-{string}-{finger}-{at:g}"]
+    W, Rh = np.array(c["W"]), np.array(c["Rh"])
+    Q = np.array(c["Q"]).reshape(5, 3, 3, 3)
+    P = h.fk(W, Rh, Q)
+    way = np.array(c["fore"]) if c.get("fore") is not None else None
+    hp, ht, hc = hand_mesh(h, W, Rh, Q, P, way)
+    used = np.unique(ht)
+    dsol = np.full(len(hp), 9.0)
+    dstr = np.full(len(hp), 9.0)
+    dsol[used] = solid.sd(hp[used], strings=False)
+    dstr[used] = solid.strings_d(solid.loc(hp[used]))
+    # The playing pad: the playing finger's last bone's own vertices.
+    fig = h.fig
+    top = fig["ids"][np.arange(len(hp)), np.argmax(fig["ws"], 1)]
+    pad = (top == O + hr.finger(row["playing"] + 1, 2)) if row["playing"] >= 0 else np.zeros(len(hp), bool)
+    col = hc.copy()
+    col[(dstr < 0) & ~pad] = (1.0, 0.85, 0.1)
+    col[(dsol < 0) & pad] = (1.0, 0.55, 0.1)
+    col[(dsol < 0) & ~pad] = (0.95, 0.05, 0.05)
+    print(f"{who}-{inst}-s{string}-f{finger}-at{at:g}: pad {-min(0, dsol[pad].min() if pad.any() else 0) * 10:.1f} mm,"
+          f" the rest {-min(0, dsol[~pad].min()) * 10:.1f} mm into the instrument, strings {-min(0, dstr[~pad].min()) * 10:.1f} mm")
+    npos, ntri, ncol = solid_mesh(solid)
+    pos = np.vstack([hp, npos])
+    tris = np.vstack([ht, ntri + len(hp)])
+    cols = np.vstack([col, ncol])
+    cc = (P[1, 1] + P[2, 1] + P[0, 2]) / 3.0
+    kx, z, bw = neck.E[0], neck.E[2], -neck.E[1]
+    eye = np.array(F["eye"])
+    cams = [("app", cc + hr.norm(eye - cc) * 40.0, np.array(F["cam_u"])),
+            ("under", cc - z * 34.0 + kx * 6.0, -bw),
+            ("gside", cc - kx * 36.0 + z * 6.0, z)]
+    ims = []
+    tag = f"{who}-{inst}-s{string}-f{finger}-at{at:g}"
+    for name, e, up in cams:
+        o = os.path.join(outdir, f"pen-{tag}-{name}.png")
+        render(pos, tris, cols, e, cc, up, (440, 400), o)
+        ims.append(Image.open(o))
+    im = Image.new("RGB", (440 * len(ims), 400))
+    for i, x in enumerate(ims):
+        im.paste(x, (440 * i, 0))
+    out = os.path.join(outdir, f"pen-{tag}.png")
+    im.save(out)
+    return out
+
+
 def main():
     cmd, dump_path = sys.argv[1], sys.argv[2]
     dump = json.load(open(dump_path))
@@ -837,7 +1103,9 @@ def main():
                 continue
             h = hands.setdefault(F["who"], Hand(F["who"]))
             cache = {}
-            solve_fig(F, h, cache, verbose=True)
+            path = os.path.join(here, f"left_hand_cache-{key}.json")
+            solve_fig(F, h, cache, verbose=True,
+                      save=lambda c, p=path: json.dump(c, open(p, "w")))
             json.dump(cache, open(os.path.join(here, f"left_hand_cache-{key}.json"), "w"))
     elif cmd == "fix":
         keys_arg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--keys=")), None)
@@ -858,6 +1126,15 @@ def main():
         for k in keys:
             cache.update(cache_of(k))
         write_bin(dump, cache)
+    elif cmd == "pen":
+        # pen <dump> <dir> who inst string finger at (several "string,finger,at" after who inst)
+        a = [x for x in sys.argv[4:] if not x.startswith("--")]
+        who, inst = a[0], a[1]
+        os.makedirs(sys.argv[3], exist_ok=True)
+        cache = cache_of(f"{who}-{inst}")
+        for spec in a[2:]:
+            st, fi, at = spec.split(",")
+            pen_look(dump, sys.argv[3], who, inst, int(st), int(fi), float(at), cache)
     elif cmd == "look":
         a = [x for x in sys.argv[4:] if not x.startswith("--")]
         who, inst = (a + ["woman", "violin"])[:2] if a else ("woman", "violin")

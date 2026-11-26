@@ -101,13 +101,22 @@ fn measure(a: &probe::Arm) -> Hand {
             hi - lo
         }
     };
+    // r42:arcus-hands — each finger's breadth just past its middle joint, side to side
+    // (along the joint's own hinge, square to the middle phalanx), on the middle phalanx's
+    // own skin: measured across the proximal phalanx's skin as well, a bent finger's slab
+    // took in the length of its first bone (her index read 2.2-2.5 cm, her little finger
+    // 0.7 where the slab missed it).
     for f in 1..5 {
+        let base = joint(o + hu::finger(f, 0)).2;
         let pip = joint(o + hu::finger(f, 1)).2;
         let dip = joint(o + hu::finger(f, 2)).2;
         let ax = (dip - pip).norm();
-        let c = pip + (dip - pip) * 0.15;
-        let q = slab(c, ax, &[o + hu::finger(f, 0), o + hu::finger(f, 1)], 0.2);
-        let side = {
+        let c = pip + (dip - pip) * 0.12;
+        let q = slab(c, ax, &[o + hu::finger(f, 1)], 0.15);
+        let hinge = (pip - base).norm().cross(ax);
+        let side = if hinge.len() > 0.2 {
+            hinge.norm()
+        } else {
             let x = across - ax * across.dot(ax);
             x.norm()
         };
@@ -243,9 +252,12 @@ fn bounds(woman: bool) -> Bounds {
     // 1.4-1.7 / 1.6-2.0 at the middle and the little finger — open, the handoff says so.
     // The breadth and the thickness are held to an adult's at most; the wrist is under the
     // cuff and not measured.)
+    // (r42:arcus-hands: each finger's breadth past its middle joint held to an adult's —
+    // a slim woman's index, middle and ring at most 1.8 cm, her little finger 1.5; a man's
+    // 2.1 and 1.7 — the coordinator's ceilings, measured on the middle phalanx's own skin.)
     if woman {
         Bounds {
-            fingers: [(1.0, 2.0); 4],
+            fingers: [(1.1, 1.8), (1.1, 1.8), (1.1, 1.8), (0.9, 1.5)],
             breadth: (4.5, 8.4),
             thickness: (1.5, 3.2),
             lobe: LOBE,
@@ -253,7 +265,7 @@ fn bounds(woman: bool) -> Bounds {
         }
     } else {
         Bounds {
-            fingers: [(1.2, 2.6); 4],
+            fingers: [(1.3, 2.1), (1.3, 2.1), (1.3, 2.1), (1.1, 1.7)],
             breadth: (6.0, 9.4),
             thickness: (1.8, 3.6),
             lobe: LOBE,
