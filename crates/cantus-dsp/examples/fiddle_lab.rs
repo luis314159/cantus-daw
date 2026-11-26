@@ -157,6 +157,7 @@ fn write(path: &Path, x: &[f32]) {
 }
 
 /// Two notes struck together (`hi` over `lo`) for `len`, one bow.
+#[allow(clippy::too_many_arguments)]
 fn dstop(v: &mut Vec<N>, at: f64, len: f64, lo: u8, hi: u8, vel: f32, art: Art, dir: BowDir) {
     v.push(N {
         at,

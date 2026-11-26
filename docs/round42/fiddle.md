@@ -228,6 +228,9 @@ and −8 … −9 (`fiddle_ltas.py`, `fiddle_quick.py`).
   chop included); the lib tests 55.
 - **`cantus-project`**: `schema_85_keeps_arcus_s_strings_under_one_bow` (fixture v85; v83 reads
   the defaults) and every fixture loading.
+- **`cargo clippy --release --all-targets -- -D warnings`** on cantus-core, -dsp, -engine, -ai,
+  -project, -score and -ui: clean; rustfmt on every changed file. The Linux check
+  (`tools/wsl/check.sh`) was not run: no `cfg(windows)` code was added.
 - **`DSP_VERSION` 17**: at the defaults the measured size of the change is zero — no golden
   hash and no `LOWER_HASHES` render moved. The fiddle preset sounds otherwise (§3.2).
 
@@ -271,3 +274,10 @@ To render them again:
   D-string and E-string notes at one velocity (`probe_double_stop_levels`). That is the
   instrument's, not the pair's, and is for the violin's next pass.
 - **Turns, rolls and the swung feel as a groove** stay in the notes, as `arcus-expr.md` said.
+- **The 5 kHz band** sits about 4 dB over dry classical violins (and 9 over the bluegrass
+  previews). If the owner hears sizzle, the next knobs are the bridge's top (`BRIDGE_TOP_DB`)
+  or less steel.
+- **The owner's ear decides.** Everything here is measured, not yet heard by him. The takes he
+  has are listed in §4.
+- **Numbers for the integrator:** schema 85 (84 left for Chorda's branch) and `DSP_VERSION` 17
+  (16 left) may be renumbered; ADR 0164 is provisional.

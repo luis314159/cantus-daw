@@ -225,7 +225,7 @@ fn the_open_strings_ring_in_sympathy_after_the_bow_lifts() {
             .sum::<f64>()
     };
     let (dry, rung) = (tail(0.0), tail(1.0));
-    let db = 10.0 * (rung / dry.max(1e-30)).log10();
+    let db = 10.0 * math::log10(rung / dry.max(1e-30));
     assert!(
         db > 6.0,
         "the ring after the bow lifts: {db:.1} dB over none"
@@ -257,7 +257,7 @@ fn probe_double_stop_levels() {
             .map(|x| (x * x) as f64)
             .sum::<f64>()
             / 28_800.0;
-        10.0 * e.max(1e-30).log10()
+        10.0 * math::log10(e.max(1e-30))
     };
     for (lo, hi) in [(69u8, 78u8), (69, 76), (62, 69), (69, 73), (64, 73)] {
         println!(
@@ -276,8 +276,11 @@ fn probe_double_stop_levels() {
 fn high_share(x: &[f32]) -> f64 {
     // A first difference tilts +6 dB an octave: its energy over the signal's is the
     // spectrum's weight above ~sr/(2π).
-    let d: f64 = x.windows(2).map(|w| ((w[1] - w[0]) as f64).powi(2)).sum();
-    let e: f64 = x.iter().map(|v| (*v as f64).powi(2)).sum();
+    let d: f64 = x
+        .windows(2)
+        .map(|w| ((w[1] - w[0]) as f64) * ((w[1] - w[0]) as f64))
+        .sum();
+    let e: f64 = x.iter().map(|v| (*v as f64) * (*v as f64)).sum();
     d / e.max(1e-30)
 }
 
@@ -310,7 +313,7 @@ fn a_chop_scratches_where_a_staccato_speaks() {
     let (chop, stac) = (stroke(Art::Chop), stroke(Art::Staccato));
     let p = (SR as f64 / 293.66).round() as usize;
     let (pc, ps) = (periodicity(&chop, p), periodicity(&stac, p));
-    let db = 10.0 * (high_share(&chop) / high_share(&stac)).log10();
+    let db = 10.0 * math::log10(high_share(&chop) / high_share(&stac));
     println!("periodicity: the chop {pc:.2}, the staccato {ps:.2}; the chop's top {db:+.1} dB");
     assert!(
         pc < ps - 0.15,
@@ -328,8 +331,8 @@ fn a_cross_tuning_moves_the_open_strings() {
             ..fiddle()
         };
         let spec = Instrument::Violin.spec_crossed(c as u8);
-        for i in 0..4 {
-            let key = (Instrument::Violin.spec().strings[i].open as i16 + d[i] as i16) as u8;
+        for (i, step) in d.iter().enumerate() {
+            let key = (Instrument::Violin.spec().strings[i].open as i16 + *step as i16) as u8;
             assert_eq!(spec.strings[i].open, key);
             let mut a = Arcus::new(SR);
             a.set(&s);
