@@ -56,6 +56,7 @@ def main():
             s["hat_open_med"] = float(np.median(hat_open[style]))
         res[style] = s
     out.write_text(json.dumps(res, indent=1), encoding="utf-8")
+    chart(res, out.with_suffix(".png"))
     for st in ("(todos)", "rock", "pop", "funk", "jazz", "latin", "soul", "gospel", "punk", "hiphop"):
         if st in res:
             r = res[st]
@@ -63,6 +64,44 @@ def main():
                   f" kick med {r.get('kick', {}).get('med', 0):5.0f} hat {r.get('hat_closed', {}).get('q1', 0):.0f}-"
                   f"{r.get('hat_closed', {}).get('q3', 0):.0f} ride med {r.get('ride', {}).get('med', 0):.0f}"
                   f" rim {r['rimshot_share']:.2f}")
+
+
+
+def chart(res, out):
+    """Each genre's snare and kick velocities (quartiles, 5th-95th) and the ghost notes' share."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    styles = [s for s in ("rock", "pop", "funk", "soul", "gospel", "jazz", "latin", "afrocuban", "hiphop",
+                          "punk", "reggae", "neworleans") if s in res]
+    fig, ax = plt.subplots(figsize=(9, 0.42 * len(styles) + 1.4), dpi=130)
+    fig.patch.set_facecolor("#fcfcfb")
+    ax.set_facecolor("#fcfcfb")
+    for i, st in enumerate(styles):
+        y = len(styles) - 1 - i
+        for cls, col, dy in (("snare", "#2a78d6", 0.13), ("kick", "#eb6834", -0.13)):
+            q = res[st].get(cls)
+            if not q:
+                continue
+            ax.plot([q["p05"], q["p95"]], [y + dy] * 2, color=col, lw=1, alpha=0.6)
+            ax.plot([q["q1"], q["q3"]], [y + dy] * 2, color=col, lw=5, solid_capstyle="round")
+            ax.plot([q["med"]], [y + dy], "o", color="#fcfcfb", ms=4)
+        ax.text(131, y, f"{100 * res[st]['ghost_share']:.0f} %", va="center", fontsize=8.5, color="#52514e")
+    ax.set_yticks(range(len(styles)))
+    ax.set_yticklabels(list(reversed(styles)), fontsize=9)
+    ax.set_xlim(0, 142)
+    ax.set_xlabel("velocidad MIDI (Roland TD-11)", fontsize=9, color="#52514e")
+    ax.text(131, len(styles) - 0.4, "fantasmas\n(caja < 40)", fontsize=8, color="#52514e", va="bottom")
+    for s in ("top", "right", "left"):
+        ax.spines[s].set_visible(False)
+    ax.grid(axis="x", color="#e4e3df", lw=0.6)
+    ax.plot([], [], color="#2a78d6", lw=5, label="caja")
+    ax.plot([], [], color="#eb6834", lw=5, label="bombo")
+    ax.legend(frameon=False, fontsize=8.5, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2)
+    ax.set_title("A qué fuerza tocan los bateristas reales, por género (Groove MIDI Dataset)",
+                 loc="left", fontsize=11, pad=26)
+    fig.tight_layout()
+    fig.savefig(out, facecolor="#fcfcfb")
 
 
 if __name__ == "__main__":

@@ -54,3 +54,19 @@ pub(crate) fn law_db(id: u8, vel: f32) -> f32 {
     let x = (v - a) / (b - a);
     0.01 * (c[j - 1] as f32 + x * (c[j] as f32 - c[j - 1] as f32))
 }
+
+/// A table's stick burst (the sub-millisecond broadband click, `Layer::stick[0]`) scaled: the
+/// jazz kit's 10″ and 12″ toms (table 22, fitted off Virtuosity's rack tom) carried a burst
+/// no other drum has (0.27 at 127, the others 0), and it made their first 3 ms erratic — a
+/// centroid from 400 Hz to 10 kHz from one take to the next at one velocity, where
+/// Virtuosity's own tom holds 1.3–2.1 kHz and every recorded kit's tom 0.4–2.1 kHz. The knock
+/// (`stick[1]`) stays. A table not listed keeps its burst.
+pub(crate) const BURST: &[(u8, f32)] = &[(22, 0.0)];
+
+/// Table `id`'s burst scale (1 for a table not in [`BURST`]).
+pub(crate) fn burst(id: u8) -> f32 {
+    BURST
+        .iter()
+        .find(|(t, _)| *t == id)
+        .map_or(1.0, |(_, g)| *g)
+}

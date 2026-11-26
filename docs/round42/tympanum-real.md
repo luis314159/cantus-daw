@@ -72,3 +72,29 @@ kits' spread:
 
 Nothing in this round can rank a commercial instrument: it needs the owner's machine and his
 accounts (BACKLOG). Tympanum's own numbers before and after are below.
+
+## 3. The measures (`tools/tympanum-real`)
+
+| tool | what |
+|---|---|
+| `tympanum_real` (cantus-ui example) | `info` (a kit's pieces, keys, mics), `hits` (every articulation at velocities 16, 32, 48, 64, 80, 100, 127, three takes each, a drum's 4 s window and a cymbal's 6 s; a closed hat at CC4 0 as a song without a pedal plays it), `notes` (a CSV of hits: a transcription, a performance), `dg-build` (a DrumGizmo kit built as the app installs it) |
+| `pipeline.py` | `hits`, `grooves`, `compare` over every kit (`KITS`) and Groove MIDI excerpt (`GROOVES`) |
+| `features.py`, `measure.py` | per hit: level (first 80 ms, peak), attack (rise, crest, 0–3 ms centroid, the stick's > 5 kHz share), centroid in five windows, octave bands per window and T30 per band, a drum's f0, glide and asymmetric-mode share, the snare wires' level, decay and flatness, a cymbal's 4–12 kHz flatness, bloom and centroid over time, late 4–10 kHz (sympathetic buzz and room), side/mid early and late, L/R correlation, C50, a third-octave spectrum for take-to-take variation |
+| `summary.py`, `compare.py` | per piece kind, the numbers a kit's whole velocity range gives (span, steps that fall, brightness per 10 dB, glide hard and soft, …); each Tympanum kit against the recorded kits' range, ranked by a rough audibility weight; the charts |
+| `grooves.py` | the same performance through every kit: loudness, crest, LRA, width, octave balance, 6–16 kHz flatness |
+| `gmd_levels.py` | at what velocities ten real drummers play, per genre (GMD) |
+| `transcribe.py` | real drumming to MIDI: partially-fixed NMF on third octaves, templates from a kit's measured hits, onsets as 6-dB rises, a class's share of the frame |
+| `position.py` | centre against edge strokes from the packs' own sample files |
+| `law.py`, `blob_read.py` | model 5's level law (below), the tables blob read back |
+| `preview.py`, `report.py` | the owner's named previews and the Spanish report |
+
+**Real drummers' levels** (GMD, 1 150 performances): the median snare stroke is velocity 45 and
+**41 % of snare strokes are ghost notes** (< 40) — 50 % in funk, 51 % Afro-Cuban, 64 % reggae, 26 %
+gospel; the kick's median is 53. Soft playing is most of what a kit plays: the soft layers and the
+level law under velocity 60 are where a modelled kit is heard most.
+
+**The transcriber**, scored on Groove MIDI performances rendered through recorded kits (±30 ms):
+the kick F 0.62–0.98, the closed hat 0.71–0.94, the snare 0.72 on DRSKit but 0.09 on Big Rusty
+(its rimshots and its 14×8 snare are far from DRSKit's template); the toms and cymbals are rare in
+the excerpts. Good enough to give a real performance's timing and dynamics back to a kit; not a
+transcription to publish.

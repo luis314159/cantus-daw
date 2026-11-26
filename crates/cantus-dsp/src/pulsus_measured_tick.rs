@@ -573,7 +573,10 @@ impl Object {
             st[0] += x * l.stick[0];
             st[1] += x * l.stick[1];
         }
-        self.stick = [st[0] * level * h.click.max(0.0), st[1] * level];
+        self.stick = [
+            st[0] * level * h.click.max(0.0) * super::law::burst(t.id),
+            st[1] * level,
+        ];
         // A drum: the hit pushes the head sharp (its glide, the harder the more; a ringing
         // head is pushed again), and is a few cents its own (±3).
         self.drum = t.drum;

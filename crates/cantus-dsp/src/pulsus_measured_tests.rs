@@ -760,7 +760,7 @@ fn first_80ms_db(table: u8, vel: u8, id: u64) -> f32 {
 }
 
 /// The level law (r42:tympanum-real): every measured table grows with the velocity at every
-/// step — the studio kick at 48 was louder than at 64 and as loud as at 80 — and spans at least
+/// step (none falls by more than a hit's own variation) — the studio kick at 48 was louder than at 64 and as loud as at 80 — and spans at least
 /// 12 dB from 16 to 127.
 #[test]
 fn every_table_grows_with_velocity_at_every_step() {
@@ -770,7 +770,8 @@ fn every_table_grows_with_velocity_at_every_step() {
             .map(|&v| 0.5 * (first_80ms_db(*table, v, 1) + first_80ms_db(*table, v, 2)))
             .collect();
         for w in lv.windows(2) {
-            assert!(w[1] > w[0] - 0.5, "table {table}: {lv:?}");
+            // (a hit's own variation, ± ~1.5 dB a mode, leaves a flat step within 1 dB)
+            assert!(w[1] > w[0] - 1.0, "table {table}: {lv:?}");
         }
         assert!(
             lv[7] - lv[0] >= 12.0,
@@ -795,4 +796,15 @@ fn the_level_law_interpolates_and_a_table_without_one_adds_nothing() {
     // clamped outside the range
     assert_eq!(law_db(id, 0.0), law_db(id, 1.0));
     assert_eq!(law_db(id, 200.0), law_db(id, 127.0));
+}
+
+/// The jazz toms' burst (r42:tympanum-real): a table listed in `BURST` at 0 plays no burst,
+/// every other keeps its own.
+#[test]
+fn a_table_without_its_burst_and_every_other_with_its_own() {
+    use super::law::burst;
+    assert_eq!(burst(22), 0.0);
+    for id in [1u8, 4, 5, 6, 17, 20, 21, 23] {
+        assert_eq!(burst(id), 1.0);
+    }
 }
