@@ -1721,15 +1721,18 @@ pub fn arm(
                         // between more and less grazing — the strip in their own colours
                         // drew a dotted bright line a pixel wide along every sleeve.)
                         let ci = corner(third);
-                        // (r42:arcus-polish4: on cloth nearer the inner corner's still — where a
-                        // sleeve's cap turns away under the back light its outline's corners
-                        // flicker between lit and not, and the strip read as a dotted light
-                        // line on her bow shoulder: `arcus_figure_specks`.)
-                        let k = if matches!(am.stuff[t], Stuff::Velvet | Stuff::Wool) {
-                            0.8
-                        } else {
-                            0.5
-                        };
+                        // (r42:arcus-polish4: on cloth the inner corner's own — where a sleeve's
+                        // cap or a cuff button's top turns away under the back light its
+                        // outline's corners flicker between lit and not, and the strip read as
+                        // dotted light lines: her bow shoulder, the tops of his cuff buttons;
+                        // `arcus_figure_specks`.)
+                        let cloth = matches!(am.stuff[t], Stuff::Velvet | Stuff::Wool);
+                        // (Nor on a cloth's tiny contour edges — the tops of his cuff buttons,
+                        // a crease's lip: a strip there is a lone light dot, not an outline.)
+                        if cloth && (pb - pa).length() < SMALL_EDGE_PX * px {
+                            continue;
+                        }
+                        let k = if cloth { 1.0 } else { 0.5 };
                         let (ca, cb) = (lerp_c(corner(a), ci, k), lerp_c(corner(bb), ci, k));
                         b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
@@ -2374,6 +2377,10 @@ fn smooth01(x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
+/// r42:arcus-polish4 — a cloth contour edge shorter than this on screen (px) has no outline
+/// strip.
+const SMALL_EDGE_PX: f32 = 1.6;
+
 /// r42:arcus-polish4 — the raised bow arm's shoulder cap as a raised arm's is (the
 /// `arcus_figure_shape` gate: her bow-arm deltoid 11.3 cm across, sleeved, where her left
 /// one is 9.5 and ref-04's bare raised arm measures 8–9 cm against her bow hand's breadth):
@@ -2407,7 +2414,7 @@ struct Elbow {
 }
 
 /// The most a bent elbow is drawn in, and the bends (°) over which it comes in.
-const ELBOW: [f32; 3] = [0.1, 30.0, 100.0];
+const ELBOW: [f32; 3] = [0.16, 30.0, 100.0];
 
 /// [`ELBOW`], or `CANTUS_ELBOW="most,from,to"` while finding it (read once; unset in the app).
 fn elbow_numbers() -> [f32; 3] {
@@ -2516,7 +2523,9 @@ impl Deltoid {
         }
         let q = p - self.sh;
         let t = q.dot(self.way) / self.len;
-        let along = smooth01((t + 0.02) / 0.2) * (1.0 - smooth01((t - 0.32) / 0.3));
+        // (The cap only: by the upper arm's middle the arm is its own — 7.4 cm there with a
+        // reach to 0.62, against 8.2 without.)
+        let along = smooth01((t + 0.02) / 0.2) * (1.0 - smooth01((t - 0.24) / 0.18));
         let k = self.k * along * share.min(1.0);
         if k <= 0.0 {
             return p;

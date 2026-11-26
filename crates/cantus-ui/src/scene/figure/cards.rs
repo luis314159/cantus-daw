@@ -262,13 +262,13 @@ pub fn hair_look(who: u8) -> HairLook {
         // (r42:arcus-polish2: the band narrow, warm and broken — the owner on sheet v11: a
         // grey sheet then, too faint to read once lowered.)
         // (r42:arcus-polish4: `short04`, combed straight back — its strands run one way, so
-        // their detail shows, though its crossing layers read as a weave above 0.4; a dark
+        // their detail shows, though its crossing layers read as a weave above 0.3; a dark
         // brown, less red — ref-06.)
         HairLook {
             albedo: 1.0,
             shine: (60.0, 0.32),
             sheen: (22.0, 0.2),
-            detail: 0.4,
+            detail: 0.3,
             scalp: 0.55,
             streaks: 0.9,
             rim: 2.0, // (r42:arcus-polish4: 1.4 — the top's outline read as a hard cap)

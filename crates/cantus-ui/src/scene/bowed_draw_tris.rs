@@ -223,13 +223,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // at its thin edge the two lie within a millimetre and, sorted by their middles,
             // the skin's triangles painted over the hair in places (his crown's and temples'
             // light flecks in the Drawn picture).
-            // (And his shirt and tie a little nearer: the collar's far point lies over the
-            // violin's edge, and sorted by their middles its triangles and the violin's cells
-            // interleaved — white shards over the violin, the coordinator's review.)
-            let bias = match role {
-                Role::Shell(_) => SHELL_BIAS,
-                Role::Shirt | Role::Tie => SHIRT_NEAR,
-                _ => 0.0,
+            let bias = if matches!(role, Role::Shell(_)) {
+                SHELL_BIAS
+            } else {
+                0.0
             };
             c.p.at(cam.depth(ctr) - bias, Part::Bowed);
             let sp = c.sps(&q);
@@ -294,8 +291,6 @@ fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]
 
 /// r42:arcus-polish4 — how much nearer the hair's shell sorts than its own depth (cm).
 const SHELL_BIAS: f32 = 0.6;
-/// r42:arcus-polish4 — how much nearer his shirt and tie sort (cm).
-const SHIRT_NEAR: f32 = 1.5;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.

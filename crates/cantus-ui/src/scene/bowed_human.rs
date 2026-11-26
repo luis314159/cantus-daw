@@ -1407,6 +1407,9 @@ pub fn build(
     } else {
         wisps(m, fig, &posed, &pts);
     }
+    if held {
+        clear_of_the_body(m, b, pose); // r42:arcus-polish4
+    }
     // What the floor's shadow takes: the body's outline points.
     m.shadows.push(
         pts.iter()
@@ -1648,6 +1651,49 @@ fn wisps(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3
     }
 }
 
+/// r42:arcus-polish4 — the shirt's collar where a held instrument's body lies on it (the
+/// coordinator: white shards beside the knot): the collar's far point, under a violin's
+/// lower bout, stood through the body — in the Photographic picture a white wedge over the
+/// varnish, in the Drawn one shards sorted among its cells. A collar under a chin rest is
+/// pressed flat out of sight: its triangles inside the body's outline and within its depth
+/// (a centimetre's margin) are left out.
+fn clear_of_the_body(
+    m: &mut super::bowed_mesh::Mesh,
+    b: super::bowed::Bowed,
+    pose: &super::bowed::Pose,
+) {
+    use super::bowed_mesh::{inside, Role};
+    let d = b.dims();
+    let o = super::bowed::outline(b, 96);
+    // (Its top's side reaching up toward the jaw: the far collar point stood in front of
+    // the lower bout from the camera.)
+    let (top, back) = (
+        d.arch + 4.0,
+        -(super::bowed::rib(d, d.body * 0.2) + d.arch_back + 1.0),
+    );
+    let local = |p: V3| {
+        let q = p - pose.o;
+        (q.dot(pose.ex), q.dot(pose.ey), q.dot(pose.ez))
+    };
+    for (role, t) in m.tris.iter_mut() {
+        // The shirt through the body's whole depth; the jacket's cloth only over its top (the
+        // suit's painted tie, jacket cloth now, flared over the lower bout as well; the
+        // jacket's shoulder under the back stays).
+        let low = match role {
+            Role::Shirt => back,
+            Role::Wool => d.arch - 0.5,
+            _ => continue,
+        };
+        let pts = &t.pts;
+        t.idx.retain(|tri| {
+            let c =
+                (pts[tri[0] as usize] + pts[tri[1] as usize] + pts[tri[2] as usize]) * (1.0 / 3.0);
+            let (x, y, z) = local(c);
+            !(z < top && z > low && inside(&o, x, y))
+        });
+    }
+}
+
 /// r42:arcus-polish4 — his hair's top against the room (the coordinator: a hard dark cap's
 /// outline): short tips standing out of the combed-back top, each from a card vertex over
 /// the crown, leaving along the combing (back and a little up) and lifting off — fine rods,
@@ -1770,65 +1816,132 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
     let right = up.cross(n).norm();
     // The knot's middle a little under the tie's top (the collar's points come over its
     // upper corners).
-    let c = head + up * (0.3 - KNOT_H * 0.5);
+    let c = head + up * (KNOT_TOP - KNOT_H * 0.5);
+    let foot_at = c - up * (KNOT_H * 0.5);
+    // r42:arcus-polish4 — the whole tie modelled (the coordinator: the knot a navy blob with
+    // white flecks; the suit's tie is a painted region of its shirt, its edges a staircase):
+    // the blade follows the shirt down from the knot's foot — the tie's own vertices' middle
+    // a centimetre at a time, at rest's distance from its top — widening to its blade and
+    // ending in a point; the suit's painted tie becomes jacket cloth under it.
+    let len = tie
+        .iter()
+        .map(|&i| top - fig.pos[i].y)
+        .fold(0.0f32, f32::max);
+    let from = KNOT_H - KNOT_TOP + 0.6;
+    let blade = (len - from).max(4.0);
+    let rows = (blade / BLADE_STEP).ceil() as usize;
+    let mut line: Vec<(V3, V3)> = Vec::with_capacity(rows + 1);
+    let mut last = (head, n);
+    for k in 0..=rows {
+        let d = from + k as f32 * BLADE_STEP;
+        if let Some(q) = mean(d - 1.0, d + 1.0) {
+            last = q;
+        }
+        line.push(last);
+    }
+    let base = line.first().map_or(foot_at, |q| q.0);
+    // How wide the suit's painted tie is at each row (its vertices' reach across from the
+    // line, a little over): the modelled blade is never narrower, so none of the painted
+    // tie's staircase edge, shirt now, shows beside it.
+    let mut reach = vec![0.0f32; rows + 1];
+    for &i in &tie {
+        let d = top - fig.pos[i].y;
+        let k = ((d - from) / BLADE_STEP).round();
+        if k < 0.0 || k > rows as f32 {
+            continue;
+        }
+        let (p, nn) = line[k as usize];
+        let r = (right - nn * right.dot(nn)).norm();
+        let x = (pts[i] - p).dot(r).abs() + 0.3;
+        reach[k as usize] = reach[k as usize].max(x);
+    }
+    // (A row's width the widest of its neighbours': a smooth edge over the staircase.)
+    let reach: Vec<f32> = (0..=rows)
+        .map(|k| {
+            reach[k.saturating_sub(2)..=(k + 2).min(rows)]
+                .iter()
+                .copied()
+                .fold(0.0, f32::max)
+        })
+        .collect();
     const N: usize = 12;
-    let at = |u: f32, v: f32| {
-        // u across (-1…1), v up the knot (0 its foot … 1 under the collar).
+    // (u across −1…1; v up the knot 0 its foot … 1 under the collar; below it, v −k the
+    // blade's row k.)
+    let at = |u: f32, v: f32| -> V3 {
+        let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
         if v < 0.0 {
-            // r42:arcus-polish4 — the blade's top under the knot (v −1 … 0 over `DIMPLE.0`
-            // cm): widening from the knot's foot toward the blade, standing off the shirt
-            // where it leaves the knot and settling onto it, with the dimple — the groove
-            // a well-tied four-in-hand leaves down the blade's middle just under the knot
-            // (the coordinator: the tie's knot and dimple).
-            let s = -v;
-            let w = KNOT_W.0 + (DIMPLE.1 - KNOT_W.0) * s;
-            let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
-            let lift = KNOT_D * 0.45 * (1.0 - smooth_k(s));
-            let groove = DIMPLE.2 * (-(u / 0.24) * (u / 0.24)).exp() * (1.0 - s).powf(0.7);
+            let x = (-v).min(rows as f32);
+            let (k0, f) = (x.floor() as usize, x.fract());
+            let k1 = (k0 + 1).min(rows);
+            let (p0, n0_) = line[k0];
+            let (p1, n1_) = line[k1];
+            let along = p0 + (p1 - p0) * f - base + foot_at;
+            let nn = (n0_ + (n1_ - n0_) * f).norm();
+            let r = (right - nn * right.dot(nn)).norm();
+            let s = x * BLADE_STEP;
+            // Widening fast under the knot, then slowly; a point at its end.
+            let design = KNOT_W.0
+                + (BLADE_W.0 - KNOT_W.0) * smooth_k(s / 4.0)
+                + (BLADE_W.1 - BLADE_W.0) * (s / blade).clamp(0.0, 1.0);
+            // (Never far past its own shape: a few stray painted vertices made a skirt.)
+            let w = design
+                .max(2.0 * (reach[k0] + (reach[k1] - reach[k0]) * f))
+                .min(design * REACH_MOST);
+            // (Its end a point: drawn in to its middle over its last 3.5 cm.)
+            let half = w * 0.5 * ((blade - s) / 3.5).clamp(0.0, 1.0);
+            let lift = KNOT_D * 0.45 * (1.0 - smooth_k(s / 3.0));
+            // The dimple: one groove down the blade's middle just under the knot.
+            let groove = DIMPLE * (-(u / 0.2) * (u / 0.2)).exp() * (1.0 - smooth_k(s / 3.2));
             let h = (lift * round - groove).max(0.0);
-            return c
-                + right * (u * w * 0.5)
-                + up * (-0.5 * KNOT_H - s * DIMPLE.0)
-                + n * (0.12 + h);
+            return along + r * (u * half) + nn * (0.16 + h);
         }
         let w = KNOT_W.0 + (KNOT_W.1 - KNOT_W.0) * v;
-        let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
         let full = 0.45 + 0.55 * smooth_k((v - 0.05) / 0.4);
-        // The wrap's fold: a shallow groove from upper left down to lower right.
+        // The wrap: a soft crest from upper left down to lower right where the tie's turn
+        // comes round the knot — a highlight, not a crease.
         let d = u * 0.55 + (v - 0.55);
-        let fold = (-(d / 0.11) * (d / 0.11)).exp();
-        // (r42:arcus-polish4: a neat four-in-hand — the wrap's fold a faint line, not a
-        // crumple, and the knot's upper corners going in under the collar's points, which
-        // lie over them; the coordinator.)
-        let under = smooth_k((v - 0.6) / 0.4) * smooth_k((u.abs() - 0.35) / 0.55);
-        let h = (KNOT_D * round * full - 0.05 * fold * round) * (1.0 - 0.85 * under);
+        let wrap = (-(d / 0.2) * (d / 0.2)).exp();
+        let h = KNOT_D * round * full + 0.06 * wrap * round;
         c + right * (u * w * 0.5) + up * ((v - 0.5) * KNOT_H) + n * (0.12 + h)
     };
+    // The suit's painted tie is cloth under the modelled one: the jacket's (where a ragged
+    // piece of it shows beside the blade, it lies over the jacket's front — as shirt it was
+    // a white zigzag there).
+    for (r, _) in m.tris.iter_mut() {
+        if *r == Role::Tie {
+            *r = Role::Wool;
+        }
+    }
     let mut t = Tris::default();
-    // (r42:arcus-polish4: `DIMPLE_ROWS` rows under the knot, the blade's top and its dimple.)
-    for j in 0..=N + DIMPLE_ROWS {
+    let all = N + rows;
+    for j in 0..=all {
         for i in 0..=N {
-            let rows = if j < DIMPLE_ROWS { DIMPLE_ROWS } else { N };
-            let (u, v) = (
-                i as f32 / N as f32 * 2.0 - 1.0,
-                (j as f32 - DIMPLE_ROWS as f32) / rows as f32,
-            );
+            let u = i as f32 / N as f32 * 2.0 - 1.0;
+            let v = if j < rows {
+                -((rows - j) as f32)
+            } else {
+                (j - rows) as f32 / N as f32
+            };
             let p = at(u, v);
             let e = 0.02;
             let du = at((u + e).min(1.0), v) - at((u - e).max(-1.0), v);
-            let dv = at(u, (v + e).min(1.0)) - at(u, (v - e).max(-1.0));
+            let dv = if v < 0.0 {
+                at(u, (v + 0.5).min(0.0)) - at(u, v - 0.5)
+            } else {
+                at(u, (v + e).min(1.0)) - at(u, (v - e).max(0.0))
+            };
             let mut nn = du.cross(dv).norm();
             if nn.dot(n) < 0.0 {
                 nn = nn * -1.0;
             }
             t.pts.push(p);
             t.nrm.push(nn);
-            // (Its luminance a little lower in the fold, and at its sides where it turns
-            // under — the knot's own shade — and no edge of its own.)
+            // (A little lower where it turns under at its sides — the knot's and the
+            // blade's own shade — and the dimple's groove in its shade; no edge of its own.)
             let side = 1.0 - 0.15 * smooth_k((u.abs() - 0.7) / 0.3);
-            // (The dimple's groove in its own shade.)
             let dim = if v < 0.0 {
-                1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 + v).powf(0.7)
+                let s = -v * BLADE_STEP;
+                1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 - smooth_k(s / 3.2))
             } else {
                 1.0
             };
@@ -1837,7 +1950,7 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
         }
     }
     let row = (N + 1) as u32;
-    for j in 0..(N + DIMPLE_ROWS) as u32 {
+    for j in 0..all as u32 {
         for i in 0..N as u32 {
             let (a, b, cc, d) = (
                 j * row + i,
@@ -1863,12 +1976,20 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
 /// The knot's height, its width at its foot and under the collar, and how far it stands
 /// off the shirt at its fullest (cm).
 const KNOT_H: f32 = 3.0;
-const KNOT_W: (f32, f32) = (1.9, 3.2);
+const KNOT_W: (f32, f32) = (1.9, 3.0);
+/// r42:arcus-polish4 — how far over the tie's top the knot's top stands (cm): it covers the
+/// suit's painted tie's pinched top, shirt now (its white fragments by the knot).
+const KNOT_TOP: f32 = 0.3;
+/// r42:arcus-polish4 — how much wider than its own shape the blade may grow to cover the
+/// suit's painted tie.
+const REACH_MOST: f32 = 1.2;
 const KNOT_D: f32 = 0.75;
-/// r42:arcus-polish4 — the blade's top under the knot: how far down it runs (cm), how wide it
-/// grows there (cm), the dimple's depth (cm); its rows.
-const DIMPLE: (f32, f32, f32) = (3.2, 3.4, 0.12);
-const DIMPLE_ROWS: usize = 6;
+/// r42:arcus-polish4 — the dimple's depth under the knot (cm).
+const DIMPLE: f32 = 0.12;
+/// r42:arcus-polish4 — the modelled blade: its width under the knot and at its end (cm),
+/// and its rows' spacing along the tie (cm).
+const BLADE_W: (f32, f32) = (3.6, 7.6);
+const BLADE_STEP: f32 = 1.0;
 
 fn smooth_k(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);

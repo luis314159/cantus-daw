@@ -184,7 +184,7 @@ pub const CONCERT: Concert = Concert {
     d_ridge_pow: 28.0,
     d_plate: 0.35,
     d_mottle: 0.12,
-    d_skin: [1.0, 0.92, 0.88],
+    d_skin: [1.01, 0.9, 0.86],
 };
 
 static TUNED: std::sync::OnceLock<Concert> = std::sync::OnceLock::new();

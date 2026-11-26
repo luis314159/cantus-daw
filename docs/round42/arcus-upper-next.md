@@ -1186,6 +1186,81 @@ system assets on this machine now also hold `hair/short01`, `short03`, `short04`
    his shirt and tie sorted 0.8 cm farther (the collar's far point drew white shards over
    the violin). The bodice smoothed further over the bust (`BUST_SMOOTH`: a small crescent
    of its form showed in the Drawn sheen — modesty).
-5. *Specks*: the live cloth's outline strip drawn nearer the inner corner's colour (0.8,
-   was 0.5: the dotted light line on her bow shoulder).
-6. *The deltoid*: see the gates below.
+5. *Specks*: on cloth the live outline strip takes its triangle's inner corner's colour
+   (was halfway: the dotted light line on her bow shoulder) and none is drawn on a cloth
+   contour edge under 1.6 px (`SMALL_EDGE_PX`: the tops of his cuff buttons each drew a
+   lone light dot); his sleeves smoothed after they are made finer (`soften`, `SOFTEN` 4).
+6. *The tie, modelled whole* (`bowed_human::tie_knot`; the coordinator twice: a navy blob
+   with white flecks): the knot a smooth tapered trapezoid (1.9 → 3.0 cm, 3 cm tall, its
+   wrap a soft crest, not a crease) and the blade following the shirt down from the knot's
+   foot (the suit's tie vertices' middle a centimetre at a time), widening 3.6 → 7.6 cm,
+   with one dimple under the knot and a pointed end, never narrower than the suit's painted
+   tie under it (up to 1.2 × its own shape, `REACH_MOST`); the painted tie region becomes
+   jacket cloth under it (its staircase edges and the navy fragments at the collar are gone).
+   The shirt's triangles inside a held violin's or viola's body are left out of the bake
+   (`clear_of_the_body`: the collar's far point stood through the lower bout — the white
+   wedge in Photographic, the shards in Drawn), and the jacket's cloth over its top (the
+   painted tie flared there too).
+7. *The deltoid, decided by realism* — the geometry was wrong, not the band: her bow-arm
+   cap measured 11.4/11.6 cm (violin/viola) against her left arm's 9.5 (the same cap at
+   rest) and ref-04's raised bare arm, 8–9 cm against her bow hand's breadth (~7.5 cm): the
+   rigid turn of skinning bulged the lifted cap. `arcus_draw_flesh::Deltoid` (a pose-space
+   corrective, the bow arm only: up to 0.3 of the radial distance over the upper arm's first
+   quarter, as the arm lifts 25° → 65° from hanging): 10.3 / 10.4. `Elbow` (both arms: the
+   bent joint's dual-quaternion swelling, which the finer sleeves revealed — 9.5–9.8 cm —
+   drawn in up to 0.16 as it bends 30° → 100°). `CANTUS_DELTOID` / `CANTUS_ELBOW` tune both
+   while measuring.
+8. *Her V neckline's point higher* (`V_DEPTH` 11 cm, was 15): the bow forearm crosses her
+   chest, and the V's point showed under it as a skin diamond that read as the arm through
+   the sleeve (the coordinator, on the hands builder's bow-hand sheet); modesty too. The new
+   test `arcus_figure_specks::no_skin_shows_through_or_under_her_bow_sleeve` (her bow arm at
+   the frog, the middle and the tip, violin and viola, both looks): no skin-coloured pixel
+   inside the live sleeve's outline (drawn in by 2 px; the hand and the bow left out) and at
+   most two in a 6 px band under it.
+
+**Gates at the end** (build 14 of this session, release, the committed figures):
+`arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
+`scene_identity` ✓ (Chorda's and Tympanum's pictures unchanged), `arcus_figure_auto` ✓,
+`arcus_arm_pose` ✓ (the bow arm; the left arm's ignored for arcus-hands), the new
+`no_skin_shows_through_or_under_her_bow_sleeve` ✓; clippy `-D warnings` on cantus-ui: see
+the final commit. `arcus_figure_shape` ✗ on its taper rule only — "Woman violin/viola arm
+1: no elbow": her bent bow elbow 9.2 cm across the crook against the upper arm's middle
+8.3/8.6 (the deltoid 10.3/10.4 and every width in its band; the viola's failed the same rule
+before this pass, 9.8 against 8.7). `arcus_figure_specks`' stray count ~250: the largest
+group is a row of single light pixels along the tops of his three cuff buttons (now kept,
+see Done 4) in every shot of his bow forearm — not the outline strip (left out on tiny
+edges, no change) but the buttons' own shading; then the bow hand's (arcus-hands') and his
+bow shoulder's edge; her Drawn neck dot (192, 277) is not the earrings (tested without them)
+— most likely a decal of the violin (a grain line or the purfling) sorted over the skin
+beside the lower bout. `arcus_hold_budget` not re-measured: the machine was never idle
+(three builders' builds the whole session; a build took 35–70 minutes).
+
+**Open** (in the order the owner will see them):
+1. *The knot at 400 %*: clean now (no white or navy fragments, the far collar point gone
+   where the violin lies on it), but the knot is plain — the collar's near point lying
+   over its corner and a visible collar band all round are not modelled (the far side of
+   the collar is culled with the body's slab, `clear_of_the_body`, its top 4 cm over the
+   arching).
+2. *His Photographic hair*: the crossing card layers still read as a fine weave at 200 %
+   (detail 0.3); the top's outline still nearly a smooth cap — the tips (`his_tips`) barely
+   read against the dark room. A groomed hair texture of our own (strands one way, no
+   crossing layers) is the next lever.
+3. *The specks gate* (above): give the cuff buttons a broader, softer highlight (their
+   tops' normals bent toward the sleeve's) or tell the gate a button from a stray; find the
+   Drawn neck dot (capture the Drawn primitives at that pixel).
+4. *The taper rule on a bent bow elbow* (above): decide by the photographs whether a cut
+   square to the upper arm through a bent crook may be wider than the upper arm's middle
+   (it is in ref-06's bent sleeves), or draw the crook in further (`ELBOW` up to 0.45 makes
+   it pass, but pinches it).
+5. *The new sleeve test*: it holds "no skin inside the bow sleeve" at the frog, middle and
+   tip; run against the old figure (V 15 cm) its 12 px band under the sleeve did not flag
+   the neckline's point at the editor's 100 % — widen the band or shoot at 200 %.
+6. *Seams*: the set-in sleeve seam and the shoulder seam (`cloth::fold`'s seam code reads
+   `[20 + depth, across]` on velvet; nothing writes it yet, and wool does not read it).
+7. `arcus_hold_budget` on an idle machine; the WSL Linux check (`tools/wsl/check.sh`).
+
+**Sheets** (never committed; the photographs beside): `F:\projects\daw-r42\tmp\polish4\`
+`sheet-it1\`, `sheet-it2\`, `sheet-it3\`, `sheet-it4\` (the last: `sheet-100.png`, the 200 %
+crops, `knot-collar-400-base-vs-now.png`, `her-bow-forearm-v-neck-200.png`). The crop and
+sheet scripts were session tools (the scratchpad), not committed: `light_sheet.py` makes the
+whole-picture sheet.

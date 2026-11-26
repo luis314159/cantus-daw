@@ -1249,6 +1249,7 @@ def make(sex, data, assets):
         # r42:arcus-polish4 — the jacket's sleeves finer, then wrinkled. (Finer, they keep
         # the suit's own modelled cuff buttons, which the arms' thinning had flattened.)
         sp, sw, st, smat, _ = subdivide(sp, sw, st, smat, [], arm_cloth(sw, st, smat, WOOL))
+        sp = soften(sp, st, smat, arm_cloth(sw, st, smat, WOOL), SOFTEN)
         sp = sleeve_wrinkles(sp, sw, st, smat, J, WOOL)
         # r42:arcus-polish4 — the clothes' edges with a thickness (the coordinator: his
         # lapel's edge, a modelled collar, the cuffs' thickness): the jacket's edge over the
@@ -1785,6 +1786,34 @@ def subdivide(p, w, t, mats, extra, sel):
             [np.array(e) for e in extra])
 
 
+# r42:arcus-polish4 — his sleeves' smoothing passes after they are made finer: the suit's
+# cuff buttons kept as soft domes (sharp-topped, each caught the back light on one pixel:
+# `arcus_figure_specks`' row of dots along his cuff).
+SOFTEN = 4
+
+
+def soften(p, t, mats, sel, passes):
+    """The vertices of the triangles ``sel`` that no other triangle shares drawn toward their
+    neighbours' middle ``passes`` times (half way each): a surface's small sharp forms
+    rounded, its edges where it meets other triangles kept."""
+    tt = t[sel]
+    inner = np.zeros(len(p), bool)
+    inner[tt.ravel()] = True
+    inner[t[~sel].ravel()] = False
+    e = np.concatenate([tt[:, [0, 1]], tt[:, [1, 2]], tt[:, [2, 0]]])
+    deg = np.zeros(len(p))
+    np.add.at(deg, e[:, 0], 1.0)
+    np.add.at(deg, e[:, 1], 1.0)
+    q = p.copy()
+    for _ in range(passes):
+        acc = np.zeros_like(q)
+        np.add.at(acc, e[:, 0], q[e[:, 1]])
+        np.add.at(acc, e[:, 1], q[e[:, 0]])
+        avg = acc / np.maximum(deg, 1.0)[:, None]
+        q = np.where(inner[:, None], q + (avg - q) * 0.5, q)
+    return q
+
+
 def arm_cloth(w, t, mats, cloth, least=0.3):
     """r42:arcus-polish4 — which triangles are ``cloth`` on an arm (their corners' arm
     share over ``least``): the sleeves."""
@@ -1931,7 +1960,10 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
         # A V neckline (sheet v7, the reference's dress): from beside the neck down to the
         # breastbone's middle, its point softly rounded.
         ax = np.sqrt(x * x + 0.9 ** 2)
-        depth = 15.0 * np.clip(1.0 - ax / 9.6, 0.0, 1.0) ** 1.1 + 1.0
+        # (r42:arcus-polish4: its point higher — `V_DEPTH`, 15 before: the bow forearm crosses
+        # her chest, and the V's point showed under it as a skin diamond that read as the arm
+        # through the sleeve; and modesty.)
+        depth = V_DEPTH * np.clip(1.0 - ax / 9.6, 0.0, 1.0) ** 1.1 + 1.0
         scoop = np.minimum(np.minimum(z + 1.5, y + depth), 8.4 - np.abs(x))
         g_neck = np.maximum(10.0 * (hn - 0.5), scoop)
         g_hand = 10.0 * (np.array([hand_share(d) for d in w]) - 0.55)
@@ -2036,6 +2068,8 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
 
 # The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
 BODICE_SMOOTH = 160
+# r42:arcus-polish4 — the V neckline's depth (cm under the neck's base at its middle).
+V_DEPTH = 11.0
 # r42:arcus-polish4 — the further passes over the bust (``dress``).
 BUST_SMOOTH = 200
 BODICE_EASE = 0.7

@@ -473,3 +473,126 @@ fn no_stray_pixels_round_or_on_the_violinists() {
     assert_eq!(looked, 32);
     assert!(bad.is_empty(), "{} strays:\n{}", bad.len(), bad.join("\n"));
 }
+
+/// r42:arcus-polish4 — no skin through her bow sleeve (the coordinator: a skin-coloured
+/// diamond under the bow forearm read as the arm through the sleeve — it was her dress's V
+/// neckline's point showing under the arm, now higher, `build_figures.py::V_DEPTH`): her
+/// bow arm drawn through the app with the bow at the frog, its middle and its tip, both
+/// looks; inside the live sleeve's outline, drawn in by 2 px (not its hem, nor the hand, nor
+/// the bow over it), no pixel may be skin-coloured — and none in a 12 px band under the
+/// forearm's sleeve, where the neckline's point showed.
+#[test]
+fn no_skin_shows_through_or_under_her_bow_sleeve() {
+    views::inst::chorda::scene::hybrid::register();
+    scene::set_blocking(true);
+    cantus_ui::scene::bowed_draw::set_real_view(None);
+    let mut bad = Vec::new();
+    for (b, inst) in [(Bowed::Violin, 2.0f32), (Bowed::Viola, 3.0)] {
+        for be in [SceneBackend::Vector, SceneBackend::PerPixel] {
+            scene::backend::set_default(be);
+            let ctx = egui::Context::default();
+            cantus_ui::design::install_fonts(&ctx);
+            cantus_ui::design::install_style(&ctx);
+            cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
+            let mut app =
+                CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+            app.settings.arcus_holder = Holder::of(Hold::Woman);
+            app.settings.figure_quality = cantus_ui::scene::figure::Quality::High;
+            app.demo_editor("arcus");
+            let t = app.inst.open.expect("an Arcus editor");
+            app.set_inst_value(t, "inst", inst, false);
+            views::inst::arcus::demo_feed(&mut app);
+            let size = views::inst::editor_size(InstrumentKind::BowedString);
+            let _ = cantus_ui::raster::shoot(&ctx, size, PPP, 2, None, |ui| {
+                views::inst::window_in(&mut app, ui)
+            });
+            for along in [0.05f32, 0.5, 0.92] {
+                if let Some(e) = app.inst.arcus_scenes.get_mut(&t.0) {
+                    e.1 = along;
+                }
+                probe::record(true);
+                let canvas = cantus_ui::raster::shoot(&ctx, size, PPP, 1, None, |ui| {
+                    views::inst::window_in(&mut app, ui)
+                });
+                let arms = probe::arms();
+                let bow = probe::bow();
+                probe::record(false);
+                let (w, h) = (canvas.width, canvas.height);
+                let (mut sleeve, mut skin, mut under) =
+                    (Mask::new(w, h), Mask::new(w, h), Mask::new(w, h));
+                for arm in arms.iter().filter(|a| a.side == 1) {
+                    for tr in &arm.tris {
+                        let q = tr.map(|i| {
+                            let p = arm.screen[i as usize];
+                            Pos2::new(p.x * PPP, p.y * PPP)
+                        });
+                        if tr.iter().all(|&i| !arm.skin[i as usize]) {
+                            sleeve.tri(q);
+                            // The band under it: the triangle moved 12 px down the screen.
+                            let d = egui::vec2(0.0, 12.0);
+                            under.tri([q[0] + d, q[1] + d, q[2] + d]);
+                        } else {
+                            skin.tri(q);
+                        }
+                    }
+                }
+                if let Some((f, tip, cm)) = bow {
+                    skin.seg(
+                        Pos2::new(f.x * PPP, f.y * PPP),
+                        Pos2::new(tip.x * PPP, tip.y * PPP),
+                        2.2 * cm * PPP,
+                    );
+                }
+                // Drawn in by 2 px: its outline's own antialiasing is not a hole.
+                let mut outside = Mask::new(w, h);
+                for (o, s) in outside.m.iter_mut().zip(&sleeve.m) {
+                    *o = !*s;
+                }
+                let outside = outside.grow(2);
+                let skin = skin.grow(3);
+                let (mut inside_n, mut under_n) = (0, 0);
+                for y in 0..h {
+                    for x in 0..w {
+                        let k = y * w + x;
+                        if skin.m[k] {
+                            continue;
+                        }
+                        let p = canvas.pixel(x, y);
+                        let (r, g, bl) = (p[0] as f32, p[1] as f32, p[2] as f32);
+                        // (Skin in the light and in shade — the V's point under her arm was
+                        // shaded skin, about (83, 67, 61) —; not the velvet's grey sheen, the
+                        // varnish's orange or the bow's red-brown.)
+                        let skinny = r > 60.0
+                            && (0.55..0.92).contains(&(g / r))
+                            && (0.4..0.85).contains(&(bl / r));
+                        if !skinny {
+                            continue;
+                        }
+                        if !outside.m[k] {
+                            inside_n += 1;
+                        } else if under.m[k] && !sleeve.m[k] {
+                            under_n += 1;
+                        }
+                    }
+                }
+                let area = sleeve.m.iter().filter(|&&x| x).count();
+                eprintln!(
+                    "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside,                      {under_n} under"
+                );
+                if area < 400 {
+                    bad.push(format!(
+                        "{b:?} {be:?} bow at {along}: no bow sleeve drawn ({area} px)"
+                    ));
+                }
+                if inside_n > 0 || under_n > 2 {
+                    bad.push(format!(
+                        "{b:?} {be:?} bow at {along}: {inside_n} skin px inside the sleeve, \
+                         {under_n} under it"
+                    ));
+                }
+            }
+        }
+    }
+    scene::backend::set_default(SceneBackend::Vector);
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}

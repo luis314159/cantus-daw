@@ -441,12 +441,26 @@ occluding capsules in its live painter.
       the arms' thinning had flattened; edges with a thickness (`hem`): her cuffs (the
       sleeve's end no longer thins onto the skin), his jacket's edge over the shirt (the
       lapels, the sleeves' hems over the shirt's cuffs) and his shirt collar's edge; the
-      tie's blade under the knot with its dimple (`bowed_human::tie_knot`, `DIMPLE`); the
-      cloth's sheen duller.
+      tie modelled whole (`bowed_human::tie_knot`): a smooth tapered knot with a soft wrap
+      crest, the blade following the shirt down from it, one dimple under the knot, a
+      pointed end — the suit's painted tie region (its staircase edges) is jacket cloth under it;
+      the cloth's sheen duller; no live outline strip on a cloth's tiny contour edges (the
+      cuff buttons' tops drew lone light dots).
     - **The raised bow arm's shoulder cap** (`arcus_draw_flesh::Deltoid`): a pose-space
       corrective — skinning turned the cap round the joint as a rigid piece, so the lifted
-      arm bulged (her bow-arm deltoid 11.3 cm across against her left one's 9.5 and ref-04's
-      8–9 cm bare); the cap drawn in toward the arm's axis as the arm is lifted past 40°.
+      arm bulged (her bow-arm deltoid 11.4–11.6 cm across, sleeved, against her left one's
+      9.5 — the same cap — and ref-04's raised bare arm, 8–9 cm against her bow hand's
+      breadth); the cap drawn in toward the arm's axis by up to 0.3 of its distance as the
+      arm is lifted from 25° to 65° from hanging (`DELTOID`): 10.3–10.4 cm. The band
+      (7.5–10.5) is kept: the measure, not the band, was wrong.
+    - **A bent elbow** (`arcus_draw_flesh::Elbow`): dual-quaternion skinning swells a bending
+      joint, and the finer sleeves showed it (her elbows 9.5–9.8 cm across the crook); drawn
+      in toward the joint by up to 0.16 as it bends from 30° to 100° (`ELBOW`): 7.9–9.2 cm.
+      Both correctives are tunable while measuring (`CANTUS_DELTOID`, `CANTUS_ELBOW`).
+    - **A held instrument presses the collar flat**: the shirt's triangles inside a held
+      violin's or viola's body (its outline, its depth and a centimetre) are left out of the
+      bake (`bowed_human::clear_of_the_body`) — the collar's far point stood through the
+      lower bout (a white wedge on the varnish; shards in Drawn).
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`
