@@ -37,6 +37,9 @@ pub struct Knobs {
     /// The share of the contour's dB the bow's speed carries (the rest, the dynamic it is read
     /// at: the contact point and the force's place move with it, so the tone opens as it swells).
     pub speed_share: f32,
+    /// How much later the tone opens than the level rises: the dynamic's share follows the
+    /// contour through a one-pole of this time (s; 0 at once), the speed making up the level.
+    pub timbre_s: f32,
     /// From silence, the share of the instrument's swell depth (`InstrumentSpec::swell_db`) the
     /// bow starts under, and of its length (`swell_s`) the rise takes.
     pub fresh_db: f32,
@@ -84,6 +87,7 @@ pub struct Knobs {
 /// The measured shape (`docs/round42/arcus-classical.md`).
 pub const KNOBS: Knobs = Knobs {
     speed_share: 0.7,
+    timbre_s: 0.0,
     fresh_db: 1.0,
     fresh_s: 1.0,
     rebow_db: 6.0,
@@ -126,6 +130,7 @@ impl Knobs {
             };
             match k.trim() {
                 "speed_share" => self.speed_share = v,
+                "timbre_s" => self.timbre_s = v,
                 "fresh_db" => self.fresh_db = v,
                 "fresh_s" => self.fresh_s = v,
                 "rebow_db" => self.rebow_db = v,
@@ -220,6 +225,8 @@ pub fn span_db(spec: &super::tables::InstrumentSpec) -> f32 {
 pub struct Shape {
     /// The contour now, dB (0 the stroke's level), the player's amount in it.
     pub l: f32,
+    /// The contour the tone follows (`Knobs::timbre_s`), dB.
+    l_t: f32,
     amount: f32,
     k: Knobs,
     from: f32,
@@ -236,6 +243,7 @@ impl Default for Shape {
     fn default() -> Self {
         Shape {
             l: 0.0,
+            l_t: 0.0,
             amount: 0.0,
             k: KNOBS,
             from: 0.0,
@@ -296,6 +304,9 @@ impl Shape {
         } else {
             amount * (from + self.breath_now())
         };
+        if fresh || amount == 0.0 || k.timbre_s <= 0.0 {
+            self.l_t = self.l;
+        }
     }
 
     /// The key is let go: the taper, over `len` s.
@@ -338,22 +349,27 @@ impl Shape {
         if let Some((from, t, len)) = self.taper.as_mut() {
             *t += dt;
             self.l = *from - self.amount * self.k.taper_db * smooth(*t / *len);
-            return self.l;
+        } else {
+            let rise = self.from * (1.0 - smooth(self.t / self.rise));
+            let after = (self.t - self.rise).max(0.0);
+            let sag = -self.k.sag_db * (1.0 - math::exp(-after / self.k.sag_s.max(1e-3)));
+            self.l = self.amount * (rise + sag + self.breath_now());
         }
-        let rise = self.from * (1.0 - smooth(self.t / self.rise));
-        let after = (self.t - self.rise).max(0.0);
-        let sag = -self.k.sag_db * (1.0 - math::exp(-after / self.k.sag_s.max(1e-3)));
-        self.l = self.amount * (rise + sag + self.breath_now());
+        self.l_t = if self.k.timbre_s > 0.0 {
+            self.l_t + (self.l - self.l_t) * (1.0 - math::exp(-dt / self.k.timbre_s))
+        } else {
+            self.l
+        };
         self.l
     }
 
     /// The bow's speed factor and the dynamic's offset for the contour now, on an instrument
     /// whose bowing spans `span_db` of level from pp to ff, at the dynamic `d`.
     pub fn bowing(&self, d: f32, span_db: f32) -> (f32, f32) {
-        if self.l == 0.0 {
+        if self.l == 0.0 && self.l_t == 0.0 {
             return (1.0, 0.0);
         }
-        let want = (1.0 - self.k.speed_share) * self.l / span_db.max(1.0);
+        let want = (1.0 - self.k.speed_share) * self.l_t / span_db.max(1.0);
         let dd = (d + want).clamp(0.0, 1.0) - d;
         let carried = dd * span_db.max(1.0);
         let kv = math::db_to_gain(self.l - carried);

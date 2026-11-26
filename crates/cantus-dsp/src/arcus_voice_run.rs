@@ -8,6 +8,9 @@ use super::*;
 /// more 4–12 kHz than the next 100 ms against the recordings' 10–20 (the study's thump).
 pub(super) const PLUCK_NOISE: f32 = 0.03;
 
+/// r42 arcus-classical — how the finger's contact shortens with the note's period (its power).
+pub(super) const PIZZ_CONTACT_POW: f32 = 0.8;
+
 /// r42:arcus-p5 — how long a re-bow's finger takes to a new note on a ringing string, ms.
 pub(super) const REBOW_FINGER_MS: f32 = 6.0;
 
@@ -257,9 +260,20 @@ impl Voice {
             self.bowing = false;
             self.v_mag = 0.0;
             self.force = 0.0;
+            // r42 arcus-classical (model 2): the finger leaves a shorter, tenser string sooner —
+            // its contact scaled with the period from the instrument's lowest open string (at a
+            // fixed 1.2 ms the upper registers' plucks lost their harmonics: the second octave's
+            // third to sixth 25–40 dB under the recordings').
+            let contact = if s.model >= 2 {
+                let f_note = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
+                let low = spec.strings[0].open_hz() as f32;
+                s.pizz_soft_ms * math::powf((low / f_note.max(1.0)).min(1.0), PIZZ_CONTACT_POW)
+            } else {
+                s.pizz_soft_ms
+            };
             let est = ExciterSettings {
                 kind: ExciterKind::Pluck,
-                contact_ms: s.pizz_soft_ms,
+                contact_ms: contact,
                 noise: PLUCK_NOISE,
                 pos: s.pizz_pos,
                 ..ExciterSettings::default()

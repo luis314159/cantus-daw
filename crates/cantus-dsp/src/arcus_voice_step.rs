@@ -284,11 +284,17 @@ impl Voice {
             // r42 arcus-classical (model 2): a string the bow has left rings at its free decay —
             // the bow's damping is gone (the bowed table's T60 holds it: the violin's G 0.6 s,
             // its releases 150–260 dB/s against the players' ≤ 60–150) — the family's measured
-            // pluck T60 at the note (`pizz_t60`), never longer than `ring`.
+            // pluck T60 at the note (`pizz_t60`) and its fall with the partials (the bowed
+            // table's loss exponent left the upper partials ringing tens of ms: the level fell
+            // 20 dB in 80 ms after the lift), never longer than `ring`.
             if s.model >= 2 && !plucked && !spec.pizz_t60.is_empty() {
-                let free =
-                    super::super::tables::t60_at(spec.pizz_t60, f) * s.decay.max(0.05) as f64;
-                t60 = t60.max(free);
+                let k = s.decay.max(0.05) as f64;
+                let (t1, t8) = (
+                    super::super::tables::t60_at(spec.pizz_t60, f),
+                    super::super::tables::t60_at(spec.pizz_t60, 8.0 * f),
+                );
+                t60 = t60.max(t1 * k);
+                p_loss = p_loss.min((math::ln(t1 / t8) / math::ln(8.0)).max(0.0));
             }
             t60 = t60.min(s.ring_s.max(0.05) as f64);
         }
