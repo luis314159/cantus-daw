@@ -130,7 +130,23 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             _ => None,
         })
         .unwrap_or(hp::real_skin(0).albedo);
+    // r42:arcus-polish5 — whether a shirt triangle lies over a held instrument's outline
+    // (`bowed_human::clear_of_the_body` marks its corners): every corner (`drawn_beside_any`
+    // 1: any — the knot's top, where the collar's band turns in front of the neck, then
+    // showed its lining as a dark bow).
+    let any = super::figure::tune::tune("drawn_beside_any", 0.0) > 0.5;
     for (role, t) in &m.tris {
+        let marked = |i: usize| {
+            t.uv.get(i)
+                .is_some_and(|u| u[0] == super::bowed_human::BESIDE_BODY)
+        };
+        let beside = |c: [usize; 3]| {
+            if any {
+                c.iter().any(|&i| marked(i))
+            } else {
+                c.iter().all(|&i| marked(i))
+            }
+        };
         // r42:arcus-upper — the cards are the Photographic picture's (this one draws no
         // texture; the hair's shell and the painted brows stand for them).
         if matches!(role, Role::Card(_) | Role::Scalp(_)) {
@@ -225,12 +241,7 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // light flecks in the Drawn picture).
             let bias = if matches!(role, Role::Shell(_)) {
                 SHELL_BIAS
-            } else if *role == Role::Shirt
-                && [i0, i1, i2].iter().any(|&i| {
-                    t.uv.get(i)
-                        .is_some_and(|u| u[0] == super::bowed_human::BESIDE_BODY)
-                })
-            {
+            } else if *role == Role::Shirt && !inside && beside([i0, i1, i2]) {
                 // r42:arcus-polish5 — the collar's band where it passes under a held
                 // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
                 -super::figure::tune::tune("drawn_beside", BESIDE_BIAS)

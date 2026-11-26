@@ -539,6 +539,25 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 let (mut sleeve, mut skin, mut under) =
                     (Mask::new(w, h), Mask::new(w, h), Mask::new(w, h));
                 for arm in arms.iter().filter(|a| a.side == 1) {
+                    // (r42:arcus-polish5: the band under the forearm's sleeve only — under
+                    // the upper arm, at the shoulder, lies her neckline's own skin.)
+                    use cantus_ui::scene::bowed_human as hu;
+                    let o = hu::side(arm.side);
+                    let j = |b: usize| arm.joints.iter().find(|x| x.0 == o + b).map(|x| x.2);
+                    let fore = |tr: &[u16; 3]| match (j(hu::FORE1), j(hu::HAND)) {
+                        (Some(e), Some(w)) => {
+                            let c = tr
+                                .iter()
+                                .fold(cantus_ui::scene::geo::V3::default(), |a, &i| {
+                                    a + arm.pts[i as usize]
+                                })
+                                * (1.0 / 3.0);
+                            let ax = w - e;
+                            let t = (c - e).dot(ax) / ax.dot(ax).max(1e-6);
+                            (0.15..=1.05).contains(&t)
+                        }
+                        _ => true,
+                    };
                     for tr in &arm.tris {
                         let q = tr.map(|i| {
                             let p = arm.screen[i as usize];
@@ -547,8 +566,10 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                         if tr.iter().all(|&i| !arm.skin[i as usize]) {
                             sleeve.tri(q);
                             // The band under it: the triangle moved 12 px (at 100 %) down.
-                            let d = egui::vec2(0.0, 12.0 * SLEEVE_PPP);
-                            under.tri([q[0] + d, q[1] + d, q[2] + d]);
+                            if fore(tr) {
+                                let d = egui::vec2(0.0, 12.0 * SLEEVE_PPP);
+                                under.tri([q[0] + d, q[1] + d, q[2] + d]);
+                            }
                         } else {
                             skin.tri(q);
                         }

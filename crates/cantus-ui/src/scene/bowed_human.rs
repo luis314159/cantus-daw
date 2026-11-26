@@ -2169,9 +2169,12 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
 
 /// r42:arcus-polish5 — where the collar's points lie over the knot: from how far off its
 /// middle (a share of its half width), to how far past its sides, and from how far up it
-/// (a share of its height); how far over its face they lie (cm).
-const KNOT_LAP: (f32, f32, f32) = (0.35, 1.35, 0.45);
-const KNOT_LAP_GAP: f32 = 0.08;
+/// (a share of its height); how far over its face they lie (cm). (With the knot's top 3.0 cm
+/// across the collar's points ended at its sides and nothing lay over it; 3.6 — a
+/// four-in-hand's 3–4 — and the corners reached from a share of 0.15 in, the near point lies
+/// over the knot's corner.)
+const KNOT_LAP: (f32, f32, f32) = (0.15, 1.8, 0.2);
+const KNOT_LAP_GAP: f32 = 0.15;
 /// r42:arcus-polish5 — over how much of the knot's height past its top the lift fades (the
 /// collar's band above the knot hugs the neck).
 const KNOT_LAP_TOP: f32 = 0.15;
@@ -2179,7 +2182,7 @@ const KNOT_LAP_TOP: f32 = 0.15;
 /// The knot's height, its width at its foot and under the collar, and how far it stands
 /// off the shirt at its fullest (cm).
 const KNOT_H: f32 = 3.0;
-const KNOT_W: (f32, f32) = (1.9, 3.0);
+const KNOT_W: (f32, f32) = (1.9, 3.6);
 /// r42:arcus-polish4 — how far over the tie's top the knot's top stands (cm): it covers the
 /// suit's painted tie's pinched top, shirt now (its white fragments by the knot).
 const KNOT_TOP: f32 = 0.3;
