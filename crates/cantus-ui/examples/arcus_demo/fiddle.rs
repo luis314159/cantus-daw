@@ -407,6 +407,23 @@ pub fn add_track(
         app.open_preset_browser(Target::Track(track));
         assert!(app.apply_preset_id(p), "the preset {p}");
         app.close_preset_browser();
+        // r42 fiddle — the owner's A/B/C takes: `FIDDLE_SET="bow.grit=0.4,bow.noise=0"` sets
+        // these keys on every fiddle after its preset (the lab's knobs, on the songs).
+        if p == "arcus.preset.violin_fiddle" {
+            let set = std::env::var("FIDDLE_SET").unwrap_or_default();
+            for kv in set.split(',').filter(|s| !s.trim().is_empty()) {
+                let (k, v) = kv.split_once('=').expect("FIDDLE_SET: key=value,…");
+                exec(
+                    app,
+                    "a fiddle's setting",
+                    Command::SetInstrumentValue {
+                        track,
+                        key: k.trim().to_string(),
+                        value: v.trim().parse().expect("FIDDLE_SET: a number"),
+                    },
+                );
+            }
+        }
     }
     exec(
         app,

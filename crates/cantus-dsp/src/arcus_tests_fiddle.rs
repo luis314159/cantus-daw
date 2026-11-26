@@ -347,3 +347,48 @@ fn a_cross_tuning_moves_the_open_strings() {
     // Standard is the violin's own table.
     assert!(Instrument::Violin.spec_crossed(0) == Instrument::Violin.spec());
 }
+
+/// r42 fiddle — the bite: at 0 a note gets none of the grit (the same bits as no grit at
+/// all); its share rises with the dynamic and with the bite, from none at the soft end to
+/// all of it, never more.
+#[test]
+fn the_bite_shares_out_the_grit_by_the_dynamic() {
+    use super::voice::bite_share_of;
+    let none = ArcusSettings {
+        grit: 0.0,
+        ..fiddle()
+    };
+    let bite0 = ArcusSettings {
+        bite: 0.0,
+        ..fiddle()
+    };
+    let a = out(&none, 256);
+    let b = out(&bite0, 256);
+    let diff = a
+        .iter()
+        .zip(&b)
+        .position(|(x, y)| x.to_bits() != y.to_bits());
+    assert_eq!(diff, None, "bite 0: the grit's first sample that differs");
+    // Its share by the dynamic: none at the soft end, about half at mf (bite 0.5), all of it
+    // loud; rising with the bite.
+    assert_eq!(bite_share_of(0.5, 0.3), 0.0);
+    assert!((bite_share_of(0.5, 0.65) - 0.5).abs() < 1e-6);
+    assert_eq!(bite_share_of(0.5, 0.95), 1.0);
+    let mut last = -1.0;
+    for i in 0..=20 {
+        let d = i as f32 / 20.0;
+        let s = bite_share_of(0.5, d);
+        assert!(s >= last && (0.0..=1.0).contains(&s));
+        last = s;
+        assert!(bite_share_of(1.0, d) >= s && bite_share_of(0.25, d) <= s);
+    }
+    // And it is heard: with the grit on, a bite of 1 differs from none.
+    let full = out(
+        &ArcusSettings {
+            bite: 1.0,
+            ..fiddle()
+        },
+        256,
+    );
+    assert!(full.iter().zip(&a).any(|(x, y)| x.to_bits() != y.to_bits()));
+}

@@ -31,6 +31,12 @@ pub fn steel_t60_of(s: &ArcusSettings) -> f64 {
     pair::steel_t60(s)
 }
 
+/// r42 fiddle — the share of the grit a note at the dynamic `d` gets at the bite `bite`.
+#[cfg(test)]
+pub fn bite_share_of(bite: f32, d: f32) -> f32 {
+    step::bite_share(bite, d)
+}
+
 /// The longest control step a voice renders: the grid's `CTRL` samples at the rate, which an
 /// upper string's voice at `os ×` the rate counts as `CTRL · os` of its own. // r42:arcus-upper
 const SPAN: usize = CTRL * super::upper::MAX_OS; // r42:arcus-upper

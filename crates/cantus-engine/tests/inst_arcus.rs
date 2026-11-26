@@ -110,6 +110,7 @@ fn shapes() -> Vec<(&'static str, NativeSpec)> {
                 ("bow.pair", 1.0),
                 ("sym", 1.0),
                 ("bow.grit", 1.0),
+                ("bow.bite", 0.8),
                 ("steel", 1.0),
                 ("dstop.just", 0.6),
                 ("transpose", 12.0),
@@ -164,6 +165,8 @@ fn the_extras_at_their_defaults_change_no_sample() {
                 ("steel", 0.0),
             ]),
         ),
+        // … the bite, which only shares out the grit, without any.
+        ("the bite without grit", arcus(&[("bow.bite", 1.0)])),
         // … and the ones that only act with a pair, without one.
         (
             "tilt and just without a pair",

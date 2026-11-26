@@ -107,6 +107,9 @@ params! {
     TILT = ("bow.tilt", "arcus.bow.tilt", 0.0, 1.0, 0.5, "%", false, false),
     JUST = ("dstop.just", "arcus.dstop.just", 0.0, 1.0, 0.0, "%", false, false),
     GRIT = ("bow.grit", "arcus.bow.grit", 0.0, 2.0, 0.0, "%", false, false),
+    // r42 fiddle: the bite — how much of the grit each note gets by its dynamic (0 none …
+    // 0.5 by the dynamic … 1 all of it from mf up); with no grit it changes nothing.
+    BITE = ("bow.bite", "arcus.bow.bite", 0.0, 1.0, 0.5, "%", false, false),
 
     // ---- the vibrato ----
     VIB_DEPTH = ("vib.depth", "arcus.vib.depth", 0.0, 2.0, 1.0, "%", false, false),
