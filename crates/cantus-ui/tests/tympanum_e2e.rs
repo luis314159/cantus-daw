@@ -599,19 +599,20 @@ fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
             let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
             spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
             t.instrument = InstrumentSpec::Native(spec);
-            // one hit a second (a beat at 60 BPM): each its own window
-            let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(VELS.len() as i64 + 1));
+            // one hit every 4 s (four beats at 60 BPM), each its own window: a drum struck
+            // while its last hit rings is the re-strike's own matter (the doc's open items)
+            let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(4 * VELS.len() as i64 + 1));
             for (i, v) in VELS.iter().enumerate() {
                 c.notes
-                    .push(p.make_note(Ticks::beats(i as i64), Ticks(PPQ / 8), key, *v));
+                    .push(p.make_note(Ticks::beats(4 * i as i64), Ticks(PPQ / 8), key, *v));
             }
             t.clips.push(c);
             p.tracks.push(t);
             let (mut app, _proc) = boot(p.clone());
-            let x = offline(&mut app, &p, VELS.len() * 48_000, 512);
+            let x = offline(&mut app, &p, VELS.len() * 4 * 48_000, 512);
             let lv: Vec<f32> = (0..VELS.len())
                 .map(|i| {
-                    let w = &x[i * 96_000..i * 96_000 + 2 * 3_840];
+                    let w = &x[i * 4 * 96_000..i * 4 * 96_000 + 2 * 3_840];
                     let e = w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32;
                     10.0 * e.max(1e-20).log10()
                 })
