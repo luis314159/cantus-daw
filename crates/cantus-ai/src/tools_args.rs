@@ -441,7 +441,7 @@ pub const INSTRUMENTS: &[(&str, &str, InstrumentChoice, &str)] = &[
         "arcus",
         "Arcus",
         InstrumentChoice::Native(InstrumentKind::BowedString),
-        "modelled bowed string — cello, double bass, violin, viola (`inst` 0–3): arco, pizzicato or tremolo (`tech` 0–2), or each note's own articulation and bow (a note's `art`: sustain, legato, staccato, spiccato, pizzicato, tremolo; up or down bow); legato lines glide when notes overlap",
+        "modelled bowed string — cello, double bass, violin, viola (`inst` 0–3): arco, pizzicato or tremolo (`tech` 0–2), or each note's own articulation and bow (a note's `art`: sustain, legato, staccato, spiccato, pizzicato, tremolo, chop; up or down bow); legato lines glide when notes overlap",
     ),
     (
         "dancer",
