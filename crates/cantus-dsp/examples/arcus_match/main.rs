@@ -279,16 +279,33 @@ fn main() {
         // The held-out notes as WAVs for the study's estimator (`tools/arcus/study_compare.py`):
         // `render <out dir>` writes `arcus-<cello|bass>-<arco|pizz>-<key>-<pp|mf|ff>.wav`,
         // each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono.
+        // r42:strings-refs: `render <out dir> violin viola …` names the instruments (default
+        // cello and bass); the violin and viola take every key of their spec, as the lab's
+        // subjects arcus-violin and arcus-viola measure them.
         let out = PathBuf::from(&args[1]);
         std::fs::create_dir_all(&out).expect("the out dir");
         let vel = [0.2f32, 0.55, 0.95];
         // r42:arcus-p6: `ARCUS_SPLIT=train` renders the other two thirds instead (what a
         // change is tuned on; the held-out third judges it once).
         let train = std::env::var("ARCUS_SPLIT").is_ok_and(|s| s == "train");
+        let asked: Vec<&str> = args[2..].iter().map(String::as_str).collect();
+        let upper = |i: Instrument| (i.spec().bottom(), i.spec().top);
+        let (vl, vh) = upper(Instrument::Violin);
+        let (al, ah) = upper(Instrument::Viola);
         for (inst, lo, hi, name) in [
             (Instrument::Cello, 36u8, 79u8, "cello"),
             (Instrument::Bass, 28, 67, "bass"),
-        ] {
+            (Instrument::Violin, vl, vh, "violin"),
+            (Instrument::Viola, al, ah, "viola"),
+        ]
+        .into_iter()
+        .filter(|(_, _, _, n)| {
+            if asked.is_empty() {
+                matches!(*n, "cello" | "bass")
+            } else {
+                asked.contains(n)
+            }
+        }) {
             for pizz in [false, true] {
                 for key in lo..=hi {
                     for (d, v) in vel.iter().enumerate() {

@@ -15,13 +15,18 @@
   "also_allowed": {
    "Iowa-MIS": "The University of Iowa Electronic Music Studios' Musical Instrument Samples \"may be downloaded and used for any projects, without restrictions\" (theremin.music.uiowa.edu)."
   },
-  "made_by": "python -I tools/soundlab/adapters/study_catalogue.py <study refdb>/catalog.json cello $SOUNDLAB_REFS references.json"
+  "made_by": "python -I tools/soundlab/adapters/study_catalogue.py <study refdb>/catalog.json cello $SOUNDLAB_REFS base.json && python -I tools/soundlab/adapters/strings_hq.py cello $SOUNDLAB_REFS base.json references.json"
+ },
+ "phrases": {
+  "catalogue": "phrases.json",
+  "made_by": "python -I tools/soundlab/adapters/strings_hq_phrases.py pick $SOUNDLAB_REFS tools/soundlab/subjects",
+  "measure": "python -I tools/soundlab/adapters/strings_hq_phrases.py measure tools/soundlab/subjects/arcus-cello $SOUNDLAB_REFS <out.json> [arcus=<render.wav>:cello]"
  },
  "split": {"rule": "mod", "expr": "(note + dyn) % 3 == 0", "dyn_index": {"pp": 0, "p": 0, "mp": 1, "mf": 1, "f": 2, "ff": 2},
            "why": "Arcus's own held-out rule (crates/cantus-dsp/examples/arcus_match: (key + dynamic) % 3 == 0): model 2's match was fitted on the other cells' references"},
  "candidate": {
   "inst": "arcus",
-  "render": ["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_match", "--", "render", "{out}"],
+  "render": ["bash", "{repo}/tools/build/slot.sh", "cargo", "run", "-p", "cantus-dsp", "--release", "--example", "arcus_match", "--", "render", "{out}", "cello"],
   "cwd": "{repo}",
   "files": "arcus-cello-(?P<art>arco|pizz)-(?P<note>\\d+)-(?P<dyn>pp|mf|ff)\\.wav",
   "what": "the held-out cells of the cello, arco and pizzicato, at pp / mf / ff (velocity 0.2 / 0.55 / 0.95), each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono, Arcus at its defaults"
