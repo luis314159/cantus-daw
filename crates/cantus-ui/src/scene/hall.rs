@@ -182,7 +182,7 @@ pub fn concert(c: &mut Ctx, aim: V3, eye: V3, cc: &Concert) -> Info {
             &f,
             at,
             r,
-            warm([1.0, 0.72, 0.42], cc.bokeh),
+            warm([0.80, 0.55, 0.30], 1.0),
             0.22 + 0.25 * h(q, 67, 71),
             0.25,
             0.4,
@@ -245,7 +245,7 @@ pub fn concert(c: &mut Ctx, aim: V3, eye: V3, cc: &Concert) -> Info {
                         &f,
                         f.at(sr, top + 34.0, d - 66.0),
                         9.0,
-                        warm([1.0, 0.80, 0.52], cc.bokeh),
+                        warm([0.85, 0.62, 0.36], 1.0),
                         0.75,
                         0.3,
                         0.5,
@@ -265,6 +265,19 @@ pub fn concert(c: &mut Ctx, aim: V3, eye: V3, cc: &Concert) -> Info {
     ];
     let sp = c.sps_near(&q);
     c.p.poly(sp, Paint::Solid(warm([0.03, 0.018, 0.012], 1.0)), 1.0, 0.0);
+    // The stage's floor in front of the orchestra: warm pools off to the sides.
+    for x in [-760.0f32, -430.0, 430.0, 760.0] {
+        disc(
+            c,
+            &f,
+            f.at(x, 2.0, 200.0),
+            170.0,
+            warm([0.30, 0.17, 0.09], 1.0),
+            0.5,
+            0.9,
+            0.0,
+        );
+    }
     c.p.on(Layer::Objects);
     Info {
         zb: aim.z - BACK,

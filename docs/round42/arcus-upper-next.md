@@ -1019,3 +1019,88 @@ as it was built for the pianos; nothing in it was tuned for the figures. What it
    orange and flat, and in Drawn the spots make white blotches on the top.
 6. *Contrast*: deeper blacks with the velvet's and the wool's sheen kept; warmer skin
    (ours pale); Paper's Concert currently a dim grey stage.
+
+## arcus-polish3 (2026-11-25): the concert light, his face, the clothes
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 4ac9aa779. The
+owner beside three concert photographs: "Aún le falta lo de la luz, compara con las imágenes
+reales"; on iteration 1: "Va mejor, sigue mejorando la luz y la ropa; el hombre puede mejorar
+mucho sus rasgos, hazlos más masculinos, y toma nota de los detalles de la ropa". ADR 0159
+amended ("The polish, pass 3: the concert light").
+
+**Sheets** (never committed, the photographs beside): iteration 1
+`F:\projects\daw-r42\tmp\polish3\a10\sheet.png`, iteration 2 `…\polish3\m4\sheet.png` and his
+face `…\polish3\man_face_200.png`; the final ones are listed in the session's report.
+`tools/arcus-figures/light_sheet.py <before> <after> <refs> <out>` makes them (both figures,
+Night Photographic and Drawn, Paper as the whole window, the photographs beside, the
+measures on each tile); `light_measure.py refs <dir>` / `shot <png> <who>` the numbers.
+
+**How to tune without rebuilding**: `CANTUS_CONCERT="key_az=-40,exposure=1.2,…"` — every
+number of `figure::concert::Concert` (the key's place, size, light, warmth and pool; the fill;
+the two back lights; skin, hair and cloth; the curve, grade and vignette; the hall, its
+orchestra's wash, its bokeh and blur; the varnish; the Drawn stage's `d_*`). Arrays as `a/b/c`.
+`CANTUS_SHRUG="left,right"` the shoulders' raise (cm). His face: `build_figures.py … --only=man`
+into a folder and `CANTUS_FIGURE_DIR` (the skin texture, `man_skin.png`, is compiled in: the
+stubble needs a build).
+
+**Done**:
+1. *The concert light* (`scene/figure/concert.rs`, `chorda_scene_hybrid::concert_rig`, the
+   shade's `cc` branches, `raster`'s concert curve and blur, `arcus_draw_flesh::concert_colour`
+   for the live arms): a small high stage spot from the audience's side, a weak fill, two
+   back lights (rims, and a line along black cloth's edge, `cloth_edge`), the cloth's sheen
+   along its folds (`cloth_spec`), skin's narrower wrap and warm grade, a red-amber varnish,
+   its own filmic S-curve. Measured against ref-04/06/10 (below).
+2. *The hall* (`chorda_scene_px_hall.rs`, `scene/hall.rs`): the wood wall in pools, the
+   orchestra on four risers (half in white shirts), stands and their lamps, the stage floor's
+   warm pools off to the sides, the hall's lights as bokeh; Drawn in soft shapes. Chorda's and
+   Tympanum's stage untouched. The black concert chair (`bowed_props::concert_chair`).
+3. *Drawn*: `Light::concert` (a softer terminator, the back lights' line `Light::rim`, one soft
+   varnish highlight and a deeper amber, no strip-light blotches), `stage_skin`.
+4. *The bow arm*: `PlayRig::shrug` / `bowed_human::SHRUG` (6 cm, the bow side): the hand at the
+   frog 0.63–0.78 upper arms over the elbow (was 1.65–2.46); `arcus_arm_pose` split — the bow
+   arm's test on, the left arm's ignored for arcus-hands' table re-solve.
+5. *The neck heel* (da0ad2fc2, its own commit for arcus-hands): the depth kept to 1.8 cm from
+   the body.
+6. *His face* (`build_figures.py` FACE["male"], `beard_field`, `uv_field`, the stubble in
+   `skin_texture`, the Adam's apple in `relief`; his hair shorter at the sides; his hairline
+   broken by fine tufts, `cards::scalp_cover`/`feather`); `man_skin.png` now 2048² (0.8 MB).
+7. *The sleeve as cloth* (`arcus_draw_flesh::sleeve_drape`): the shoulder's pull lines as the
+   arm rises, the cuff's slack — driven by the pose.
+8. *The light-measure gate* (`tests/arcus_light_measure.rs`, the bands from the photographs,
+   the dark clothes' silhouette below the face included).
+
+**Concert clothing, studied** (the owner, 2026-11-25: "toma nota de los detalles de la
+ropa"; ref-04, ref-06, ref-10 and the rest of `refs-violin`, study only). What real concert
+clothing shows, against what the figures have:
+
+| detail | the photographs | ours | |
+|---|---|---|---|
+| The elbow crook's diagonal folds and the inner elbow's compression folds | every bent sleeve (ref-06 both arms) | `elbow_folds`: normals swung and creases shaded round the crook, as deep as the elbow bends | have |
+| The shoulder's pull lines when the bow arm is raised | ref-06, ref-10: long diagonals from the shoulder's top toward the armpit | `sleeve_drape` (polish3): a few diagonal folds on the upper arm's first third, as deep as the arm is raised | new |
+| Sleeves as fabric with slack, not tubes | the cuff end gathers over the wrist (ref-06's shirt, ref-10's jacket) | `sleeve_drape`: the cuff's slack, soft ripples over the last 7 cm | new (normals only: the silhouette is still the mesh's) |
+| Sheen along the folds under a spot | ref-06's black shirt: a pale line on every crest | `cloth_spec` (wool and velvet, the key's broad lobe) and `cloth_edge` (the back lights' line along the edge), Photographic and the live arms | new |
+| Seams: the shoulder seam, the sleeve's set-in seam, the side seams | ref-10's jacket: the set-in seam reads as a soft ridge | none (`cloth::fold` has no seam data) | lack |
+| A shirt's button line and placket; the jacket's buttons, lapel roll and pocket flaps | ref-06 (placket and buttons), ref-10 (lapel roll, one button) | the lapel's rolled edge (`EDGE_ROLL_CM`), the shade under the lapels; no buttons, no placket, no pockets | lack |
+| The collar's thickness and roll; the tie's knot dimple and drape | ref-10 (open collar), formal photographs (knot dimple) | the collar painted on the suit's surface with the shade under its points; a four-in-hand knot without a dimple | partial |
+| Cuffs with an edge and a thickness | ref-06's rolled cuffs, ref-10's shirt cuff past the jacket's | the sleeve's end shading the wrist (`cuff_shadow`), the shirt's cuff a band of `Shirt`; no thickness | partial |
+| Fabric texture and sheen: wool's weave, the shirt's sateen along folds, velvet's pile | everywhere | wool's heather and twill (`Tex::Wool`), velvet's pile and back light (`Tex::Velvet`), poplin's unevenness (`Tex::Shirt`); no sateen sheen on the shirt | mostly |
+| Her dress: the neckline's edge, its waist, the skirt's fall | concert gowns: a finished neckline edge, a fitted waist, the skirt's long folds | the neckline's edge roll, the waist's gathered folds (`WAIST_FOLDS`), the long skirt (`bowed_human_skirt`) | have |
+
+Next, by impact: (1) the jacket's buttons and the shirt's placket and buttons as small modelled
+parts on the figure (the man's chest reads flat without them); (2) the collar as a modelled band
+with a thickness and the tie's dimple; (3) the cuffs as short tubes with an edge; (4) the
+set-in sleeve seam and the shoulder seam as a soft ridge in the figure's mesh.
+
+**Open** (in the order the owner will see them):
+1. The clothing items the table lists as lacking: the jacket's and the shirt's buttons and
+   placket, the collar as a modelled band with the tie's dimple, the cuffs' thickness, the
+   set-in sleeve and shoulder seams (`cloth::fold` has no seam data).
+2. His hair: a cut with more texture and strand direction on top needs a hair proxy of its
+   own (MakeHuman's `short02` is the only short one extracted; `short01/03/04` are in the CC0
+   pack); the hairline's tufts are in, the volume and the strands' direction are not.
+3. The left elbow (arcus-hands' re-solve; `the_violinists_left_arms_are_posed_as_the_
+   photographs` ignored).
+4. The stray-pixel gate's non-hand strays (the dotted sleeve outlines, the Drawn top's
+   reflections — the Drawn varnish now has no strip blotches —, the Drawn neck's grey dots,
+   his jagged left cuff): see the gates' run below.
+5. The WSL Linux check.

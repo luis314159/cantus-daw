@@ -73,6 +73,31 @@ pub fn skin_tone(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
     c
 }
 
+/// r42:arcus-polish3 — skin under the concert stage's spot: as [`skin_tone`], but only the
+/// very brightest eased (eased from the middle up, a face full in the spot read flat and
+/// pale: the modelling is the spot's, its lit side must stay bright).
+pub fn stage_skin(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
+    let lum = |c: C3| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    let a = mat.albedo;
+    let k = lum(shaded) / lum(a).max(1e-3);
+    let glow = 0.02 + (1.0 - ndv).powi(2) * 0.08;
+    let mut c = [
+        a[0] * (k + glow),
+        a[1] * (k + glow * 0.45),
+        a[2] * (k + glow * 0.25),
+    ];
+    let l = lum(c);
+    if l > 0.78 {
+        let e = (0.78 + (l - 0.78) * 0.3) / l;
+        c = c.map(|x| x * e);
+    }
+    let top = c[0].max(c[1]).max(c[2]);
+    if top > 0.97 {
+        c = c.map(|x| x * 0.97 / top);
+    }
+    c
+}
+
 fn add(c: C3, d: C3, k: f32) -> C3 {
     [
         (c[0] + d[0] * k).min(1.0),
@@ -147,7 +172,11 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                     col = col.map(|x| x * under);
                 }
                 if warm {
-                    col = skin_tone(&mat, col, ndv);
+                    col = if c.light.concert.is_some() {
+                        stage_skin(&mat, col, ndv) // r42:arcus-polish3
+                    } else {
+                        skin_tone(&mat, col, ndv)
+                    };
                 }
                 if inside {
                     col = col.map(|x| x * 0.6);

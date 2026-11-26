@@ -118,12 +118,12 @@ fn angles(a: &probe::Arm) -> (f32, f32, f32) {
     (below, corner, over)
 }
 
-#[test]
-#[ignore = "open (r42:arcus-polish2 handoff, open 1): the bow hand sits 1.6-2.5 upper arms over its elbow at 0.3 (the photographs: level) and the left elbow waits for the table's re-solve; run with --ignored --nocapture for the angles"]
-fn the_violinists_arms_are_posed_as_the_photographs() {
+/// The arms measured: the bow arm's failures, the left arm's, and the angles.
+fn measured() -> (Vec<String>, Vec<String>, String) {
     views::inst::chorda::scene::hybrid::register();
     cantus_ui::scene::set_blocking(true);
     let mut bad = Vec::new();
+    let mut bad_left = Vec::new();
     let mut report = String::new();
     for hold in [Hold::Woman, Hold::Man] {
         for (b, inst) in [(Bowed::Violin, 2.0f32), (Bowed::Viola, 3.0)] {
@@ -168,10 +168,12 @@ fn the_violinists_arms_are_posed_as_the_photographs() {
                              {corner:.0}°, elbow at {at:.2} of the body\n"
                         );
                         if !(LEFT_BELOW.0..=LEFT_BELOW.1).contains(&below) {
-                            bad.push(format!("{tag}: the left upper arm {below:.0}° below level"));
+                            bad_left
+                                .push(format!("{tag}: the left upper arm {below:.0}° below level"));
                         }
                         if at > LEFT_ALONG {
-                            bad.push(format!("{tag}: the left elbow out at {at:.2} of the body"));
+                            bad_left
+                                .push(format!("{tag}: the left elbow out at {at:.2} of the body"));
                         }
                     }
                 }
@@ -185,7 +187,23 @@ fn the_violinists_arms_are_posed_as_the_photographs() {
         }
     }
     eprintln!("{report}");
+    (bad, bad_left, report)
+}
+
+/// r42:arcus-polish3 — the bow arm on: the shoulders' shrug (`bowed_human::SHRUG`, the
+/// bow shoulder 6 cm up by its collarbone) carries the arm so the hand at the frog sits
+/// within an upper arm of the elbow's height (it was 1.8–2.5 under it).
+#[test]
+fn the_violinists_bow_arms_are_posed_as_the_photographs() {
+    let (bad, _, report) = measured();
     assert!(bad.is_empty(), "{}\n{report}", bad.join("\n"));
+}
+
+#[test]
+#[ignore = "open (arcus-hands): the left elbow waits for the left-hand table's re-solve on the polish2 hold (the woman's viola: the upper arm 26° below level, the band 30–80°); run with --ignored --nocapture for the angles"]
+fn the_violinists_left_arms_are_posed_as_the_photographs() {
+    let (_, bad_left, report) = measured();
+    assert!(bad_left.is_empty(), "{}\n{report}", bad_left.join("\n"));
 }
 
 /// At the frog: the bow arm's upper arm below level and its elbow's corner (degrees), the
@@ -196,7 +214,7 @@ const FROG_CORNER: (f32, f32) = (45.0, 100.0);
 /// screen). The photographs' elbow is level with the hand; ours sits 1.1–1.4 under it at
 /// 0.3 (the hand high: the strings over the bow shoulder by about an upper arm more than in
 /// the photographs) — held here so it grows no worse, open in ADR 0159.
-const UNDER_WRIST: f32 = -1.6;
+const UNDER_WRIST: f32 = -1.0;
 /// The left upper arm below level (ref-10: 52°), and how far along the violin's body (its
 /// tail 0, its upper end 1) the elbow may lie on the screen.
 const LEFT_BELOW: (f32, f32) = (30.0, 80.0);
