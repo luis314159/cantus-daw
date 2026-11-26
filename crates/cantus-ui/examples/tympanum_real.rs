@@ -49,8 +49,12 @@ fn spec_for(kit: &str, sets: &str) -> NativeSpec {
     for kv in sets.split(',').filter(|s| !s.is_empty()) {
         let (k, v) = kv.split_once('=').expect("k=v");
         match v.trim().parse::<f32>() {
-            Ok(x) => spec.set(k.trim(), x),
-            Err(_) => spec.set_text(k.trim(), Some(v.trim().to_string())).unwrap(),
+            Ok(x) => {
+                spec.set(k.trim(), x);
+            }
+            Err(_) => {
+                spec.set_text(k.trim(), Some(v.trim().to_string())).unwrap();
+            }
         }
     }
     spec

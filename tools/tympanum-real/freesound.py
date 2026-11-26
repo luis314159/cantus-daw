@@ -2,7 +2,7 @@
 """The drums library's Freesound part (round 42, tympanum-real): each sound's page read for
 its licence, its public HQ preview (128 kb/s MP3; the originals need a login) downloaded.
 
-    python -I tools/tympanum-real/freesound.py <dest dir> sound:<id> pack:<id> … [--max N]
+    python -I tools/tympanum-real/freesound.py <dest dir> sound:<id> pack:<user>/<id> … [--max N]
 
 Only CC0 and CC BY (3.0/4.0) sounds are kept: every sound's own page is read for its licence
 link (a pack can mix licences), and any other licence is skipped and listed. Writes
@@ -40,10 +40,11 @@ def get(url, binary=False, tries=12):
     raise SystemExit(f"{url}: gave up")
 
 
-def pack_sounds(pid):
+def pack_sounds(spec):
+    user, pid = spec.split("/")
     ids, page = [], 1
     while True:
-        t = get(f"https://freesound.org/people/x/packs/{pid}/?page={page}")
+        t = get(f"https://freesound.org/people/{user}/packs/{pid}/?page={page}")
         found = re.findall(r'/people/[^/"]+/sounds/(\d+)/', t)
         new = [i for i in dict.fromkeys(found) if i not in ids]
         if not new:
