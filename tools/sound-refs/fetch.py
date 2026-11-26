@@ -327,6 +327,49 @@ class RangeFile(io.RawIOBase):
         return got
 
 
+class CurlRange(RangeFile):
+    """`RangeFile`'s reads through curl, which verifies with the system's certificate store —
+    for a site whose chain Python's own store refuses (drumgizmo.org on 2026-11-26: "certificate
+    has expired" in Python, verified by curl/Schannel). Never `-k`."""
+
+    def __init__(self, url):
+        self.url, self.pos, self.cache = url, 0, {}
+        head = subprocess.run(["curl", "-sSIL", "--fail", url], capture_output=True, text=True,
+                              check=True).stdout
+        sizes = [int(l.split(":", 1)[1]) for l in head.splitlines()
+                 if l.lower().startswith("content-length:")]
+        if not sizes or "text/html" in head.lower():
+            raise Refused(f"{url}: no size (an HTML page?)")
+        self.size = sizes[-1]
+
+    def _block(self, i):
+        if i not in self.cache:
+            a = i * BLOCK
+            b = min(self.size, a + BLOCK) - 1
+
+            def get():
+                r = subprocess.run(["curl", "-sSL", "--fail", "-r", f"{a}-{b}", self.url],
+                                   capture_output=True)
+                if r.returncode != 0:
+                    raise Wait(f"curl exit {r.returncode}: {r.stderr[:200]!r}")
+                if len(r.stdout) != b - a + 1 or looks_html(r.stdout[:512]):
+                    raise Wait(f"short or HTML read ({len(r.stdout)} of {b - a + 1})")
+                return r.stdout
+            if len(self.cache) >= 6:
+                self.cache.pop(next(iter(self.cache)))
+            self.cache[i] = retrying(f"{self.url} @{a}", get)
+        return self.cache[i]
+
+
+def open_remote(url):
+    """A remote zip by range requests: Python's own TLS check first, curl after (round 42)."""
+    try:
+        return RangeFile(url)
+    except TlsRefused as e:
+        print(f"  {e}; reading through curl (the system's store)", flush=True)
+        return CurlRange(url)
+
+
 def download(url, dest, size=None, magic_name=None):
     """`url` into `dest`, resumed from `dest.part`; the first bytes checked against the
     file's kind (an HTML page instead of data is a proxy's: wait and retry)."""
@@ -533,7 +576,7 @@ def zip_source(ctx, s, o):
             fetch_rows(ctx, s, [row], quiet=True)
         if local.exists():
             return open(local, "rb")
-    return RangeFile(o["url"])
+    return open_remote(o["url"])
 
 
 def fetch_zip(ctx, s, o, todo):
