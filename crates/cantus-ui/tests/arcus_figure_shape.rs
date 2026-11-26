@@ -106,6 +106,26 @@ fn width(arm: &probe::Arm, seg: usize, t: f32) -> Option<f32> {
     Some((hi - lo) / (k / count as f32).max(1e-3))
 }
 
+/// r42:arcus-polish5 — how far the arm's elbow is bent (degrees: 0 straight), from its
+/// joints as the skin was posed.
+fn bend(arm: &probe::Arm) -> f32 {
+    use cantus_ui::scene::bowed_human as hu;
+    let o = hu::side(arm.side);
+    let j = |b: usize| arm.joints.iter().find(|x| x.0 == o + b).map(|x| x.2);
+    match (j(hu::UPPER1), j(hu::FORE1), j(hu::HAND)) {
+        (Some(s), Some(e), Some(h)) => {
+            let (a, b) = ((e - s).norm(), (h - e).norm());
+            a.dot(b).clamp(-1.0, 1.0).acos().to_degrees()
+        }
+        _ => 0.0,
+    }
+}
+
+/// r42:arcus-polish5 — past how many degrees an elbow is bent for the taper rule, and how
+/// much wider than the upper arm's middle its crook may then measure.
+const BENT: f32 = 45.0;
+const BENT_MOST: f32 = 1.2;
+
 /// The arms of `hold` with instrument `inst` (2 violin, 3 viola), as the app draws them.
 fn arms_of(hold: Hold, inst: f32) -> Vec<probe::Arm> {
     let ctx = egui::Context::default();
@@ -155,8 +175,9 @@ fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
                     })
                     .collect();
                 report += &format!(
-                    "{hold:?} {name} {} arm: {}\n",
+                    "{hold:?} {name} {} arm ({:.0}° bent): {}\n",
                     if arm.side == 0 { "left" } else { "bow" },
+                    bend(arm),
                     LEVELS
                         .iter()
                         .zip(&w)
@@ -175,8 +196,24 @@ fn the_violinists_arms_have_a_womans_and_a_mans_proportions() {
                 // An arm tapers: the elbow under the upper arm's middle, the wrist narrowest.
                 // (A jacket's sleeve: the forearm under the upper arm and the cuff no wider
                 // than the forearm — it hangs open, and a bent elbow gathers it.)
-                if woman && w[2] >= w[1] {
-                    bad.push(format!("{hold:?} {name} arm {}: no elbow", arm.side));
+                // r42:arcus-polish5 — an elbow bent past [`BENT`]: the cut square to the upper
+                // arm at the elbow runs into the crook, along the forearm's start, and is
+                // wider than the upper arm's middle on a real arm (ref-04's bare bow arm,
+                // bent about 75°: cut there it reaches the forearm all the way to the
+                // measure's 6 cm, 1.07–1.12 × the middle; her figure's bow elbow 1.07–1.11)
+                // — so a bent elbow may be up to [`BENT_MOST`] × the middle, no more (a pad
+                // at the joint still fails).
+                let elbow_most = if bend(arm) > BENT {
+                    w[1] * BENT_MOST
+                } else {
+                    w[1]
+                };
+                if woman && w[2] >= elbow_most {
+                    bad.push(format!(
+                        "{hold:?} {name} arm {}: no elbow ({:.0}° bent)",
+                        arm.side,
+                        bend(arm)
+                    ));
                 }
                 if woman && (w[4] >= w[3] || w[4] >= w[2]) {
                     bad.push(format!(

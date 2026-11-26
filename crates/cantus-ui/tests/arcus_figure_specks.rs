@@ -482,7 +482,14 @@ fn no_stray_pixels_round_or_on_the_violinists() {
 /// the bow over it), no pixel may be skin-coloured — and none in a 12 px band under the
 /// forearm's sleeve, where the neckline's point showed.
 /// The sleeve test shoots at 200 %: at 100 % the V's point under the arm is a few pixels.
+/// r42:arcus-polish5 — and with the bow where a figure starts (0.3, the editor's first
+/// picture) and either side of it: there the old neckline (`V_DEPTH` 15 cm, before
+/// 982b1dbbc) showed its point under the forearm, while at the frog, the middle and the tip
+/// alone the arm covered it or lay far from it — the test passed the old figure. Run with
+/// `CANTUS_FIGURE_DIR` holding the old `woman.fig`, it fails. `CANTUS_SLEEVE_DIR=<folder>`
+/// saves each shot.
 const SLEEVE_PPP: f32 = 2.0;
+const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
 
 #[test]
 fn no_skin_shows_through_or_under_her_bow_sleeve() {
@@ -509,14 +516,18 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
             let _ = cantus_ui::raster::shoot(&ctx, size, SLEEVE_PPP, 2, None, |ui| {
                 views::inst::window_in(&mut app, ui)
             });
-            for along in [0.05f32, 0.5, 0.92] {
+            for along in SLEEVE_ALONG {
                 if let Some(e) = app.inst.arcus_scenes.get_mut(&t.0) {
                     e.1 = along;
                 }
                 probe::record(true);
-                let canvas = cantus_ui::raster::shoot(&ctx, size, SLEEVE_PPP, 1, None, |ui| {
-                    views::inst::window_in(&mut app, ui)
+                let save = std::env::var_os("CANTUS_SLEEVE_DIR").map(|d| {
+                    std::path::PathBuf::from(d).join(format!("sleeve-{b:?}-{be:?}-{along}.png"))
                 });
+                let canvas =
+                    cantus_ui::raster::shoot(&ctx, size, SLEEVE_PPP, 1, save.as_deref(), |ui| {
+                        views::inst::window_in(&mut app, ui)
+                    });
                 let arms = probe::arms();
                 let bow = probe::bow();
                 probe::record(false);

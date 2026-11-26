@@ -25,6 +25,7 @@ pub mod neck_hand;
 pub mod play;
 pub mod rig;
 pub mod stylised;
+pub mod tune; // r42:arcus-polish5
 
 /// r42:arcus-upper — how finely the figures' live arms and hands are drawn (the owner,
 /// 2026-11-24: "I'd rather it look good than save ms, or make it configurable in case

@@ -1251,6 +1251,7 @@ def make(sex, data, assets):
         sp, sw, st, smat, _ = subdivide(sp, sw, st, smat, [], arm_cloth(sw, st, smat, WOOL))
         sp = soften(sp, st, smat, arm_cloth(sw, st, smat, WOOL), SOFTEN)
         sp = sleeve_wrinkles(sp, sw, st, smat, J, WOOL)
+        sp = seams(sp, sw, st, smat, J, WOOL)  # r42:arcus-polish5
         # r42:arcus-polish4 — the clothes' edges with a thickness (the coordinator: his
         # lapel's edge, a modelled collar, the cuffs' thickness): the jacket's edge over the
         # shirt (the lapels, the sleeves' ends), the shirt collar's edge over the jacket.
@@ -1943,6 +1944,74 @@ def sleeve_wrinkles(p, w, t, mats, J, cloth):
         pit = smooth01((-along - lu * 0.6) / (lu * 0.2)) * inner
         d[ids] += a * pit * 0.5 * (np.sin(2 * np.pi * phi / 1.1 + jitter[3] + along / lam) - 1.0)
     return p + n * d[:, None]
+
+
+# r42:arcus-polish5 — the set-in sleeve's seam and the shoulder seam (the clothing study's
+# lacking item, ref-10's jacket: the set-in seam reads as a soft ridge): (the ridge's
+# height, its half-width, how far toward the sleeve it lies off the seam's line, the
+# groove's depth at the line; cm; ``CANTUS_SEAM=h,half,lean,groove`` while studied). The
+# cloth's mesh is a centimetre or so a vertex: a ridge it can draw, not a stitch (0.4 cm
+# read as a lump in the shoulder's outline, 0.13 not at all). His jacket's only: her velvet
+# gown's seams hide in its pile, and on her raised shoulder the ridge rippled its outline.
+SEAM = tuple(float(x) for x in os.environ.get("CANTUS_SEAM", "0.22,0.8,0.45,0.08").split(","))
+# Where the sleeve is set in: the iso-line of the arm's share of the weights (MakeHuman's
+# shoulder blend, about the acromion's line round the shoulder).
+SEAM_SHARE = 0.5
+
+
+def seams(p, w, t, mats, J, cloth):
+    """r42:arcus-polish5 — ``cloth`` moved along its normal into two soft ridges: round each
+    armhole (where the sleeve's cap is sewn to the body: the line where the arm's share of
+    the weights crosses ``SEAM_SHARE``, the ridge on the sleeve's side — the seam allowance
+    pressed into the cap) and along each shoulder's top from the neck's side to the armhole
+    (the front panel's meeting with the back's, a little behind the shoulder's crest). Only
+    vertices every triangle round which is ``cloth`` move (its edges stay put)."""
+    on = np.zeros(len(p), bool)
+    on[t[mats == cloth].ravel()] = True
+    off = np.zeros(len(p), bool)
+    off[t[mats != cloth].ravel()] = True
+    move = on & ~off
+    n = vnormals(p, t[mats == cloth])
+    nn = n / np.maximum(np.linalg.norm(n, axis=1, keepdims=True), 1e-9)
+    h, half, lean, groove = SEAM
+    d = np.zeros(len(p))
+    tc = t[mats == cloth]
+    for s_ in SIDES:
+        share = np.array([arm_share(x, s_) for x in w]) - SEAM_SHARE
+        sh = J[f"upperarm01.{s_}____head"]
+        # The armhole's line: where each cloth edge crosses the share's middle.
+        e = np.concatenate([tc[:, [0, 1]], tc[:, [1, 2]], tc[:, [2, 0]]])
+        fa, fb = share[e[:, 0]], share[e[:, 1]]
+        x = (fa > 0) != (fb > 0)
+        if not x.any():
+            continue
+        f = (fa[x] / (fa[x] - fb[x]))[:, None]
+        line = p[e[x, 0]] + (p[e[x, 1]] - p[e[x, 0]]) * f
+        # (Near the shoulder only: the share's middle elsewhere is no seam.)
+        line = line[np.linalg.norm(line - sh, axis=1) < 14.0]
+        ids = np.where(move & (np.linalg.norm(p - sh, axis=1) < 16.0))[0]
+        if len(line) == 0 or len(ids) == 0:
+            continue
+        dist = np.min(np.linalg.norm(p[ids][:, None, :] - line[None, :, :], axis=2), axis=1)
+        sgn = np.sign(share[ids])
+        sd = dist * sgn
+        d[ids] += h * np.exp(-((sd - lean) / half) ** 2) - groove * np.exp(-(sd / 0.35) ** 2)
+        # The shoulder seam: over the shoulder's top, from the neck's side to the armhole,
+        # a little behind its crest.
+        nk = J["neck01____head"]
+        ax = sh - nk
+        ax[1] = 0.0
+        L = np.linalg.norm(ax)
+        ax /= max(L, 1e-6)
+        q = p[ids] - nk
+        along = q @ ax
+        z_line = nk[2] + (sh[2] - nk[2]) * np.clip(along / L, 0.0, 1.0) - 0.6
+        top = np.clip((nn[ids, 1] - 0.45) / 0.35, 0.0, 1.0)
+        span = (smooth01((along - 3.0) / 2.0) * (1.0 - smooth01((along - (L - 1.0)) / 2.0))
+                * (share[ids] < 0))
+        dz = p[ids, 2] - z_line
+        d[ids] += h * 0.8 * top * span * np.exp(-((dz - 0.3) / half) ** 2)
+    return p + n * (d / np.maximum(np.linalg.norm(n, axis=1), 1e-9))[:, None]
 
 
 def dress(pos, W, tris, J, lum, red, nail, vuv=None):

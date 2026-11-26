@@ -640,6 +640,10 @@ struct Scratch {
     /// r42:arcus-polish2 — the cuffs' edge corners posed, and which corners are skin.
     ring: Vec<V3>,
     skin_v: Vec<bool>,
+    /// r42:arcus-polish5 — each corner's broad normal this frame (its neighbours' averaged,
+    /// [`despike`]) and the sums it is made from.
+    broad: Vec<V3>,
+    acc: Vec<V3>,
 }
 
 /// A rigid turn and move as a unit dual quaternion: the real part's (w, x, y, z) and the
@@ -2624,11 +2628,73 @@ fn arm_setup(
     cuff_shadow(fig, am, sc);
     elbow_folds(fig, &posed, s, am, sc);
     sleeve_drape(fig, &posed, s, am, sc); // r42:arcus-polish3
+    despike(am, sc, v.cam.pos); // r42:arcus-polish5
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);
     sc.mid
 }
+
+/// r42:arcus-polish5 — a sleeve's small forms against the light along its edge (the specks
+/// gate's strays, most of them: each of his cuff buttons ringed by single light pixels, the
+/// lip at a crease's end on his bow shoulder): the back lights' line and the rim follow how
+/// far a corner turns from the eye, and a button's side or a crease's lip turns fully away
+/// over a centimetre while the sleeve round it faces the eye — one corner grazing among
+/// facing ones, a dot of edge light where no edge is. A sleeve corner that grazes the eye
+/// by more than its neighbourhood does (its broad normal, the normals averaged over
+/// [`DESPIKE_PASSES`] rings) takes the broad one instead, by how much more (over
+/// [`DESPIKE`]): the button keeps its outline and its top, the sleeve's real edge (where
+/// the broad normal grazes too) keeps its light, the creases their shading.
+fn despike(am: &ArmMesh, sc: &mut Scratch, eye: V3) {
+    use crate::scene::figure::tune::tune;
+    let (g0, g1) = (tune("despike_g0", DESPIKE.0), tune("despike_g1", DESPIKE.1));
+    let passes = tune("despike_passes", DESPIKE_PASSES as f32) as usize;
+    if g1 <= g0 || passes == 0 {
+        return;
+    }
+    let n = sc.nrm.len();
+    let mut broad = std::mem::take(&mut sc.broad);
+    let mut acc = std::mem::take(&mut sc.acc);
+    broad.clear();
+    broad.extend_from_slice(&sc.nrm);
+    for _ in 0..passes {
+        acc.clear();
+        acc.resize(n, V3::default());
+        for t in &am.tris {
+            let [a, b, c] = t.map(|i| am.weld[i as usize] as usize);
+            let sum = broad[a] + broad[b] + broad[c];
+            acc[a] = acc[a] + sum;
+            acc[b] = acc[b] + sum;
+            acc[c] = acc[c] + sum;
+        }
+        for (i, q) in broad.iter_mut().enumerate() {
+            let a = acc[am.weld[i] as usize];
+            if a.len() > 1e-6 {
+                *q = a.norm();
+            }
+        }
+    }
+    for i in 0..n {
+        if !am.sleeve[i] {
+            continue;
+        }
+        let e = (eye - sc.pts[i]).norm();
+        let g = broad[i].dot(e) - sc.nrm[i].dot(e);
+        let t = ((g - g0) / (g1 - g0)).clamp(0.0, 1.0);
+        let k = t * t * (3.0 - 2.0 * t);
+        if k > 0.0 {
+            sc.nrm[i] = (sc.nrm[i] + (broad[i] - sc.nrm[i]) * k).norm();
+        }
+    }
+    sc.broad = broad;
+    sc.acc = acc;
+}
+
+/// r42:arcus-polish5 — how much more than its neighbourhood a sleeve corner may turn from
+/// the eye (in the cosine) before it takes the broad normal, and by how much it takes it
+/// whole; over how many rings the broad normal is averaged.
+const DESPIKE: (f32, f32) = (0.25, 0.55);
+const DESPIKE_PASSES: usize = 3;
 
 /// r42:arcus-polish2 — the sleeve's end lays a soft shadow on the wrist under it (the
 /// coordinator: "the sleeve's end meets the wrist softly … a contact shadow on the skin"):

@@ -1408,7 +1408,14 @@ pub fn build(
         wisps(m, fig, &posed, &pts);
     }
     if held {
-        clear_of_the_body(m, b, pose); // r42:arcus-polish4
+        // r42:arcus-polish5 — the neck's axis and radius (its skin's middle distance from
+        // the axis), which the collar's band keeps to.
+        let (n0, n1) = (
+            posed.at(NECK, fig.bones[NECK].head),
+            posed.at(NECK, fig.bones[NECK].tail),
+        );
+        let neck = (n0, n1, neck_radius(fig, &pts, n0, n1));
+        clear_of_the_body(m, b, pose, neck); // r42:arcus-polish4
     }
     // What the floor's shadow takes: the body's outline points.
     m.shadows.push(
@@ -1656,22 +1663,45 @@ fn wisps(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3
 /// lower bout, stood through the body — in the Photographic picture a white wedge over the
 /// varnish, in the Drawn one shards sorted among its cells. A collar under a chin rest is
 /// pressed flat out of sight: its triangles inside the body's outline and within its depth
-/// (a centimetre's margin) are left out.
+/// (a centimetre's margin) are tucked under its back.
+///
+/// r42:arcus-polish5 — only the point (the coordinator on sheet-it5: the neck's skin met the
+/// tie on the violin's side — half a collar): the band round the neck (within
+/// [`COLLAR_KEEP`] of the neck's own surface, the neck's radius measured from its skin) stays
+/// whole where it is, and past it the point goes under the back over [`COLLAR_RAMP`] — a
+/// fold over the body's edge, not the whole far side gone. `neck` the neck's axis posed (its
+/// base, its top) and its radius.
 fn clear_of_the_body(
     m: &mut super::bowed_mesh::Mesh,
     b: super::bowed::Bowed,
     pose: &super::bowed::Pose,
+    neck: (V3, V3, f32),
 ) {
     use super::bowed_mesh::{inside, Role};
+    use super::figure::tune::tune;
     let d = b.dims();
     let o = super::bowed::outline(b, 96);
     // (Its top's side reaching up toward the jaw: the far collar point stood in front of
     // the lower bout from the camera.)
     let (top, back) = (
-        d.arch + 4.0,
+        d.arch + tune("collar_top", 4.0),
         -(super::bowed::rib(d, d.body * 0.2) + d.arch_back + 1.0),
     );
+    let (keep, ramp) = (
+        tune("collar_keep", COLLAR_KEEP),
+        tune("collar_ramp", COLLAR_RAMP).max(0.1),
+    );
+    let (tuck, drape) = (tune("collar_tuck", TUCK), tune("collar_drape", 0.0));
+    let (n0, n1, r) = neck;
+    let axis = n1 - n0;
+    // How far past the neck's surface a point lies (its distance to the neck's axis, the
+    // segment from its base to its top, less the neck's radius).
+    let off_neck = |p: V3| {
+        let t = ((p - n0).dot(axis) / axis.dot(axis).max(1e-6)).clamp(0.0, 1.0);
+        (p - (n0 + axis * t)).len() - r
+    };
     let (ex, ey, ez) = (pose.ex, pose.ey, pose.ez);
+    let mut tucked = 0;
     for (role, t) in m.tris.iter_mut() {
         // The shirt through the body's whole depth; the jacket's cloth only over its top (the
         // suit's painted tie, jacket cloth now, flared over the lower bout as well; the
@@ -1686,15 +1716,68 @@ fn clear_of_the_body(
         for p in t.pts.iter_mut() {
             let q = *p - pose.o;
             let (x, y, z) = (q.dot(ex), q.dot(ey), q.dot(ez));
-            if z < top && z > low && inside(&o, x, y) {
-                *p = pose.o + ex * x + ey * y + ez * (back - TUCK);
+            if !(z < top && z > low && inside(&o, x, y)) {
+                continue;
             }
+            // (The band kept; the point under the back, as far as it lies past the band.)
+            let s = smooth_k((off_neck(*p) - keep) / ramp);
+            if s <= 0.0 {
+                continue;
+            }
+            let flat = pose.o + ex * x + ey * y + ez * (back - tuck);
+            // (`collar_drape`, cm: the tucked part drawn back toward the neck along the
+            // back, so it lies near the edge it went over — off by default.)
+            let toward = {
+                let w = n0 - flat;
+                let w = w - ez * w.dot(ez);
+                w * ((drape * s) / w.len().max(1.0)).min(1.0)
+            };
+            *p = *p + (flat - *p) * s + toward;
+            tucked += 1;
         }
+    }
+    if tune("collar_log", 0.0) > 0.0 {
+        eprintln!("collar: neck radius {r:.2} cm, {tucked} corners tucked");
     }
 }
 
 /// r42:arcus-polish4 — how far under a held instrument's back its collar is tucked (cm).
 const TUCK: f32 = 0.4;
+
+/// r42:arcus-polish5 — how far past the neck's surface the collar's band reaches (cm: a
+/// shirt collar stands 3.5–4 cm round the neck and its band lies within a couple of
+/// centimetres of the skin; the points reach 6–8 cm out over the chest), and over how far
+/// past it the point goes under the instrument.
+const COLLAR_KEEP: f32 = 2.2;
+const COLLAR_RAMP: f32 = 1.5;
+
+/// r42:arcus-polish5 — the neck's radius posed (cm): the middle distance of its skin (the
+/// vertices the neck's bone carries most) from its axis `n0`–`n1`.
+fn neck_radius(fig: &Figure, pts: &[V3], n0: V3, n1: V3) -> f32 {
+    let axis = n1 - n0;
+    let mut d: Vec<f32> = fig
+        .tris
+        .iter()
+        .zip(&fig.stuff)
+        .filter(|(_, s)| **s == Stuff::Skin)
+        .flat_map(|(t, _)| t.iter().map(|&i| i as usize))
+        .filter(|&i| {
+            fig.bw[i]
+                .iter()
+                .any(|&(b, w)| b as usize == NECK && w >= 0.5)
+        })
+        .map(|i| {
+            let p = pts[i];
+            let t = ((p - n0).dot(axis) / axis.dot(axis).max(1e-6)).clamp(0.0, 1.0);
+            (p - (n0 + axis * t)).len()
+        })
+        .collect();
+    if d.is_empty() {
+        return 6.0;
+    }
+    d.sort_by(f32::total_cmp);
+    d[d.len() / 2]
+}
 
 /// r42:arcus-polish4 — his hair's top against the room (the coordinator: a hard dark cap's
 /// outline): short tips standing out of the combed-back top, each from a card vertex over
@@ -1732,8 +1815,20 @@ fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &
         ((x ^ (x >> 13)).wrapping_mul(668_265_263) >> 8) as f32 / (1u32 << 24) as f32
     };
     let mut n = 0;
+    // (r42:arcus-polish5: how many, how often, how long and how lifted, while studied —
+    // `CANTUS_TUNE`'s `tips_n`, `tips_p`, `tips_len`, `tips_lift`, `tips_r`.)
+    use super::figure::tune::tune;
+    let (most, often) = (
+        tune("tips_n", HIS_TIPS as f32) as usize,
+        tune("tips_p", 0.12),
+    );
+    let (long, lifted, thick) = (
+        tune("tips_len", 1.0),
+        tune("tips_lift", 1.0),
+        tune("tips_r", 1.0),
+    );
     for &i in &top {
-        if n >= HIS_TIPS || hash(i, 1) > 0.12 {
+        if n >= most || hash(i, 1) > often {
             continue;
         }
         n += 1;
@@ -1742,8 +1837,8 @@ fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &
         let way = fwd * -1.0 + up * 0.45;
         let way = (way - nn * way.dot(nn)).norm();
         let side = nn.cross(way).norm();
-        let len = 0.7 + 1.1 * hash(i, 2);
-        let lift = 0.15 + 0.35 * hash(i, 3);
+        let len = (0.7 + 1.1 * hash(i, 2)) * long;
+        let lift = (0.15 + 0.35 * hash(i, 3)) * lifted;
         let sway = (hash(i, 4) - 0.5) * 0.6;
         let pt = |t: f32| p0 + way * (len * t) + nn * (lift * t * t + 0.03) + side * (sway * t);
         const SEGS: usize = 3;
@@ -1754,7 +1849,7 @@ fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &
                 Rod {
                     a: pt(a),
                     b: pt(b),
-                    r: WISP_R * (1.3 - 0.6 * a),
+                    r: WISP_R * (1.3 - 0.6 * a) * thick,
                 },
             ));
         }
@@ -1867,6 +1962,8 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
         })
         .collect();
     const N: usize = 12;
+    // (r42:arcus-polish5: the knot's width under the collar, `knot_w1` while studied.)
+    let kw1 = super::figure::tune::tune("knot_w1", KNOT_W.1);
     // (u across −1…1; v up the knot 0 its foot … 1 under the collar; below it, v −k the
     // blade's row k.)
     let at = |u: f32, v: f32| -> V3 {
@@ -1897,7 +1994,7 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
             let h = (lift * round - groove).max(0.0);
             return along + r * (u * half) + nn * (0.16 + h);
         }
-        let w = KNOT_W.0 + (KNOT_W.1 - KNOT_W.0) * v;
+        let w = KNOT_W.0 + (kw1 - KNOT_W.0) * v;
         let full = 0.45 + 0.55 * smooth_k((v - 0.05) / 0.4);
         // The wrap: a soft crest from upper left down to lower right where the tie's turn
         // comes round the knot — a highlight, not a crease.
@@ -1983,7 +2080,66 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
         }
     }
     m.tris.push((Role::Tie, t));
+    // r42:arcus-polish5 — the collar's points over the knot's upper corners (the
+    // coordinator: the near point lying over the knot's corner was not modelled; the knot
+    // stood in front of both): each shirt corner over the knot's top, off its middle, is
+    // lifted to lie on the knot's face — fully over its corners, fading out past its sides
+    // and toward its foot — so the knot comes out from under the collar as a real one does.
+    let (lap, gap) = (
+        super::figure::tune::tune("knot_lap", 1.0),
+        super::figure::tune::tune("knot_lap_gap", KNOT_LAP_GAP),
+    );
+    let (u0, u1, v0) = (
+        super::figure::tune::tune("knot_lap_u0", KNOT_LAP.0),
+        super::figure::tune::tune("knot_lap_u1", KNOT_LAP.1),
+        super::figure::tune::tune("knot_lap_v0", KNOT_LAP.2),
+    );
+    if lap <= 0.0 {
+        return;
+    }
+    for (r, tr) in m.tris.iter_mut() {
+        if *r != Role::Shirt {
+            continue;
+        }
+        for p in tr.pts.iter_mut() {
+            let q = *p - c;
+            let (y, h) = (q.dot(up), q.dot(n));
+            // (Near the knot's face only: the collar's back round the neck lies behind it.)
+            if h < -1.5 || h > KNOT_D + 1.0 {
+                continue;
+            }
+            let v = y / KNOT_H + 0.5;
+            let w = KNOT_W.0 + (kw1 - KNOT_W.0) * v.clamp(0.0, 1.0);
+            let u = q.dot(right) / (w * 0.5);
+            let k = lap
+                * smooth_k((v - v0) / 0.25)
+                * (1.0 - smooth_k((v - 1.0) / KNOT_LAP_TOP))
+                * smooth_k((u.abs() - u0) / 0.25)
+                * (1.0 - smooth_k((u.abs() - u1) / 0.25));
+            if k <= 0.0 {
+                continue;
+            }
+            // The knot's face there (its sides turned under: none past them).
+            let uu = u.clamp(-1.0, 1.0);
+            let round = (1.0 - uu.abs().powf(2.2)).max(0.0).powf(0.55);
+            let full = 0.45 + 0.55 * smooth_k((v.min(1.0) - 0.05) / 0.4);
+            let face = 0.12 + KNOT_D * round * full * (1.0 - smooth_k((u.abs() - 1.0) / 0.2));
+            let want = face + gap;
+            if h < want {
+                *p = *p + n * ((want - h) * k);
+            }
+        }
+    }
 }
+
+/// r42:arcus-polish5 — where the collar's points lie over the knot: from how far off its
+/// middle (a share of its half width), to how far past its sides, and from how far up it
+/// (a share of its height); how far over its face they lie (cm).
+const KNOT_LAP: (f32, f32, f32) = (0.35, 1.35, 0.45);
+const KNOT_LAP_GAP: f32 = 0.08;
+/// r42:arcus-polish5 — over how much of the knot's height past its top the lift fades (the
+/// collar's band above the knot hugs the neck).
+const KNOT_LAP_TOP: f32 = 0.15;
 
 /// The knot's height, its width at its foot and under the collar, and how far it stands
 /// off the shirt at its fullest (cm).

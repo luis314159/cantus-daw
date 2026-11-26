@@ -264,22 +264,26 @@ pub fn hair_look(who: u8) -> HairLook {
         // (r42:arcus-polish4: `short04`, combed straight back — its strands run one way, so
         // their detail shows, though its crossing layers read as a weave above 0.3; a dark
         // brown, less red — ref-06.)
-        HairLook {
-            albedo: 1.0,
-            shine: (60.0, 0.32),
-            sheen: (22.0, 0.2),
-            detail: 0.3,
+        // (r42:arcus-polish5: his numbers under study, `CANTUS_TUNE`'s `his_*` — read once,
+        // this is asked per pixel.)
+        use super::tune::tune;
+        static HIS: OnceLock<HairLook> = OnceLock::new();
+        *HIS.get_or_init(|| HairLook {
+            albedo: tune("his_albedo", 1.0),
+            shine: (60.0, tune("his_shine", 0.32)),
+            sheen: (22.0, tune("his_sheen", 0.2)),
+            detail: tune("his_detail", 0.3),
             scalp: 0.55,
-            streaks: 0.9,
-            rim: 2.0, // (r42:arcus-polish4: 1.4 — the top's outline read as a hard cap)
-            sections: 0.2,
+            streaks: tune("his_streaks", 0.9),
+            rim: tune("his_rim", 2.0), // (r42:arcus-polish4: 1.4 — the top's outline read as a hard cap)
+            sections: tune("his_sections", 0.2),
             lowlight: 1.0,
-            under: 0.25,
+            under: tune("his_under", 0.25),
             warm: [1.05, 1.0, 0.94],
-            broken: 0.7,
+            broken: tune("his_broken", 0.7),
             roots: 0.12,
             ends: 0.0,
-        }
+        })
     }
 }
 
