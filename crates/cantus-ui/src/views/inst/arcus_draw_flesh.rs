@@ -508,6 +508,15 @@ fn seams(fig: &Figure, verts: &[u32], edges: &[(u16, u16, u32, u32)]) -> Vec<boo
     seam
 }
 
+/// r42:arcus-hands, pass 2 — the skin's fine variation per vertex (its luminance's share,
+/// its warmth's), and the back's extensor tendons (how much lighter at their ridge, their
+/// half-width in cm).
+const SKIN_VARY: (f32, f32) = (0.05, 0.12);
+/// r42:arcus-hands, pass 2 — a nail's broad gloss (its power and strength) and its sheen at
+/// a glance.
+const NAIL_GLOSS: (i32, f32, f32) = (14, 0.1, 0.08);
+const TENDON: (f32, f32) = (0.045, 0.22);
+
 /// How near two open edges lie to be one seam's sides (cm; the thinning's shortest edge).
 const SEAM_NEAR: f32 = 0.62;
 
@@ -574,6 +583,20 @@ fn hand_detail(
                 },
             );
             let bone = bone as usize;
+            // r42:arcus-hands, pass 2 — the skin's fine variation (the coordinator: "a
+            // uniform beige"): each vertex a little lighter or darker, warmer or cooler, from
+            // a hash of its index (the same every frame and every run).
+            let hsh = |k: u32| {
+                let mut x = (g as u32).wrapping_mul(0x9E37_79B9) ^ k.wrapping_mul(0x85EB_CA6B);
+                x ^= x >> 15;
+                x = x.wrapping_mul(0x2C1B_3C6D);
+                x ^= x >> 12;
+                (x & 0xFFFF) as f32 / 65535.0 - 0.5
+            };
+            d = [
+                d[0] * (1.0 + SKIN_VARY.0 * hsh(1)),
+                d[1] + SKIN_VARY.1 * hsh(2),
+            ];
             // r42:arcus-polish — the back of the hand's faint veins: three soft lines from
             // the wrist's middle toward the gaps between the knuckles, a little blue under
             // the skin (the owner's small details, 2026-11-25).
@@ -590,6 +613,21 @@ fn hand_detail(
                 }
                 let w = vein * on_back.powf(0.5) * VEIN;
                 d = [d[0] * (1.0 - 0.05 * w), d[1] - 0.3 * w];
+                // r42:arcus-hands, pass 2 — the extensor tendons (crop-08): a faint lighter
+                // ridge from the wrist's middle to each base knuckle, clearest over the
+                // back's middle, gone at both ends.
+                let mut ten = 0.0f32;
+                for f in 1..5usize {
+                    let a = wr.lerp(kn(f), 0.22);
+                    let b = wr.lerp(kn(f), 0.92);
+                    let ab = b - a;
+                    let tt = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+                    let dd = (p - (a + ab * tt)).len();
+                    let along = (tt * std::f32::consts::PI).sin();
+                    ten = ten.max((-(dd / TENDON.1) * (dd / TENDON.1)).exp() * along);
+                }
+                let w = ten * on_back.powf(0.5) * TENDON.0;
+                d = [d[0] * (1.0 + w), d[1] - 0.1 * w];
                 return d;
             }
             if !(o + hu::finger(0, 0)..=o + hu::finger(4, 2)).contains(&bone) {
@@ -614,13 +652,17 @@ fn hand_detail(
             // The fingertips' pads warmer (blood near the skin).
             if k == 2 {
                 let tipw = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
-                d = [d[0] * (1.0 - 0.04 * tipw), d[1] + 0.3 * tipw];
+                d = [d[0] * (1.0 - 0.04 * tipw), d[1] + 0.42 * tipw];
             }
             let near_head = (1.0 - (t / 0.22).abs()).max(0.0);
             let on_back = (p - (bn.head + ax * t)).norm().dot(back).max(0.0);
-            if k <= 1 && bone >= o + hu::finger(1, 0) {
-                let w = near_head * on_back;
-                d = [d[0] * (1.0 - 0.06 * w), d[1] + 0.35 * w];
+            if bone >= o + hu::finger(1, 0) {
+                // (r42:arcus-hands, pass 2: the last knuckles too, fainter; the base
+                // knuckles' tops a little lighter, where their bumps catch the light, the
+                // skin round them redder.)
+                let w = near_head * on_back * [1.0, 1.0, 0.6][k];
+                let top = near_head.powi(3) * on_back.powi(4) * (k == 0) as u8 as f32;
+                d = [d[0] * (1.0 - 0.05 * w + 0.05 * top), d[1] + 0.4 * w];
             }
             // (r42:arcus-hands: the joints' creases are the marks' — `marks`, soft lines a
             // pixel and a half wide on the skinned surface; a band per vertex here, narrower
@@ -1085,7 +1127,15 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         } else {
             (18, 0.035)
         };
-        let sp = n.dot(h).max(0.0).powi(pw) * k * key_k * ao * (ndl > 0.0) as u8 as f32;
+        let mut sp = n.dot(h).max(0.0).powi(pw) * k * key_k * ao * (ndl > 0.0) as u8 as f32;
+        if st == Stuff::Nail {
+            // r42:arcus-hands, pass 2 — the nail plate's broad gloss (the coordinator: the
+            // plate's sheen must read from the picture's camera; the sharp lobe alone fell
+            // between the few corners a nail has) and its reflection at a glance.
+            let broad = n.dot(h).max(0.0).powi(NAIL_GLOSS.0) * NAIL_GLOSS.1 * key_k * ao;
+            let glance = (1.0 - ndv).powi(4) * NAIL_GLOSS.2 * (key_k + amb) * ao;
+            sp += broad * (ndl > 0.0) as u8 as f32 + glance;
+        }
         rad = rad.map(|x| x + sp);
     }
     if st == Stuff::Velvet {
@@ -1373,7 +1423,9 @@ pub fn arm(
                 let split = behind
                     && am.fine[k]
                     && !am.upper[k]
-                    && hidden.is_some_and(|(_, hid)| !(sc.hidv[a] && sc.hidv[bb] && sc.hidv[c] && hid(ctr)));
+                    && hidden.is_some_and(|(_, hid)| {
+                        !(sc.hidv[a] && sc.hidv[bb] && sc.hidv[c] && hid(ctr))
+                    });
                 sc.cls.push(
                     CLS_FACING
                         | (CLS_INSIDE * inside as u8)
@@ -1553,7 +1605,8 @@ pub fn arm(
             for (li, line) in am.marks.iter().enumerate() {
                 let p = super::marks::middle(line, &am.tris, &sc.pts);
                 if hidden.is_none_or(|(want, hid)| hid(p) == want) {
-                    sc.order.push((v.cam.depth(p) - MARK_AHEAD, marks_at + li as u32));
+                    sc.order
+                        .push((v.cam.depth(p) - MARK_AHEAD, marks_at + li as u32));
                 }
             }
         }
@@ -1599,7 +1652,16 @@ pub fn arm(
             if k >= marks_at {
                 let line = &am.marks[(k - marks_at) as usize];
                 if rast {
-                    super::marks::stroke_into(&mut sc.ras.borrow_mut(), v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
+                    super::marks::stroke_into(
+                        &mut sc.ras.borrow_mut(),
+                        v,
+                        line,
+                        &am.tris,
+                        &sc.pts,
+                        &sc.nrm,
+                        &sc.col,
+                        eye,
+                    );
                 } else {
                     super::marks::stroke(b, v, line, &am.tris, &sc.pts, &sc.nrm, &sc.col, eye);
                 }
@@ -1616,13 +1678,33 @@ pub fn arm(
                         mid,
                     };
                     let t1 = super::probe::t0();
-                    let n = if sc.split[k as usize] { SPLIT_N } else { fine_n };
+                    let n = if sc.split[k as usize] {
+                        SPLIT_N
+                    } else {
+                        fine_n
+                    };
                     let only = if sc.split[k as usize] { hidden } else { None };
                     if rast {
                         let mut r = sc.ras.borrow_mut();
-                        fine_tri(&mut |p, q, c| r.tri(p, q.map(depth_of), c, None), &fc, sc, am, k as usize, n, only);
+                        fine_tri(
+                            &mut |p, q, c| r.tri(p, q.map(depth_of), c, None),
+                            &fc,
+                            sc,
+                            am,
+                            k as usize,
+                            n,
+                            only,
+                        );
                     } else {
-                        fine_tri(&mut |p, _, c| b.shaded_tri(p, c), &fc, sc, am, k as usize, n, only);
+                        fine_tri(
+                            &mut |p, _, c| b.shaded_tri(p, c),
+                            &fc,
+                            sc,
+                            am,
+                            k as usize,
+                            n,
+                            only,
+                        );
                     }
                     super::probe::lap("fine_tri", t1);
                     continue;
@@ -1657,7 +1739,8 @@ pub fn arm(
                     }
                     let (ca, cb) = (corner(a), corner(bb));
                     if rast {
-                        let (za, zb) = (depth_of(sc.pts[a as usize]), depth_of(sc.pts[bb as usize]));
+                        let (za, zb) =
+                            (depth_of(sc.pts[a as usize]), depth_of(sc.pts[bb as usize]));
                         let mut r = sc.ras.borrow_mut();
                         r.tri([pa, pb, pb + out], [za, zb, zb], [ca, cb, cb], None);
                         r.tri([pa, pb + out, pa + out], [za, zb, za], [ca, cb, ca], None);
@@ -2139,15 +2222,25 @@ fn fine_tri(
             let (a, bb, c) = (row(i) + j, row(i) + j + 1, row(i + 1) + j);
             // (r42:arcus-hands: a split patch's small triangle only in its own pass.)
             let mine = |x: usize, y: usize, z: usize| {
-                only.is_none_or(|(want, hid)| hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want)
+                only.is_none_or(|(want, hid)| {
+                    hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want
+                })
             };
             if mine(a, bb, c) {
-                out([pts[a], pts[bb], pts[c]], [room[a], room[bb], room[c]], [cols[a], cols[bb], cols[c]]);
+                out(
+                    [pts[a], pts[bb], pts[c]],
+                    [room[a], room[bb], room[c]],
+                    [cols[a], cols[bb], cols[c]],
+                );
             }
             if j + 1 < n - i {
                 let d = row(i + 1) + j + 1;
                 if mine(bb, d, c) {
-                    out([pts[bb], pts[d], pts[c]], [room[bb], room[d], room[c]], [cols[bb], cols[d], cols[c]]);
+                    out(
+                        [pts[bb], pts[d], pts[c]],
+                        [room[bb], room[d], room[c]],
+                        [cols[bb], cols[d], cols[c]],
+                    );
                 }
             }
         }

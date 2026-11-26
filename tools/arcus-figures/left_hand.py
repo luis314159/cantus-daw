@@ -126,7 +126,7 @@ class Hand:
     # the forearm's own vertices (each at least 0.6 theirs, as the gate takes them), thinned
     # (the fingers kept densest), each skinned by its weights on the hand's, the fingers'
     # and the forearm's bones (linear blend, as the app's ``repose_arm``).
-    SKIN_MOST = {"finger": 700, "thumb": 160, "palm": 260, "fore": 160}
+    SKIN_MOST = {"finger": 420, "thumb": 100, "palm": 150, "fore": 70}
 
     def skin_setup(self):
         fig = self.fig
@@ -274,7 +274,13 @@ HOVER = ((12, 55), (35, 85), (3, 24))
 # finger a little away.
 # (r42:arcus-hands: the little finger reaching out toward the bridge, the hand's span
 # open as in crop-08 and crop-11; was 0.02 / 0.05.)
-SPREAD = np.array([0.0, 0.0, 0.05, 0.13])
+# (r42:arcus-hands, pass 2 — the coordinator on the 400 % tiles: "splayed wide apart, long
+# and spidery"; in crop-08 and crop-11 the fingers sit close, nearly touching at their bases:
+# the ring and the little finger brought back in, and every finger's spread held within
+# SPREAD_MAX of its own — a hovering index had swung 50° off the middle finger to stay
+# over its note.)
+SPREAD = np.array([0.0, 0.0, 0.0, 0.04])
+SPREAD_MAX = 8.0
 # Each finger's angles near the middle of its range (deg; the owner's review: curled to
 # the ranges' ends the fingers read short, a fist on the fingerboard).
 MID = (36.0, 72.0, 10.0)
@@ -324,7 +330,9 @@ WRIST_X = (-1.7, 2.0)
 WRIST_DEV = (0.0, 12.0)
 WRIST_DEV_MID = 8.0
 # How far a finger that does not play may hover from over its note (cm).
-HOVER_SLACK = (1.2, 1.4, 1.8, 2.6)
+# (r42:arcus-hands, pass 2: looser — a finger close to its neighbours rather than over its
+# own note; was 1.2, 1.4, 1.8, 2.6.)
+HOVER_SLACK = (2.2, 2.2, 2.4, 3.0)
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
 KNUCKLES = (-0.8, 0.8)
@@ -487,7 +495,8 @@ class Pose:
                 wk = 3.0 if f == p else 1.0
                 add(f"ang{f}{k}", wk * over(ang[f + 1, k], *rng[k]))
                 add(f"mid{f}{k}", 0.08 * (ang[f + 1, k] - MID[k]))
-            add(f"spread{f}", 4.0 * (x[6 + 4 * f + 1] - SPREAD[f]))
+            sp = x[6 + 4 * f + 1] - SPREAD[f]
+            add(f"spread{f}", 12.0 * sp + 2.0 * over(np.degrees(sp), -SPREAD_MAX, SPREAD_MAX))
             # The arch: the middle joint high over the fingerboard.
             ql = loc(P[f + 1, 1])
             add(f"arch{f}", 6.0 * max(0.0, nk.top(ql[1]) + ARCHES[f] * self.k - ql[2]))
@@ -695,7 +704,7 @@ def solve_fig(F, h, cache, verbose=False, save=None):
     R0, _ = start(h, rows_of(F, 0, 1)[0])
     rng = np.random.default_rng(42)
     got = {}
-    for string in range(4):
+    for string in STRINGS:
         for finger in (1, 0, 2, 3, 4):
             prev = None
             for row in rows_of(F, string, finger):
@@ -747,8 +756,13 @@ def solve_fig(F, h, cache, verbose=False, save=None):
                     print(key, string, finger, at, "cost %.2f" % cost, flush=True)
 
 
+# The strings a process solves (``--strings=0,1``: a figure's table in two processes).
+STRINGS = [0, 1, 2, 3]
 # A row's cost under which no further start is tried.
 GOOD = 30.0
+# Positions `fix` takes again whatever their cost (`--ats=5,7,9`), and its threshold
+# (`--worse=250`).
+FORCE_AT = []
 # Rows `fix` takes again whatever their cost (`--keys=0-3-1,0-3-3`: string-finger-position).
 FORCE = []
 
@@ -765,7 +779,7 @@ def fix_fig(F, h, cache, worse=60.0, verbose=False, tries=8, save=None):
     for row in F["rows"]:
         k = f'{key}-{row["string"]}-{row["finger"]}-{row["at"]:g}'
         c = cache[k]
-        if c["cost"] <= worse and not (FORCE and any(k.endswith(x) for x in FORCE)):
+        if c["cost"] <= worse and not (FORCE and any(k.endswith(x) for x in FORCE))                 and row["at"] not in FORCE_AT:
             continue
         i = ats.index(row["at"])
         near = [cache.get(f'{key}-{row["string"]}-{row["finger"]}-{a:g}') for a in
@@ -1098,23 +1112,35 @@ def main():
     only = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--only=")), None)
 
     def cache_of(key):
+        # (r42:arcus-hands: and the parts solved string by string, ``--strings=``.)
+        c = {}
+        import glob
+        for p in sorted(glob.glob(os.path.join(here, f"left_hand_cache-{key}-s*.json"))):
+            c.update(json.load(open(p)))
         p = os.path.join(here, f"left_hand_cache-{key}.json")
-        return json.load(open(p)) if os.path.exists(p) else {}
+        if os.path.exists(p):
+            c.update(json.load(open(p)))
+        return c
 
     keys = [f"{w}-{i}" for w in ("woman", "man") for i in ("violin", "viola")]
     if cmd == "solve":
         # One figure and instrument a process (run the four side by side), then ``pack``.
         hands = {}
+        strs = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--strings=")), None)
+        tag = ""
+        if strs:
+            STRINGS[:] = [int(x) for x in strs.split(",")]
+            tag = "-s" + "".join(str(x) for x in STRINGS)
         for F in dump["figs"]:
             key = f'{F["who"]}-{F["inst"]}'
             if only and key != only:
                 continue
             h = hands.setdefault(F["who"], Hand(F["who"]))
             cache = {}
-            path = os.path.join(here, f"left_hand_cache-{key}.json")
+            path = os.path.join(here, f"left_hand_cache-{key}{tag}.json")
             solve_fig(F, h, cache, verbose=True,
                       save=lambda c, p=path: json.dump(c, open(p, "w")))
-            json.dump(cache, open(os.path.join(here, f"left_hand_cache-{key}.json"), "w"))
+            json.dump(cache, open(path, "w"))
     elif cmd == "fix":
         keys_arg = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--keys=")), None)
         if keys_arg:
@@ -1126,7 +1152,12 @@ def main():
                 continue
             cache = cache_of(key)
             path = os.path.join(here, f"left_hand_cache-{key}.json")
-            fix_fig(F, Hand(F["who"]), cache, verbose=True, tries=3,
+            ats = next((a.split("=", 1)[1] for a in sys.argv if a.startswith("--ats=")), None)
+            if ats:
+                FORCE_AT.extend(float(a) for a in ats.split(","))
+            worse = float(next((a.split("=", 1)[1] for a in sys.argv
+                                if a.startswith("--worse=")), "60"))
+            fix_fig(F, Hand(F["who"]), cache, worse=worse, verbose=True, tries=3,
                     save=lambda c, p=path: json.dump(c, open(p, "w")))
             json.dump(cache, open(path, "w"))
     elif cmd == "pack":

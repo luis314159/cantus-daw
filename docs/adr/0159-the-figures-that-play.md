@@ -170,6 +170,48 @@ occluding capsules in its live painter.
       fill, curled fingers had shown notches, slivers, stair-steps and the board through
       them. Light keeps the vector path. Her hand is scaled 1.08 (`HAND_SCALE`: 0.095 of her
       height, a woman's ~0.105). The cost is not yet measured (the next session).
+    - **Pass 2** (amendment, 2026-11-25, r42:arcus-hands — the owner: "la mano izquierda de
+      la chica aún falla… los dedos muy raros… a veces choca con el mástil", and high up
+      "se solapa la mano y antebrazo con el cuerpo del violín"; then "aún se pueden mejorar
+      los dedos"):
+      - *The fingers are never thinned.* `thin.py` had collapsed each phalanx to one ring
+        of seven or eight points a joint (edges of 6 mm), so a bent finger folded there as
+        a paper hinge — the notches, saw-tooth shards, kinks and facets seen at 400 % were
+        that, not the neck. `build_figures.py::FINGER_KEEP` keeps MakeHuman's own rings
+        on every phalanx (about 1 200 more triangles a hand); the palm and the forearm
+        are still thinned. The fingers fuller (`FINGER_SEX` 1.0 / 1.03; a woman's PIP
+        breadth 1.5–1.8 cm), held together (`SPREAD`, `SPREAD_MAX` 8°: a hovering index had
+        swung 50° off the middle finger to stay over its note).
+      - *The instrument as drawn, kept out.* The table's dump carries the fingerboard's and
+        the neck's sections from `bowed_head::neck`'s own patches and the body (its
+        outline, the plates' arching, the ribs); `tools/arcus-figures/hand_solid.py`
+        samples their signed distance and the solver keeps some 750 skinned points of the
+        hand and the forearm out of the neck, the fingerboard, the strings and the body —
+        only the playing pad presses its string, by 1 mm at most (`PAD_PRESS`); the walls
+        start soft and harden (`settle`), so a thumb begun inside the neck slides out where
+        its rules want it. `left_hand.py pen` draws a row with what goes in red.
+      - *High up* (crop-11, ref-02, ref-12, ref-40): past the neck's heel the thumb lags
+        the fingers by half (`THUMB_LAG`), leaving the heel's curve for the fingerboard's G
+        side; the wrist rises beside the upper bout's rib (`WRIST_Z_HIGH`, `WRIST_X_HIGH`)
+        and may bend toward the back (`WRIST_FLEX_HIGH`: the forearm leans along the
+        instrument from an elbow the upper arm can reach); the palm turns round the body's
+        shoulder (`PALM_FREE_HIGH`); the knuckles rise over it (`HIGH_RISE`).
+      - *The rules on the thinner neck* (polish2's 01c32794e, 2.03 cm deep): the arches 1.3
+        neck thicknesses (`ARCHES`, was 3.5–3.8 cm), the playing PIP to 110°, the wrist
+        −1.7 … +2.0 cm across from the E edge as the photographs have it (was 0 … 3.5), the
+        index's base held to the E side (`CROOK_W` 15).
+      - *Creases* fainter, wider and neutral (a shadow toward the skin's own grey, never a
+        red line), fading as their joint bends (`BEND_FADE`, read on the finger's back
+        either side of the joint each frame); the skin's fine variation per vertex, the
+        extensor tendons as faint lighter ridges, the knuckles and the pads warmer, the
+        base knuckles' tops lighter; the nail plate's broad gloss and its sheen at a glance
+        (`NAIL_GLOSS`).
+      - *Gates*: `arcus_hand_table::the_left_hand_keeps_out_of_the_neck_and_the_body`
+        (every figure, instrument, string and eight positions to the 17th semitone: the
+        playing pad ≤ 1 mm in, anything else ≤ 0.3 mm — the skin's sampling), the hand's
+        line 68–92° to the fingerboard's edge in the picture up to the 9th semitone, and
+        `arcus_hand_shape`'s breadth measured on the middle phalanx's own skin past its
+        joint (her index and middle 1.5–1.8 cm, the little ≤ 1.5; his 1.6–2.1 / ≤ 1.7).
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

@@ -253,11 +253,12 @@ fn bounds(woman: bool) -> Bounds {
     // The breadth and the thickness are held to an adult's at most; the wrist is under the
     // cuff and not measured.)
     // (r42:arcus-hands: each finger's breadth past its middle joint held to an adult's —
-    // a slim woman's index, middle and ring at most 1.8 cm, her little finger 1.5; a man's
-    // 2.1 and 1.7 — the coordinator's ceilings, measured on the middle phalanx's own skin.)
+    // a slim woman's index and middle 1.5-1.8 cm, her little finger at most 1.5; a man's
+    // 1.6-2.1 and 1.7 — the coordinator's bounds, measured on the middle phalanx's own
+    // skin; the fingers had read thin and spidery at 1.3-1.4.)
     if woman {
         Bounds {
-            fingers: [(1.1, 1.8), (1.1, 1.8), (1.1, 1.8), (0.9, 1.5)],
+            fingers: [(1.5, 1.8), (1.5, 1.8), (1.3, 1.8), (0.95, 1.5)],
             breadth: (4.5, 8.4),
             thickness: (1.5, 3.2),
             lobe: LOBE,
@@ -265,7 +266,7 @@ fn bounds(woman: bool) -> Bounds {
         }
     } else {
         Bounds {
-            fingers: [(1.3, 2.1), (1.3, 2.1), (1.3, 2.1), (1.1, 1.7)],
+            fingers: [(1.6, 2.1), (1.6, 2.1), (1.5, 2.1), (1.05, 1.7)],
             breadth: (6.0, 9.4),
             thickness: (1.8, 3.6),
             lobe: LOBE,

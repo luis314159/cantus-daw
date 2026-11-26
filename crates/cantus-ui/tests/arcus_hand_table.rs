@@ -315,6 +315,9 @@ const BACK_WL_HIGH: f32 = 1.2;
 const FINGER_PALM: (f32, f32) = (0.95, 1.35);
 const BACK_TO_CAMERA: f32 = 0.2;
 const INDEX_OUT: (f32, f32) = (-0.5, 2.2);
+/// r42:arcus-hands — the hand's line to the fingerboard's edge in the picture (degrees): the
+/// photographs' front views 70-89 (`left_hand_refs.md`), a few degrees' give.
+const HAND_NECK: (f32, f32) = (68.0, 92.0);
 const KNUCKLES_UP: (f32, f32) = (-1.6, 2.6);
 
 /// The angle between two ways, degrees.
@@ -331,7 +334,7 @@ fn the_tables_hand_plays_as_a_violinists_does() {
     use cantus_ui::scene::figure::neck_hand;
     let size = egui::vec2(590.0, 430.0);
     let mut bad: Vec<String> = Vec::new();
-    let mut worst = [0.0f32; 7];
+    let mut worst = [0.0f32; 8];
     for (who, hold) in [(hu::Who::Woman, Hold::Woman), (hu::Who::Man, Hold::Man)] {
         for b in [Bowed::Violin, Bowed::Viola] {
             let h = Holder::of(hold);
@@ -556,6 +559,23 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                             "{tag}: the back of the hand {wl:.2} wide over long"
                         ));
                     }
+                    // r42:arcus-hands — the hand standing up from the neck in the picture as
+                    // the photographs' front views show it (left_hand_refs.md: the hand's
+                    // line, wrist to the base knuckles, 70-89° to the fingerboard's edge; the
+                    // table before this pass stood it at ~65°): up to the octave.
+                    if semis <= 9.0 {
+                        let line = cam.p(mid) - cam.p(lp.wrist);
+                        let edge = cam.p(la.a) - cam.p(la.a + la.bw * 5.0);
+                        let a = line.angle() - edge.angle();
+                        let a = a.sin().atan2(a.cos()).to_degrees().abs();
+                        let a = if a > 90.0 { 180.0 - a } else { a };
+                        worst[7] = worst[7].max(HAND_NECK.0 - a).max(a - HAND_NECK.1);
+                        if !(HAND_NECK.0..=HAND_NECK.1).contains(&a) {
+                            bad.push(format!(
+                                "{tag}: the hand {a:.0}° to the neck in the picture"
+                            ));
+                        }
+                    }
                     let wrist = deg(lp.wrist - lp.elbow, mid - lp.wrist);
                     worst[5] = worst[5].max(wrist);
                     if wrist > WRIST {
@@ -599,8 +619,8 @@ fn the_tables_hand_plays_as_a_violinists_does() {
         }
     }
     println!(
-        "worst: {:.0}° off upright, MCP ±{:.0}°, PIP ±{:.0}°, DIP ±{:.0}° from the ranges' middles; the back's least facing {:.2}, the wrist {:.0}°",
-        worst[0], worst[1], worst[2], worst[3], -worst[4], worst[5]
+        "worst: {:.0}° off upright, MCP ±{:.0}°, PIP ±{:.0}°, DIP ±{:.0}° from the ranges' middles; the back's least facing {:.2}, the wrist {:.0}°, the hand to the neck {:.0}° outside its range",
+        worst[0], worst[1], worst[2], worst[3], -worst[4], worst[5], worst[7]
     );
     assert!(
         bad.is_empty(),

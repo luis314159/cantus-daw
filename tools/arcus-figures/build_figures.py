@@ -206,10 +206,13 @@ FINGER_SLIM = 0.86
 THUMB_SLIM = 0.92
 # r42:arcus-polish — per finger (MakeHuman's numbering: 3 the middle, 4 the ring, 5 the
 # little), on top of FINGER_SLIM.
-FINGER_EXTRA = {3: 0.9, 4: 0.95, 5: 0.84}
+FINGER_EXTRA = {3: 1.06, 4: 1.0, 5: 0.92}
 # r42:arcus-hands — and per figure (her fingers measured 1.4-2.0 cm at the middle joints
 # through the app, a slim woman's 1.4-1.8; his 1.7-2.0, a man's 1.6-2.1).
-FINGER_SEX = {"female": 0.94, "male": 0.97}
+# (r42:arcus-hands, pass 2 — the coordinator: "look fuller"; a woman's PIP breadth ~1.5-1.8
+# cm at the index and the middle: 1.0 / 1.03, the middle finger 1.06 and the little 0.92 —
+# were 0.94 / 0.97, 0.9 and 0.84, the fingers measured 1.3-1.4 cm.)
+FINGER_SEX = {"female": 1.0, "male": 1.03}
 
 
 # r42:arcus-hands — each finger's three segments stretched along their own bones (index,
