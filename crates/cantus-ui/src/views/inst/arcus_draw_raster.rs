@@ -11,6 +11,7 @@
 //! the picture is drawn as one texture. The buffers are kept (a thread's scratch); at rest,
 //! when nothing moved, the last picture is drawn again without filling or uploading.
 
+use crate::scene::geo::V3;
 use egui::{Color32, Pos2, Rect};
 
 /// The samples over one arm's rectangle (physical pixels from `x0`, `y0`).
@@ -58,6 +59,32 @@ impl Raster {
     /// it where it is nearer than what the sample holds (`blend`: laid over instead, where
     /// it is no deeper than the surface there by `slack` — a crease on its skin).
     pub fn tri(&mut self, p: [Pos2; 3], z: [f32; 3], c: [Color32; 3], blend: Option<f32>) {
+        self.fill(p, z, c, blend, None);
+    }
+
+    /// r42:arcus-hands, pass 3 — [`tri`](Self::tri) where only the samples whose place in
+    /// the room (`room`: the corners', taken across the triangle as on screen) `keep` holds
+    /// are filled: a hand patch across the neck's edge cut along the edge to the sample, not
+    /// along its small triangles (the stair-stepped chips at the hand's edge at 400 %).
+    pub fn tri_kept(
+        &mut self,
+        p: [Pos2; 3],
+        z: [f32; 3],
+        c: [Color32; 3],
+        room: [V3; 3],
+        keep: &dyn Fn(V3) -> bool,
+    ) {
+        self.fill(p, z, c, None, Some((room, keep)));
+    }
+
+    fn fill(
+        &mut self,
+        p: [Pos2; 3],
+        z: [f32; 3],
+        c: [Color32; 3],
+        blend: Option<f32>,
+        kept: Option<([V3; 3], &dyn Fn(V3) -> bool)>,
+    ) {
         let ss = self.ss as f32;
         let q = p.map(|p| {
             (
@@ -70,10 +97,32 @@ impl Raster {
             return;
         }
         let (sw, sh) = (self.w * self.ss, self.h * self.ss);
-        let minx = q.iter().map(|v| v.0).fold(f32::MAX, f32::min).floor().max(0.0) as usize;
-        let maxx = (q.iter().map(|v| v.0).fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(sw);
-        let miny = q.iter().map(|v| v.1).fold(f32::MAX, f32::min).floor().max(0.0) as usize;
-        let maxy = (q.iter().map(|v| v.1).fold(f32::MIN, f32::max).ceil().max(0.0) as usize).min(sh);
+        let minx = q
+            .iter()
+            .map(|v| v.0)
+            .fold(f32::MAX, f32::min)
+            .floor()
+            .max(0.0) as usize;
+        let maxx = (q
+            .iter()
+            .map(|v| v.0)
+            .fold(f32::MIN, f32::max)
+            .ceil()
+            .max(0.0) as usize)
+            .min(sw);
+        let miny = q
+            .iter()
+            .map(|v| v.1)
+            .fold(f32::MAX, f32::min)
+            .floor()
+            .max(0.0) as usize;
+        let maxy = (q
+            .iter()
+            .map(|v| v.1)
+            .fold(f32::MIN, f32::max)
+            .ceil()
+            .max(0.0) as usize)
+            .min(sh);
         if minx >= maxx || miny >= maxy {
             return;
         }
@@ -88,6 +137,11 @@ impl Raster {
                 let w2 = 1.0 - w0 - w1;
                 if w0 < -1e-5 || w1 < -1e-5 || w2 < -1e-5 {
                     continue;
+                }
+                if let Some((room, keep)) = &kept {
+                    if !keep(room[0] * w0 + room[1] * w1 + room[2] * w2) {
+                        continue;
+                    }
                 }
                 let d = z[0] * w0 + z[1] * w1 + z[2] * w2;
                 let i = y * sw + x;
@@ -149,12 +203,21 @@ thread_local! {
 
 /// Whether slot `slot` holds no picture for `ctx` (none yet, or another context's).
 pub fn stale(ctx: &egui::Context, slot: usize) -> bool {
-    TEX.with(|t| t.borrow()[slot.min(3)].as_ref().is_none_or(|(c, _)| c != ctx))
+    TEX.with(|t| {
+        t.borrow()[slot.min(3)]
+            .as_ref()
+            .is_none_or(|(c, _)| c != ctx)
+    })
 }
 
 /// `r`'s picture uploaded into slot `slot`'s texture (made the first time), or the slot's
 /// last one when `fresh` is false; its id.
-pub fn upload(ctx: &egui::Context, slot: usize, r: &mut Raster, fresh: bool) -> Option<egui::TextureId> {
+pub fn upload(
+    ctx: &egui::Context,
+    slot: usize,
+    r: &mut Raster,
+    fresh: bool,
+) -> Option<egui::TextureId> {
     TEX.with(|t| {
         let mut t = t.borrow_mut();
         let s = &mut t[slot.min(3)];
@@ -166,7 +229,11 @@ pub fn upload(ctx: &egui::Context, slot: usize, r: &mut Raster, fresh: bool) -> 
                 _ => {
                     *s = Some((
                         ctx.clone(),
-                        ctx.load_texture(format!("arcus-arm-{slot}"), img, egui::TextureOptions::NEAREST),
+                        ctx.load_texture(
+                            format!("arcus-arm-{slot}"),
+                            img,
+                            egui::TextureOptions::NEAREST,
+                        ),
                     ))
                 }
             }
@@ -185,7 +252,11 @@ mod tests {
         r.begin(Rect::from_min_max(Pos2::ZERO, Pos2::new(4.0, 4.0)), 1.0, 2);
         let red = Color32::from_rgb(255, 0, 0);
         let blue = Color32::from_rgb(0, 0, 255);
-        let p = [Pos2::new(-1.0, -1.0), Pos2::new(9.0, -1.0), Pos2::new(-1.0, 9.0)];
+        let p = [
+            Pos2::new(-1.0, -1.0),
+            Pos2::new(9.0, -1.0),
+            Pos2::new(-1.0, 9.0),
+        ];
         r.tri(p, [2.0; 3], [red; 3], None);
         r.tri(p, [1.0; 3], [blue; 3], None);
         r.tri(p, [3.0; 3], [red; 3], None);
@@ -194,7 +265,11 @@ mod tests {
         // A pixel the diagonal crosses is part covered.
         let mut r = Raster::default();
         r.begin(Rect::from_min_max(Pos2::ZERO, Pos2::new(4.0, 4.0)), 1.0, 2);
-        let p = [Pos2::new(0.0, 0.0), Pos2::new(4.0, 0.0), Pos2::new(0.0, 4.0)];
+        let p = [
+            Pos2::new(0.0, 0.0),
+            Pos2::new(4.0, 0.0),
+            Pos2::new(0.0, 4.0),
+        ];
         r.tri(p, [1.0; 3], [red; 3], None);
         let edge = r.resolve().pixels[2 * 4 + 1];
         assert!(edge.a() > 0 && edge.a() < 255, "{edge:?}");

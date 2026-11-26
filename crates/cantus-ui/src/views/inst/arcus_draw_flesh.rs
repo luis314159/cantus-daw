@@ -75,6 +75,9 @@ struct ArmMesh {
     /// r42:arcus-polish2 — the sleeve's vertices (only a sleeve's cloth touches them): they
     /// follow the forearm, never the hand.
     sleeve: Vec<bool>,
+    /// r42:arcus-hands, pass 3 — each vertex's share of the hand's and the fingers' bones: the
+    /// hands' own skin (`skin`) over it, the arm's elsewhere, blended across the wrist.
+    vhand: Vec<f32>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -234,6 +237,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         marks: Vec::new(),
         tri_edges,
         n_edges,
+        vhand: hand_share(fig, s, &verts),
         vtex,
         live,
         sleeve,
@@ -387,6 +391,7 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         marks,
         tri_edges,
         n_edges,
+        vhand: hand_share(fig, s, &verts),
         vtex,
         live,
         sleeve,
@@ -891,7 +896,7 @@ struct LutKey {
 struct Luts {
     key: Option<LutKey>,
     /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1.
-    maps: [Vec<[f32; 3]>; 8],
+    maps: [Vec<[f32; 3]>; 9],
 }
 
 thread_local! {
@@ -946,9 +951,13 @@ fn lut_colour(
     mid: V3,
     n: V3,
     ao: f32,
+    hand: f32,
 ) -> Color32 {
-    with_lut(sh, side, tone, mid, |l| l.colour(st, detail, n, ao))
+    with_lut(sh, side, tone, mid, |l| l.colour(st, detail, n, ao, hand))
 }
+
+/// r42:arcus-hands, pass 3 — the hands' skin's map (`skin`): the ninth.
+const HAND_SLOT: usize = 8;
 
 /// r42:arcus-polish2 — the kept maps borrowed once for many corners (a frame's few thousand
 /// look-ups each took the thread's table, checked its key and let it go: a fifth of the
@@ -989,19 +998,52 @@ fn with_lut<R>(sh: &Shading, side: usize, tone: u8, mid: V3, f: impl FnOnce(&mut
 }
 
 impl LutAt<'_> {
-    /// A corner's colour: its stuff by its normal from the map, its detail and occlusion.
-    fn colour(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32) -> Color32 {
-        let slot = stuff_slot(st);
+    /// A corner's colour: its stuff by its normal from the map, its detail and occlusion
+    /// (`hand`: its share of the hand, whose skin has its own map — r42:arcus-hands, pass 3).
+    fn colour(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32, hand: f32) -> Color32 {
+        let skin = matches!(st, Stuff::Skin | Stuff::Lips);
+        let mut c = [0.0f32; 3];
+        let hand = if skin { hand.clamp(0.0, 1.0) } else { 0.0 };
+        for (slot, share) in [(stuff_slot(st), 1.0 - hand), (HAND_SLOT, hand)] {
+            if share <= 0.0 {
+                continue;
+            }
+            let x = self.look_up(st, slot, n);
+            for (ck, xk) in c.iter_mut().zip(x) {
+                *ck += xk * share;
+            }
+        }
+        // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
+        // occlusion.
+        if matches!(st, Stuff::Skin | Stuff::Lips) {
+            let (lum, red) = (detail[0].min(1.1), detail[1]);
+            let f = super::skin::blood(red, hand); // r42:arcus-hands, pass 3
+            for (ck, fk) in c.iter_mut().zip(f) {
+                *ck *= lum * fk;
+            }
+        }
+        let k = 0.38 + 0.62 * ao;
+        let b = |x: f32| ((x * k).clamp(0.0, 1.0) * 255.0).round() as u8;
+        Color32::from_rgb(b(c[0]), b(c[1]), b(c[2]))
+    }
+
+    /// Map `slot` of stuff `st` at normal `n` (made the first time: the hands' map and the
+    /// nails' lit as the hands' own skin, `skin::as_hand`).
+    fn look_up(&mut self, st: Stuff, slot: usize, n: V3) -> [f32; 3] {
         if self.l.maps[slot].is_empty() {
             let plain = [1.0, 0.0];
             let mut map = Vec::with_capacity(LUT * LUT);
-            for j in 0..LUT {
-                for i in 0..LUT {
-                    let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
-                    let c = colour(self.sh, st, self.tone, plain, self.mid, d, 1.0);
-                    map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+            let hand = slot == HAND_SLOT || st == Stuff::Nail;
+            super::skin::as_hand(hand, || {
+                for j in 0..LUT {
+                    for i in 0..LUT {
+                        let d =
+                            oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
+                        let c = colour(self.sh, st, self.tone, plain, self.mid, d, 1.0);
+                        map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+                    }
                 }
-            }
+            });
             self.l.maps[slot] = map;
         }
         let map = &self.l.maps[slot];
@@ -1018,18 +1060,7 @@ impl LutAt<'_> {
             let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
             *ck = a * (1.0 - ty) + b * ty;
         }
-        // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
-        // occlusion.
-        if matches!(st, Stuff::Skin | Stuff::Lips) {
-            let (lum, red) = (detail[0].min(1.1), detail[1]);
-            let f = super::skin::blood(red); // r42:arcus-hands, pass 3
-            for (ck, fk) in c.iter_mut().zip(f) {
-                *ck *= lum * fk;
-            }
-        }
-        let k = 0.38 + 0.62 * ao;
-        let b = |x: f32| ((x * k).clamp(0.0, 1.0) * 255.0).round() as u8;
-        Color32::from_rgb(b(c[0]), b(c[1]), b(c[2]))
+        c
     }
 }
 
@@ -1226,7 +1257,11 @@ fn concert_colour(
         Stuff::Skin | Stuff::Lips | Stuff::Nail => {
             let a = lin(rgbf(hp::REAL_SKINS[tone.min(4) as usize]));
             // (r42:arcus-hands, pass 3: the hands' own gains — `skin::gain`.)
-            let hg = super::skin::gain();
+            let hg = if super::skin::hand_now() {
+                super::skin::gain()
+            } else {
+                SKIN_WARM
+            };
             let a = [0, 1, 2].map(|i| a[i] * 0.48 * hg[i] * c.skin_gain[i]);
             let (lum, red) = (skin_detail[0].min(1.25), skin_detail[1]);
             [
@@ -1271,7 +1306,7 @@ fn concert_colour(
         };
         let sp = n.dot(h).max(0.0).powi(pw) * k * ao * (ndl > 0.0) as u8 as f32;
         // r42:arcus-hands, pass 3 — the skin's soft sheen (`skin::sheen`).
-        let (lobe, glance) = if st == Stuff::Nail {
+        let (lobe, glance) = if st == Stuff::Nail || !super::skin::hand_now() {
             (0.0, 0.0)
         } else {
             super::skin::sheen(n, e, l, ao)
@@ -1627,7 +1662,7 @@ pub fn arm(
                     // drawn from the turned-away normal in deep shade, the cuff's inside read
                     // as a black ring at her bow wrist once the sleeve stopped turning with
                     // the hand.)
-                    let c = lut.colour(st, [1.0, 0.0], sc.nrm[a], 0.6);
+                    let c = lut.colour(st, [1.0, 0.0], sc.nrm[a], 0.6, 0.0);
                     cc = [c; 3].map(|x| {
                         let k = INSIDE_SHADE;
                         Color32::from_rgb(
@@ -1649,7 +1684,7 @@ pub fn arm(
                             if st == Stuff::Skin {
                                 d[0] *= am.vtex[i];
                             }
-                            let mut cl = lut.colour(st, d, sc.nrm[i], sc.ao[i]);
+                            let mut cl = lut.colour(st, d, sc.nrm[i], sc.ao[i], am.vhand[i]);
                             if am.alpha[i] < 1.0 {
                                 cl = cl.gamma_multiply(am.alpha[i]);
                             }
@@ -1740,10 +1775,14 @@ pub fn arm(
         // screen rectangle (`raster`); Light paints its triangles in depth order.
         let slot = s * 2 + matches!(hidden, Some((false, _))) as usize;
         let rast = !light;
+        // (r42:arcus-hands, pass 3 — the samples over the hand's own rectangle only: the
+        // sleeve and the forearm outside it are painted in depth order as Light paints them,
+        // a triangle across the rectangle's edge both ways — the raster had covered the whole
+        // arm, the frame budget's first cost.)
         let ras_rect = if rast {
             let mut r = egui::Rect::NOTHING;
             for (k, t) in am.tris.iter().enumerate() {
-                if sc.front[k] {
+                if sc.front[k] && am.fine[k] {
                     for &i in t {
                         r.extend_with(sc.sp[i as usize]);
                     }
@@ -1755,25 +1794,25 @@ pub fn arm(
         };
         let fresh = rast
             && (sc.ras_key[slot] != Some((key, ras_rect)) || super::raster::stale(b.ctx(), slot));
-        if rast && ras_rect.is_positive() && !fresh {
-            // At rest: the last picture again (nothing filled, nothing uploaded).
-            let rect = sc.ras.borrow().rect();
-            let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), false);
-            if let Some(tex) = tex {
-                b.foreign(tex, rect);
-            }
-            return;
-        }
-        if rast {
+        // (At rest the last picture is drawn again, nothing filled or uploaded; what lies
+        // outside it is painted every frame.)
+        let fill = rast && fresh && ras_rect.is_positive();
+        if fill {
             sc.ras_key[slot] = Some((key, ras_rect));
-            let ss = if b.ppp() >= 1.5 { 2 } else { 3 };
+            let ss = ras_samples(b.ppp());
             sc.ras.borrow_mut().begin(ras_rect, b.ppp(), ss);
         }
+        let tri_box = |p: &[Pos2]| egui::Rect::from_points(p);
+        let in_ras = |bx: egui::Rect| rast && ras_rect.is_positive() && ras_rect.intersects(bx);
+        let out_ras = |bx: egui::Rect| !rast || !ras_rect.contains_rect(bx);
         let depth_of = |q: V3| v.cam.depth(q);
         for &(_, k) in &sc.order {
             if k >= marks_at {
                 let line = &am.marks[(k - marks_at) as usize];
                 if rast {
+                    if !fill {
+                        continue;
+                    }
                     super::marks::stroke_into(
                         &mut sc.ras.borrow_mut(),
                         v,
@@ -1806,15 +1845,25 @@ pub fn arm(
                     };
                     let only = if sc.split[k as usize] { hidden } else { None };
                     if rast {
+                        if !fill {
+                            continue;
+                        }
                         let mut r = sc.ras.borrow_mut();
+                        // (r42:arcus-hands, pass 3: a split patch cut sample by sample.)
                         fine_tri(
-                            &mut |p, q, c| r.tri(p, q.map(depth_of), c, None),
+                            &mut |p, q, c| match only {
+                                Some((want, hid)) => {
+                                    r.tri_kept(p, q.map(depth_of), c, q, &|x| hid(x) == want)
+                                }
+                                None => r.tri(p, q.map(depth_of), c, None),
+                            },
                             &fc,
                             sc,
                             am,
                             k as usize,
                             n,
                             only,
+                            true,
                         );
                     } else {
                         fine_tri(
@@ -1825,16 +1874,19 @@ pub fn arm(
                             k as usize,
                             n,
                             only,
+                            false,
                         );
                     }
                     continue;
                 }
                 let t = am.tris[k as usize];
                 let p = t.map(|i| sc.sp[i as usize]);
-                if rast {
+                let bx = tri_box(&p);
+                if fill && in_ras(bx) {
                     let z = t.map(|i| depth_of(sc.pts[i as usize]));
                     sc.ras.borrow_mut().tri(p, z, sc.col[k as usize], None);
-                } else {
+                }
+                if out_ras(bx) {
                     b.shaded_tri(p, sc.col[k as usize]);
                 }
             } else {
@@ -1858,20 +1910,23 @@ pub fn arm(
                         out = -out;
                     }
                     let (ca, cb) = (corner(a), corner(bb));
-                    if rast {
+                    let bx = tri_box(&[pa, pb, pb + out, pa + out]);
+                    if fill && in_ras(bx) {
                         let (za, zb) =
                             (depth_of(sc.pts[a as usize]), depth_of(sc.pts[bb as usize]));
                         let mut r = sc.ras.borrow_mut();
                         r.tri([pa, pb, pb + out], [za, zb, zb], [ca, cb, cb], None);
                         r.tri([pa, pb + out, pa + out], [za, zb, za], [ca, cb, ca], None);
-                    } else {
+                    }
+                    if out_ras(bx) {
                         b.shaded_tri([pa, pb, pb + out], [ca, cb, cb]);
                         b.shaded_tri([pa, pb + out, pa + out], [ca, cb, ca]);
                     }
                     continue;
                 }
-                // (r42:arcus-hands: High's samples cover the outline themselves.)
-                if rast {
+                // (r42:arcus-hands: High's samples cover the outline themselves — inside the
+                // hand's rectangle.)
+                if !out_ras(tri_box(&[sc.sp[a as usize], sc.sp[bb as usize]]).expand(2.0)) {
                     continue;
                 }
                 let both = t0 != u32::MAX
@@ -1968,12 +2023,29 @@ pub fn arm(
         }
         if rast && ras_rect.is_positive() {
             let rect = sc.ras.borrow().rect();
-            let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), true);
+            let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), fresh);
             if let Some(tex) = tex {
                 b.foreign(tex, rect);
             }
         }
     });
+}
+
+/// r42:arcus-hands, pass 3 — each vertex's share of arm `s`'s hand and finger bones (0 the
+/// forearm's, 1 the hand's), eased over the wrist.
+fn hand_share(fig: &Figure, s: usize, verts: &[u32]) -> Vec<f32> {
+    let o = hu::side(s);
+    verts
+        .iter()
+        .map(|&g| {
+            let w: f32 = fig.bw[g as usize]
+                .iter()
+                .filter(|(b, _)| (o + hu::HAND..=o + hu::finger(4, 2)).contains(&(*b as usize)))
+                .map(|x| x.1)
+                .sum();
+            smooth01(w.clamp(0.0, 1.0))
+        })
+        .collect()
 }
 
 /// r42:arcus-hands — each vertex's skin texture (`cards::skin_detail` at its place) and
@@ -2158,6 +2230,16 @@ const FINE_MAX: usize = 2;
 /// r42:arcus-hands — the cuts a side of a hand patch split between the passes (its small
 /// triangles follow the neck's edge to about a pixel).
 const SPLIT_N: usize = 4;
+/// r42:arcus-hands, pass 3 — the depth raster's samples a pixel side at `ppp` pixels a
+/// point: three at 100 %, two from 150 % (the bake's).
+fn ras_samples(ppp: f32) -> usize {
+    if ppp >= 1.5 {
+        2
+    } else {
+        3
+    }
+}
+
 /// r42:arcus-hands — the hand's own occlusion: its gain and the most it darkens.
 const AO_K: f32 = 0.45;
 const AO_MOST: f32 = 0.4;
@@ -2190,6 +2272,7 @@ fn lerp_c(a: Color32, b: Color32, t: f32) -> Color32 {
 /// from its own normal with the skin's own texture at its place (MakeHuman's knuckle
 /// creases, the lines of the fingers' joints, the pores; as the bake does the face), the
 /// corners' detail and occlusion between.
+#[allow(clippy::too_many_arguments)]
 fn fine_tri(
     out: &mut dyn FnMut([Pos2; 3], [V3; 3], [Color32; 3]),
     fc: &FineCtx,
@@ -2198,6 +2281,7 @@ fn fine_tri(
     k: usize,
     n: usize,
     only: Option<(bool, &dyn Fn(V3) -> bool)>,
+    per_sample: bool,
 ) {
     let t = am.tris[k].map(|i| i as usize);
     let st = am.stuff[k];
@@ -2219,6 +2303,7 @@ fn fine_tri(
     });
     let textured = st == Stuff::Skin && uv.iter().all(|u| u[0] >= 0.0);
     let det = t.map(|i| am.vdet[i]);
+    let hand = t.map(|i| am.vhand[i]);
     // r42:arcus-polish — the back of the hand's forms (the owner: "a puffy, featureless
     // dome… no tendon, metacarpal or knuckle definition"), per point from where it lies at
     // rest.
@@ -2323,7 +2408,8 @@ fn fine_tri(
             let a = ao[0] * w0 + ao[1] * w1 + ao[2] * w2;
             room[at] = q;
             pts[at] = fc.v.p(q);
-            cols[at] = lut_colour(fc.sh, fc.side, st, fc.tone, d, fc.mid, nq, a);
+            let hn = hand[0] * w0 + hand[1] * w1 + hand[2] * w2;
+            cols[at] = lut_colour(fc.sh, fc.side, st, fc.tone, d, fc.mid, nq, a, hn);
             if let Some((corner, ix)) = shared {
                 let slot = if corner {
                     cache.v.get_mut(ix)
@@ -2341,10 +2427,12 @@ fn fine_tri(
         for j in 0..(n - i) {
             let (a, bb, c) = (row(i) + j, row(i) + j + 1, row(i + 1) + j);
             // (r42:arcus-hands: a split patch's small triangle only in its own pass.)
+            // (r42:arcus-hands, pass 3: or each sample's, `out`'s own test.)
             let mine = |x: usize, y: usize, z: usize| {
-                only.is_none_or(|(want, hid)| {
-                    hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want
-                })
+                per_sample
+                    || only.is_none_or(|(want, hid)| {
+                        hid((room[x] + room[y] + room[z]) * (1.0 / 3.0)) == want
+                    })
             };
             if mine(a, bb, c) {
                 out(
@@ -2632,6 +2720,7 @@ fn trunk_shadow(
         [1.0, 0.0],
         mid,
         v3(0.0, -1.0, 0.0),
+        0.0,
         0.0,
     );
     let shoulder = at(hu::side(s) + hu::UPPER1);

@@ -231,6 +231,57 @@ occluding capsules in its live painter.
         on the violinists +7.9 / +10.4 ms at 100 %, +20.7 / +29.2 ms at 200 % — the depth
         raster (first measured here) and the unthinned fingers; over the 4 ms the owner
         allows for the look: open, the handoff's first item. Light +0.8–1.2 ms.
+    - **Pass 3** (amendment, 2026-11-26, r42:arcus-hands — the owner across the passes:
+      "alienígenas", "con artritis", "tosca/gorda"; the coordinator at 400 %: "rubber-glove
+      sausages" — one cross-section from base to tip, blunt tips, no joint definition, no
+      pad; the skin "flat orange-yellow"):
+      - *The joints turn within millimetres.* MakeHuman's weights blend each finger's PIP
+        and DIP over some 2 cm — nearly the whole middle phalanx —, so a bent finger bowed
+        like a tube. `build_figures.py::sharpen_joints` splits the phalanges' share of each
+        vertex again by where it lies along the finger: within `JOINT_BLEND` (0.32 cm on her
+        hand, by the hand's length on his) of the joint, one phalanx's elsewhere. The
+        knuckle reads as a corner, the phalanges as straight segments (crop-02, crop-11).
+      - *The fingers' form along their length* (`finger_form`): each finger's skin, ring by
+        ring, scaled about its bones to a profile — the breadth at the PIP `FINGER_W` (as
+        the app draws them: her 1.62 / 1.66 / 1.55 / 1.36 cm index … little, his 1.92 /
+        1.96 / 1.85 / 1.60; Greiner 1991's means 1.8 / 2.1 at the PIP and 1.55 / 1.8 at the
+        DIP, a woman's / a man's, hers a slim violinist's under it), the first phalanx's
+        shaft 0.9 of it, the middle phalanx's waist and the DIP 0.89, the nail 0.8, the tip
+        rounding off in plan as a half circle (`FORM_B`, `FORM_TIP_B`); the pads full
+        mid-phalanx and drawn in at the creases (`FORM_PAD`), the back a little flatter
+        along the shafts (`FORM_BACK`), and the last phalanx's pulp to its own depth (0.54 →
+        0.41 of the PIP's breadth under the nail, rounding to the end; MakeHuman's ran
+        straight from the DIP to the nail's edge: a wedge, the blunt tips).
+        `finger_profile.py` measures them as the app loads them.
+      - *The hands' own skin* (`views/inst/arcus_draw_skin.rs`, apart from the arms' and the
+        face's shading so the polish's work and this merge cleanly): measured on the
+        photographs the back and the fingers' hue is 11–24°, green over red 0.69–0.80 and
+        blue over red 0.48–0.68; the hands were 26–28°, 0.71 and 0.47 under the concert
+        light (the arms' `SKIN_WARM` on the concert's own warm skin gain). Their own gains
+        (1.05, 0.95, 1.02) bring them to 23–25°, 0.69–0.73 and 0.51–0.56; a soft sheen (a
+        broad lobe on the knuckles and the back, a glance as the skin turns away); the
+        redness detail tints toward pink (blood: the green falls most) and the tips and the
+        knuckles are redder (0.5, 0.5); the dorsal creases keep 0.45 of their strength at a
+        joint's full bend (they had faded to nothing past 60°, but crop-02's and crop-08's
+        bent middle joints show their folds round the stretched knuckle).
+        `CANTUS_HAND_TUNE` overrides these numbers in `shoot_arcus` while designing.
+      - *The table*: free fingertips within 1.7 cm of the fingerboard's top (`HOVER_UP`; the
+        table's hovered 2–3.4 cm: the raised index of the first position); high up the
+        knuckles rise 0.6 cm at most (`HIGH_RISE`, was 1.4): the photographs' high
+        positions put the knuckles lower against the neck, never higher (ref-02 −1.5 neck
+        thicknesses, crop-02 below the fingerboard's edge) — the rise near the body is the
+        wrist's (`WRIST_Z_HIGH`). The gate's `KNUCKLES_UP` is the photographs' whole span:
+        −1.6 … 3.4 cm (`left_hand_refs.md`: −1.5 to +1.8 neck thicknesses, −3.0 … +3.7 cm on
+        the 2.03 cm neck; it was 2.6, under the photographs' own top, and the hand clearing
+        the body's shoulder high up stood its knuckles 2.6–3.2 cm over the board). The hand's
+        line stands up harder (`HAND_UP` 84°, weight 1.5: the room's angle the solver holds
+        read 62–68° in the picture on the A and E strings, the gate's 68–92°); the playing
+        tip's lean and the wrist's bend weigh more (`UPRIGHT_W` 600, `WRIST_TOTAL_W` 6).
+        `left_hand.py --dense` and `hand_check.py --dense` keep and check every skin point,
+        as the gate does (`hand_check.py`'s bent wrist from the 9th semitone, as the gate's).
+      - *Cost*: High's depth raster covers the hand's own rectangle only; the sleeve and
+        the forearm outside it are painted in depth order as Light's are (a triangle across
+        the rectangle's edge both ways).
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

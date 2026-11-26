@@ -471,13 +471,13 @@ FORM_TIP_B = [(0.0, 0.86), (0.2, 0.83), (0.45, 0.8), (0.7, 0.74), (0.85, 0.64),
 # at the joints' creases; the back (dorsal) a little flatter along the shafts, the middle
 # knuckle a touch higher; under the nail flat, the pulp full and round to the end (MakeHuman's
 # tip ran its pad straight down to the nail's edge: a wedge, the coordinator's blunt tips).
-FORM_PAD = [(0.35, 1.0), (0.6, 1.07), (0.98, 0.9), (1.12, 0.93), (1.5, 1.09), (1.95, 0.9)]
+FORM_PAD = [(0.35, 1.0), (0.6, 1.07), (0.98, 0.92), (1.12, 0.95), (1.5, 1.07), (1.95, 0.95)]
 # The last phalanx's pad by its depth below the bone (a share of the PIP's breadth): her
-# index's pulp 0.84-0.88 cm below the bone to the nail's middle, 0.66 at its free edge's root,
+# index's pulp 0.78-0.81 cm below the bone to the nail's middle, 0.6 at its free edge's root,
 # rounding off to the end (the pulp's arc in crop-08's raised index; was a straight slope
 # from 0.92 at the DIP to 0.33 at the end).
-FORM_TIP_PAD = [(0.0, 0.54), (0.3, 0.52), (0.55, 0.48), (0.75, 0.41), (0.88, 0.31),
-                (0.96, 0.19), (1.0, 0.08)]
+FORM_TIP_PAD = [(0.0, 0.5), (0.3, 0.48), (0.55, 0.44), (0.75, 0.37), (0.88, 0.28),
+                (0.96, 0.17), (1.0, 0.07)]
 FORM_BACK = [(0.35, 1.0), (0.65, 0.97), (0.97, 1.01), (1.15, 1.0), (1.5, 0.96), (1.95, 1.0)]
 FORM_TIP_BACK = [(0.0, 1.0), (0.3, 0.96), (0.8, 0.95), (1.0, 0.92)]
 # Over which part of the first phalanx the form takes over from the web's own (u).

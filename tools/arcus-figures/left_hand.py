@@ -323,7 +323,8 @@ ARCHES = (2.7, 2.9, 2.8, 2.3)
 # bend).
 UPRIGHT_COS = 0.883
 # (r42:arcus-hands, pass 2: 300 — at 150 the high rows let their tips lean 32-40 deg.)
-UPRIGHT_W = 300.0
+# (r42:arcus-hands, pass 3: 600 — at 300 a third of the rows leant 30-34, the gate 30.)
+UPRIGHT_W = 600.0
 # Each first phalanx rising from its knuckle: within this of the normal (cos 50 deg; was 40 — the first phalanx leans over the board toward the string, as in
 # crop-08 and crop-11, so the bend is spread over three joints, not folded at two).
 RISE_COS = 0.64
@@ -338,6 +339,8 @@ WRIST_DEV = (0.0, 12.0)
 WRIST_DEV_MID = 8.0
 # The wrist's whole bend at the most (deg), low and high up (the gates: 16 low).
 WRIST_TOTAL = (14.0, 28.0)
+# (r42:arcus-hands, pass 3: its weight — at 2 the high rows bent 31-34, the gate 30.)
+WRIST_TOTAL_W = 6.0
 # How far a finger that does not play may hover from over its note (cm).
 # (r42:arcus-hands, pass 2: looser — a finger close to its neighbours rather than over its
 # own note; was 1.2, 1.4, 1.8, 2.6.)
@@ -375,8 +378,11 @@ UPPER_BELOW = (38.0, 60.0)
 # neck's root, cm) and the clearance the hand and forearm keep over its top plate.
 BOUT = (8.5, 12.0)
 CLEAR = 0.4
-HAND_UP = 78.0
-HAND_UP_W = 0.6
+# (r42:arcus-hands, pass 3: 84 and 1.5 — at 78 and 0.6 the hand stood 62-68 deg to the neck in
+# the picture on the A and E strings low down, the gate 68-92: the rule is the room's angle,
+# the gate the picture's.)
+HAND_UP = 84.0
+HAND_UP_W = 1.5
 FORE_UP = 64.0
 # r42:arcus-hands — the skin kept out of the instrument as the app draws it
 # (``hand_solid.Solid``: the neck's rounded back, the fingerboard, the strings, the body):
@@ -401,7 +407,12 @@ THUMB_LAG = 0.5
 # High up: how much the knuckles and the crook rise (cm), how much freer the palm's way
 # (deg), how much further out from the E edge the wrist may go (cm: beside the upper bout's
 # rib, ref-40).
-HIGH_RISE = 1.4
+# (r42:arcus-hands, pass 3: 0.6 — at 1.4 the knuckles stood 2.6-3.4 cm over the board high up;
+# the photographs' high positions put them lower against the
+# neck, never higher — ref-02 -1.5 neck thicknesses, crop-02 below the fingerboard's edge —:
+# the rise the owner asks for near the body is the wrist's, WRIST_Z_HIGH; the gate's
+# KNUCKLES_UP allows the photographs' whole span, to 3.4.)
+HIGH_RISE = 0.6
 # The wrist's bend toward the palm (negative) or the back (positive), deg: low and high up.
 # High up the hand and the forearm may lean further from upright (HAND_UP_HIGH,
 # FORE_UP_HIGH deg less at the most).
@@ -594,7 +605,7 @@ class Pose:
         # line, as arcus_hold and arcus_hand_table measure it — the sideways turn and the
         # bend toward the back together had reached 21 deg.)
         bend = np.degrees(np.arccos(np.clip(way @ -hd, -1, 1)))
-        add("wrist_total", 2.0 * over(bend, 0.0, WRIST_TOTAL[0] + (WRIST_TOTAL[1] - WRIST_TOTAL[0]) * self.high))
+        add("wrist_total", WRIST_TOTAL_W * over(bend, 0.0, WRIST_TOTAL[0] + (WRIST_TOTAL[1] - WRIST_TOTAL[0]) * self.high))
         add("upper_len", 5.0 * over(np.linalg.norm(el - self.sh) - self.upper, -1.0, 1.0))
         # r42:arcus-hands — the upper arm hanging from the shoulder to an elbow under the
         # violin, not out to the side like a wing (the owner: "ese brazo aún se ve raro";

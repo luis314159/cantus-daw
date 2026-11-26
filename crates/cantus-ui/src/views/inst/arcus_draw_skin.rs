@@ -31,7 +31,7 @@ const BLOOD: [f32; 3] = [0.14, -0.17, -0.07];
 
 /// The fingertips' and the knuckles' redness (the detail's red at a tip's pad and over a
 /// joint's back; was 0.42 and 0.4): crop-02's pinker tips and joints.
-const TIP_RED: f32 = 0.62;
+const TIP_RED: f32 = 0.5;
 const KNUCKLE_RED: f32 = 0.5;
 
 /// r42:arcus-hands, pass 3 — `CANTUS_HAND_TUNE="a,b,_,d…"`: the hands' look's numbers
@@ -56,9 +56,11 @@ pub fn gain() -> [f32; 3] {
     [0, 1, 2].map(|i| tune(i, GAIN[i]))
 }
 
-/// The redness tint's gains (see [`BLOOD`]) for `red` units of redness.
-pub fn blood(red: f32) -> [f32; 3] {
-    [0, 1, 2].map(|i| 1.0 + tune(6 + i, BLOOD[i]) * red)
+/// The redness tint's gains (see [`BLOOD`]) for `red` units of redness, on skin `hand` the
+/// hand's (the arm's own, as before, elsewhere).
+pub fn blood(red: f32, hand: f32) -> [f32; 3] {
+    const ARM: [f32; 3] = [0.22, -0.12, -0.18];
+    [0, 1, 2].map(|i| 1.0 + (ARM[i] + (tune(6 + i, BLOOD[i]) - ARM[i]) * hand) * red)
 }
 
 /// The soft sheen's radiance share at a point with normal `n`, the way to the eye `e` and
@@ -91,4 +93,22 @@ pub fn tip_red() -> f32 {
 /// The knuckles' redness (see [`KNUCKLE_RED`]).
 pub fn knuckle_red() -> f32 {
     tune(10, KNUCKLE_RED)
+}
+
+thread_local! {
+    static HAND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// `f` with the light worked out as the hands' own skin (`hand`) or the arms' (the arms'
+/// maps and the hands' are kept apart; a vertex blends them by its share of the hand).
+pub fn as_hand<R>(hand: bool, f: impl FnOnce() -> R) -> R {
+    let was = HAND.with(|h| h.replace(hand));
+    let r = f();
+    HAND.with(|h| h.set(was));
+    r
+}
+
+/// Whether the light is being worked out as the hands' skin (see [`as_hand`]).
+pub fn hand_now() -> bool {
+    HAND.with(|h| h.get())
 }

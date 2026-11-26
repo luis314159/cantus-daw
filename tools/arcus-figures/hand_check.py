@@ -45,7 +45,8 @@ def main():
             hd = hr.norm((P[2, 0] + P[3, 0]) * 0.5 - W)
             bend = np.degrees(np.arccos(np.clip(way @ -hd, -1, 1)))
             why = []
-            if bend > (16.0 if row["at"] <= 9 else 30.0):
+            # (r42:arcus-hands, pass 3: from the 9th semitone 30, as the gate: was <= 9.)
+            if bend > (16.0 if row["at"] < 9 else 30.0):
                 why.append(f"wrist {bend:.0f}")
             p = row["playing"]
             if p >= 0:

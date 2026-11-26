@@ -322,7 +322,14 @@ const INDEX_OUT: (f32, f32) = (-0.5, 2.2);
 /// r42:arcus-hands — the hand's line to the fingerboard's edge in the picture (degrees): the
 /// photographs' front views 70-89 (`left_hand_refs.md`), a few degrees' give.
 const HAND_NECK: (f32, f32) = (68.0, 92.0);
-const KNUCKLES_UP: (f32, f32) = (-1.6, 2.6);
+/// r42:arcus-hands, pass 3 — the base knuckles' height over the fingerboard's top (cm), held
+/// to the photographs' span: `left_hand_refs.md` measures them from −1.5 (ref-02, high up)
+/// to +1.8 neck thicknesses (the owner's photograph 2, first position) — −3.0 … +3.7 cm on
+/// the 2.03 cm neck; the top at 3.4 (was 2.6, under the photographs' own: high up the hand
+/// clears the body's shoulder, the owner's "never sinking into the body", and stood its
+/// knuckles 2.6–3.2 cm over the top there), the floor at −1.6 (lower, the knuckles hide
+/// behind the neck from the audience).
+const KNUCKLES_UP: (f32, f32) = (-1.6, 3.4);
 
 /// The angle between two ways, degrees.
 fn deg(a: V3, b: V3) -> f32 {
