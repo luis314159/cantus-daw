@@ -108,6 +108,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         gain_db: v[ix::GAIN],
         seed: round(ix::SEED).max(0.0) as u32,
         oversample: None, // r42:arcus-upper
+        shape_try: None,  // r42 arcus-classical
     }
 }
 

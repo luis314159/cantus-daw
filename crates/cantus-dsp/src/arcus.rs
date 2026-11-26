@@ -36,6 +36,8 @@ pub mod pitch;
 mod play;
 #[path = "arcus_render.rs"]
 mod render;
+#[path = "arcus_shape.rs"] // r42 arcus-classical
+pub mod shape; // r42 arcus-classical
 #[path = "arcus_string.rs"]
 pub mod string;
 #[path = "arcus_sym.rs"] // r42 fiddle
@@ -366,6 +368,9 @@ pub struct ArcusSettings {
     /// The tools' override of the factor a voice runs at (`upper::factor_with`: 1, 2 or 4;
     /// `None`, the instrument's own). Never stored. // r42:arcus-upper
     pub oversample: Option<u8>, // r42:arcus-upper
+    /// r42 arcus-classical — the tools' stroke shape to try instead of the measured one
+    /// (`shape::KNOBS`). Never stored.
+    pub shape_try: Option<shape::Knobs>,
 }
 
 impl Default for ArcusSettings {
@@ -429,6 +434,7 @@ impl Default for ArcusSettings {
             gain_db: 0.0,
             seed: 0,
             oversample: None, // r42:arcus-upper
+            shape_try: None,  // r42 arcus-classical
         }
     }
 }

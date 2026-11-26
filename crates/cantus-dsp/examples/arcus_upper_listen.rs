@@ -456,6 +456,10 @@ fn study_notes(out: &Path) {
                     } else {
                         Technique::Arco
                     },
+                    // r42 arcus-classical: `ARCUS_SHAPE=name=value,…` tries a stroke shape.
+                    shape_try: std::env::var("ARCUS_SHAPE")
+                        .ok()
+                        .map(|t| cantus_dsp::arcus::shape::KNOBS.parse(&t)),
                     ..ArcusSettings::default()
                 };
                 let (l, r) = render(

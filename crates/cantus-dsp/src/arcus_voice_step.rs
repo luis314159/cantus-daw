@@ -177,6 +177,18 @@ impl Voice {
             }
         };
         let amount = amount * self.vib_kn;
+        // r42 arcus-classical: back into a note inside a phrase, after its bow change or its
+        // slur (`shape::Knobs::vib_back`; the players' onset 0.04–0.12 s, Arcus's was 0).
+        let amount = if self.vib_re >= 0.0 {
+            let k = self.shape.knobs().vib_back(self.vib_re);
+            self.vib_re += dt;
+            if self.vib_re > self.shape.knobs().vib_back_s.1 {
+                self.vib_re = -1.0;
+            }
+            amount * k
+        } else {
+            amount
+        };
         if s.model < 2 {
             self.vibrato_model1(spec, s, oct, amount, ramp, dt);
         } else {
@@ -243,6 +255,15 @@ impl Voice {
             }
         }
         if self.released && !self.bowing {
+            // r42 arcus-classical: with the player, a string the bow has left rings at its free
+            // decay — the bow's damping is gone (the bowed table's T60 holds it: the violin's G
+            // 0.6 s, its releases 150–260 dB/s against the players' ≤ 60–150) — the family's
+            // measured pluck T60 at the note (`pizz_t60`), never longer than `ring`.
+            if s.player > 0.0 && !plucked && !spec.pizz_t60.is_empty() {
+                let free =
+                    super::super::tables::t60_at(spec.pizz_t60, f) * s.decay.max(0.05) as f64;
+                t60 = t60.max(free);
+            }
             t60 = t60.min(s.ring_s.max(0.05) as f64);
         }
         if self.tech == NoteTech::Spiccato && !self.bowing {
@@ -264,16 +285,30 @@ impl Voice {
                 pos = (pos - 2.0 * math::log2(k)).clamp(-1.0, 1.0);
             }
         }
+        // r42 arcus-classical: the stroke's shape (`shape`), the bow's speed and the dynamic it
+        // is read at; a taper run out lifts the bow.
+        if self.bowing && self.tech.is_bowed() {
+            self.shape.step(dt);
+        }
+        if self.shape.tapered() && matches!(self.phase, Phase::Attack | Phase::Hold) {
+            self.phase = Phase::Release;
+            self.t = 0;
+        }
+        let (kv, dd) = self
+            .shape
+            .bowing(self.d, super::super::shape::span_db(spec));
+        let d_bow = self.d + dd;
         let bw = bowing(
             spec,
-            self.d as f64,
+            d_bow as f64,
             pos as f64,
             s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f), // r42:arcus-upper
             (s.bow_speed * spd) as f64
                 * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
             st.z0(),
             sr as f64 / f,
-        );
+        )
+        .scaled(kv as f64);
         self.beta = bw.beta as f32;
         self.f_min = bw.f_min as f32;
         self.f_max = bw.f_max as f32;
@@ -303,8 +338,10 @@ impl Voice {
             }
         }
         if self.bow_on && s.bow_noise_db > -60.0 {
-            let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
-                                                                                              // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+            // r42 arcus-classical: the hair's noise rides the shape's speed (the friction's
+            // roughness goes with the force, and the force with the speed; exactly 1 unshaped).
+            let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
+                                                                                                   // r42 fiddle: the bow's grit, rising near the bridge and with the force.
             if s.grit > 0.0 {
                 lvl *= grit_gain(s.grit, self.force, self.f_max, self.beta);
             }
@@ -342,7 +379,7 @@ impl Voice {
                 let c = if self.tech == NoteTech::Tremolo {
                     t.trem_cents(self.inst, semis, self.d as f64)
                 } else {
-                    t.cents(self.inst, semis, self.d as f64, pos as f64)
+                    t.cents(self.inst, semis, d_bow as f64, pos as f64) // r42 arcus-classical
                 };
                 c + self.trim
             })

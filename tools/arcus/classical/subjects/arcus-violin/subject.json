@@ -1,0 +1,73 @@
+{
+ "id": "arcus-violin",
+ "name": "Arcus, the violin (scratch subject, r42 analysis)",
+ "kind": {
+  "arco": "sustained",
+  "pizz": "decaying"
+ },
+ "f_range": [
+  180,
+  3200
+ ],
+ "lowest_note": 55,
+ "features": {
+  "arco": [
+   "loudness",
+   "pitch",
+   "harmonics",
+   "inharmonicity",
+   "centroid",
+   "noise",
+   "attack",
+   "t_steady",
+   "decay",
+   "vibrato",
+   "room"
+  ],
+  "pizz": [
+   "loudness",
+   "pitch",
+   "harmonics",
+   "inharmonicity",
+   "centroid",
+   "noise",
+   "attack",
+   "decay",
+   "band_decay",
+   "room"
+  ]
+ },
+ "exclude": [
+  "loudness.integrated_lufs",
+  "loudness.momentary_max_lufs",
+  "loudness.short_term_max_lufs",
+  "loudness.sample_peak_dbfs",
+  "loudness.true_peak_dbtp",
+  "centroid.at_s"
+ ],
+ "references": {
+  "root": "$SOUNDLAB_REFS",
+  "catalogue": "references.json",
+  "also_allowed": {
+   "Iowa-MIS": "The University of Iowa Electronic Music Studios' Musical Instrument Samples \"may be downloaded and used for any projects, without restrictions\" (theremin.music.uiowa.edu)."
+  }
+ },
+ "split": {
+  "rule": "mod",
+  "expr": "(note + dyn) % 3 == 0",
+  "dyn_index": {
+   "pp": 0,
+   "p": 0,
+   "mp": 1,
+   "mf": 1,
+   "f": 2,
+   "ff": 2
+  },
+  "why": "Arcus's own held-out rule (crates/cantus-dsp/examples/arcus_match: (key + dynamic) % 3 == 0): model 2's match was fitted on the other cells' references"
+ },
+ "candidate": {
+  "inst": "arcus",
+  "files": "arcus_(?P<art>arco|pizz)_(?P<note>\\d+)_(?P<dyn>pp|mf|ff)\\.wav",
+  "what": "arcus_upper_listen study: every 4th key from G3, arco pp/mf/ff 3 s, pizz mf 2 s, ArcusSettings::default()"
+ }
+}

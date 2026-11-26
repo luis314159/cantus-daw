@@ -311,6 +311,11 @@ fn main() {
                             } else {
                                 Technique::Arco
                             },
+                            // r42 arcus-classical: `ARCUS_SHAPE=name=value,…` tries a stroke
+                            // shape (`shape::Knobs::parse`).
+                            shape_try: std::env::var("ARCUS_SHAPE")
+                                .ok()
+                                .map(|t| cantus_dsp::arcus::shape::KNOBS.parse(&t)),
                             ..ArcusSettings::default()
                         });
                         a.note_on(key, *v, 1);

@@ -191,6 +191,45 @@ impl Voice {
         } else {
             (0.0, 1.0)
         };
+        // r42 arcus-classical: with the player, a held stroke's shape is the bow's (`shape`):
+        // from silence the swell's depth and length move the bow (its output envelope
+        // retired), a bow change starts its stroke a few dB under, and the key let go tapers.
+        let shaped = p > 0.0 && tech == NoteTech::Arco;
+        let begin = if keep && was_bowing {
+            super::super::shape::Begin::Rebow
+        } else {
+            let d = d_t.clamp(0.0, 1.0);
+            let (len, depth) = (spec.swell_s, spec.swell_db);
+            super::super::shape::Begin::Fresh(
+                depth.0 + (depth.1 - depth.0) * d,
+                len.0 + (len.1 - len.0) * d * d,
+            )
+        };
+        let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+        self.shape.begin(
+            begin,
+            &knobs,
+            if shaped { p } else { 0.0 },
+            fast,
+            s.seed,
+            key,
+            id,
+        );
+        self.taper_s = if shaped {
+            knobs.taper_k * 0.001 * s.bow_release_ms.max(5.0)
+        } else {
+            0.0
+        };
+        if shaped && !keep {
+            self.swell = (0.0, 1.0);
+        }
+        // r42 arcus-classical: a bow change inside a phrase lets the vibrato in again
+        // (`shape::Knobs::vib_back`); a fast passage's keeps the passage's.
+        self.vib_re = if shaped && keep && was_bowing && !fast {
+            0.0
+        } else {
+            -1.0
+        };
         self.lvl = (self.swell.1, self.swell.1);
         self.stop_lift = false;
         self.rough.set(Biquad::band(2500.0, 2.5, sh.sr));
@@ -234,15 +273,21 @@ impl Voice {
         let z0 = spec.strings[self.string_ix].z0();
         let open_hz = spec.strings[self.string_ix].open_hz(); // r42:arcus-upper
         let f = 440.0 * math::exp2((self.note as f64 + self.tune as f64 - 69.0) / 12.0);
+        // r42 arcus-classical: the attack is the classic one at the stroke's shape where it
+        // begins (a softer bow from silence, a new stroke's under a bow change).
+        let (kv, dd) = self
+            .shape
+            .bowing(self.d, super::super::shape::span_db(spec));
         let bw = bowing(
             spec,
-            self.d as f64,
+            (self.d + dd) as f64,
             self.contact(sh) as f64,
             s.bow_force as f64 + super::super::upper::force_trim(self.inst, open_hz, f), // r42:arcus-upper
             s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, open_hz, f), // r42:arcus-upper
             z0,
             sh.sr as f64 / f,
-        );
+        )
+        .scaled(kv as f64);
         let (accel, mut f_attack) = attack_of(
             s,
             self.velocity,
@@ -413,6 +458,26 @@ impl Voice {
         } else {
             spec.string_for(self.note + self.tune)
         };
+        // r42 arcus-classical: the slurred note's own shape, from where the last one sagged to
+        // (`shape`; none for a tremolo's strokes or with the player off).
+        let shaped = p > 0.0 && tech.unwrap_or(self.tech) == NoteTech::Arco;
+        let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+        self.shape.begin(
+            super::super::shape::Begin::Slur,
+            &knobs,
+            if shaped { p } else { 0.0 },
+            fast,
+            s.seed,
+            key,
+            id,
+        );
+        if !shaped {
+            self.taper_s = 0.0;
+        } else if self.taper_s == 0.0 {
+            self.taper_s = knobs.taper_k * 0.001 * s.bow_release_ms.max(5.0);
+        }
+        // … and the vibrato's way back into a slurred note (none in a fast passage).
+        self.vib_re = if shaped && !fast { 0.0 } else { -1.0 };
         // The finger's change dips the level (the study §2.10: ~3 dB over the change).
         self.dip = (
             self.lvl_t,
