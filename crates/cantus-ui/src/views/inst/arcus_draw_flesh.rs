@@ -1040,7 +1040,7 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         _ => detail,
     };
     if let Some(light) = &sh.drawn {
-        use crate::scene::bowed_draw_tris::{skin_at, skin_tone};
+        use crate::scene::bowed_draw_tris::{skin_at, skin_tone, stage_skin};
         let mat = match st {
             Stuff::Skin | Stuff::Lips | Stuff::Nail => skin_at(&hp::real_skin(tone), skin_detail),
             Stuff::Velvet => {
@@ -1060,7 +1060,11 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         };
         let mut c = light.shade(&mat, n, e, p, None, 1.0);
         if matches!(st, Stuff::Skin | Stuff::Lips | Stuff::Nail) {
-            c = skin_tone(&mat, c, ndv);
+            c = if light.concert.is_some() {
+                stage_skin(&mat, c, ndv) // r42:arcus-polish3
+            } else {
+                skin_tone(&mat, c, ndv)
+            };
         }
         if st == Stuff::Velvet {
             let s = hp::VELVET_SHEEN;
@@ -1073,6 +1077,16 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
             let (rim, lift) = cloth_rim(n, e);
             let s = hp::CLOTH_RIM;
             c = [0, 1, 2].map(|i| c[i] * lift + s[i] * rim * 0.8);
+        }
+        // r42:arcus-polish3 — the concert's back lights along the edge (as the baked body's).
+        let r = light.rim(n, e)
+            * match st {
+                Stuff::Skin | Stuff::Lips | Stuff::Nail => 0.35,
+                Stuff::Velvet | Stuff::Wool => 0.5,
+                _ => 1.0,
+            };
+        if r > 0.0 {
+            c = [0, 1, 2].map(|i| (c[i] + [1.0, 0.88, 0.72][i] * r).min(1.0));
         }
         let k = 0.35 + 0.65 * ao;
         return c3(c.map(|x| x * k));
@@ -1254,6 +1268,16 @@ fn concert_colour(
     } else {
         for (i, r) in rad.iter_mut().enumerate() {
             *r += albedo[i] * rim[i] * 0.8;
+        }
+    }
+    if matches!(st, Stuff::Velvet | Stuff::Wool) {
+        // The back lights' line along the cloth's edge (the bake's `cloth_edge`).
+        let g = (1.0 - ndv).powi(3);
+        for (d, col) in backs {
+            let k = n.dot(d).max(0.0) * g * c.cloth_rim;
+            for (i, r) in rad.iter_mut().enumerate() {
+                *r += col[i] * k;
+            }
         }
     }
     // Black cloth: the key's broad sheen along its folds.
@@ -2473,6 +2497,68 @@ fn elbow_folds(fig: &Figure, posed: &Posed, s: usize, am: &ArmMesh, sc: &mut Scr
     }
 }
 
+/// r42:arcus-polish3 — the sleeve as cloth, not a tube (the owner, 2026-11-25: "toma nota
+/// de los detalles de la ropa"; the concert photographs): driven by the pose,
+///
+/// - **the shoulder's pull lines**: as the upper arm rises from hanging, the sleeve's cloth is
+///   drawn from the shoulder's top toward the armpit — a few long diagonal folds on the upper
+///   arm's first third, as deep as the arm is raised;
+/// - **the cuff's slack**: the sleeve's cloth gathered over the last few centimetres before
+///   the wrist (a sleeve is longer than the forearm it hangs on), soft ripples around it.
+///
+/// Normals swung and their creases shaded, as [`elbow_folds`]; the hand's skin untouched.
+fn sleeve_drape(fig: &Figure, posed: &Posed, s: usize, am: &ArmMesh, sc: &mut Scratch) {
+    let o = hu::side(s);
+    let at = |b: usize| posed.at(o + b, fig.bones[o + b].head);
+    let (sh, el, wr) = (at(hu::UPPER1), at(hu::FORE1), at(hu::HAND));
+    let up = (el - sh).norm();
+    let down = v3(0.0, -1.0, 0.0);
+    // 0 hanging … 1 raised level or higher.
+    let raised = ((1.0 - up.dot(down)) * 1.1).clamp(0.0, 1.0);
+    let (ul, fl) = ((el - sh).len().max(1.0), (wr - el).len().max(1.0));
+    let fa = (wr - el) * (1.0 / fl);
+    for (j, &g) in am.verts.iter().enumerate() {
+        let hand: f32 = fig.bw[g as usize]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + hu::HAND && (*b as usize) <= o + hu::finger(4, 2))
+            .map(|x| x.1)
+            .sum();
+        if hand > 0.3 {
+            continue;
+        }
+        let keep = 1.0 - hand / 0.3;
+        let p = sc.pts[j];
+        let n = sc.nrm[j];
+        // The shoulder's pull lines: along the upper arm's first 40 %, folds running from
+        // the shoulder's top round toward the armpit (a diagonal across the arm).
+        let t = (p - sh).dot(up) / ul;
+        if raised > 0.1 && t > -0.05 && t < 0.45 {
+            let side = up.cross(down).norm();
+            let round = (p - sh - up * (t * ul)).norm();
+            let a = round.dot(side).atan2(round.dot(down));
+            let ph = a * 3.0 + t * ul / PULL_CM * std::f32::consts::TAU;
+            let w = raised * smooth01(t / 0.08) * (1.0 - smooth01((t - 0.25) / 0.2)) * keep;
+            let ax = side * ph.cos() + up * ph.sin();
+            sc.nrm[j] = (n + ax * (0.4 * w * ph.sin())).norm();
+            sc.ao[j] *= 1.0 - 0.3 * w * (-ph.cos()).max(0.0).powi(2);
+        }
+        // The cuff's slack: soft ripples over the last centimetres before the wrist.
+        let tw = (wr - p).dot(fa);
+        if (-0.5..SLACK_CM).contains(&tw) {
+            let w = (1.0 - smooth01(tw / SLACK_CM)) * smooth01((tw + 0.5) / 1.0) * keep;
+            let round = (p - wr + fa * tw).norm();
+            let ph = tw / 1.6 * std::f32::consts::TAU + 1.3 * round.dot(down);
+            sc.nrm[j] = (sc.nrm[j] + fa * (0.45 * w * ph.sin())).norm();
+            sc.ao[j] *= 1.0 - 0.25 * w * (-ph.cos()).max(0.0).powi(2);
+        }
+    }
+}
+
+/// r42:arcus-polish3 — how far apart the shoulder's pull lines lie along the arm, and how far
+/// up from the wrist the cuff's slack gathers (cm).
+const PULL_CM: f32 = 5.0;
+const SLACK_CM: f32 = 7.0;
+
 /// r42:arcus-polish — the shadow an arm lays on the trunk it crosses in front of (the
 /// owner, 2026-11-25: "wherever an arm crosses the torso, a contact shadow"): the trunk as
 /// three capsules (the hips, the spine, the chest, posed as baked, a little inside the
@@ -2713,6 +2799,7 @@ fn arm_setup(
     }
     cuff_shadow(fig, am, sc);
     elbow_folds(fig, &posed, s, am, sc);
+    sleeve_drape(fig, &posed, s, am, sc); // r42:arcus-polish3
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);

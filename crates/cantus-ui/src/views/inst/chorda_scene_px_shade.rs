@@ -910,6 +910,18 @@ fn cloth_spec(
     std::array::from_fn(|i| kc[i] * s)
 }
 
+/// r42:arcus-polish3 — the back lights' line along a black cloth's edge (the photographs'
+/// dark sleeves and shoulders told from the dark hall by it): the cloth's own sheen seen at
+/// grazing toward a light behind, not its black albedo's share.
+fn cloth_edge(rig: &Rig, c: &crate::scene::figure::concert::Concert, n: V3, ndv: f32) -> Lin {
+    let g = (1.0 - ndv).powi(3);
+    let mut e = [0.0f32; 3];
+    for &(d, col) in &rig.rims {
+        e = ladd(e, lscale(col, n.dot(d).max(0.0) * g * c.cloth_rim));
+    }
+    e
+}
+
 /// The light leaving the surface of `m` at `p` toward `eye`. `n` is the shading normal,
 /// `turn` how far it turns over one sample (a thin tube's: its mirror is spread over it),
 /// `t` the grain (`dP/du`), `vis` how much of the key reaches (its shadow), `ao` the
@@ -1132,7 +1144,13 @@ pub fn shade(
             // r42:arcus-polish3 — under the concert's spot, the pile's broad sheen where the
             // fold's crest turns toward it (the photographs' black dress lit along its folds).
             let (vb, spec) = match cc {
-                Some(c) => (c.velvet_back, cloth_spec(c, c.velvet_spec, n, v, l, kc, kv)),
+                Some(c) => (
+                    c.velvet_back,
+                    ladd(
+                        cloth_spec(c, c.velvet_spec, n, v, l, kc, kv),
+                        cloth_edge(rig, c, n, ndv),
+                    ),
+                ),
                 None => (VELVET_BACK, [0.0; 3]),
             };
             lscale(
@@ -1157,7 +1175,10 @@ pub fn shade(
             );
             // r42:arcus-polish3 — wool's soft sheen along its folds where the spot hits.
             match (cc, m.tex) {
-                (Some(cn), Tex::Wool) => ladd(c, cloth_spec(cn, cn.wool_spec, n, v, l, kc, kv)),
+                (Some(cn), Tex::Wool) => ladd(
+                    ladd(c, cloth_spec(cn, cn.wool_spec, n, v, l, kc, kv)),
+                    cloth_edge(rig, cn, n, ndv),
+                ),
                 _ => c,
             }
         }

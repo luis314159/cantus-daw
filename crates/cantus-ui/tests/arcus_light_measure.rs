@@ -15,6 +15,7 @@
 //! | the picture's contrast (p99 / p5) | 248 | 2219 | 1812 | 150 … 5000 |
 //! | the hair's edge over the hall (p95) | 100 | 57 | 1.8 (black hair) | ≥ 8 |
 //! | the clothes' edge (p95 over the cloth's median) | 1.5 | — | 1.7 | ≥ 1.4 |
+//! | the dark clothes' silhouette below the face (edge p90 against the hall beside it) | 4.7 | 2.2 | 2.0 | ≥ 2.0 (each third ≥ 1.6) |
 //!
 //! The Drawn picture's own stage light is held to the shape of it: the face lit over the
 //! hall, a shadow side, a rim. `CANTUS_LIGHT_DIR=<folder>` saves each shot.
@@ -25,6 +26,7 @@ use cantus_ui::scene::bowed::Bowed;
 use cantus_ui::scene::bowed_hold::{Hold, Holder};
 use cantus_ui::scene::bowed_mesh::Role;
 use cantus_ui::scene::{self, SceneBackend};
+use cantus_ui::views::inst::arcus::probe;
 use cantus_ui::{views, welcome_project, CantusApp};
 use egui::Pos2;
 
@@ -144,6 +146,11 @@ struct Measures {
     contrast: f32,
     hair_edge: f32,
     cloth_edge: f32,
+    /// The dark clothes' silhouette against the hall right behind it, below the face (the
+    /// shoulders, the arms, the bow arm): the brighter of the cloth's edge (p90) and the hall
+    /// next to it (median) over the darker — the whole band, and its worst third across.
+    silhouette: f32,
+    silhouette_worst: f32,
 }
 
 fn pct(v: &mut [f32], p: f32) -> f32 {
@@ -185,9 +192,13 @@ fn measure(hold: Hold, dark: bool, be: SceneBackend) -> Measures {
             if dark { "night" } else { "paper" }
         ))
     });
+    probe::record(true);
     let canvas = cantus_ui::raster::shoot(&ctx, size, 1.0, 8, save.as_deref(), |ui| {
         views::inst::window_in(&mut app, ui)
     });
+    let arms = probe::arms();
+    let bow = probe::bow();
+    probe::record(false);
     let sc = &app.inst.arcus_scenes[&t.0].0;
     let built = sc.built().expect("a picture");
     let rect = sc.rect().expect("painted");
@@ -235,8 +246,21 @@ fn measure(hold: Hold, dark: bool, be: SceneBackend) -> Measures {
             }
         }
     }
-    // The live arms and the bow are not in the mesh: the hall is measured well away from
-    // the figure, above the bow arm.
+    // The live arms (their sleeves and hands) and the bow, as drawn.
+    let mut dark = Mask::new(w, hh);
+    for arm in &arms {
+        for t in &arm.tris {
+            let q = t.map(|i| arm.screen[i as usize]);
+            subject.tri(q);
+            dark.tri(q);
+        }
+    }
+    if let Some((f, tip, cm)) = bow {
+        subject.seg(f, tip, 2.2 * cm);
+    }
+    for (d, c) in dark.m.iter_mut().zip(&cloth.m) {
+        *d |= *c;
+    }
     let near = subject.grow(10);
     let pic = rect;
     let inside = |x: usize, y: usize| {
@@ -250,7 +274,9 @@ fn measure(hold: Hold, dark: bool, be: SceneBackend) -> Measures {
         let p = canvas.pixel(x, y);
         [lin(p[0]), lin(p[1]), lin(p[2])]
     };
-    let lum = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    // (Floored at the 8-bit's first step above black, as a photograph's JPEG is: a pure 0
+    // would make every ratio over it infinite.)
+    let lum = |c: [f32; 3]| (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]).max(lin(1));
     let face = face.grow(-1);
     let (mut fs, mut sum) = (Vec::new(), [0.0f32; 3]);
     let (mut fx0, mut fx1) = (usize::MAX, 0);
@@ -310,7 +336,48 @@ fn measure(hold: Hold, dark: bool, be: SceneBackend) -> Measures {
             }
         }
     }
+    // The silhouette below the face: the dark clothes' edge against the hall just outside.
+    let (y0, y1) = (
+        pic.min.y + pic.height() * 0.30,
+        pic.min.y + pic.height() * 0.72,
+    );
+    let (sub2, dark6) = (subject.grow(2), dark.grow(6));
+    let (mut edge, mut out) = (vec![Vec::new(); 3], vec![Vec::new(); 3]);
+    let third = |x: usize| (((x as f32 - pic.min.x) / pic.width() * 3.0) as usize).min(2);
+    for y in 0..hh {
+        let fy = y as f32;
+        if fy < y0 || fy > y1 {
+            continue;
+        }
+        for x in 0..w {
+            if !inside(x, y) {
+                continue;
+            }
+            let i = y * w + x;
+            let (xi, yi) = (x as isize, y as isize);
+            if dark.m[i] && (-2..=2).any(|d| !subject.get(xi + d, yi) || !subject.get(xi, yi + d)) {
+                edge[third(x)].push(lum(px(x, y)));
+            } else if dark6.m[i] && !sub2.m[i] {
+                out[third(x)].push(lum(px(x, y)));
+            }
+        }
+    }
+    let ratio = |e: &mut Vec<f32>, o: &mut Vec<f32>| {
+        let (a, b) = (pct(e, 0.9), pct(o, 0.5));
+        a.max(b) / a.min(b).max(1e-5)
+    };
+    let mut worst = f32::MAX;
+    for k in 0..3 {
+        if edge[k].len() > 30 && out[k].len() > 30 {
+            worst = worst.min(ratio(&mut edge[k].clone(), &mut out[k].clone()));
+        }
+    }
+    let mut all_e: Vec<f32> = edge.concat();
+    let mut all_o: Vec<f32> = out.concat();
+    let silhouette = ratio(&mut all_e, &mut all_o);
     Measures {
+        silhouette,
+        silhouette_worst: if worst == f32::MAX { 0.0 } else { worst },
         face: face_y,
         r_b: sum[0] / sum[2].max(1e-6),
         r_g: sum[0] / sum[1].max(1e-6),
@@ -367,6 +434,22 @@ fn the_concert_light_measures_as_the_photographs() {
                 "the clothes' edge",
                 m.cloth_edge,
                 1.4,
+                f32::MAX,
+            );
+            band(
+                &mut bad,
+                &tag,
+                "the silhouette",
+                m.silhouette,
+                2.0,
+                f32::MAX,
+            );
+            band(
+                &mut bad,
+                &tag,
+                "its worst third",
+                m.silhouette_worst,
+                1.6,
                 f32::MAX,
             );
         }

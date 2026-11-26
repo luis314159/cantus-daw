@@ -174,21 +174,38 @@ FACE = {
         # vertical; MakeHuman's stood upright, 2-6°).
         *both("ears/ear-rot-backward", 0.6),
     ],
+    # r42:arcus-polish3 — his more masculine (the owner on the concert light's first sheet:
+    # "el hombre puede mejorar mucho sus rasgos, hazlos más masculinos"): an angular head, a
+    # wider, stronger jaw and a squarer chin with a slight cleft, a heavier brow ridge with
+    # the brows lower and straighter, defined cheekbones over hollower cheeks, a slightly
+    # wider nose bridge, a thicker neck; a man about thirty, not a boy. Still MakeHuman's
+    # generic average shaped by eye, fitted to nobody.
     "male": [
-        ("head/head-square", 0.3),
-        ("head/head-fat-decr", 0.2),
-        *both("cheek/cheek-bones-incr", 0.35),
-        *both("cheek/cheek-volume-decr", 0.35),
-        ("chin/chin-bones-incr", 0.45),
-        ("chin/chin-width-incr", 0.15),
-        ("chin/chin-prominent-incr", 0.25),
-        ("nose/nose-hump-decr", 0.2),
-        ("nose/nose-point-width-decr", 0.2),
-        ("nose/nose-scale-horiz-decr", 0.1),
-        ("mouth/mouth-lowerlip-volume-incr", 0.15),
-        ("mouth/mouth-upperlip-volume-decr", 0.1),
-        ("eyebrows/eyebrows-trans-down", 0.2),
-        ("eyebrows/eyebrows-angle-down", 0.1),
+        ("head/head-square", 0.55),
+        ("head/head-rectangular", 0.2),
+        ("head/head-fat-decr", 0.3),
+        ("head/head-age-incr", 0.3),
+        *both("cheek/cheek-bones-incr", 0.6),
+        *both("cheek/cheek-volume-decr", 0.6),
+        *both("cheek/cheek-inner-decr", 0.3),
+        ("chin/chin-bones-incr", 0.8),
+        ("chin/chin-width-incr", 0.45),
+        ("chin/chin-prominent-incr", 0.35),
+        ("chin/chin-height-incr", 0.1),
+        ("chin/chin-cleft-incr", 0.45),
+        ("forehead/forehead-trans-forward", 0.25),
+        ("forehead/forehead-temple-decr", 0.2),
+        ("nose/nose-hump-decr", 0.1),
+        ("nose/nose-scale-horiz-incr", 0.12),
+        ("nose/nose-point-width-decr", 0.1),
+        ("mouth/mouth-lowerlip-volume-incr", 0.1),
+        ("mouth/mouth-upperlip-volume-decr", 0.2),
+        ("mouth/mouth-scale-horiz-incr", 0.08),
+        ("eyebrows/eyebrows-trans-forward", 0.45),
+        ("eyebrows/eyebrows-trans-down", 0.3),
+        ("eyebrows/eyebrows-angle-down", 0.15),
+        ("neck/neck-scale-horiz-incr", 0.45),
+        ("neck/neck-scale-depth-incr", 0.3),
         *both("ears/ear-rot-backward", 0.6),  # r42:arcus-polish
     ],
 }
@@ -520,6 +537,60 @@ def _landmarks(J):
     return out
 
 
+def beard_field(pos, J):
+    """His beard's place (0…1): the jaw, the chin, under the jaw to the neck's top and over
+    the upper lip; its top from the sideburn, level with the ear's middle, down across the
+    cheek to the mouth's corner (never over the cheekbone); the lips left bare."""
+    eyes = _landmarks(J)["eyes"]
+    q = pos - eyes
+    ax = np.abs(q[:, 0])
+    top = -7.6 + 4.2 * smooth01((ax - 3.0) / 3.2)
+    # (r42:arcus-polish3: fading over 2.5-3 cm toward the cheekbones and the neck — the
+    # coordinator: a hard border read as sandpaper — and densest on the chin and over the
+    # upper lip.)
+    lower = smooth01((top - q[:, 1]) / 2.8) * smooth01((q[:, 1] + 14.5) / 3.0)
+    face = smooth01((q[:, 2] + 6.5) / 2.5) * smooth01((7.6 - ax) / 1.5)
+    lip = np.exp(-(((q[:, 1] + 6.0) / 0.7) ** 2 + (q[:, 0] / 2.0) ** 2)) * (q[:, 2] > 2.0)
+    mouth = np.exp(-(((q[:, 1] + 6.8) / 0.5) ** 2 + (q[:, 0] / 2.3) ** 2)) * (q[:, 2] > 3.0)
+    chin = 0.55 + 0.45 * np.exp(-((q[:, 0] / 3.5) ** 2))
+    return np.clip((lower * face * chin + lip) * (1.0 - mouth), 0.0, 1.0)
+
+
+# r42:arcus-polish3 — his stubble in the skin's texture: the beard's place drawn into the
+# texture's own coordinates, each name's (set by ``make``).
+BEARD_UV = {}
+
+
+def uv_field(val, tris, tuv, uvs, side):
+    """A per-vertex value painted into texture space (``side`` px), triangle by triangle."""
+    out = np.zeros((side, side))
+    for t, tu in zip(tris, tuv):
+        v = val[t]
+        if v.max() < 0.02:
+            continue
+        uv = uvs[tu] * side
+        uv[:, 1] = side - uv[:, 1]
+        x0, y0 = np.floor(uv.min(0)).astype(int)
+        x1, y1 = np.ceil(uv.max(0)).astype(int)
+        x0, y0 = max(x0, 0), max(y0, 0)
+        x1, y1 = min(x1, side - 1), min(y1, side - 1)
+        if x1 < x0 or y1 < y0:
+            continue
+        xs, ys = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
+        a, b, c = uv
+        den = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1])
+        if abs(den) < 1e-9:
+            continue
+        l0 = ((b[1] - c[1]) * (xs - c[0]) + (c[0] - b[0]) * (ys - c[1])) / den
+        l1 = ((c[1] - a[1]) * (xs - c[0]) + (a[0] - c[0]) * (ys - c[1])) / den
+        l2 = 1.0 - l0 - l1
+        inside = (l0 >= -0.01) & (l1 >= -0.01) & (l2 >= -0.01)
+        f = l0 * v[0] + l1 * v[1] + l2 * v[2]
+        sub = out[y0:y1 + 1, x0:x1 + 1]
+        sub[inside] = np.maximum(sub[inside], f[inside])
+    return out
+
+
 def relief(pos, tris, J, sex):
     """r42:arcus-polish — the neck's and the neckline's forms on the skin (``RELIEF``):
     each vertex of the neck and the upper chest moved along its normal; the joints stay."""
@@ -545,6 +616,12 @@ def relief(pos, tris, J, sex):
         d += clav * np.exp(-(r / 0.6) ** 2) - clav_hollow * np.exp(-((r - 1.4) / 0.6) ** 2) * below
     r = np.linalg.norm(pos - L["notch"], axis=1)
     d -= notch * np.exp(-(r / 1.0) ** 2)
+    if sex == "male":
+        # r42:arcus-polish3 — his Adam's apple: a small rise on the neck's front, a third
+        # of the way from the chin's underside down to the notch.
+        cy = L["eyes"][1] - 14.8
+        front = n[:, 2] > 0.45
+        d += 0.42 * np.exp(-((pos[:, 0] / 1.0) ** 2 + ((pos[:, 1] - cy) / 1.3) ** 2)) * front
     d = np.where(region, d, 0.0)
     return pos + n * d[:, None]
 
@@ -641,19 +718,12 @@ def tones(pos, J, sex, ear):
     dr += 0.32 * ear
     dl *= 1.0 - 0.03 * ear
     if sex == "male":
-        # His beard's shadow: the jaw, the chin and over the upper lip, blue-grey.
-        q = pos - eyes
-        # Its top runs from the sideburn, level with the ear's middle, down across the
-        # cheek to the mouth's corner (never over the cheekbone).
-        ax = np.abs(q[:, 0])
-        top = -7.2 + 4.2 * smooth01((ax - 3.0) / 3.2)
-        lower = smooth01((top - q[:, 1]) / 1.0) * smooth01((q[:, 1] + 11.5) / 1.5)
-        face = smooth01((q[:, 2] + 6.5) / 1.5) * (ax < 7.4)
-        lip = np.exp(-(((q[:, 1] + 6.0) / 0.6) ** 2 + (q[:, 0] / 1.8) ** 2)) * (q[:, 2] > 2.0)
-        mouth = np.exp(-(((q[:, 1] + 6.8) / 0.5) ** 2 + (q[:, 0] / 2.3) ** 2)) * (q[:, 2] > 3.0)
-        beard = np.clip((lower * face + lip) * (1.0 - mouth), 0.0, 1.0)
-        dl *= 1.0 - 0.1 * beard
-        dr -= 0.17 * beard
+        # His beard's shadow: the jaw, the chin and over the upper lip, blue-grey
+        # (r42:arcus-polish3: a little deeper; the stubble's own hairs are in his skin's
+        # texture, `stubble`).
+        beard = beard_field(pos, J)
+        dl *= 1.0 - 0.15 * beard
+        dr -= 0.14 * beard
     return dl, dr
 
 
@@ -1057,6 +1127,22 @@ def skin_texture(assets, out, name, sex):
     lum = np.asarray(im.convert("L"), dtype=np.float64)
     blur = np.asarray(im.convert("L").filter(ImageFilter.GaussianBlur(6)), dtype=np.float64)
     hp = np.clip(lum / np.maximum(blur, 1.0), 0.6, 1.4)
+    beard = BEARD_UV.get(name)
+    if beard is not None:
+        # r42:arcus-polish3 — his stubble: short dark hairs a texel or two across, dense
+        # where the beard grows, thinning out at its edge (no flat paint).
+        # (At twice the texture's side: hairs a texel across read as sand at 200 %.)
+        big = (hp.shape[0] * 2, hp.shape[1] * 2)
+        hp = np.asarray(Image.fromarray(np.clip(hp * 128.0, 0, 255).astype(np.uint8)).resize(
+            big[::-1], Image.BILINEAR), dtype=np.float64) / 128.0
+        rng = np.random.default_rng(73)
+        b = np.asarray(Image.fromarray((np.clip(beard, 0, 1) * 255).astype(np.uint8)).resize(
+            big[::-1], Image.BILINEAR).filter(ImageFilter.GaussianBlur(6)),
+            dtype=np.float64) / 255.0
+        # Each texel a hair with the beard's density as its chance: sparse at the edges,
+        # dense on the chin; the shadow between them a smooth darkening of its own.
+        hairs = (rng.random(big) < (0.25 + 0.6 * b)).astype(np.float64)
+        hp = hp * (1.0 - b * (0.22 + 0.35 * hairs))
     Image.fromarray(np.clip(hp * 128.0, 0, 255).astype(np.uint8), "L").save(
         os.path.join(out, f"{name}_skin.png"), optimize=True)
 
@@ -1135,6 +1221,9 @@ def make(sex, data, assets):
     # The skin's own texture per pixel (the owner's review, 2026-11-24: porcelain): each
     # vertex split where its corners' texture coordinates differ, the copies after the
     # originals (so the proxies' references still name the base mesh's vertices).
+    if sex == "male":
+        # r42:arcus-polish3 — his beard's place in the skin texture's coordinates.
+        BEARD_UV[name_of(sex)] = uv_field(beard_field(pos, J), tris_all, tuv_all, uvs, 1024)
     n0 = len(pos)
     pos, W, head_w, tris_all, src, vuv = split_seams(pos, W, head_w, tris_all, tuv_all, uvs)
     deleted = set(np.where(np.isin(src, list(deleted)))[0]) if deleted else deleted
@@ -1228,8 +1317,10 @@ def make(sex, data, assets):
             fig.add(jp, [{BI["head"]: 1.0}] * len(jp), jt, JEWEL)
     else:
         def thick(th, ph):
-            return (0.45 + 0.55 * smooth01((ph - 25) / 30.0)
-                    - 0.15 * smooth01((np.abs(th) - 75) / 45.0))
+            # (r42:arcus-polish3: shorter at the sides and over the ears — a man's cut,
+            # the top's volume kept.)
+            return (0.45 + 0.65 * smooth01((ph - 25) / 30.0)
+                    - 0.3 * smooth01((np.abs(th) - 55) / 40.0))
         # His short hair's edge crisper (a groomed hairline; a wide band read as teeth).
         hp, hw, ht, huv = hair_shell(pos, W, btris, c, HIS_LINE, thick, head_w, band=6.0)
         fig.add(pos, W, btris, np.where(nf[btris].mean(1) > 0, NAIL, SKIN), lum, red, uv=vuv)
@@ -1450,7 +1541,7 @@ def brows(pos, keep_v, J, sex):
     to the outer end), so the brow is the skin's own colour darkened — no card that could
     read as a stuck-on strip. A man's a little fuller and straighter."""
     out = np.zeros(len(pos))
-    full = 1.0 if sex == "female" else 1.35
+    full = 1.0 if sex == "female" else 1.6  # r42:arcus-polish3: his thicker
     for s_, sign in (("L", 1.0), ("R", -1.0)):
         e = J[f"eye.{s_}____head"]
         x = (pos[:, 0] - e[0]) * sign
@@ -1458,7 +1549,7 @@ def brows(pos, keep_v, J, sex):
         front = (pos[:, 2] > e[2] - 1.5) & keep_v
         x0, x1 = -1.45, 2.55
         t = np.clip((x - x0) / (x1 - x0), 0.0, 1.0)
-        rise = 0.42 if sex == "female" else 0.22
+        rise = 0.42 if sex == "female" else 0.1  # r42:arcus-polish3: his straighter
         yc = 1.25 + rise * np.sin(np.pi * np.clip(t, 0, 1) ** 0.75) - 0.25 * t
         # (Wider than a real brow's hairs: the forehead's vertices are half a centimetre
         # apart, and a thinner arc vanished between them — the owner's review: no brows.)

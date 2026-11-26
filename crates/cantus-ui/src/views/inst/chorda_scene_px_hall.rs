@@ -23,6 +23,7 @@ pub const BACK: f32 = 1300.0;
 /// The hall's materials.
 struct Mats {
     cloth: MatId,
+    shirt: MatId,
     skins: [MatId; 3],
     hairs: [MatId; 3],
     varnish: MatId,
@@ -95,6 +96,18 @@ fn player(g: &mut Geo, f: &Frame, m: &Mats, r: f32, d: f32, rise: f32, k: (i32, 
         true,
         m.cloth,
     );
+    // Half of them in a white shirt under the black (the photographs' orchestra).
+    if h(k.0, k.1, 9) > 0.5 {
+        g.tube(
+            f.at(r + lean, seat + 36.0 * tall, d - 15.0),
+            f.at(r + lean, seat + 56.0 * tall, d - 13.0),
+            0.045,
+            0.06,
+            10,
+            true,
+            m.shirt,
+        );
+    }
     let i = ((h(k.0, k.1, 7) * 3.0) as usize).min(2);
     let head = f.at(r + lean, seat + 74.0 * tall, d);
     ball(g, head, 0.105, m.skins[i]);
@@ -197,6 +210,7 @@ pub fn build(g: &mut Geo, centre: (f32, f32), eye: (f32, f32), c: &Concert) -> B
     let walls = [wall(g, 1.0), wall(g, 0.8), wall(g, 0.65)];
     let mats = Mats {
         cloth: g.mat(PMat::matte(lin3([0.018, 0.016, 0.016]))),
+        shirt: g.mat(PMat::matte(lin3([0.80, 0.78, 0.74]))),
         skins: [
             g.mat(PMat::matte(lin3([0.62, 0.45, 0.36]))),
             g.mat(PMat::matte(lin3([0.48, 0.32, 0.24]))),
@@ -282,11 +296,21 @@ pub fn build(g: &mut Geo, centre: (f32, f32), eye: (f32, f32), c: &Concert) -> B
         while lx < 950.0 {
             lamps.push(Lamp {
                 p: f.at(lx, rise + 250.0, d - 110.0),
-                col: warm([1.0, 0.82, 0.60], 1.4 * k),
-                reach: 2.2,
+                col: warm([1.0, 0.82, 0.60], 4.0 * k * c.rows),
+                reach: 2.6,
             });
             lx += 260.0;
         }
+    }
+    // The stage's floor between the soloist and the orchestra in warm pools, off to the
+    // sides (none straight behind the figure): the picture's lower half a lit floor, not a
+    // void (the coordinator on the first sheet: the dark clothes melted into it).
+    for x in [-760.0f32, -430.0, 430.0, 760.0] {
+        lamps.push(Lamp {
+            p: f.at(x, 130.0, 170.0),
+            col: warm([1.0, 0.80, 0.56], 2.5 * k * c.rows),
+            reach: 2.2,
+        });
     }
     // The wall's pools of light, low behind the players, and the hall's lights high up
     // (its bokeh).

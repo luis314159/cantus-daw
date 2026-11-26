@@ -464,6 +464,63 @@ occluding capsules in its live painter.
       across it (the thinned forearm's rings lie farther apart than the old slab) and is
       on; `arcus_figure_specks` is on; `arcus_figure_auto` (new) holds Light's coarse arms
       and Auto's step down on long frames and back.
+  - **The polish, pass 3: the concert light** (amendment, 2026-11-25, r42:arcus-polish3 —
+    the owner beside three concert photographs: "Aún le falta lo de la luz, compara con las
+    imágenes reales"; earlier "una iluminación más de presentación de orquesta, algo
+    dramático, elegante y profesional, con sombras y contrastes"):
+    - **One set of numbers, measured against the photographs** (`figure::concert`, ref-04,
+      ref-06, ref-10 measured by `tools/arcus-figures/light_measure.py`): a realistic figure
+      on the stage (Concert, the default) is lit by a small **stage spot** from the
+      audience's side, high (az −45°, el 45°, 12 cm source: real cast shadows — the violin
+      on the neck and the jaw), its pool round the subject so the hall falls dark; a weak
+      **fill** from the audience (a sixth of the key); **two back lights** above and behind
+      as rims (the hair, the shoulders, the violin's edge) and as **a line along black
+      cloth's edge** (`cloth_edge`: the cloth's sheen at grazing toward a light behind, not
+      its black albedo's share — the dark sleeves no longer melt into the hall); black
+      cloth's broad **sheen along its folds** from the key (`cloth_spec`); skin graded warm
+      with a narrower wrap (a shadow side); a red-amber **varnish** with the spot's
+      highlight; a **filmic curve** of its own (ACES's shoulder, an S-curve in display space,
+      the hue kept, a warm grade) and a vignette.
+    - **The live arms are lit by the same numbers** (`arcus_draw_flesh::concert_colour`):
+      the spot's key and wrap, the fill, the back lights' rim and cloth line, the cloth's
+      sheen, through the same curve; the Drawn picture's arms by its own stage light.
+    - **The hall** (`chorda_scene_px_hall`, `scene::hall`): procedural and anonymous, out of
+      focus behind the figure — a warm wood wall in pools of light, the orchestra on four
+      risers (seated forms, half in white shirts, violins and bows, cellos, music stands with
+      their small lamps), the stage floor's warm pools off to the sides, the hall's lights
+      as bokeh; the Drawn picture draws it in its own soft shapes. Chorda's and Tympanum's
+      stage is untouched (the hall is built only for a realistic figure on the stage). The
+      walnut chair the owner read as a stool is a black concert chair (`concert_chair`).
+    - **The Drawn stage light** (`Light::concert`): a clean terminator, the back lights'
+      line along every edge (`Light::rim`), one soft highlight on the varnish and no strip
+      lights (the white blotches on the top), skin eased only at its brightest
+      (`stage_skin`).
+    - **Paper** keeps the same dark stage, a picture in the light window.
+    - **Tunable without a rebuild**: `CANTUS_CONCERT="key_az=-40,exposure=1.2,…"` (every
+      number of `Concert`, arrays as `a/b/c`); never set by the app.
+    - **The bow arm's height**: a violinist's bow shoulder carried 6 cm up by its
+      collarbone (`PlayRig::shrug`, `bowed_human::SHRUG`; `CANTUS_SHRUG` to tune), so the
+      hand at the frog sits within an upper arm of the elbow's height (it was 1.65–2.46
+      under it): `arcus_arm_pose`'s bow-arm test is on. The left arm's stays ignored for
+      the left-hand table's re-solve (arcus-hands).
+    - **His face, more masculine** (the owner: "el hombre puede mejorar mucho sus rasgos,
+      hazlos más masculinos"): MakeHuman's CC0 targets on the generic average, fitted to
+      nobody — an angular head, a wider, stronger jaw, a squarer chin with a slight cleft, a
+      heavier brow ridge with lower, straighter, thicker brows, defined cheekbones over
+      hollower cheeks, a slightly wider nose, a thicker neck, about thirty; an Adam's apple
+      in the neck's relief; his stubble as hairs in his skin's texture over the beard's
+      place (`beard_field`, `uv_field`), not flat paint.
+    - **The sleeve as cloth** (`sleeve_drape`): the shoulder's pull lines as the bow arm
+      rises and the cuff's slack over the wrist, driven by the pose (normals and creases,
+      as `elbow_folds`). The clothing study (what concert clothing shows against what we
+      have) is in the handoff.
+    - **The violin's neck heel** as a luthier cuts it: the neck's depth kept to within
+      1.8 cm of the body, then down to the button (`bowed_head::neck`).
+    - **The light-measure gate** (`tests/arcus_light_measure.rs`): through the app, both
+      figures, Night and Paper — the face's luminance, its warmth, its two sides, the face
+      over the hall, the picture's contrast, the hair's and the clothes' edge, and the dark
+      clothes' silhouette against the hall below the face — each in the band measured from
+      the three photographs; the Drawn picture held to the light's shape.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

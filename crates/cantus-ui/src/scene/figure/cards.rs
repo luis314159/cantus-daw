@@ -166,8 +166,9 @@ pub fn feather(who: u8, line: f32) -> f32 {
         smooth(-6.0, 2.0, line)
     } else {
         // (His short hair's edge thins over a narrower ramp — a groomed hairline; r42:
-        // arcus-polish2: his cards' own edge read as jagged teeth at 200 %.)
-        smooth(-2.5, 1.5, line)
+        // arcus-polish2: his cards' own edge read as jagged teeth at 200 %; r42:arcus-polish3:
+        // a little wider again, the scalp's broken edge under it — the coordinator: a cap.)
+        smooth(-4.0, 1.5, line)
     }
 }
 
@@ -277,8 +278,13 @@ pub fn scalp_cover(who: u8, line: f32, across: f32) -> f32 {
         smooth(-3.5, 2.5, line + wave)
     } else {
         // (r42:arcus-polish2: his thins as well, over a narrower, less uneven edge.)
-        let wave = (across * 9.0).sin() * 0.3 + (across * 2.7 * 9.0).sin() * 0.2;
-        smooth(-2.5, 1.5, line + wave)
+        // (r42:arcus-polish3: short hairs breaking the edge — fine, uneven tufts over a wider
+        // ramp, so his hairline is hair, not a cap's rim; the coordinator's review.)
+        let wave = (across * 9.0).sin() * 0.5
+            + (across * 2.7 * 9.0).sin() * 0.45
+            + (across * 7.3 * 9.0 + 1.1).sin() * 0.6
+            + (across * 15.1 * 9.0 + 2.3).sin() * 0.5;
+        smooth(-4.5, 2.0, line + wave)
     }
 }
 

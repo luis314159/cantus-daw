@@ -1161,7 +1161,7 @@ pub fn arcus_rig(
 /// r42:arcus-polish3 — how much a realistic violinist's shoulders are raised (cm, left and
 /// right): the bow shoulder carries the arm so the hand at the frog sits near the elbow's
 /// height (the photographs, `tests/arcus_arm_pose.rs`).
-pub const SHRUG: [f32; 2] = [0.0, 0.0];
+pub const SHRUG: [f32; 2] = [0.0, 6.0];
 
 /// [`SHRUG`], or `CANTUS_SHRUG="left,right"` for finding it (a tuning aid, read once).
 pub fn shrug() -> [f32; 2] {

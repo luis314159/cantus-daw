@@ -280,7 +280,7 @@ impl Light {
         let ndl = match &self.concert {
             // r42:arcus-polish3 — the stage's clean terminator: the lit side nearly even,
             // the shadow side dark, a narrow soft step between (a drawn spot's light).
-            Some(c) => smooth(-0.05, c.d_term, n.dot(l)) * (0.6 + 0.4 * n.dot(l).max(0.0)),
+            Some(c) => smooth(-0.25, c.d_term, n.dot(l)) * (0.6 + 0.4 * n.dot(l).max(0.0)),
             None => n.dot(l).max(0.0),
         };
         let mut d = ndl * if spot { self.spot(p) } else { 1.0 };
@@ -349,6 +349,8 @@ impl Light {
                     // highlight (a shape, not the strip lights' blotches), the dark hall
                     // round it, its edge's rim from the back lights.
                     let spot = nh.powi(12) * 0.12;
+                    // The varnish deeper, toward red-amber, under the stage's warm spot.
+                    let c = mul(c, [1.0, 0.8, 0.62]);
                     let c = add(c, scale(m.key_col, spot * mat.spec.max(0.4) * m.key));
                     return add(c, scale([1.0, 0.9, 0.78], self.rim(n, vv) * 0.6));
                 }
