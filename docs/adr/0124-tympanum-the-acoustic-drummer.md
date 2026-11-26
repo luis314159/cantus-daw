@@ -482,3 +482,54 @@ The owner: *"Add Tympanum at once"* — with his blind listening of it kept in t
 Its sound is not called done: the owner's blind listening kit (each modelled kit against the
 recorded kit it was measured from, piece by piece and in a groove; ABX, preference and
 "recording or synthesis?") and his verdict come first (`docs/BACKLOG-excellence.md`).
+
+## Sixth amendment (round 42, `tympanum-real`) — measured against real kits of many genres; the level law
+
+The owner (2026-11-26): *"a Tympanum le falta mucho"* — download professional recordings free
+of copyright, transcribe what is not separated, measure where and how hard each drum is struck,
+and iterate against several kinds of kits and genres. `docs/round42/tympanum-real.md` has the
+library, the method and every number; `tools/tympanum-real/` the tools.
+
+**The library** (catalogued in `tools/sound-refs/catalog.toml`: `drums-dg`, `drums-packs`,
+`drums-freesound`, `drums-gmd`, beside the `tympanum` set): DRSKit, The Aasimonster (DrumGizmo,
+CC BY 4.0), Big Rusty, Unruly (sticks and brushes), Gogodze Phu II, Virtuosity, Frankensnare,
+Swirly, VSCO 2 percussion (CC0), real playing from Freesound (CC0/CC BY), and the Groove MIDI
+Dataset's 1 150 human performances (CC BY 4.0) to drive every kit with the same notes. Every
+recorded kit plays through Tympanum's own loader and the engine's render, so recorded and
+modelled kits share one path.
+
+**Decision 1 — model 5's level law** (`pulsus_measured_law.rs`, `DSP_VERSION` 19). A hit between
+two of a table's four velocity layers blends them, and measured through Pulsus the blend's level
+did not follow any recording: the studio kick at velocity 56 louder than at 80, its 100 → 127
+step +0.7 dB, the 12″ tom 2.8 dB down from 80 to 96, the jazz ride 5.7 dB quieter at 127 than at
+104. Real drummers play mostly there — in the Groove MIDI Dataset the median snare stroke is
+velocity 45 and 41 % of snare strokes are ghost notes — so each table now adds, per velocity, the
+level that brings its first 80 ms to a law: the studio kit's tables to DRSKit's own (as Tympanum's
+recorded path plays it), the jazz kit's to its own made monotone (Virtuosity's 60-dB span from
+16 to 127 is that library's curve, which the jazz kit already follows). The hardest hit keeps its
+calibrated level; each velocity keeps its colour (only the level moves). `tools/tympanum-real/
+law.py` regenerates the table from the `level_law_dump` test whenever the blob changes. The cause
+— the blend takes its onset phases from the main layer while it mixes the layers' amplitudes — is
+left for model 6.
+
+**Decision 2 — the jazz rack toms' burst** (`BURST`): table 22 alone carried a stick burst, and it
+made the toms' first 3 ms swing 0.4–10 kHz from take to take; it is scaled to 0 (the knock stays).
+
+**Measured and left as they are:** the closed hat's length (with the pedal closed, as a song
+without CC4 plays it, 241 ms at 8 kHz against the recordings' 193–224); brightness rising with
+level holds for kick, toms and cymbals but not for a snare (four of seven recorded snares are
+brighter soft — the wires dominate a ghost note).
+
+**Consequences.** The weighted measures outside the recorded kits' range: studio 22.9 → 13.3,
+jazz 38.1 → 22.6 (before the burst); no velocity step falls. Pulsus never plays model 5: no Pulsus
+song changes and no golden hash holds Tympanum. Open (the doc's list): the grooves' crest 2–10 dB
+above the recordings', the 1 kHz band, the jazz closed hat's take-to-take variation, brushes,
+per-genre kits measured off Aasimonster / Gogodze / Big Rusty, strike position measured with the
+wires off.
+
+**What the tests hold:** `the_level_law_interpolates_and_a_table_without_one_adds_nothing`,
+`every_table_grows_with_velocity_at_every_step` (no step falls by more than a hit's own
+variation, at least 12 dB from 16 to 127), `a_table_without_its_burst_and_every_other_with_its_own`
+(cantus-dsp); block-size independence and rest as before (the law is a gain at the strike);
+`every_modelled_piece_grows_with_the_velocity_through_the_app` (cantus-ui `tympanum_e2e`, through
+`CantusApp::assemble`).
