@@ -23,9 +23,10 @@ NAMES = {
     "ink_gold": "Ink & Gold", "parchment": "Parchment", "ultraviolet": "Ultraviolet",
     "lagoon": "Lagoon", "evergreen_night": "Evergreen Night",
     "evergreen_paper": "Evergreen Paper", "bordeaux": "Bordeaux", "print": "Print",
+    "violet_paper": "Violet Paper",
     "contrast": "High contrast", "contrast_light": "High contrast light",
 }
-NEW = {"evergreen_night", "evergreen_paper", "bordeaux", "print"}
+NEW = {"evergreen_night", "evergreen_paper", "bordeaux", "print", "violet_paper"}
 RESTORED = {"cantus_night", "cantus_paper", "blue_hour", "daylight", "slate", "paper",
             "ink_gold", "parchment", "ultraviolet", "lagoon"}
 

@@ -42,7 +42,8 @@ all of them, and add more if you want"*):
   Paper (`theme_slate_lapis.rs`, below); Graphite Night and Paper; Studio Ink Night and Paper.
 - **From earlier rounds, redrawn** (`theme_redrawn.rs`) — the ten themes of rounds 24–38,
   each in its own light and character, re-expressed in round 39's system (below).
-- **New in round 39** (`theme_added.rs`) — Evergreen Night and Paper, Bordeaux, Print.
+- **New in round 39** (`theme_added.rs`) — Evergreen Night and Paper, Bordeaux, Print; and,
+  since round 42, Violet Paper (§13).
 - **For low vision** — High contrast dark and light (every text role at 7:1).
 
 Round 39 first retired the ten older themes and showed Slate for a setting that named one;
@@ -83,6 +84,7 @@ are the theme's character.
 | Evergreen Paper | light | Graphite · recessed · **Jack** | new: pale sage; forest-green keys and selection (brass is muddy as a key on paper), brass readouts, playhead and loop |
 | Bordeaux | dark | Graphite · recessed · Flow | new: deep wine; rose-gold keys and selection, champagne readouts, playhead and loop |
 | Print | light | Studio ink · recessed · **Subway** | new: black ink on white paper and one vermilion — greys everywhere, ink keys and selection, vermilion playhead, loop, record and clip, grey meters, a heavier veil, cables as a printed diagram |
+| Violet Paper | light | Slate · recessed · Flow | round 42 (§13): a warm lavender sheet, violet-grey inks, amethyst keys, selection and tint, deep-violet readouts, the logo's gold on the playhead and the loop, cobalt automation |
 
 **Classic is kept only where a theme is about it**: the high-contrast pair (Plex's open
 forms at 7:1, raised keys with bright edges) and the user's own older themes. No restored
@@ -598,6 +600,41 @@ pair (§11) — only the mode a fresh install starts in.
   (it is drawn before the appearance is read); every theme's tokens; the screenshots, which
   set their mode explicitly.
 
+### 13. Amendment, round 42 (`violet-paper`): Violet Paper
+
+The owner, 2026-11-26: *"Pon un agente a hacer un violet paper theme"*. A twenty-fifth theme,
+light only, in the New group of Settings ▸ Appearance (its own tile, *Violet Paper* /
+*Papel violeta*), made and measured as the round-39 themes are (`tools/themes/themes.py`,
+spec `violet_paper`; written into `theme_added.rs`). No model, schema or file-format change:
+a preset is an id (`kit::appearance::PRESETS`), and an `appearance.json` that names it is read
+by every release that has it.
+
+- **The room.** Slate Paper's ladder turned to 280° with × 1.45 its colour, at its light
+  scaled by 0.975 in WCAG's terms (so every contrast between two surfaces stays Slate's): a
+  warm off-white with a faint lavender cast — the gutter `#fbf8fc`, the base `#f6f1f8`, the
+  bars and strips `#ece2f1`, the wells `#e1d6e7`. Stronger casts (× 2.4, the first draft; and
+  286°, rosier) read as pink-mauve in the mixer and were set aside on the shots.
+- **The inks.** Deep violet-grey, not black: text `#231830`, secondary `#5d4f71`.
+- **The accent.** Amethyst `#6a46b8` on the keys, the selection, focus, the primary button
+  and the menu's hover, its tones derived as Slate derives its own; laid over every selected
+  fill (`accent.selection_tint`, alpha 26, as Slate Lapis Paper's). The lane veil is a
+  near-neutral paper (`#f6f4f7`), as Slate Lapis Paper's: in the lavender base it laid the
+  violet tracks' bodies at chroma 20.4, past the calm of 20 (`arrangement_legibility`).
+- **The marks.** The readouts in deep violet (`#4b2f8a`, `#5c4a7e`); the playhead and the
+  loop's edges in the logo's gold (`#9a6e1c`, Slate Lapis Paper's), so the playhead is never
+  taken for the selection. Automation in cobalt (`#2c5bc4`): Slate's violet `auto` would sit
+  beside the amethyst selection.
+- **What stays Slate's.** The system (Barlow, recessed keys, Flow cables), the meters, LED,
+  record and the function hues (moved the least that holds 4.5:1 on its cards: `danger`
+  `#bd3131`, `modulated` `#ae3783`).
+
+Measured (the kit's promises and round 25's floor, `theme::tests`, `themes39.rs`): text on
+the base 15.2:1, on the bars 13.4:1, on the wells 12.0:1; secondary 6.7:1 on the base and
+5.3:1 on the wells; amethyst 5.9:1 on the base (white on it 6.6:1); the selection 4.8:1 on a
+selected strip; the readouts 8.1:1 on the bar; the playhead 3.9:1 on its rows; the meters
+3.9–4.6:1 in their groove; ΔE 18.9 from the nearest theme of its light (Slate Lapis
+Paper), past the 14 `themes39` holds.
+
 ## Consequences
 
 - Every view inherits the family's colours, face, keys and wells from the kit; views that
@@ -634,7 +671,8 @@ pair (§11) — only the mode a fresh install starts in.
 - `tests/themes_whole_words.rs` — every theme started through `assemble` in one process at
   1920 × 1080 125 % and 1600 × 900 100 / 125 %: the menus whole (Help kept), no word elided
   (the widths' caches are keyed by a process-wide fonts number, `kit::cache::fonts_seen`).
-- `tests/themes_e2e.rs` — through `assemble`: Cantus Night (redrawn) and Print (new) chosen on
+- `tests/themes_e2e.rs` — through `assemble`: Violet Paper (§13) chosen on its tile, its room,
+  amethyst and gold playhead painted, kept across a restart; Cantus Night (redrawn) and Print (new) chosen on
   Settings ▸ Appearance, each painting its room (and Cantus Night's verdigris on the chosen
   row, Print's vermilion playhead), kept across a restart; beta.13's `ultraviolet` /
   `parchment` and a round-24 `theme.json` open in their themes; the page holds a tile for

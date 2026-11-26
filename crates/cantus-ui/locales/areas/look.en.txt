@@ -70,3 +70,6 @@ look.family.evergreen = Evergreen Night · Paper
 look.family.bordeaux = Bordeaux
 look.family.print = Print
 look.family.contrast = High contrast
+# round 42, violet-paper: Violet Paper, a light theme of its own (Settings ▸ Appearance, the New group).
+theme.violet_paper = Violet Paper (light)
+look.family.violet_paper = Violet Paper

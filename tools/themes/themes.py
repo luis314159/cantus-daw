@@ -178,6 +178,23 @@ spec("print", name="Print", dark=P, hue=0, gain=0.0, f=1.02, text_hue=0, text_ga
          auto=hx(0x5a3fa8), modulated=hx(0x99306f),
      ))
 
+# ---- new in round 42 ---------------------------------------------------------------------
+
+# The owner, 2026-11-26: "un violet paper theme". A warm lavender sheet, violet-grey inks,
+# amethyst on the keys and the selection, the logo's gold on the playhead and the loop.
+spec("violet_paper", name="Violet Paper", dark=P, hue=280, gain=1.45, f=0.975, text_hue=266,
+     text_gain=1.1, metal_gain=0.7, metal_hue=272, accent=hx(0x6a46b8), system="System::SLATE",
+     set=dict(
+         selection_tint=alpha(hx(0x6a46b8), 26), readout=hx(0x4b2f8a), readout_soft=hx(0x5c4a7e),
+         playhead=hx(0x9a6e1c), loop_edge=hx(0x9a6e1c), auto=hx(0x2c5bc4),
+         shadow=alpha(hx(0x2e2440), 56), scrim=alpha(hx(0x2a2238), 87),
+         drop=alpha(hx(0x2e2440), 40), bevel_shade=alpha(hx(0x463a5a), 40),
+         # The lane veil a near-neutral paper, as Slate Lapis Paper's: in the lavender base it
+         # laid the violet tracks' bodies at chroma 20.4, past the calm of 20
+         # (`arrangement_legibility`).
+         track_veil=alpha(hx(0xf6f4f7), 150),
+     ))
+
 if __name__ == "__main__":
     import report
 

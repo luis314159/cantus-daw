@@ -7,6 +7,8 @@
 //! - **Print** (new in round 39, light only) chosen from its tile: the light mode set and
 //!   shown, its ink-and-paper room painted, its vermilion playhead in the arrangement; kept
 //!   across a restart, with Cantus Night still the dark mode's.
+//! - **Violet Paper** (round 42, light only) chosen from its tile: its lavender room, its
+//!   amethyst and its gold playhead painted; kept across a restart.
 //! - **An old setting naming a formerly retired id** (beta.13's `ultraviolet` and
 //!   `parchment`) opens in those themes.
 //! - **The page holds every theme**: a tile for each preset, none overlapping, each inside
@@ -289,6 +291,87 @@ fn a_restored_theme_and_a_new_one_chosen_in_settings_paint_and_survive_a_restart
     let back = tokens::current();
     assert_eq!((back.panel, back.highlight), (print.panel, print.highlight));
     assert_eq!(system::face(), Face::PlexInk);
+}
+
+/// Round 42's Violet Paper (the owner, 2026-11-26), the way a user meets it: Settings ▸
+/// Appearance, a click on its tile in the New group, the light mode set and shown — its
+/// lavender room, its violet inks and amethyst keys installed in Slate's face, the chosen
+/// page's row laid with its amethyst; the arrangement playing under its gold playhead with
+/// the chosen clip's body under the amethyst; kept across a restart.
+#[test]
+fn violet_paper_chosen_in_settings_paints_and_survives_a_restart() {
+    let _one = serial();
+    let dir = data(None);
+    let mut r = boot(dir.path());
+    r.settings();
+    let n = tile_of("violet_paper").expect("Violet Paper has a tile");
+    assert_ne!(tile_of("print"), Some(n), "a tile of its own");
+    let tile = r.tile(n);
+    r.click(tile.center());
+    assert_eq!(r.app.appearance.light.base, "preset:violet_paper");
+    assert_eq!(r.app.appearance.mode, Mode::Light);
+    assert_eq!(
+        r.app.appearance.dark.base, "preset:slate_lapis_night",
+        "the dark mode kept"
+    );
+    let want = added::violet_paper_tokens();
+    let got = tokens::current();
+    assert_eq!(
+        (
+            got.panel,
+            got.toolbar,
+            got.text,
+            got.highlight,
+            got.selection_tint,
+            got.playhead
+        ),
+        (
+            want.panel,
+            want.toolbar,
+            want.text,
+            want.highlight,
+            want.selection_tint,
+            want.playhead
+        )
+    );
+    assert_eq!(got.system, System::SLATE);
+    assert_eq!(system::face(), Face::Barlow);
+    r.frames(40);
+    let painted = r.frame(Vec::new());
+    assert!(
+        painted.contains(&want.toolbar),
+        "the room is Violet Paper's"
+    );
+    let row = cantus_ui::kit::color::selected_fill(want.menu, want.selection_tint, 1.0);
+    assert!(
+        painted.contains(&row),
+        "the chosen page's row is laid with the amethyst"
+    );
+    // The arrangement plays under the gold playhead.
+    r.app.show_settings = false;
+    r.app
+        .engine
+        .seek(cantus_core::time::Ticks(cantus_core::time::PPQ * 8));
+    r.app.engine.play();
+    r.frames(2);
+    let painted = r.frame(Vec::new());
+    assert!(
+        painted.contains(&want.playhead),
+        "Violet Paper's playhead is gold"
+    );
+    assert!(
+        painted.contains(&want.highlight),
+        "its amethyst shows in the window"
+    );
+
+    // Kept: a restart opens in Violet Paper.
+    drop(r);
+    let r = boot(dir.path());
+    assert_eq!(r.app.appearance.mode, Mode::Light);
+    assert_eq!(r.app.appearance.light.base, "preset:violet_paper");
+    let back = tokens::current();
+    assert_eq!((back.panel, back.highlight), (want.panel, want.highlight));
+    assert_eq!(system::face(), Face::Barlow);
 }
 
 #[test]
