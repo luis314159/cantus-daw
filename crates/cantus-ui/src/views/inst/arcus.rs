@@ -439,6 +439,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s.s(card_h(86.0 + 6.0 + 86.0)),
         s.s(card_h(86.0)),
         s.s(card_h(86.0 + 6.0 + 86.0)),
+        s.s(card_h(86.0)), // r42 fiddle: one bow on two strings, the sympathy, the grit
     ];
     let total = heights.iter().sum::<f32>() + gutter * (heights.len() - 1) as f32;
     let (area, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), total), Sense::hover());
@@ -555,6 +556,19 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
             &["poly", "finger", "porta", "bend"],
             &["octave", "transpose", "fine", "seed"],
         ],
+    );
+    // r42 fiddle (ADR 0164): the strings under one bow, in sympathy, gritty, steel.
+    let r7 = rows.row(heights[6], &[1.0]);
+    cells_card(
+        app,
+        ui,
+        track,
+        spec,
+        r7[0],
+        s,
+        "arcus.strings",
+        Function::Tone,
+        &[&["bow.pair", "bow.tilt", "dstop.just", "bow.grit", "sym", "steel"]],
     );
 }
 

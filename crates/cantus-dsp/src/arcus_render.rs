@@ -24,6 +24,7 @@ impl Arcus {
         let upper_still = self.upper_body.is_still(); // r42:arcus-upper
         if !sounding
             && rad_still
+            && self.sym.is_still() // r42 fiddle
             && self.body.is_still()
             && upper_still // r42:arcus-upper
             && self.eq.is_still()
@@ -88,7 +89,10 @@ impl Arcus {
                     self.alloc.voice_finished(i);
                 }
             }
-            let quiet = !any && self.rad.iter().all(|r| *r == [0.0; 4]);
+            // r42 fiddle: the open strings in sympathy, driven by the bridge (none at `sym` 0).
+            self.sym
+                .process(&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
+            let quiet = !any && self.sym.is_still() && self.rad.iter().all(|r| *r == [0.0; 4]);
             let out_quiet = quiet && self.body.is_still() && self.upper_body.is_still(); // r42:arcus-upper
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
             // The radiation (r42:arcus-p5: a second-order Butterworth high-pass, 12 dB an

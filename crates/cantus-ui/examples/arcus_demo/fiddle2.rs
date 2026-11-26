@@ -196,16 +196,6 @@ pub fn build(app: &mut CantusApp) -> Vec<TrackId> {
         1.0,
         -18.0,
     );
-    let dbl = add(
-        app,
-        InstrumentKind::BowedString,
-        Some("arcus.preset.violin_fiddle"),
-        "Violín (dobles cuerdas)",
-        Color::rgb(0xC9, 0x94, 0x31),
-        -0.12,
-        -6.0,
-        -18.0,
-    );
     let twin = add(
         app,
         InstrumentKind::BowedString,
@@ -253,24 +243,10 @@ pub fn build(app: &mut CantusApp) -> Vec<TrackId> {
             (LaneKind::Cc(11), cc11.clone()),
             (LaneKind::Cc(21), cc21),
         ];
-        fiddle::clip(app, fid, "Violín", sec.bar, sec.bars, &notes, lanes, BPM);
-        if !drone.is_empty() {
-            let lanes = vec![
-                (LaneKind::Cc(1), cc1.clone()),
-                (LaneKind::Cc(11), cc11.clone()),
-                (LaneKind::Cc(21), vec![(0.0, 0.0)]),
-            ];
-            fiddle::clip(
-                app,
-                dbl,
-                "Dobles cuerdas",
-                sec.bar,
-                sec.bars,
-                &drone,
-                lanes,
-                BPM,
-            );
-        }
+        // r42 fiddle: the double stops in the fiddle's own clip — one bow on two strings.
+        let mut all = notes.clone();
+        all.extend(drone);
+        fiddle::clip(app, fid, "Violín", sec.bar, sec.bars, &all, lanes, BPM);
         // The twin fiddle: the B part's second time, a diatonic third under, a hair behind.
         if k == 4 {
             let harm: Vec<FNote> = notes
@@ -360,5 +336,5 @@ pub fn build(app: &mut CantusApp) -> Vec<TrackId> {
     fiddle::clip(app, piano, "Piano", 1, bars, &p, vec![], BPM);
     fiddle::clip(app, bass, "Contrabajo", 1, bars, &b, vec![], BPM);
     fiddle::clip(app, kit, "Batería", 1, bars, &d, vec![], BPM);
-    vec![fid, dbl, twin]
+    vec![fid, twin]
 }

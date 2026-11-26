@@ -65,6 +65,18 @@ impl Voice {
         let s = sh.s;
         let was_bowing = keep && self.active && self.bowing; // r42 arcus-expr
         let keep = keep && self.active && self.inst == s.instrument && self.same_rate(sh); // r42:arcus-upper
+        // r42 fiddle: one bow on two strings — the note's string found first, the voice's two
+        // strings placed so the first is on it (`pair::place`); a string the bow leaves rings.
+        let mut fresh = false;
+        if keep && Self::paired(s) && tech.is_bowed() {
+            let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
+            let ix = self.string_of(s, note + crate::tuning::at(sh.tuning, key), how);
+            fresh = self.place(ix);
+            if fresh {
+                self.trim = 0.0;
+                self.ear.reset();
+            }
+        }
         if !keep {
             self.clear();
             self.vib_age = 0;
@@ -113,7 +125,7 @@ impl Voice {
         // 4 ms wide on the cello's and the bass's every détaché (`docs/round42/arcus-match.md`,
         // *Pass 5*).
         let finger = rebow_finger_ms() * 0.001 * sh.sr;
-        if keep && self.bowing && tech.is_bowed() && finger >= 1.0 {
+        if keep && self.bowing && tech.is_bowed() && finger >= 1.0 && !fresh {
             self.glide = was - self.note - self.tune;
             self.glide_step = self.glide / finger;
         }
@@ -311,6 +323,17 @@ impl Voice {
         let sh_rate = self.at_rate(sh); // r42:arcus-upper
         let sh = &sh_rate; // r42:arcus-upper
         let s = sh.s;
+        // r42 fiddle: a slur across strings under one bow (`pair::place`): the string the bow
+        // leaves rings on, the new one is bowed again or starts from rest.
+        let mut fresh = false;
+        if Self::paired(s) && self.tech.is_bowed() {
+            let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
+            let ix = self.string_of(s, note + crate::tuning::at(sh.tuning, key), how);
+            fresh = self.place(ix);
+            if fresh {
+                self.trim = 0.0;
+            }
+        }
         // r42 fix2-arcus: where the finger is, its tuned offset in it (before, the slur
         // started at the old key's 12-TET pitch plus the new key's offset, a jump of the
         // offsets' difference at once — 61 cents on a one-key slur in 31-EDO).
@@ -320,7 +343,11 @@ impl Voice {
         let _ = velocity;
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         self.tune = crate::tuning::at(sh.tuning, key);
-        self.glide = was - self.note - self.tune;
+        self.glide = if fresh {
+            0.0 // r42 fiddle: a string at rest has no finger to slide
+        } else {
+            was - self.note - self.tune
+        };
         self.tuning = 0.0;
         if let Some(t) = tech.filter(|t| *t != self.tech) {
             // The bowing changes with the finger: a tremolo starts its strokes afresh.

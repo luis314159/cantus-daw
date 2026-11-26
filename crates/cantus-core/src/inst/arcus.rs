@@ -99,6 +99,14 @@ params! {
     // much the force follows the bow's place.
     PLAYER = ("player", "arcus.player", 0.0, 1.0, 1.0, "%", false, false),
     BOW_WEIGHT = ("bow.weight", "arcus.bow.weight", 0.0, 2.0, 1.0, "%", false, false),
+    // r42 fiddle (ADR 0164): one bow on two strings — double stops and drones in one voice,
+    // a string the bow leaves ringing (0 Off · 1 On; off: each voice one string, to the
+    // bit) — the double stop's force on its lower string, its just tuning, and the bow's
+    // grit (the hair's noise rising near the bridge and with the force).
+    PAIR = ("bow.pair", "arcus.bow.pair", 0.0, 1.0, 0.0, "", false, true),
+    TILT = ("bow.tilt", "arcus.bow.tilt", 0.0, 1.0, 0.5, "%", false, false),
+    JUST = ("dstop.just", "arcus.dstop.just", 0.0, 1.0, 0.0, "%", false, false),
+    GRIT = ("bow.grit", "arcus.bow.grit", 0.0, 2.0, 0.0, "%", false, false),
 
     // ---- the vibrato ----
     VIB_DEPTH = ("vib.depth", "arcus.vib.depth", 0.0, 2.0, 1.0, "%", false, false),
@@ -119,6 +127,10 @@ params! {
     PIZZ_DECAY = ("pizz.decay", "arcus.pizz.decay", 0.25, 4.0, 1.0, "%", true, false),
     DECAY = ("decay", "arcus.decay", 0.25, 4.0, 1.0, "%", true, false),
     RING = ("ring", "arcus.ring", 0.05, 5.0, 0.8, "s", true, false),
+    // r42 fiddle (ADR 0164): the open strings ringing in sympathy through the bridge, and
+    // steel strings (0: as measured; both 0 change nothing, to the bit).
+    SYM = ("sym", "arcus.sym", 0.0, 2.0, 0.0, "%", false, false),
+    STEEL = ("steel", "arcus.steel", 0.0, 1.0, 0.0, "%", false, false),
 
     // ---- MPE ----
     MPE_PRESS = ("mpe.press", "arcus.mpe.press", 0.0, 1.0, 1.0, "%", false, false),

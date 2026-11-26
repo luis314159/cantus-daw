@@ -22,6 +22,14 @@ pub(crate) use run::REBOW_FINGER; // r42:arcus-p5
 pub(crate) use step::{CHANGE_KNOBS, SPIC_KNOBS, TREM_KNOBS}; // r42:arcus-p5
 #[path = "arcus_upper_voice.rs"] // r42:arcus-upper
 mod upper; // r42:arcus-upper
+#[path = "arcus_voice_pair.rs"] // r42 fiddle
+mod pair; // r42 fiddle
+pub use pair::JUST_CT; // r42 fiddle
+
+/// r42 fiddle — a steel set's ring over the table's (exactly 1 at `steel` 0).
+pub fn steel_t60_of(s: &ArcusSettings) -> f64 {
+    pair::steel_t60(s)
+}
 
 /// The longest control step a voice renders: the grid's `CTRL` samples at the rate, which an
 /// upper string's voice at `os ×` the rate counts as `CTRL · os` of its own. // r42:arcus-upper
@@ -344,6 +352,14 @@ pub struct Voice {
     peak: f32,
     /// The rate the voice runs at (the upper strings' `os ×`) and its way back. // r42:arcus-upper
     rate: upper::Rate, // r42:arcus-upper
+    /// r42 fiddle (ADR 0164, `pair`) — the second string under the same bow, the first's
+    /// share of the bow's force (last step, this step: exactly 1 without a pair), whether the
+    /// first string's note is one the allocator never saw (a drone), and whether the first
+    /// string starts afresh at the next step (the bow crossed onto a string at rest).
+    sec: pair::Second,
+    w1: (f32, f32),
+    orphan: bool,
+    restring: bool,
     /// Tests: every sample's slip, recorded while `record` is set.
     #[cfg(test)]
     pub record: bool,
@@ -428,6 +444,10 @@ impl Voice {
             trem_g: 1.0,
             peak: 0.0,
             rate: upper::Rate::new(sample_rate), // r42:arcus-upper
+            sec: pair::Second::new(sample_rate), // r42 fiddle
+            w1: (1.0, 1.0),
+            orphan: false,
+            restring: false,
             #[cfg(test)]
             record: false,
             #[cfg(test)]
@@ -546,6 +566,11 @@ impl Voice {
         self.glide = 0.0;
         self.glide_step = 0.0;
         self.has_press = false;
+        // r42 fiddle: the second string and the pair's state.
+        self.sec.clear();
+        self.w1 = (1.0, 1.0);
+        self.orphan = false;
+        self.restring = false;
     }
 
     /// Fade out over 4 ms (taken by a new note, a choke), then end.
@@ -570,6 +595,7 @@ impl Voice {
 
     /// The key is let go: the bow lifts (a short stroke ends by itself).
     pub fn release(&mut self) {
+        self.sec.held = false; // r42 fiddle: the bow leaves both strings
         if !self.active || self.released {
             return;
         }

@@ -17,11 +17,11 @@
 //! - **Ornaments** (per-note MPE bends): `/` a slide up from a semitone under (70 ms), `%` from a
 //!   minor third under (100 ms), `g` a hammer-on grace from a whole step under (35 ms), `b` a
 //!   bluesy bent note (a flatted third or seventh pushed a fifth of a tone up through the note).
-//! - **Double stops and drones**: a second Arcus violin (*dobles cuerdas*) bows the open string
-//!   next to the melody's — the A under an E-string note, the D under an A-string one — on the
-//!   parts that ask for it, re-bowed where the melody's bow changes and in its direction (one
-//!   bow on two strings, as a fiddler's flat bridge lets it; one Arcus cannot bow two strings
-//!   with one bow yet, `arcus-expr.md` *Next*).
+//! - **Double stops and drones**: the open string next to the melody's — the A under an
+//!   E-string note, the D under an A-string one — on the parts that ask for it, struck with the
+//!   melody's note in the fiddle's own clip: r42 fiddle (ADR 0164), one Arcus bows the two
+//!   strings with one bow (the preset's *one bow, two strings*), the drone's string re-bowed
+//!   with the melody's and ringing on when the bow leaves it.
 //! - **The chop** (`c`): a short stroke from the air at the frog, the fiddle and its drone
 //!   together, on beats 2 and 4 of the kick-off.
 //! - **Vibrato**: none, but a little and late on a long note at a phrase's end.
@@ -220,21 +220,25 @@ pub fn fiddle(sec: &Section, seed: u64) -> Played {
         for i in a..=b {
             let x = &w[i];
             let offbeat = (x.at.fract() - 0.5).abs() < 1e-9;
-            // The lilt and a few ms of a player.
-            let mut at = x.at + if offbeat { 0.03 } else { 0.0 };
-            at += beat(0.003 * unit(seed, i as u64)).clamp(-0.01, 0.01);
+            // The lilt and a few ms of a player. r42 fiddle: measured on the references
+            // (`tools/arcus/fiddle`): the long eighth 1.24 x the short in bluegrass, 1.18 in
+            // the 78s (the off-beat at 0.55 of the beat), the onsets looser than 3 ms.
+            let mut at = x.at + if offbeat { 0.05 } else { 0.0 };
+            at += beat(0.008 * unit(seed, i as u64)).clamp(-0.02, 0.02);
             let chop = x.flags.contains('c');
+            // r42 fiddle: the long (on-beat) eighth about 1 dB over the short one, as the
+            // references play it (+1.1 dB; ours had the off-beat 1.3 dB over).
             let mut vel = if chop {
                 127.0f64
             } else if offbeat {
-                92.0
-            } else if x.at.rem_euclid(BAR).abs() < 1e-9 {
                 84.0
+            } else if x.at.rem_euclid(BAR).abs() < 1e-9 {
+                92.0
             } else {
-                78.0
+                89.0
             };
             if i != a {
-                vel -= 10.0; // inside a slur
+                vel -= 8.0; // inside a slur
             }
             let mut na = if chop {
                 NoteArt {
@@ -285,10 +289,13 @@ pub fn fiddle(sec: &Section, seed: u64) -> Played {
         let mut e = end;
         if i + 1 < notes.len() && (w[i + 1].at - end).abs() < 1e-9 {
             let same_bow = gs.iter().any(|g| g.0 <= i && i < g.1);
+            // r42 fiddle: a separate stroke changes bow on the string (2 ms between): a
+            // 0.04-beat gap lifted the bow at every note (73 % of the fast notes re-articulated
+            // against the references' 10-17 %).
             e = if same_bow {
                 notes[i + 1].at
             } else {
-                notes[i + 1].at - 0.04
+                notes[i + 1].at - 0.004
             };
         }
         if w[i].flags.contains('c') {
@@ -325,11 +332,13 @@ pub fn fiddle(sec: &Section, seed: u64) -> Played {
             if a.articulation == Articulation::Legato {
                 a.articulation = Articulation::Sustain;
             }
+            // r42 fiddle: the drone as loud as the melody's note (the references' lower voice
+            // 0 to +2 dB over the upper; the bow's tilt shares it by the two velocities).
             drone.push(FNote {
                 at: n.at,
                 len: n.len,
                 key: d,
-                vel: n.vel.saturating_sub(18),
+                vel: n.vel,
                 art: Some(a),
                 bend: if x.flags.contains('x') {
                     n.bend.clone()
@@ -345,10 +354,11 @@ pub fn fiddle(sec: &Section, seed: u64) -> Played {
     let cc1 = vec![(0.0, sec.cc1), (len, sec.cc1)];
     let mut cc11 = Vec::new();
     let mut t = 0.0;
+    // r42 fiddle: the pulse a little gentler (the accent is the long eighth's now).
     while t < len - 1e-9 {
-        cc11.push((t, 0.8));
-        cc11.push((t + 0.5, 1.0));
-        cc11.push((t + 0.75, 0.84));
+        cc11.push((t, 0.88));
+        cc11.push((t + 0.5, 0.97));
+        cc11.push((t + 0.75, 0.9));
         t += 1.0;
     }
     let mut cc21 = vec![(0.0, 0.0)];
@@ -598,17 +608,6 @@ fn build_tune(app: &mut CantusApp) -> Vec<TrackId> {
         -16.0,
         room,
     );
-    let dbl = add_track(
-        app,
-        InstrumentKind::BowedString,
-        Some("arcus.preset.violin_fiddle"),
-        "Violín (dobles cuerdas)",
-        Color::rgb(0xC9, 0x94, 0x31),
-        -0.15,
-        -7.0,
-        -16.0,
-        room,
-    );
     let piano = add_track(
         app,
         InstrumentKind::Chorda,
@@ -649,24 +648,10 @@ fn build_tune(app: &mut CantusApp) -> Vec<TrackId> {
             (LaneKind::Cc(11), cc11.clone()),
             (LaneKind::Cc(21), cc21.clone()),
         ];
+        // r42 fiddle: the drone in the fiddle's own clip — one bow on two strings.
+        let mut notes = notes;
+        notes.extend(drone);
         clip(app, fid, "Violín", sec.bar, sec.bars, &notes, lanes, BPM);
-        if !drone.is_empty() {
-            let lanes = vec![
-                (LaneKind::Cc(1), cc1),
-                (LaneKind::Cc(11), cc11),
-                (LaneKind::Cc(21), vec![(0.0, 0.0)]),
-            ];
-            clip(
-                app,
-                dbl,
-                "Dobles cuerdas",
-                sec.bar,
-                sec.bars,
-                &drone,
-                lanes,
-                BPM,
-            );
-        }
     }
     // The band: the piano on 2 and 4, the bass root and fifth on 1 and 3, the kit light.
     let chords: Vec<&str> = CHORDS.split_whitespace().collect();
@@ -734,7 +719,7 @@ fn build_tune(app: &mut CantusApp) -> Vec<TrackId> {
     clip(app, piano, "Piano", 1, bars, &p, vec![], BPM);
     clip(app, bass, "Contrabajo", 1, bars, &b, vec![], BPM);
     clip(app, kit, "Batería", 1, bars, &d, vec![], BPM);
-    vec![fid, dbl]
+    vec![fid]
 }
 
 /// One passage (the B part's first four bars) on the violin alone, classical or fiddle.
@@ -781,26 +766,14 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
         bpm: BPM,
     };
     if country {
-        let (notes, drone, [cc1, cc11, cc21]) = fiddle(&sec, 0xF1DD_1E77);
+        let (mut notes, drone, [cc1, cc11, cc21]) = fiddle(&sec, 0xF1DD_1E77);
         let lanes = vec![
-            (LaneKind::Cc(1), cc1.clone()),
-            (LaneKind::Cc(11), cc11.clone()),
+            (LaneKind::Cc(1), cc1),
+            (LaneKind::Cc(11), cc11),
             (LaneKind::Cc(21), cc21),
         ];
+        notes.extend(drone); // r42 fiddle: one bow on two strings
         clip(app, v, "Violín", 1, 4, &notes, lanes, BPM);
-        let d = add_track(
-            app,
-            InstrumentKind::BowedString,
-            Some(preset),
-            "Violín (dobles cuerdas)",
-            Color::rgb(0xC9, 0x94, 0x31),
-            0.0,
-            -7.0,
-            -14.0,
-            room,
-        );
-        let lanes = vec![(LaneKind::Cc(1), cc1), (LaneKind::Cc(11), cc11)];
-        clip(app, d, "Dobles cuerdas", 1, 4, &drone, lanes, BPM);
     } else {
         // Classical: the same notes slurred by the bar's halves, legato, the vibrato on, a
         // phrase's swell (the quartet's player, `perform.rs`, as the melody).
