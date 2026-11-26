@@ -363,11 +363,12 @@ occluding capsules in its live painter.
         fingers on a short, narrow palm — the breadth at the knuckles ANSUR II's 0th
         percentile, his 4th, the middle finger's share of the hand the 87th / 86th. The
         metacarpals are lengthened (`PALM_STRETCH`), the first and last phalanges shortened,
-        her hand's length, palm and middle finger now at the 30th / 20th / 51st
-        percentile, his (173.2 cm) 47th / 35th / 61st. The breadth stays narrow (`PALM_SLIM`
-        0.86 / 1.0): widened to the middle half it moved the thumb's base out as well and
-        the hand's outline at its middle stood 1.8–2.1 times the wrist from the camera, the
-        owner's "tosca" (`PALM_WIDE`). The joints' breadths stay a slim violinist's
+        the metacarpal heads spread from the hand's middle line (`KNUCKLE_SPREAD` her 1.2, his
+        1.07; the thumb, its base and its CMC left where they were — `PALM_SLIM` moved them
+        too and the outline from the camera grew to 1.8–2.1 times the wrist, the owner's
+        "tosca"): her hand's length, palm, breadth and middle finger now at the 37th / 29th /
+        36th / 52nd percentile, his (173.2 cm) 49th / 36th / 46th / 61st. `PALM_WIDE` measures
+        the outline the picture shows (skin hidden by the neck left out). The joints' breadths stay a slim violinist's
         (pass 3).
       - *The body's hidden test follows the body as drawn* (`hand::hidden_by_body`): skin
         under the back plate is behind the body only where its ray to the eye crosses the

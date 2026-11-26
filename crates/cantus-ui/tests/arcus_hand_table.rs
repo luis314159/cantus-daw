@@ -448,9 +448,14 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                                 }
                             }
                         }
+                        // (r42:arcus-hands, pass 6: what the picture shows, as the photographs'
+                        // outline is measured — skin the neck hides from the eye, the thumb
+                        // and the palm's edge behind it, is not the hand's outline.)
+                        let eye = cam.eye();
                         let pts: Vec<V3> = (0..fig.pos.len())
                             .filter(|&i| used[i])
                             .map(|i| posed.vertex(fig, i))
+                            .filter(|&p| !hand::hidden_by_neck(p, eye, d, &rig.pose))
                             .collect();
                         let mid = (lp.fingers[1][0] + lp.fingers[2][0]) * 0.5;
                         let ax = (mid - lp.wrist).norm();

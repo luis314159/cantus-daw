@@ -160,7 +160,7 @@ HAND_SCALE = {"woman.fig": 1.08, "man.fig": 0.93}
 # (r42:arcus-hands, pass 6: kept, though 0.86 / 1.0 draw the breadth across the knuckles to
 # ANSUR II's 0th / 4th percentile for their statures — hand_anthro.py; 0.99 / 1.04 moved the
 # thumb's base out too and broke arcus_hand_table's PALM_WIDE, the owner's "tosca":
-# bowed_human.rs::PALM_SLIM says more.)
+# bowed_human.rs::PALM_SLIM says more; the knuckles alone: build_figures.py KNUCKLE_SPREAD.)
 PALM_SLIM = {"woman.fig": 0.86, "man.fig": 1.0}
 
 

@@ -1640,16 +1640,19 @@ the figures built from this pass's `build_figures.py`, `fig1s\` those with a pac
 
   | | hand length | palm length | breadth at the knuckles | middle finger |
   |---|---|---|---|---|
-  | her (cm, pct) | 17.81 p48 → 17.45 p30 | 10.14 p11 → 10.33 p20 | 6.37 p0 → 6.56 p0 (kept narrow) | 7.67 p86 → 7.13 p51 |
-  | his (cm, pct) | 19.50 p71 → 19.04 p47 | 11.13 p22 → 11.32 p35 | 8.08 p4 → 8.27 p10 (kept narrow) | 8.36 p92 → 7.72 p61 |
+  | her (cm, pct) | 17.81 p48 → 17.60 p37 | 10.14 p11 → 10.46 p29 | 6.37 p0 → 7.62 p36 | 7.67 p86 → 7.14 p52 |
+  | his (cm, pct) | 19.50 p71 → 19.07 p49 | 11.13 p22 → 11.34 p36 | 8.08 p4 → 8.71 p46 | 8.36 p92 → 7.73 p61 |
 
   Changes: `build_figures.py::PALM_STRETCH` (the metacarpals 0.32 / 0.34 cm longer as built,
   the fingers carried out), `FINGER_STRETCH` (first phalanges of the middle, ring, little
   0.947 / 0.936 / 0.967, the last segments 0.77 / 0.83 / 0.78 / 0.95), `PALM_SLIM` kept at 0.86 /
-  1.0: 0.99 / 1.04 brought the breadth to p29 / p33, but the slim factor moves the thumb's
-  base out with the fingers', and from the camera the hand's outline at its middle stood
-  1.8–2.1 times the wrist (`arcus_hand_table`'s `PALM_WIDE` 1.45, the photographs' 1.1–1.3:
-  the owner's "tosca"); widening the knuckles alone, not the thumb, is open. Chatzioglou's finger
+  1.0 (0.99 / 1.04 moved the thumb's base out with the fingers' and the outline from the
+  camera stood 1.8–2.1 times the wrist, `PALM_WIDE`; the photographs 1.1–1.3, the owner's
+  "tosca") and instead `KNUCKLE_SPREAD` her 1.2, his 1.07 at build: the index … little
+  metacarpal heads spread from the hand's middle line, their fingers and skin with them, the
+  thumb, its base and its CMC where they were. `arcus_hand_table`'s `PALM_WIDE` now measures
+  the outline the picture shows (skin the neck hides from the eye left out), as the
+  photographs' is measured. Chatzioglou's finger
   lengths still put the fingers at p69–88: their crease lies ~0.45 cm further out than ANSUR
   II's palm length ends (ANSUR's middle finger at p51 / p61 is the same finger); against the
   middle finger the index, ring and little stand 0.89 / 0.91 / 0.73 (theirs 0.92 / 0.92 /

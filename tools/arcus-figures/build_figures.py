@@ -260,16 +260,64 @@ FINGER_SEX = {"female": 1.03, "male": 1.03}
 # 0.947, the ring 0.936, the little 0.967 of MakeHuman's; the middle phalanges 0.60-0.63 of
 # them), the last segments shorter again (index 0.77, middle 0.83, ring 0.78 — the bones'
 # distal/middle within 0.6-0.75 counting ~3 mm of pulp past the tuft) and the palm a little
-# longer (`PALM_STRETCH`): her hand's length, palm's length and middle finger at ANSUR II's
-# 30th / 20th / 51st percentile for her stature, his 47th / 35th / 61st (the breadth stays
-# narrow: hand_rig.py::PALM_SLIM). Chatzioglou's finger lengths, a photograph's crease ~0.45 cm further out than ANSUR
+# longer (`PALM_STRETCH`) and the knuckles spread (`KNUCKLE_SPREAD`): her hand's length,
+# palm, breadth and middle finger at ANSUR II's 37th / 29th / 36th / 52nd percentile for her
+# stature, his 49th / 36th / 46th / 61st. Chatzioglou's finger lengths, a photograph's crease ~0.45 cm further out than ANSUR
 # II's palm length ends, still put them at 69-88; against the middle finger the index, ring
 # and little stand 0.89 / 0.91 / 0.73 of it (theirs 0.92 / 0.92 / 0.74).)
 FINGER_STRETCH = {2: (1.035, 1.08, 0.772), 3: (0.947, 1.0, 0.833), 4: (0.936, 0.994, 0.78),
                   5: (0.967, 1.25, 0.95)}
 # r42:arcus-hands, pass 6 — the metacarpals lengthened (cm, as built; the app's hand scale
 # then 1.08 hers, 0.93 his) and the fingers carried out with them.
-PALM_STRETCH = {"female": 0.32, "male": 0.34}
+PALM_STRETCH = {"female": 0.42, "male": 0.34}
+# r42:arcus-hands, pass 6 — the metacarpal heads spread across the hand (a factor on each
+# head's distance from the hand's middle line, between the middle and ring heads), the
+# fingers carried with them and the metacarpals' skin by its share and its place along the
+# bone (none at the wrist, all at the head): the breadth across the knuckles had stood at
+# ANSUR II's 0th percentile for her stature (6.6 cm) and the 10th for his (8.3). The thumb,
+# its base and its CMC stay where they are, so the hand's outline from the camera keeps
+# the photographs' 1.1-1.3 of the wrist (the load's PALM_SLIM moves the thumb too).
+KNUCKLE_SPREAD = {"female": 1.2, "male": 1.07}
+
+
+def spread_knuckles(pos, wt, J, sex):
+    """r42:arcus-hands, pass 6 — ``KNUCKLE_SPREAD``: the index … little metacarpals' heads
+    moved across from the hand's middle line, their skin with them by its weight and its
+    place along the bone, their fingers' joints and skin whole; ``J`` updated in place."""
+    out = pos.copy()
+    k = KNUCKLE_SPREAD[sex]
+    for s in SIDES:
+        names = [f"metacarpal{m}.{s}" for m in range(1, 5)]
+        if any(f"{n}____tail" not in J or n not in wt for n in names):
+            continue
+        tails = [J[f"{n}____tail"].copy() for n in names]
+        across = tails[0] - tails[3]
+        across = across / max(np.linalg.norm(across), 1e-9)
+        c = (tails[1] + tails[2]) * 0.5
+        for m, mc in enumerate(names, 1):
+            h, t = J[f"{mc}____head"].copy(), tails[m - 1]
+            d = across * (((t - c) @ across) * (k - 1.0))
+            a = t - h
+            L = max(np.linalg.norm(a), 1e-9)
+            a = a / L
+            ids = np.array([i for i, _ in wt[mc] if i < len(pos)])
+            w = np.array([x for i, x in wt[mc] if i < len(pos)])
+            if len(ids):
+                u = np.clip((pos[ids] - h) @ a, 0.0, L) / L
+                out[ids] += (u * w)[:, None] * d[None, :]
+            for kk in (1, 2, 3):
+                n = f"finger{m + 1}-{kk}.{s}"
+                if n not in wt:
+                    continue
+                ids = np.array([i for i, _ in wt[n] if i < len(pos)])
+                w = np.array([x for i, x in wt[n] if i < len(pos)])
+                if len(ids):
+                    out[ids] += w[:, None] * d[None, :]
+                for e in ("head", "tail"):
+                    if f"{n}____{e}" in J:
+                        J[f"{n}____{e}"] = J[f"{n}____{e}"] + d
+            J[f"{mc}____tail"] = t + d
+    return out
 
 
 def lengthen_palm(pos, wt, J, sex):
@@ -1485,6 +1533,7 @@ def make(sex, data, assets):
     J = mh.joint_positions(sk, pos)
     pos = close_lids(pos, wt, J)
     pos = lengthen_palm(pos, wt, J, sex)  # r42:arcus-hands, pass 6
+    pos = spread_knuckles(pos, wt, J, sex)  # r42:arcus-hands, pass 6
     pos = lengthen_fingers(pos, wt, J)  # r42:arcus-hands
     palmar_ways(J)  # r42:arcus-hands
     pos = slim_fingers(pos, wt, J, sex)

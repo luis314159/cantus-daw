@@ -395,7 +395,7 @@ pub const HAND_SCALE: [f32; 2] = [1.08, 0.93];
 /// 0.99 and 1.04 brought both to the middle half, but the slim factor moves the thumb's base
 /// out with the fingers', and the hands' outline at the middle stood 1.8–2.1 times the wrist
 /// from the camera (`arcus_hand_table`'s `PALM_WIDE`, the photographs' 1.1–1.3: the owner's
-/// "tosca"). Widening the knuckles alone is open, `hand_anthro.py` measures it.)
+/// "tosca"). The knuckles alone are spread at build instead: `build_figures.py::KNUCKLE_SPREAD`.)
 pub const PALM_SLIM: [f32; 2] = [0.86, 1.0];
 
 fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
