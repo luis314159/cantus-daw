@@ -239,8 +239,19 @@ FINGER_SEX = {"female": 1.03, "male": 1.03}
 # about 0.93-0.96 of the middle, the little finger reaching the ring's last joint; her
 # little finger's middle phalanx 0.49 of its first, a real one's ~0.6). (first, middle,
 # last) a finger.
-FINGER_STRETCH = {2: (1.08, 1.0, 1.0), 3: (1.04, 1.0, 1.0), 4: (1.04, 1.0, 1.0),
-                  5: (1.03, 1.25, 1.0)}
+# (r42:arcus-hands, pass 6 — the owner: "las últimas falanges sí se ven un poco largas".
+# Measured as the app loads them (`phalanx_ratio.py`), the skin past the DIP was 1.20 /
+# 0.94 / 1.11 / 1.05 of the middle phalanx (index … little; his 1.15 / 0.95 / 1.09 / 1.05)
+# and the middle phalanges 0.58-0.60 of the first. The bones run proximal : middle : distal
+# about 1 : 0.6-0.65 : 0.4-0.45, the distal 0.6-0.75 of the middle on the index, middle and
+# ring and close to it on the little finger (Buryanov & Kotiuk 2010, "Proportions of hand
+# segments", Int. J. Morphol. 28(3), radiographs of 66 adults); on the skin the pulp and the
+# nail past the bone bring the last segment closer to the middle one, still shorter on the
+# first three. Now the skin past the DIP ~0.95 / 0.82 / 0.92 / 1.0 of the middle phalanx,
+# the index's and the ring's middle phalanges 0.62 / 0.61 of the first (so they stay 0.9 and
+# 0.94 of the middle finger), the middle finger's MCP-to-tip 1.10 of wrist-to-MCP (was 1.13).)
+FINGER_STRETCH = {2: (1.08, 1.08, 0.855), 3: (1.04, 1.0, 0.875), 4: (1.04, 1.05, 0.87),
+                  5: (1.03, 1.25, 0.95)}
 
 
 def lengthen_fingers(pos, wt, J):

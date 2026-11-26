@@ -377,6 +377,10 @@ CROOK_X = 0.85
 # (r42:arcus-hands: 15 — at 5 the upright hand stood its index base 2.3 cm out.)
 CROOK_W = 15.0
 CROOK_Z = (-1.2, 0.3)
+# r42:arcus-hands, pass 6 — the index's base joint at most this far out from the E edge
+# (cm, her hand; the gate's INDEX_OUT 2.2 with a margin), and the rule's weight.
+INDEX_OUT = 1.8
+INDEX_OUT_W = 12.0
 # How high each finger's middle joint stands over the fingerboard's top (cm).
 ARCH = 2.4
 # The thumb's flex (MCP, IP): relaxed.
@@ -573,6 +577,12 @@ class Pose:
         base = P[1, 0] * 0.7 + P[1, 1] * 0.3
         qb = loc(base)
         add("crook_x", CROOK_W * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
+        # (r42:arcus-hands, pass 6: and the index's base joint itself within INDEX_OUT of the
+        # E edge, as arcus_hand_table measures it — the crook's point a third up the first
+        # phalanx stood at 0.85 while the joint, the hand upright, stood 2.2-3.4 cm out on
+        # the viola's A and E strings low down.)
+        qi = loc(P[1, 0])
+        add("index_out", INDEX_OUT_W * over(qi[0] - nk.hw(qi[1]), -1.0, INDEX_OUT * self.k))
         # (r42:arcus-hands: high up, over the body, the knuckles and the crook rise with the
         # hand over the upper bout's shoulder — HIGH_RISE at the most.)
         rise = HIGH_RISE * self.high

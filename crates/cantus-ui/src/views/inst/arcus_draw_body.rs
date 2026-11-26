@@ -270,11 +270,9 @@ fn real_left(
         let q = p - pose.o;
         let (y, z) = (q.dot(pose.ey), q.dot(pose.ez));
         super::hand::hidden_by_neck(p, eye, l.d, &pose)
-            // (r42:arcus-hands, pass 5: `CANTUS_HAND_TUNE` 20 > 0.5 leaves this test out —
-            // finding what cuts the chips at the hand's edge.)
-            || (super::skin::tune(20, 0.0) < 0.5
-                && (0.0..=l.d.body).contains(&y)
-                && z < -crate::scene::bowed::rib(l.d, y) - 0.3)
+            // (r42:arcus-hands, pass 6: under the back only where the body is between it and
+            // the eye — pass 5's wedge in her palm, `hand::hidden_by_body`.)
+            || super::hand::hidden_by_body(p, eye, pl.b, &pose, 0.3)
             || (!held && z < crate::scene::bowed::board_z(l.d, y) - half)
     };
     let lit = figure_light(v, pl, s);

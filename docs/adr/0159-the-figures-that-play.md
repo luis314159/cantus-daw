@@ -287,6 +287,72 @@ occluding capsules in its live painter.
         across the neck's edge is cut sample by sample in the raster (`Raster::tri_kept`).
         The hands' skin has its own light map; each vertex blends it with the arm's by its
         share of the hand's bones, so the forearm keeps the body's tone.
+    - **Pass 4** (amendment, 2026-11-26, r42:arcus-hands — the coordinator on pass 3: "a
+      smooth mitten with short, fused fingers"):
+      - *The bones are long enough; the webs were not.* MCP-to-tip over wrist-to-MCP measured
+        1.00 / 1.15 / 1.09 / 0.87 on her (index … little), the tables' middle finger ~1.05–1.1
+        (Buryanov & Kotiuk 2010); the webs reached 0.51–0.63 of the first phalanx.
+        `build_figures.py::clefts` (`CLEFT` 0.6 cm) brings them to 0.38–0.52.
+      - *Nails drawn* (`skin::nail`: the bed, the lunula, the free edge; `skin::fold` the
+        cuticle and the side folds; `raise_nails` the plate 0.3 mm off its folds), the
+        fingers' shade on each other stronger (`AO_K` 0.65), tendons and veins as lit
+        modulations.
+      - *High up the hand shifts rather than reaches* (`hand::target`, `HIGH_REACH` 3: from
+        the 9th semitone the fourth finger's reach falls to 3 semitones by the 12th): the
+        palm at +12/+14 no longer goes into the body's shoulder (`arcus_hand_table`'s
+        penetration 65 → 48 cases). `arcus_hold`'s wrist bound follows the table gate's (30°
+        from the 9th semitone on a held instrument).
+    - **Pass 5** (amendment, 2026-11-26, r42:arcus-hands):
+      - *The sheets of passes 3–4 were drawn with a stale example*: `cargo test --no-run
+        --example shoot_arcus` builds a test harness and leaves `examples/shoot_arcus.exe`
+        alone. Sheets are built with `cargo build --release -p cantus-ui --example
+        shoot_arcus`, the exe's time checked before shooting.
+      - *The neck's hidden test follows the neck as drawn* (`hand::hidden_by_neck`: the
+        fingerboard's slab `NECK_SLAB` 0.55 cm, then the rounded back sampled `NECK_STEPS`
+        10 times along the ray), not its box: skin beside the rounded back had been painted
+        before the neck's stamp and stamped over — the saw-toothed chips at the hand's edge.
+      - *The skin's grain per sample* (`Raster::tri_grain`, `skin::Grain`): value noise at
+        0.07 / 0.035 cm (5 %) and, over each finger joint's back, dorsal wrinkles 0.11 cm
+        apart (16 % at most), laid at rest so they move with the skin.
+      - *The fingers apart by role* (`left_hand.py`): `SPREAD` 4 / 3 / 5° wider, each finger
+        as capsules along its phalanges, the playing finger 2.8 mm from its neighbours
+        (`GAP_PLAY`), the free pairs 1.5 mm (`GAP_FREE`); measured by `finger_gap.py`, the
+        middle and ring 3.8–4.2 mm apart (median; were glued at 0.9–2.1).
+    - **Pass 6** (amendment, 2026-11-26, r42:arcus-hands — the owner on pass 5's 400 %:
+      "las imágenes de las manos se ven mucho mejor, solo creo que las últimas falanges sí
+      se ven un poco largas"):
+      - *The last phalanges shortened to anatomy* (`build_figures.py::FINGER_STRETCH`'s
+        last column; `phalanx_ratio.py` measures them as the app loads them). The skin past
+        the DIP was 1.20 / 0.94 / 1.11 / 1.05 of the middle phalanx on her (index …
+        little; his 1.15 / 0.95 / 1.09 / 1.05), the middle phalanges 0.58–0.60 of the first.
+        The bones run proximal : middle : distal about 1 : 0.6–0.65 : 0.4–0.45, the distal
+        0.6–0.75 of the middle on the index, middle and ring and close to it on the little
+        finger (Buryanov & Kotiuk 2010, "Proportions of hand segments", Int. J. Morphol.
+        28(3), radiographs of 66 adults); on the skin the pulp and the nail past the bone
+        bring the last segment closer to the middle one, still shorter on the first three.
+        Now 0.95 / 0.82 / 0.92 / 1.0 on her (his 0.91 / 0.83 / 0.91 / 1.0), the index's and
+        the ring's middle phalanges lengthened to 0.62 / 0.61 of the first so the index stays
+        0.90 and the ring 0.94 of the middle finger; the middle finger's MCP-to-tip 1.09 /
+        1.06 of wrist-to-MCP (her / him, was 1.13 / 1.10). The photographs show no finger
+        side-on, so they do not pin the ratio (crop-08's raised index reads 1.5 with its tip
+        tilted toward the camera, crop-11's index ~1.1).
+      - *The table blends cleanly between its rows* (`blend_check.py`, `blend_fix.py`). The
+        app blends two rows for any position between the table's (`neck_hand::row`); every
+        row was clean but the blends were not: a thumb under the neck at the 9th semitone and
+        beside the heel at the 12th cut through the neck between them (8–10 mm at the gate's
+        +14), and 500 of the rows' thirds went into the instrument. `blend_check.py`
+        rebuilds the gate's cases in Python (it agrees with `arcus_hand_table` to 0.1 mm)
+        and, with `--mid`, every pair of rows at thirds; `blend_fix.py` solves rows again
+        with their blends' skin held out of the instrument beside their own.
+      - *The index's base joint within 1.8 cm of the E edge* (`left_hand.py::INDEX_OUT`):
+        the crook's point a third up the first phalanx stood at 0.85 cm while the joint, the
+        hand upright, stood 2.2–3.4 cm out on the viola low down (the gate's bound 2.2).
+      - *The body's hidden test follows the body as drawn* (`hand::hidden_by_body`): skin
+        under the back plate is behind the body only where its ray to the eye crosses the
+        back's or the top's plane inside the body's outline. Skin whose ray passed beside
+        the body had been painted before the body's stamp and stamped over with the
+        picture round the body's edge: the thin dark wedge in her palm near the wrist, high
+        up (pass 5's 400 % sheets).
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

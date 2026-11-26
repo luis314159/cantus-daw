@@ -519,6 +519,70 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
 const NECK_SLAB: f32 = 0.55;
 const NECK_STEPS: usize = 10;
 
+/// r42:arcus-hands, pass 6 — whether the body hides `p` from `eye`: `p` deeper than the
+/// back plate (`margin` cm under the ribs, over the body's length) and its ray to the eye
+/// crossing the back's or the top's plane inside the body's outline. Skin under the back
+/// whose ray passed beside the body was taken for hidden, painted before the body's stamp
+/// and stamped over with the picture round the body's edge: the thin dark wedge in her palm
+/// near the wrist in high position (pass 5's 400 % sheets).
+pub fn hidden_by_body(
+    p: V3,
+    eye: V3,
+    b: crate::scene::bowed::Bowed,
+    pose: &Pose,
+    margin: f32,
+) -> bool {
+    use crate::scene::bowed::{rib, Bowed};
+    let d = b.dims();
+    let loc = |w: V3| {
+        let q = w - pose.o;
+        V3 {
+            x: q.dot(pose.ex),
+            y: q.dot(pose.ey),
+            z: q.dot(pose.ez),
+        }
+    };
+    let a = loc(p);
+    if !(0.0..=d.body).contains(&a.y) || a.z >= -rib(&d, a.y) - margin {
+        return false;
+    }
+    let e = loc(eye);
+    let dir = e - a;
+    if dir.z <= 1e-6 {
+        return false;
+    }
+    // The body's outline, once a kind (the app's own, `bowed::outline`).
+    static OUTLINES: std::sync::OnceLock<[Vec<(f32, f32)>; 4]> = std::sync::OnceLock::new();
+    let all = OUTLINES.get_or_init(|| {
+        [Bowed::Cello, Bowed::Bass, Bowed::Violin, Bowed::Viola]
+            .map(|k| crate::scene::bowed::outline(k, 8))
+    });
+    let o = &all[match b {
+        Bowed::Cello => 0,
+        Bowed::Bass => 1,
+        Bowed::Violin => 2,
+        Bowed::Viola => 3,
+    }];
+    let back = -rib(&d, a.y);
+    [back, 0.0].iter().any(|&z| {
+        let t = (z - a.z) / dir.z;
+        inside(o, a.x + dir.x * t, a.y + dir.y * t)
+    })
+}
+
+/// Whether (x, y) lies inside the closed polygon `o` (crossings of a ray along +x).
+fn inside(o: &[(f32, f32)], x: f32, y: f32) -> bool {
+    let n = o.len();
+    let mut c = false;
+    for i in 0..n {
+        let (p, q) = (o[i], o[(i + n - 1) % n]);
+        if (p.1 > y) != (q.1 > y) && x < p.0 + (q.0 - p.0) * (y - p.1) / (q.1 - p.1) {
+            c = !c;
+        }
+    }
+    c
+}
+
 /// Paint the left arm's pieces the neck hides from the eye (`hidden`: painted before the
 /// neck is stamped back over them) or those it does not (after). A piece the neck hides in
 /// part is split where it comes out from behind it.
