@@ -11,7 +11,7 @@ use super::workspace_settings::{note, LABEL_W};
 use super::workspace_widgets as w;
 use crate::app::{config_dir, data_dir, CantusApp, APP_VERSION};
 use crate::i18n::{t, tf};
-use crate::kit::dialog::{head as title, sheet as window_face}; // r39:el-controls
+use crate::kit::dialog::{face, head as title, sheet as window_face}; // r39:el-controls
 use crate::kit::glyph::Glyph;
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::widgets::led_button;
@@ -40,6 +40,8 @@ pub struct UpdateUi {
     proxy: Option<String>,
     /// A status to show instead of the updater's (the screenshots, `demo_setup`).
     demo: Option<Status>,
+    /// What *Release page* opens a page with: the browser, unless a test put its own here.
+    pub opener: fn(&str),
 }
 
 impl Default for UpdateUi {
@@ -55,6 +57,7 @@ impl Default for UpdateUi {
             kind: None,
             proxy: None,
             demo: None,
+            opener: open_page,
         }
     }
 }
@@ -62,6 +65,23 @@ impl Default for UpdateUi {
 impl UpdateUi {
     pub fn kind(&mut self) -> InstallKind {
         *self.kind.get_or_insert_with(InstallKind::current)
+    }
+
+    /// Use `updater` (a test's, over a network that is a table) as a copy of `kind` would:
+    /// the check at start counts as done, the window closed, the notice not dismissed.
+    pub fn attach(&mut self, updater: Updater, kind: InstallKind) {
+        self.updater = Some(updater);
+        self.kind = Some(kind);
+        self.started = true;
+        self.demo = None;
+        self.open = false;
+        self.notice_closed = false;
+        self.launch_error = None;
+    }
+
+    /// The updater in use, once something asked for one.
+    pub fn updater(&self) -> Option<&Updater> {
+        self.updater.as_ref()
     }
 
     pub fn status(&self) -> Status {
@@ -434,11 +454,15 @@ fn act(app: &mut CantusApp, a: Asked) {
         }
         if a.skip {
             u.skip();
-            app.update.open = false;
         }
     }
+    // Skipping closes the window whatever answers it (the screenshots' demo has no updater).
+    if a.skip {
+        app.update.demo = None;
+        app.update.open = false;
+    }
     if let Some(url) = a.page {
-        open_page(&url);
+        (app.update.opener)(&url);
     }
     if let Some(path) = a.install {
         install_now(app, &path);
@@ -456,6 +480,10 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
     let mut asked = Asked::default();
     egui::Window::new("cantus-update")
         .id(Id::new("cantus-update"))
+        // In front, as every dialog of the kit: the veil its sheet lays is a layer of the
+        // middle order painted after that order's windows, so a window left there sat under
+        // its own veil, dimmed with the app (0.1.0-beta.16).
+        .order(egui::Order::Foreground)
         .title_bar(false)
         .frame(egui::Frame::NONE)
         .resizable(true)
@@ -473,7 +501,12 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
             // whose area is under the pointer (the owner, 2026-10-22: Settings would not
             // scroll to its Plug-ins).
             ui.expand_to_include_rect(rect);
-            window_face(ui, rect, &s);
+            // The veil comes with the window: none on its first, invisible sizing pass.
+            if ui.is_sizing_pass() {
+                face(ui, rect, &s);
+            } else {
+                window_face(ui, rect, &s);
+            }
             let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
             let closed = title(ui, header, &s, Glyph::Loop, "update.title");
             let body = Rect::from_min_max(
@@ -542,7 +575,10 @@ fn notice(app: &mut CantusApp, ctx: &Context, status: &Status) {
         .order(egui::Order::Foreground)
         .show(ctx, |ui| {
             let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
-            window_face(ui, rect, &s);
+            // The sheet's face without its veil: a notice darkens nothing (0.1.0-beta.16
+            // laid the dialogs' full-window veil under it, so the app went dark whenever
+            // it showed — and again each time the window closed and gave it back).
+            face(ui, rect, &s);
             let hover = resp.hovered();
             with_brush(ui.painter(), |b| {
                 if hover {
