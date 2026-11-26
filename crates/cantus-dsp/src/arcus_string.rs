@@ -71,6 +71,11 @@ pub const SHORTEST: f64 = 12.0;
 const QUIET: f32 = 1e-8;
 /// The DC blocker's corner, as a fraction of the fundamental (Fides's, `fides::string`).
 const DC_CORNER: f64 = 1.0 / 64.0;
+/// r42 arcus-classical — a plucked string's (model 2): the blocker's phase lead is matched at
+/// the fundamental only, so its partials sat flat (−3.2 cents at the second, −3.8 at the third:
+/// every pizzicato read 4 cents low by its partials); a pluck on a string the bow never pushed
+/// has no offset to take out, so its corner is 16 times lower (the partials within 0.25 cents).
+pub const DC_CORNER_PLUCK: f64 = 1.0 / 1024.0;
 /// Samples past the lowest period: the Lagrange taps' reach and the blocker's lead.
 const LINE_SPARE: usize = 48;
 /// The thermal contact's cooling time, s, and its steady heating, per W.
@@ -276,6 +281,9 @@ pub struct BowedString {
     cr_c: f32,
     cr: f32,
     dc_on: bool,
+    /// r42 arcus-classical — the DC blocker's corner over the fundamental (`DC_CORNER` unless a
+    /// pluck set it).
+    dc_share: f64,
     dc_r: f32,
     dc_k: f32,
     dc: (f32, f32),
@@ -412,6 +420,7 @@ impl BowedString {
             cr_c: 1.0,
             cr: 0.0,
             dc_on: false,
+            dc_share: DC_CORNER,
             dc_r: 0.0,
             dc_k: 1.0,
             dc: (0.0, 0.0),
@@ -541,6 +550,12 @@ impl BowedString {
     }
 
     /// The string under the bow changed (a legato across strings): its impedance.
+    /// r42 arcus-classical — the DC blocker's corner over the fundamental: a pluck's own
+    /// ([`DC_CORNER_PLUCK`]) or the bowed string's (`None`).
+    pub fn set_dc_share(&mut self, share: Option<f64>) {
+        self.dc_share = share.unwrap_or(DC_CORNER);
+    }
+
     pub fn set_z0(&mut self, z0: f32) {
         self.z0 = z0.max(1e-3);
         match self.torsion {
@@ -599,7 +614,7 @@ impl BowedString {
         let (g, a) = self.loss(f0, s);
         let w0 = std::f64::consts::TAU * f0 / self.sr;
         let (r, dc_delay, dc_gain) = if s.dc {
-            let r = math::exp(-std::f64::consts::TAU * f0 * DC_CORNER / self.sr);
+            let r = math::exp(-std::f64::consts::TAU * f0 * self.dc_share / self.sr);
             let (d, gain) = dc_response(r, w0);
             (r, d, gain)
         } else {

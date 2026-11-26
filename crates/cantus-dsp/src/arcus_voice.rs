@@ -341,6 +341,11 @@ pub struct Voice {
     /// r42 arcus-classical — the player's intonation in a passage (`shape::intonation`): the
     /// note's error and tendency (cents) and the time into the note (s).
     into: (f32, f32, f32),
+    /// r42 arcus-classical — a fiddler's fast bow change, softened (`shape::SOFT_CHANGE`).
+    soft: bool,
+    /// r42 arcus-classical — the time into the note for a fiddler's late vibrato on a long note
+    /// (`shape::fiddle_vib`), s.
+    fid_t: f32,
     t: u32,
     stroke: f64,
     jitter: f32,
@@ -455,6 +460,8 @@ impl Voice {
             taper_s: 0.0,
             vib_re: -1.0,
             into: (0.0, 0.0, 0.0),
+            soft: false,
+            fid_t: 0.0,
             t: 0,
             stroke: 0.0,
             jitter: 0.0,

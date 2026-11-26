@@ -204,6 +204,19 @@ impl Voice {
         } else {
             amount
         };
+        // r42 arcus-classical: a fiddler's late vibrato on a long note, narrow and quick
+        // (`shape::fiddle_vib`; model 2, a fiddler's bow).
+        let (amount, vdt) = if s.model >= 2
+            && s.grit > 0.0
+            && s.player > 0.0
+            && self.tech == NoteTech::Arco
+        {
+            let (kd, kr) = super::super::shape::fiddle_vib(self.fid_t, s.grit * s.player.min(1.0));
+            self.fid_t += dt;
+            (amount * kd, dt * kr)
+        } else {
+            (amount, dt)
+        };
         if s.model < 2 {
             self.vibrato_model1(spec, s, oct, amount, ramp, dt);
         } else {
@@ -213,7 +226,7 @@ impl Voice {
                 oct,
                 amount,
                 age_ramp(self, s, sr, plucked, ctl_vib),
-                dt,
+                vdt,
             );
         }
         self.vib_age = self.vib_age.saturating_add(span as u32);
@@ -338,7 +351,15 @@ impl Voice {
             spec,
             d_bow as f64,
             pos as f64,
-            s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f), // r42:arcus-upper
+            s.bow_force as f64
+                + super::super::upper::force_trim(self.inst, st.open_hz(), f) // r42:arcus-upper
+                + if s.model >= 2 {
+                    s.shape_try
+                        .unwrap_or(super::super::shape::KNOBS)
+                        .press(d_bow) // r42 arcus-classical
+                } else {
+                    0.0
+                },
             (s.bow_speed * spd) as f64
                 * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
             st.z0(),
@@ -422,7 +443,7 @@ impl Voice {
                 let c = if self.tech == NoteTech::Tremolo {
                     t.trem_cents(self.inst, semis, self.d as f64)
                 } else {
-                    t.cents(self.inst, semis, d_bow as f64, pos as f64) // r42 arcus-classical
+                    t.cents(self.inst, semis, self.d as f64, pos as f64)
                 };
                 c + self.trim
             })
@@ -437,7 +458,11 @@ impl Voice {
         let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
         let mut corner = super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
             * super::pair::steel_corner(s); // r42 fiddle
-        if s.model >= 2 && !plucked && self.bow_on && knobs.bright != (0.0, 0.0) {
+        if s.model >= 2
+            && !plucked
+            && self.bow_on
+            && (knobs.bright != (0.0, 0.0) || knobs.loss_force != 0.0)
+        {
             let f_mf = bowing(
                 spec,
                 0.5,
@@ -452,6 +477,11 @@ impl Voice {
             let r = (self.force as f64 / f_mf.max(1e-6)).max(1e-3);
             let g = if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
             corner = (corner * math::powf(r, g as f64).clamp(0.5, 3.0)).min(0.4 * sr as f64);
+            // … and the string's upper partials lose less between the bow's re-sharpenings
+            // under a heavier bow (the loss exponent, `Knobs::loss_force`).
+            if knobs.loss_force != 0.0 {
+                p_loss *= math::powf(r, -knobs.loss_force as f64).clamp(0.6, 1.4);
+            }
         }
         let step = StringStep {
             f0: f * math::exp2(-corr / 1200.0),
@@ -672,7 +702,14 @@ impl Voice {
                 }
             },
             Phase::Change => {
-                let half = 0.0005 * s.change_ms.max(2.0);
+                // r42 arcus-classical: a fiddler's fast change is a quicker turn (`soft`).
+                let half = 0.0005
+                    * s.change_ms.max(2.0)
+                    * if self.soft {
+                        super::super::shape::SOFT_CHANGE
+                    } else {
+                        1.0
+                    };
                 let dec = tv.max(self.v_mag) / half;
                 self.v_mag -= dec * dt;
                 // r42:arcus-p5: the force eases with the speed into the turn (to
@@ -713,7 +750,12 @@ impl Voice {
                     0.001 * s.bow_release_ms.max(5.0)
                 };
                 self.force *= math::exp(-4.6 * dt / rel);
-                self.v_mag *= math::exp(-2.3 * dt / rel);
+                // r42 arcus-classical: a bow lifted after its taper leaves the string still
+                // moving (a player lifts a moving bow; slowed on the string it stopped it — the
+                // fundamental fell 22 dB in 40 ms at the lift).
+                if !(self.stop_lift && self.taper_s > 0.0) {
+                    self.v_mag *= math::exp(-2.3 * dt / rel);
+                }
                 if self.force < 1e-4 {
                     self.force = 0.0;
                     self.v_mag = 0.0;

@@ -43,7 +43,8 @@ impl Arcus {
             hammer_area,
             tuning: [0.0; 128],
             pending: None,
-            last_on: None, // r42 arcus-expr
+            last_on: None,   // r42 arcus-expr
+            shuffle: (0, 0), // r42 arcus-classical
             next_dir: BowDir::Down,
             table: Some(&pitch::TABLE),
             stolen: 0,
@@ -287,7 +288,12 @@ impl Arcus {
                         self.voices[voice].technique(),
                         NoteTech::Arco | NoteTech::Tremolo
                     );
-                if slur {
+                // r42 arcus-classical: a fiddler slurs two or three fast separate notes into a
+                // bow (the shuffle, `shape::shuffle`; the Fiddle character's lines carried a bow
+                // change's cue on 49 % of their fast notes against the players' 11–20 %).
+                let shuffled =
+                    !slur && !stolen && self.shuffle_slurs(voice, art, mono, fast, key, id);
+                if slur || shuffled {
                     self.glide(voice, key, id, velocity, Some(NoteTech::Arco), &how, fast);
                 } else {
                     self.start(voice, key, id, velocity, stolen, &how, silent, fast);
@@ -327,6 +333,43 @@ impl Arcus {
             Action::Nothing => {}
         }
         self.sym_taken(); // r42 fiddle
+    }
+
+    /// r42 arcus-classical — whether a fiddler's shuffle slurs this note into the sounding bow:
+    /// a fast separate note on a mono voice still bowed in a sustained stroke, with no
+    /// articulation of its own (or a plain sustain), on a fiddler's bow (`bow.grit`).
+    #[allow(clippy::too_many_arguments)]
+    fn shuffle_slurs(
+        &mut self,
+        voice: usize,
+        art: Option<Art>,
+        mono: bool,
+        fast: bool,
+        key: u8,
+        id: u64,
+    ) -> bool {
+        let fiddle = self.s.grit > 0.0 && self.s.player > 0.0;
+        let can = fiddle
+            && mono
+            && fast
+            && voice < MAX_VOICES
+            && self.voices[voice].active()
+            && self.voices[voice].technique() == NoteTech::Arco
+            && matches!(art, None | Some(Art::Sustain));
+        if !can {
+            self.shuffle = (0, 0);
+            return false;
+        }
+        if self.shuffle.1 == 0 {
+            self.shuffle = (0, shape::shuffle_len(self.s.seed, key, id));
+        }
+        self.shuffle.0 += 1;
+        if self.shuffle.0 < self.shuffle.1 {
+            true
+        } else {
+            self.shuffle = (0, 0);
+            false
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -515,6 +558,7 @@ impl Arcus {
         self.ctl = Controls::default();
         self.pending = None;
         self.last_on = None; // r42 arcus-expr
+        self.shuffle = (0, 0); // r42 arcus-classical
         self.next_dir = BowDir::Down;
         self.stolen = 0;
         self.peak = 0.0;

@@ -563,6 +563,9 @@ pub struct Arcus {
     pending: Option<(u64, NoteHow)>,
     /// r42 arcus-expr — the stream's sample at the last note-on (the passage's speed).
     last_on: Option<u64>,
+    /// r42 arcus-classical — a fiddler's shuffle (`shape::shuffle`): the notes slurred into the
+    /// bow so far and how many this bow takes.
+    shuffle: (u8, u8),
     /// The bow's direction for the next re-bow, when alternating.
     next_dir: BowDir,
     /// The pitch table (`None`: no correction, for the tool that measures it).

@@ -44,6 +44,11 @@ pub struct Knobs {
     /// bow starts under, and of its length (`swell_s`) the rise takes.
     pub fresh_db: f32,
     pub fresh_s: f32,
+    /// … never deeper than `fresh_cap` dB (the bass's swell is 16–20 dB deep: from under that
+    /// its catch rang 3 dB over the next 60–160 ms) nor shorter than `fresh_min` s (the cello's
+    /// ff swell is 0.05 s: its spectrum settled at once).
+    pub fresh_cap: f32,
+    pub fresh_min: f32,
     /// A bow change's new stroke: how far under it starts (dB; × `fast_share` in a fast passage)
     /// and its rise (s).
     pub rebow_db: f32,
@@ -72,6 +77,13 @@ pub struct Knobs {
     /// corner (`InstrumentSpec::corner_hz`) moves with the bow's force against the same bowing's
     /// mf force — its power above and below (0: the corner fixed, as before).
     pub bright: (f32, f32),
+    /// The bowing's, model 2's (here so the tools can try it): how much nearer Schelleng's upper
+    /// limit the force is placed from mf to ff, octaves at ff (players press towards the raucous
+    /// edge when loud; the table's place rose only 0.33 → 0.36 of the limit, and the loud cello's
+    /// second to eighth partials sat 5–15 dB under the cellos').
+    pub press_ff: f32,
+    /// The string's (model 2): the loss exponent × (F / F_mf)^−this while the bow is on.
+    pub loss_force: f32,
     /// The player's intonation in a passage (a note reached from another, never one from
     /// silence): each note's own error (cents, about its spread; × `into_shift` on a shift), how
     /// much of it is left once the ear has heard it (a share) and how fast it is corrected (s),
@@ -86,10 +98,12 @@ pub struct Knobs {
 
 /// The measured shape (`docs/round42/arcus-classical.md`).
 pub const KNOBS: Knobs = Knobs {
-    speed_share: 0.7,
-    timbre_s: 0.0,
+    speed_share: 0.4,
+    timbre_s: 0.3,
     fresh_db: 1.0,
-    fresh_s: 1.0,
+    fresh_s: 1.6,
+    fresh_cap: 15.0,
+    fresh_min: 0.2,
     rebow_db: 6.0,
     rebow_s: 0.25,
     fast_share: 0.3,
@@ -102,7 +116,9 @@ pub const KNOBS: Knobs = Knobs {
     taper_k: 1.5,
     vib_back_s: (0.08, 0.38),
     vib_floor: 0.1,
-    bright: (0.0, 0.0),
+    bright: (0.8, 0.3),
+    press_ff: 0.0,
+    loss_force: 0.0,
     into_ct: 8.0,
     into_keep: 0.6,
     into_s: 0.18,
@@ -111,6 +127,11 @@ pub const KNOBS: Knobs = Knobs {
 };
 
 impl Knobs {
+    /// The force's place over the table's at the dynamic `d` (octaves; 0 to mf).
+    pub fn press(&self, d: f32) -> f64 {
+        (self.press_ff * 2.0 * (d - 0.5).max(0.0)) as f64
+    }
+
     /// The vibrato's factor `t` s into a note inside a phrase.
     pub fn vib_back(&self, t: f32) -> f32 {
         let (a, b) = self.vib_back_s;
@@ -133,6 +154,8 @@ impl Knobs {
                 "timbre_s" => self.timbre_s = v,
                 "fresh_db" => self.fresh_db = v,
                 "fresh_s" => self.fresh_s = v,
+                "fresh_cap" => self.fresh_cap = v,
+                "fresh_min" => self.fresh_min = v,
                 "rebow_db" => self.rebow_db = v,
                 "rebow_s" => self.rebow_s = v,
                 "fast_share" => self.fast_share = v,
@@ -148,6 +171,8 @@ impl Knobs {
                 "vib_floor" => self.vib_floor = v,
                 "bright_hi" => self.bright.0 = v,
                 "bright_lo" => self.bright.1 = v,
+                "press_ff" => self.press_ff = v,
+                "loss_force" => self.loss_force = v,
                 "into_ct" => self.into_ct = v,
                 "into_keep" => self.into_keep = v,
                 "into_s" => self.into_s = v,
@@ -158,6 +183,47 @@ impl Knobs {
         }
         self
     }
+}
+
+/// r42 arcus-classical — a fiddler's fast bow change (a note under `bow::FAST_S` after the
+/// last): the turn this much of `bow.change`.
+pub const SOFT_CHANGE: f32 = 0.6;
+
+/// r42 arcus-classical — a fiddler's late vibrato on a long note: from `FIDDLE_VIB.0` s into the
+/// note it widens over `FIDDLE_VIB.1` s to `FIDDLE_VIB.2` × the vibrato's depth (the Fiddle
+/// preset's light 0.35) and quickens by `FIDDLE_VIB.3` (a fiddler's narrow, quick vibrato on a
+/// held note: the fiddle's lines vibrated 2 % of their long notes, the references 4–30 %).
+pub const FIDDLE_VIB: (f32, f32, f32, f32) = (0.3, 0.3, 2.4, 1.12);
+
+/// The fiddler's factors (depth, rate) `t` s into a note, at the bow's `grit` (0: none).
+pub fn fiddle_vib(t: f32, grit: f32) -> (f32, f32) {
+    if grit <= 0.0 {
+        return (1.0, 1.0);
+    }
+    let g = grit.clamp(0.0, 1.0) * smooth((t - FIDDLE_VIB.0) / FIDDLE_VIB.1);
+    (
+        1.0 + (FIDDLE_VIB.2 - 1.0) * g,
+        1.0 + (FIDDLE_VIB.3 - 1.0) * g,
+    )
+}
+
+/// r42 arcus-classical — a fiddler's shuffle: how many fast separate notes one bow takes (two
+/// or three, seeded by the bow's first note).
+pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
+    let mut r = Rng::of(seed ^ 0x5B0F_F1E5, key, id);
+    if r.unit() < 0.5 {
+        2
+    } else {
+        3
+    }
+}
+
+/// The classical player's share at the player's `amount` and the bow's `grit`: a fiddler's bow
+/// (ADR 0164) plays its own way — the Fiddle character's measured lines (`docs/round42/fiddle.md`)
+/// keep their numbers — so the shape, the taper, the vibrato's way back and the intonation give
+/// way to it, all of it at grit 1.
+pub fn classical(amount: f32, grit: f32) -> f32 {
+    (amount.clamp(0.0, 1.0) * (1.0 - grit.clamp(0.0, 1.0))).max(0.0)
 }
 
 /// The seed's twist that gives the shape its own generator, and the intonation's.
@@ -289,7 +355,10 @@ impl Shape {
         self.taper = None;
         self.t = 0.0;
         let (from, rise) = match how {
-            Begin::Fresh(depth, len) => (-depth * k.fresh_db, len * k.fresh_s),
+            Begin::Fresh(depth, len) => (
+                -(depth * k.fresh_db).min(k.fresh_cap),
+                (len * k.fresh_s).max(k.fresh_min),
+            ),
             Begin::Rebow => (
                 -k.rebow_db * if fast { k.fast_share } else { 1.0 },
                 if fast { k.rebow_s * 0.5 } else { k.rebow_s },
