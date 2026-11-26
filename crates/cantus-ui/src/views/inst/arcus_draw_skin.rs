@@ -147,6 +147,9 @@ const WRINKLE: (f32, f32, f32) = (0.11, 0.16, 0.32);
 /// finger's way and the back's, at rest).
 pub struct Grain {
     joint: Option<(V3, V3, V3)>,
+    // (r42:arcus-hands, pass 6: the numbers read once a triangle, not once a sample — the
+    // inverse cell, the noise's depth, the wrinkles' spacing and depth.)
+    k: [f32; 4],
 }
 
 fn hash3(x: i32, y: i32, z: i32) -> f32 {
@@ -207,7 +210,10 @@ impl Grain {
             .0 as usize;
         let first = o + hu::finger(1, 0);
         if !(first..=o + hu::finger(4, 2)).contains(&bone) {
-            return Grain { joint: None };
+            return Grain {
+                joint: None,
+                k: Self::numbers(),
+            };
         }
         let k = (bone - o - hu::finger(0, 0)) % 3;
         let bn = &fig.bones[bone];
@@ -231,14 +237,24 @@ impl Grain {
         }
         Grain {
             joint: best.map(|(_, j, ax)| (j, ax, (back - ax * back.dot(ax)).norm())),
+            k: Self::numbers(),
         }
+    }
+
+    fn numbers() -> [f32; 4] {
+        [
+            1.0 / tune(16, GRAIN.0),
+            tune(17, GRAIN.1),
+            1.0 / tune(18, WRINKLE.0),
+            tune(19, WRINKLE.1),
+        ]
     }
 
     /// The luminance factor at `q` (rest, cm).
     pub fn at(&self, q: V3) -> f32 {
-        let f = 1.0 / tune(16, GRAIN.0);
+        let [f, amp, per, deep] = self.k;
         let n = noise(q * f) * 0.65 + noise(q * (2.0 * f)) * 0.35;
-        let mut k = 1.0 + tune(17, GRAIN.1) * n;
+        let mut k = 1.0 + amp * n;
         if let Some((j, ax, back)) = self.joint {
             let r = q - j;
             let s = r.dot(ax);
@@ -247,9 +263,9 @@ impl Grain {
                 let fade = (1.0 - (s / WRINKLE.2).powi(2)) * ((up - 0.2) / 0.5).clamp(0.0, 1.0);
                 // (Arcs: the lines bow back toward the hand away from the knuckle's top.)
                 let side = (r - ax * s - back * r.dot(back)).len();
-                let ph = (s + 0.08 * side * side) / tune(18, WRINKLE.0);
+                let ph = (s + 0.08 * side * side) * per;
                 let line = (0.5 + 0.5 * (ph * std::f32::consts::TAU).cos()).powi(6);
-                k *= 1.0 - tune(19, WRINKLE.1) * fade * line;
+                k *= 1.0 - deep * fade * line;
             }
         }
         k
