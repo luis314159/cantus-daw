@@ -546,7 +546,12 @@ fn the_left_arm_keeps_the_photographs_angles() {
                 // (r42:arcus-hand: the forearm may turn toward the little finger, as the
                 // photographs show it — r42:arcus-hands: they measure 3–23°, median ~10
                 // (`left_hand_refs.md`); the table rests at 9 and turns at most 14: within 16°.)
-                assert!(wrist < 16.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                // (r42:arcus-hands, pass 4: from the 9th semitone 30°, as arcus_hand_table's
+                // WRIST_HIGH — high up the hand now shifts to the 9th position for the octave
+                // rather than reach it from the 7th with the little finger, and there the
+                // wrist bends toward the back beside the body's shoulder, as the owner asked.)
+                let most = if semis >= 9.0 && d.held { 30.0 } else { 16.0 };
+                assert!(wrist < most, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
                 // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(
                     (if d.held { 50.0 } else { 30.0 }..=130.0).contains(&elbow),

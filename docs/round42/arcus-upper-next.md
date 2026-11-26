@@ -1478,3 +1478,39 @@ still read smooth and young: dorsal wrinkles over the bent PIPs (kept at 0.45 no
 plate's cuticle and free edge per point, a normal map for creases and tendons; a better CC0
 hand (Blender Studio's Human Base Meshes) still not evaluated — Blender is not on this
 machine and studio.blender.org refuses automated fetches.
+
+### Pass 4 (2026-11-26, the coordinator on the pass-3 sheets: "a smooth mitten with short, fused fingers")
+
+- *Finger length.* Measured as the app loads the figures, MCP-to-tip over wrist-to-MCP: her
+  1.00 / 1.15 / 1.09 / 0.87 (index … little), his 0.96 / 1.12 / 1.08 / 0.86 — the tables'
+  middle finger ~1.05–1.1 (phalanges ~9.2 cm over carpus and metacarpal ~8.9, Buryanov &
+  Kotiuk 2010): the bones are long enough, the shortness is the curl's foreshortening from
+  the front camera and the skin — the webs reached 2.0–2.4 cm past the knuckles (0.51–0.63
+  of the first phalanx). `build_figures.py::clefts` (`CLEFT` 0.6 cm, by how evenly two fingers
+  share the skin) brings them to 1.5–2.0 cm (0.38–0.52). Not lengthened.
+- *Nails.* Their bed, lunula and free edge were worked out per vertex (`hand_detail`) but the
+  light map's run-time detail skipped the nail stuff: every nail was one pale cap. Now drawn
+  (`skin::nail`: a pink bed, a paler lunula, a white free edge), the skin of the folds round
+  each nail darker and redder (`skin::fold`: the cuticle's line, the side folds), the plate
+  raised 0.3 mm off its folds (`raise_nails`). They read on his raised fingers at 400 %;
+  from the front camera most tips point away, so at 200 % they are still small.
+- *Separation.* The fingers' shade on each other stronger (`AO_K` 0.65, `AO_MOST` 0.52) and
+  the deeper clefts: a dark crevice between touching fingers. The fingers still lie nearly
+  parallel and touching (`SPREAD`); light between them needs the table's spread opened a
+  little (a re-solve).
+- *The back.* Tendons 0.07, veins 1.1 (lit modulations, not lines), the dorsal creases 0.6
+  at full bend.
+- *High up the hand shifts* (`hand::target`, `HIGH_REACH` 3): from the 9th semitone a held
+  instrument's fourth finger reaches 3 by the 12th instead of 5 — the octave from the 9th
+  position, not the 7th with the little finger stretched. `arcus_hand_table`'s palm cases at
+  +12/+14 are gone: penetration 65 → 48 cases (now fingers at +14/+17, the 11th/14th
+  positions' blends, and the palm at +9); rules 54 → 53 (8 knuckles over 3.4 at +14).
+  `arcus_hold`'s wrist bound follows the table gate's (30° from the 9th semitone on a held
+  instrument; the octave's wrist now 21°).
+- Gates: clippy `-D warnings` green, `arcus_scene` green, `arcus_hand_form` nails and
+  proportions green (3 one-pixel specks as before), `arcus_hand_shape`'s lobe as before.
+- Sheets: `F:\projects\daw-r42\tmp\hands4-sheet\` (sheet v14 before = 970f119b7, after = pass
+  4; the 400 % sheets before = pass 3, after = pass 4).
+- Open: the fingers' spread (light between them), the table's finger and knuckle rows at
+  +14/+17 after the shift, the chips at the right edge, a re-solve of the table on these
+  figures (the webs and nails moved a few millimetres of skin).
