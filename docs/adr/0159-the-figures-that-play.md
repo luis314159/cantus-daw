@@ -354,6 +354,19 @@ occluding capsules in its live painter.
         the heel. The tables' thumb tips had stood ~0.8 cm past it (a stray fingertip beside
         the fingerboard at 400 %).
       - *The grain's tuned numbers* are read once a triangle, not once a sample.
+      - *The hands set against average hands for each musician's stature* (the owner:
+        "compararlas con tamaños promedio para el tamaño del músico"; `hand_anthro.py`):
+        ANSUR II's hand length, palm length, breadth and middle finger by linear regression
+        on stature (Gordon et al. 2014, the public data: 1 986 women, 4 082 men), finger
+        lengths from Chatzioglou, Pinar & Govsa 2024 scaled by stature, the bones' ratios
+        from Buryanov & Kotiuk 2010. Her (160.3 cm) hand had the right length but long
+        fingers on a short, narrow palm — the breadth at the knuckles ANSUR II's 0th
+        percentile, his 4th, the middle finger's share of the hand the 87th / 86th. The
+        metacarpals are lengthened (`PALM_STRETCH`), the first and last phalanges shortened,
+        the palm drawn in less (`PALM_SLIM` her 0.99, his 1.04): her hand's length, palm,
+        breadth and middle finger now at the 33rd / 24th / 29th / 50th percentile, his
+        (173.2 cm) 49th / 37th / 33rd / 60th. The joints' breadths stay a slim violinist's
+        (pass 3).
       - *The body's hidden test follows the body as drawn* (`hand::hidden_by_body`): skin
         under the back plate is behind the body only where its ray to the eye crosses the
         back's or the top's plane inside the body's outline. Skin whose ray passed beside

@@ -1625,3 +1625,32 @@ the figures built from this pass's `build_figures.py`, `fig1s\` those with a pac
   (median of the rows).
 - *The grain's numbers* are read once a triangle (`skin::Grain::numbers`), not four tune
   lookups a sample.
+- *The hands against average hands for each musician's stature* (the owner: "¿Puedes volver
+  a validar las falanges de los dedos y compararlas con tamaños promedio para el tamaño del
+  músico?"). `hand_anthro.py <figures> <ANSUR II dir>` measures them as the app loads them
+  and sets them against ANSUR II (Gordon et al. 2014; the public CSVs from
+  tools.openlab.psu.edu/publicData, 1 986 women and 4 082 men, kept outside the tree in
+  `tmp\hands6\ansur\`: hand length, palm length, breadth and the middle finger by linear
+  regression on stature, the residual's SD for the percentile), Chatzioglou, Pinar & Govsa
+  2024 (Anat. Cell Biol. 57(2): each finger, proximal crease to tip, scaled by stature),
+  Buryanov & Kotiuk 2010 (the bones' ratios) and Greiner 1991's joint breadths as quoted in
+  pass 3 (DTIC refuses automated downloads: no SDs, no segment norms). Statures: her 160.3 cm,
+  his 173.2 (the skull's skin top to the floor under the ankle joint, by ANSUR II's lateral
+  malleolus share). Percentiles for their stature, before (pass 5) → now, her / his:
+
+  | | hand length | palm length | breadth at the knuckles | middle finger |
+  |---|---|---|---|---|
+  | her (cm, pct) | 17.81 p48 → 17.52 p33 | 10.14 p11 → 10.40 p24 | 6.37 p0 → 7.55 p29 | 7.67 p86 → 7.12 p50 |
+  | his (cm, pct) | 19.50 p71 → 19.07 p49 | 11.13 p22 → 11.35 p37 | 8.08 p4 → 8.58 p33 | 8.36 p92 → 7.72 p60 |
+
+  Changes: `build_figures.py::PALM_STRETCH` (the metacarpals 0.32 / 0.34 cm longer as built,
+  the fingers carried out), `FINGER_STRETCH` (first phalanges of the middle, ring, little
+  0.947 / 0.936 / 0.967, the last segments 0.77 / 0.83 / 0.78 / 0.95), `PALM_SLIM` her 0.86 →
+  0.99, his 1.0 → 1.04 (`hand_rig.py` and `bowed_human.rs` alike). Chatzioglou's finger
+  lengths still put the fingers at p69–88: their crease lies ~0.45 cm further out than ANSUR
+  II's palm length ends (ANSUR's middle finger at p50 / p60 is the same finger); against the
+  middle finger the index, ring and little stand 0.89 / 0.91 / 0.73 (theirs 0.92 / 0.92 /
+  0.74). The PIP breadths (her 1.57 / 1.62, his 1.84 / 1.90 index / middle) stay under
+  Greiner's means (1.8 / 2.1) on purpose: pass 3 measured the reference violinists at 1.6–1.7
+  and the owner had found the hand "tosca". The one-page Spanish summary:
+  `F:\projects\daw-r42\tmp\hands6\proporciones.html`.

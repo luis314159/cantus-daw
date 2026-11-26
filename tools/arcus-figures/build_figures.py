@@ -256,12 +256,17 @@ FINGER_SEX = {"female": 1.03, "male": 1.03}
 # finger lengths: the hand's length was in (her 33rd percentile, his 54th) but the fingers
 # long for it — the middle finger 0.421 / 0.419 of the hand's length, ANSUR's 0.399 ± 0.019 /
 # 0.397 ± 0.020 (87th / 86th percentile) — and the palm short (11th / 22nd) and narrow (0th /
-# 4th: `hand_rig.py::PALM_SLIM`). So the first phalanges of the middle, ring and little
-# fingers are no longer stretched, the last segments shorter again (index 0.77, middle 0.83,
-# ring 0.80 of MakeHuman's — the bones' distal/middle within 0.6-0.75 counting ~3 mm of pulp
-# past the tuft) and the palm a little longer (`PALM_STRETCH`).)
-FINGER_STRETCH = {2: (1.045, 1.08, 0.772), 3: (1.005, 1.0, 0.833), 4: (1.0, 1.015, 0.80),
-                  5: (1.0, 1.25, 0.95)}
+# 4th: `hand_rig.py::PALM_SLIM`). So the first phalanges are a little shorter (the middle
+# 0.947, the ring 0.936, the little 0.967 of MakeHuman's; the middle phalanges 0.60-0.63 of
+# them), the last segments shorter again (index 0.77, middle 0.83, ring 0.78 — the bones'
+# distal/middle within 0.6-0.75 counting ~3 mm of pulp past the tuft) and the palm a little
+# longer (`PALM_STRETCH`): her hand's length, palm's length, breadth and middle finger at
+# ANSUR II's 33rd / 24th / 29th / 50th percentile for her stature, his 49th / 37th / 33rd /
+# 60th. Chatzioglou's finger lengths, a photograph's crease ~0.45 cm further out than ANSUR
+# II's palm length ends, still put them at 69-88; against the middle finger the index, ring
+# and little stand 0.89 / 0.91 / 0.73 of it (theirs 0.92 / 0.92 / 0.74).)
+FINGER_STRETCH = {2: (1.035, 1.08, 0.772), 3: (0.947, 1.0, 0.833), 4: (0.936, 0.994, 0.78),
+                  5: (0.967, 1.25, 0.95)}
 # r42:arcus-hands, pass 6 — the metacarpals lengthened (cm, as built; the app's hand scale
 # then 1.08 hers, 0.93 his) and the fingers carried out with them.
 PALM_STRETCH = {"female": 0.32, "male": 0.34}
