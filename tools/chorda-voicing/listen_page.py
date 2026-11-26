@@ -6,7 +6,8 @@ what to listen for and one player per source, named (not a blind test).
     python -I listen_page.py <preview dir> <notes.json>
 
 <notes.json>: {"title": "...", "intro": "...", "sources": ["label", ...],
-               "phrases": {"<phrase>": "what to listen for", ...}}
+               "phrases": {"<phrase>": "what to listen for", ...},
+               "order": ["top", ...]}   (optional: the phrases' order, default ORDER)
 """
 import html, json, os, sys
 import soundfile as sf
@@ -21,7 +22,7 @@ def main():
     wav = os.path.join(d, 'wav16')
     os.makedirs(wav, exist_ok=True)
     rows = []
-    for ph in ORDER:
+    for ph in notes.get('order', ORDER):
         players = []
         for src in notes['sources']:
             f = os.path.join(d, f'{ph} - {src}.flac')

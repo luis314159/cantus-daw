@@ -348,11 +348,36 @@ pub struct Voicing {
     /// — set as `knock.noise`, `.tau`, `.lo`, `.hi`, `.tail`, `.tail_tau`, `.t60`, `.noise_vel`.
     /// The recorded grands' top keys knock 5–10 dB under their note at 0.5–2.8 kHz for 20 ms
     /// and ring on for a quarter of a second; the round-40 knock was a low thud alone.
-    pub knock_shape: [f64; 8],
+    /// Round 42 (`chorda-c18`): `.rise` (the first stage's rise, a share of its fall) and
+    /// `.tail_hi` (the second stage's own low-pass, Hz).
+    pub knock_shape: [f64; super::voice::KNOCK_PARTS],
     /// Round 42: the knock's noise scaled at A0 and at C8 against C4 (log in key between; 1, 1:
     /// as at C4). Set as `knock.noise_bass`, `knock.noise_treble`.
     pub knock_noise_reg: [f64; 2],
+    /// Round 42 (`chorda-c18`): the top keys' knock, from C6 ([`KNOCK_TOP_FROM`]: as below
+    /// it) to its values at C7 and above ([`KNOCK_TOP_TO`]; log in key between) — its first
+    /// stage's fall, its band's top, its second stage's share and that stage's fall as
+    /// factors (1: the same); the first stage's rise (a share of its fall) and the second's
+    /// own low-pass (Hz) as values (0: as the shape has them). A grand's top keys click
+    /// short, bright and dry (the two recorded grands' 1–3 kHz falls 400 dB/s from 5 ms); its
+    /// middle keys' case rings on under their partials. Set as `knock.tau_treble`,
+    /// `.hi_treble`, `.tail_treble`, `.tail_tau_treble`, `.rise_treble`, `.tail_hi_treble`.
+    pub knock_treble_shape: [f64; 6],
+    /// Round 42 (`chorda-c18`): the key's knock and the hammer's blow scaled at A0 against
+    /// C4 (log in key between, 1 at C4 and above; 1: as everywhere). A bass string's tone
+    /// reaches the bridge 10–15 ms after its hammer; a knock and a blow at the strike as loud
+    /// as the middle's stand before it as a thump of their own (the recorded grands' A0–D♯1
+    /// rise in 5–13 ms, Chorda's in 21–34). Set as `knock_bass`, `blow_bass`.
+    pub knock_bass: f64,
+    pub blow_bass: f64,
 }
+
+/// Round 42 (`chorda-c18`): the key above which `knock_treble_shape` moves the knock (C6).
+pub const KNOCK_TOP_FROM: u8 = 84;
+/// … and the key from which it is the top shape whole (C7): the top octave knocks alike.
+pub const KNOCK_TOP_TO: u8 = 96;
+/// `Voicing::knock_treble_shape`'s neutral value: the top keys knock as the shape says.
+pub const KNOCK_TOP_AS_IS: [f64; 6] = [1.0, 1.0, 1.0, 1.0, 0.0, 0.0];
 
 /// The most a key is evened by (dB).
 pub const EVEN_LIMIT: f64 = 9.0;
@@ -420,6 +445,12 @@ impl Voicing {
     /// pass, then candidate 17 — [`c17::SPEC`] applied over it (the action's knock as the
     /// case rings it, middle C's third partial voiced).
     pub fn shipped() -> Self {
+        Voicing::c17()
+    }
+
+    /// Candidate 17 (`DSP_VERSION` 16, the owner's blind test of 2026-11-26): the unison pass,
+    /// then [`c17::SPEC`] applied over it — named, so its bits stay reproducible.
+    pub fn c17() -> Self {
         let mut v = Voicing::unison();
         let ok = v.apply(c17::SPEC);
         debug_assert!(
@@ -558,12 +589,15 @@ impl Voicing {
             uni_b_keys: [1.0; KEYS],
             knock_shape: super::voice::KNOCK_AS_IS,
             knock_noise_reg: [1.0, 1.0],
+            knock_treble_shape: KNOCK_TOP_AS_IS,
+            knock_bass: 1.0,
+            blow_bass: 1.0,
         }
     }
 
     /// Round 42: the knock's shape for key `m` (MIDI): exactly `knock_shape` when its noise
-    /// is not scaled by register.
-    pub fn knock_shape_of(&self, m: u8) -> [f64; 8] {
+    /// is not scaled by register and its shape not by the treble.
+    pub fn knock_shape_of(&self, m: u8) -> [f64; super::voice::KNOCK_PARTS] {
         let mut s = self.knock_shape;
         let [bass, treble] = self.knock_noise_reg;
         if bass != 1.0 && m < 60 {
@@ -572,6 +606,28 @@ impl Voicing {
         if treble != 1.0 && m > 60 {
             let t = ((m as f64 - 60.0) / (108.0 - 60.0)).clamp(0.0, 1.0);
             s[0] *= math::exp(t * math::ln(treble));
+        }
+        if m > KNOCK_TOP_FROM {
+            // Round 42 (`chorda-c18`): the top keys' click — its fall, band, ring and the
+            // ring's fall each scaled toward their values at C7; its rise and the ring's own
+            // band moved toward theirs (none at C6).
+            let t = ((m - KNOCK_TOP_FROM) as f64 / (KNOCK_TOP_TO - KNOCK_TOP_FROM) as f64)
+                .clamp(0.0, 1.0);
+            let ts = &self.knock_treble_shape;
+            for (i, k) in [1, 3, 4, 5].into_iter().enumerate() {
+                let g = ts[i];
+                if g != 1.0 && g > 0.0 {
+                    s[k] *= math::exp(t * math::ln(g));
+                }
+            }
+            if ts[4] > 0.0 {
+                s[8] += t * (ts[4] - s[8]);
+            }
+            if ts[5] > 0.0 {
+                // From the shape's own band (or 20 kHz, nearly none), log in key.
+                let from = if s[9] > 0.0 { s[9] } else { 20_000.0 };
+                s[9] = math::exp(math::ln(from) + t * (math::ln(ts[5]) - math::ln(from)));
+            }
         }
         s
     }
@@ -1010,6 +1066,16 @@ impl Voicing {
             "knock.noise_vel" => &mut self.knock_shape[7],
             "knock.noise_bass" => &mut self.knock_noise_reg[0],
             "knock.noise_treble" => &mut self.knock_noise_reg[1],
+            "knock.rise" => &mut self.knock_shape[8],
+            "knock.tail_hi" => &mut self.knock_shape[9],
+            "knock.tau_treble" => &mut self.knock_treble_shape[0],
+            "knock.hi_treble" => &mut self.knock_treble_shape[1],
+            "knock.tail_treble" => &mut self.knock_treble_shape[2],
+            "knock.tail_tau_treble" => &mut self.knock_treble_shape[3],
+            "knock.rise_treble" => &mut self.knock_treble_shape[4],
+            "knock.tail_hi_treble" => &mut self.knock_treble_shape[5],
+            "knock_bass" => &mut self.knock_bass,
+            "blow_bass" => &mut self.blow_bass,
             "vel_curve" => &mut self.vel_curve,
             "keyboard.bass_b" => &mut self.bass_b,
             "keyboard.treble_b" => &mut self.treble_b,

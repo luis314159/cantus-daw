@@ -193,8 +193,10 @@ pub struct VoiceSettings {
     /// ([`KNOCK_AS_IS`]: the round-40 thud) — its noise's gain (a factor on the model's),
     /// its fall (s; 0: the model's 4 ms), its band (Hz; 0: 300 Hz and 3 kHz), its second,
     /// slower stage's share of the first's peak (0: none) and fall (s), the thud's modes'
-    /// T60 (a factor), and the noise's speed exponent beyond the model's square (0: as it is).
-    pub knock_shape: [f64; 8],
+    /// T60 (a factor), and the noise's speed exponent beyond the model's square (0: as it is);
+    /// round 42 (`chorda-c18`): the first stage's rise as a share of its fall (0: at once) and
+    /// the second stage's own low-pass (Hz; 0: in the first's band).
+    pub knock_shape: [f64; KNOCK_PARTS],
     /// Model 2: what this strike's variation and noises are seeded from — the note's id
     /// (a clip note's own, the same on every play, live or offline, from any start; ADR
     /// 0023 rule 1).
@@ -202,7 +204,10 @@ pub struct VoiceSettings {
 }
 
 /// The round-40 knock (`VoiceSettings::knock_shape`): every part as the model made it.
-pub const KNOCK_AS_IS: [f64; 8] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+pub const KNOCK_AS_IS: [f64; KNOCK_PARTS] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0];
+
+/// How many numbers a knock's shape is (`VoiceSettings::knock_shape`).
+pub const KNOCK_PARTS: usize = 10;
 
 /// Model 2's voicing of the action (ADR 0098), calibrated by `chorda_compare`.
 pub mod action {
@@ -867,6 +872,9 @@ impl Voice {
                 );
                 self.knock.set_tail(self.fs, ks[4], ks[5]);
                 self.knock.set_steep(true);
+                // Round 42 (`chorda-c18`): the click's rise, the ring's own band.
+                self.knock.set_rise(self.fs, or(ks[1], 0.004), ks[8]);
+                self.knock.set_tail_band(self.fs, ks[9]);
                 self.knock_shaped = true;
                 noise *= ks[0];
                 if ks[7] != 0.0 {
@@ -883,6 +891,8 @@ impl Voice {
                 );
                 self.knock.set_tail(self.fs, 0.0, 0.0);
                 self.knock.set_steep(false);
+                self.knock.set_rise(self.fs, 0.004, 0.0);
+                self.knock.set_tail_band(self.fs, 0.0);
                 self.knock_shaped = false;
             }
             self.knock.strike(kick, noise, seed);
