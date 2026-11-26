@@ -239,7 +239,10 @@ pub fn rod(a: V3, b: V3, at: f32, r: f32, back: V3, wrap: V3, k: f32, side: usiz
     let p = a + (b - a) * at;
     // The index lies toward the thumb: a right hand's thumb toward the rod's `a` end.
     let toward = if side == 1 { -ax } else { ax };
-    let kc = p + back * (r + 1.9 * k) - wrap * (0.6 * k);
+    // (r42:arcus-hands, pass 2: the knuckles 1.6 hand-units over the rod and the tips further
+    // round under it — with the fingers lengthened and curled at all three joints the
+    // middle joints stood 4.2 cm off a stick, figure_contract's 4.)
+    let kc = p + back * (r + 1.6 * k) - wrap * (0.6 * k);
     let hd = (wrap * 0.75 + back * -0.2 - toward * 0.15).norm();
     let wrist = kc - hd * (8.6 * k);
     let palm = kc - hd * (3.6 * k);
@@ -249,7 +252,7 @@ pub fn rod(a: V3, b: V3, at: f32, r: f32, back: V3, wrap: V3, k: f32, side: usiz
         let knuckle = kc + toward * u;
         let c = p + toward * (u * 0.95);
         let mid = c + wrap * (r + 1.2 * k) + back * (0.6 * k);
-        let tip = c + wrap * (r * 0.4) - back * (r + 0.7 * k);
+        let tip = c + wrap * (r * 0.8) - back * (r + 0.5 * k);
         *f = [knuckle, mid, mid.lerp(tip, 0.5), tip];
     }
     let c = p + toward * (2.6 * k);

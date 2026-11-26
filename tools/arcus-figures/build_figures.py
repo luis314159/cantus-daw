@@ -281,7 +281,9 @@ def slim_fingers(pos, wt, J, sex="female"):
                 axis = a + tt[:, None] * ab
                 # The fingertip kept round (the owner's review: drawn in to the axis's end
                 # the tips read as claws): no slimming over the last phalanx's last half.
-                keep = 1.0 - smooth01((tt - 0.5) / 0.5) if k == 3 else np.ones(len(tt))
+                # (r42:arcus-hands, pass 2: half the slimming kept over the tip — unslimmed
+                # beside fuller shafts the tips read bulbous, the coordinator's "alien".)
+                keep = 1.0 - TIP_FULL * smooth01((tt - 0.5) / 0.5) if k == 3 else np.ones(len(tt))
                 # r42:arcus-hands — a real finger's form: its joints a little fuller than
                 # the shafts between them (the PIP's and the DIP's knuckles), and each
                 # phalanx a little slimmer than the one before (the taper to the tip).
@@ -310,7 +312,9 @@ def slim_fingers(pos, wt, J, sex="female"):
 # r42:arcus-hands — the fingers' joints fuller than their shafts (the share of girth kept
 # at a joint over the finger's, the shafts' over it), how far along a phalanx a joint's
 # fullness reaches, each phalanx's taper toward the tip, and the pad side's flattening.
-JOINT = 1.03
+# (r42:arcus-hands, pass 2: 1.0 — 1.03 read as bony knuckle bumps at 400 %.)
+JOINT = 1.0
+TIP_FULL = 0.5
 SHAFT = 0.94
 JOINT_W = 0.2
 TAPER = 0.035
@@ -542,6 +546,53 @@ def relief(pos, tris, J, sex):
     r = np.linalg.norm(pos - L["notch"], axis=1)
     d -= notch * np.exp(-(r / 1.0) ** 2)
     d = np.where(region, d, 0.0)
+    return pos + n * d[:, None]
+
+
+# r42:arcus-hands, pass 2 — the back of the hand's forms (the coordinator: "a broad, flat
+# back that reads like a separate slab"; crop-08): the base knuckles' heads as soft bumps,
+# the hollows between them, the extensor tendons as low ridges toward each knuckle (cm:
+# height, radius or half-width).
+KNUCKLE_BUMP = (0.11, 0.55)
+KNUCKLE_VALLEY = (0.08, 0.45)
+TENDON_RIDGE = (0.045, 0.25)
+
+
+def hand_relief(pos, tris, wt, J):
+    """r42:arcus-hands — ``KNUCKLE_BUMP``, ``KNUCKLE_VALLEY``, ``TENDON_RIDGE`` on each
+    hand's back: each vertex of the hand's and the first phalanges' skin facing the back
+    moved along its normal. The knuckles' heads are where ``knuckle_fix`` puts the joints
+    (12 % of the wrist-to-base length back from MakeHuman's)."""
+    n = vnormals(pos, tris)
+    d = np.zeros(len(pos))
+    for s_ in SIDES:
+        back = -PALMAR[s_]
+        wr = J[f"wrist.{s_}____head"]
+        names = [f"wrist.{s_}"] + [f"finger{f}-1.{s_}" for f in range(2, 6)]
+        share = np.zeros(len(pos))
+        for nm in names:
+            for i, w in wt.get(nm, []):
+                if i < len(pos):
+                    share[i] += w
+        mask = share > 0.5
+        facing = np.clip((n @ back - 0.2) / 0.5, 0.0, 1.0)
+        heads = [J[f"finger{f}-1.{s_}____head"] for f in range(2, 6)]
+        kn = [wr + (h - wr) * 0.88 for h in heads]
+
+        def flat(q):
+            return q - np.outer(q @ back, back)
+        for k in kn:
+            r = np.linalg.norm(flat(pos - k), axis=1)
+            d += KNUCKLE_BUMP[0] * np.exp(-(r / KNUCKLE_BUMP[1]) ** 2) * mask * facing
+        for a, b in zip(kn[:-1], kn[1:]):
+            m = (a + b) * 0.5 + (((a + b) * 0.5) - wr) / np.linalg.norm((a + b) * 0.5 - wr) * 0.3
+            r = np.linalg.norm(flat(pos - m), axis=1)
+            d -= KNUCKLE_VALLEY[0] * np.exp(-(r / KNUCKLE_VALLEY[1]) ** 2) * mask * facing
+        for k in kn:
+            a, b = wr + (k - wr) * 0.25, wr + (k - wr) * 0.9
+            r, t = _seg(pos, a, b)
+            along = np.sin(np.clip(t, 0, 1) * np.pi)
+            d += TENDON_RIDGE[0] * np.exp(-(r / TENDON_RIDGE[1]) ** 2) * along * mask * facing
     return pos + n * d[:, None]
 
 
@@ -1065,6 +1116,7 @@ def make(sex, data, assets):
     W = scene_weights(len(pos), wt, m2s)
     tris_all, tuv_all = triangulate(faces)
     pos = relief(pos, tris_all, J, sex)  # r42:arcus-polish
+    pos = hand_relief(pos, tris_all, wt, J)  # r42:arcus-hands
     ear_v = ear_mask(data, len(pos))  # r42:arcus-polish
     tri_groups = [f[2] for f in faces for _ in range(len(f[0]) - 2)]
     fig = Fig()
