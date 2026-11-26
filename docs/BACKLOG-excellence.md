@@ -936,6 +936,34 @@ built as Chorda, Tympanum and Arcus were:
    articulations, tuning, render and recorded voice (Exemplar on CC0 libraries). Its first
    patent check is Audio Modeling's SWAM and Yamaha's VL family; several of VL's have
    expired. The modelled-voice design is in the strings-and-winds item above.
+   - **The saxophone family (the owner, 2026-11-25): "different kinds of sax."** It is the
+     winds' first instrument to bring to the bar, because it carries so many styles
+     (jazz, funk, pop, smooth, soul, norteño-sax, banda, cumbia, worship and classical).
+     - **The kinds.** Soprano (straight and curved), alto, tenor and baritone, then
+       sopranino and bass. Each has a conical bore measured from a real one, its keywork's
+       tone holes, its range including altissimo, and its own body colour.
+     - **The setup as a choice.** A classical mouthpiece (dark, round) or a jazz one, metal
+       or hard rubber (bright, edgy). The reed's strength. The player's embouchure and the
+       vocal tract, which shape the tone and the bends.
+     - **Techniques per note**, in the adaptive piano roll's profile:
+       - growl;
+       - subtone;
+       - altissimo;
+       - bends, scoops, falls, doits and ghost notes;
+       - flutter-tongue;
+       - key clicks and pad noise;
+       - multiphonics;
+       - vibrato from the jaw;
+       - slap tongue;
+       - legato against tongued attacks;
+       - the breath noise of a soft subtone.
+       Breath, a breath controller, MPE pressure and CC2/CC11 drive it continuously.
+     - **Playing characters,** as Arcus has them: a smooth or ballad voice, a funk section
+       with tight stabs, a bebop line, a norteño-sax or banda voice, and a classical voice.
+     - **Done when** an alto ballad phrase, a tenor funk riff and a norteño-sax line are
+       blind-compared with recordings of real saxophones (CC0/CC BY references in
+       `tools/sound-refs`, measured with the sound lab) and the owner cannot pick ours
+       above chance. The tenor and the alto come first.
 3. **Choir: "aah" and "ooh" by formants.** Pads and worship parts, sections of 1–16 voices
    with seeded variation, the vowel morphed by a control. Sung lyrics come later, under §7a,
    when a freely licensed recorded voice exists.
