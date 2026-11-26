@@ -218,10 +218,13 @@ through `CantusApp::assemble`.
 **Open, in the order the measures rank them:**
 1. **The onset** (§4.4): the generated snare's bands peak 5–10 ms early; the grooves' crest 2–10 dB
    high. Model 6's contact-driven onset, the wires' cavity lag, the knock as the head's push.
-2. **The re-strike while ringing:** struck 1 s after the last hit, the studio kick at 96 sounded
-   3.4 dB under its 80 (alone, 4 s apart, about 2 dB over it): the new hit's mode phasors add to
-   the ringing ones, and a drum's re-strike also takes the cymbals' "bloom". Measure a drummer's
-   repeated strokes against the recordings' (DRSKit's repeated hits) before changing it.
+2. **The blend at one hit's seed (corrected 2026-11-26):** through the app, the studio kick at
+   velocity 96 comes out 3.3 dB under its 80 — struck 1 s or 4 s after the last hit alike, so it is
+   *not* the re-strike (an earlier note here said it was). 96 lies between the 80 and 110 layers
+   (x = 0.53, the main layer just switched to 110): the hit takes the main layer's onset phases with
+   both layers' amplitudes, and for some seeds they cancel. `LAW` fixes the mean of three seeds,
+   not one hit's. `every_modelled_piece_grows_with_the_velocity_through_the_app` (cantus-ui
+   `tympanum_e2e`) catches it and is `#[ignore]`d with this reason until model 6 blends the onset.
 3. **The blend's cause:** a hit between two layers takes its onset phases from the main layer and
    its amplitudes from both — the source of the level law's lumps; `LAW` compensates the level,
    model 6 should blend the onset itself.
