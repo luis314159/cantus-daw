@@ -134,6 +134,8 @@ params! {
     // r42 fiddle (ADR 0164): the violin's cross-tunings — 0 Standard (G D A E) · 1 AEAE ·
     // 2 GDGD · 3 ADAE · 4 Calico (A E A C#) · 5 DDAD.
     CROSS = ("tuning.strings", "arcus.tuning.strings", 0.0, 5.0, 0.0, "", false, true),
+    // r42 fiddle: the violin's and the viola's microphones — 0 The pair · 1 One close mic.
+    MIC = ("body.mic", "arcus.body.mic", 0.0, 1.0, 0.0, "", false, true),
 
     // ---- MPE ----
     MPE_PRESS = ("mpe.press", "arcus.mpe.press", 0.0, 1.0, 1.0, "%", false, false),

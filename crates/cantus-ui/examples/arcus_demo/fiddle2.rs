@@ -196,6 +196,19 @@ pub fn build(app: &mut CantusApp) -> Vec<TrackId> {
         1.0,
         -18.0,
     );
+    // r42 fiddle (ADR 0164): the breakdown in A cross-tuned AEAE, as old-time fiddlers tune
+    // for a tune in A (the open A and E strings ring under the whole tune).
+    // (`FIDDLE_TREN_AEAE=1`: the take for the owner to compare; standard by default.)
+    let aeae = std::env::var("FIDDLE_TREN_AEAE").is_ok_and(|v| v == "1");
+    super::fiddle::exec(
+        app,
+        "the fiddle's cross-tuning",
+        Command::SetInstrumentValue {
+            track: fid,
+            key: "tuning.strings".into(),
+            value: if aeae { 1.0 } else { 0.0 },
+        },
+    );
     let twin = add(
         app,
         InstrumentKind::BowedString,

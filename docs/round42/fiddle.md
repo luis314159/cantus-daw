@@ -128,7 +128,34 @@ The demos (`crates/cantus-ui/examples/arcus_demo/fiddle.rs`, `fiddle2.rs`), as m
 
 ## 3. Before and after
 
-(Filled in below as the renders are measured.)
+### 3.1 Why the songs were dark (and the lab's phrases were not)
+
+The study read our song stems at centroid / f0 1.24 and −15 … −17 dB above 2 kHz, against
+the references' 2.21 and −6.6, with a hole at 1.6–2.5 kHz (−25 … −32 dB re the total against
+−12). The lab's phrases, in the same register and at the same CC1-like dynamic, read 2.0–2.2
+and −8 … −9 (`fiddle_ltas.py`, `fiddle_quick.py`).
+
+- **The dynamic, the force, the contact, steel and register** each moved the lab's phrases by
+  tenths: `dyn` 0.4 / 0.62 / 0.85 gave 2.17 / 2.10 / 1.90.
+- **The difference was the channels.** The lab wrote the left side only, while the study sums
+  a stem's two sides. The violin's body has a *pair* of microphones (`upper::body::radiation`):
+  above 700 Hz each mode reaches each side with its own sign (45 % in opposite phase) and
+  strength, so the sum cancels part of it.
+  - A Hoedown stem's sides are correlated 0.64; each side alone reads 1.89 / 1.93 and
+    −10.9 / −11.9 dB.
+  - In the lab, the mono sum of the pair reproduces the songs: the passage reads 1.19 and
+    −16.1 dB.
+- **The fix, in the fiddle character:**
+  - **`body.mic`** = one close microphone (both sides hear the left one's radiation), as a
+    fiddle is miked for country. The mono sum loses nothing: the passage reads 2.02 and
+    −9.1 dB.
+  - The preset's bow sits **nearer the bridge (×0.73) and heavier (×1.32)**. In the lab this
+    gives:
+    - the fast notes' re-articulation cues 0.48 → 0.17 of the onsets (references 0.10–0.17);
+    - the steady noise between the harmonics −16.5 → −10.7 dB;
+    - the previous note at +60 ms −9.5 → −5.8 dB.
+- The pair stays the classical presets' default. Each side of a stereo listener's pair sounds
+  as the match measured it, and the classical presets' held-out rows are untouched.
 
 ## 4. For the owner's ears
 

@@ -262,22 +262,39 @@ fn high_share(x: &[f32]) -> f64 {
     d / e.max(1e-30)
 }
 
+/// How periodic `x` is at its period `p` (samples): the normalised correlation of a window
+/// with itself a period later (1 a held Helmholtz motion, near 0 noise).
+fn periodicity(x: &[f32], p: usize) -> f64 {
+    let n = x.len() - p;
+    let (mut xy, mut xx, mut yy) = (0.0f64, 0.0f64, 0.0f64);
+    for i in 0..n {
+        let (a, b) = (x[i] as f64, x[i + p] as f64);
+        xy += a * b;
+        xx += a * a;
+        yy += b * b;
+    }
+    xy / (xx * yy).sqrt().max(1e-30)
+}
+
 #[test]
 fn a_chop_scratches_where_a_staccato_speaks() {
+    // The open D at full velocity: 60 ms of the stroke, from 10 ms in.
     let stroke = |art: Art| {
         let mut a = Arcus::new(SR);
         a.set(&fiddle());
         a.note_art(1, Some(art), Some(BowDir::Down));
         a.note_on(62, 1.0, 1);
-        let (mut l, mut r) = (vec![0.0f32; 2880], vec![0.0f32; 2880]);
+        let (mut l, mut r) = (vec![0.0f32; 3360], vec![0.0f32; 3360]);
         a.process(&mut l, &mut r);
-        a.note_off(62, 1);
-        // the stroke's 60 ms
-        high_share(&l)
+        l[480..].to_vec()
     };
     let (chop, stac) = (stroke(Art::Chop), stroke(Art::Staccato));
-    let db = 10.0 * (chop / stac).log10();
-    assert!(db > 3.0, "the chop's top over the staccato's: {db:.1} dB");
+    let p = (SR as f64 / 293.66).round() as usize;
+    let (pc, ps) = (periodicity(&chop, p), periodicity(&stac, p));
+    let db = 10.0 * (high_share(&chop) / high_share(&stac)).log10();
+    println!("periodicity: the chop {pc:.2}, the staccato {ps:.2}; the chop's top {db:+.1} dB");
+    assert!(pc < ps - 0.15, "the chop is raucous: {pc:.2} against {ps:.2}");
+    assert!(db > 1.0, "the chop's top over the staccato's: {db:.1} dB");
 }
 
 #[test]
@@ -303,8 +320,5 @@ fn a_cross_tuning_moves_the_open_strings() {
         }
     }
     // Standard is the violin's own table.
-    assert!(std::ptr::eq(
-        Instrument::Violin.spec_crossed(0),
-        Instrument::Violin.spec()
-    ));
+    assert!(Instrument::Violin.spec_crossed(0) == Instrument::Violin.spec());
 }

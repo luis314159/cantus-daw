@@ -534,7 +534,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s,
         "arcus.body",
         Function::Tone,
-        &[&["body.mix", "body.size", "body.ring"], &["decay", "ring"]],
+        &[&["body.mix", "body.size", "body.ring"], &["decay", "ring", "body.mic"]],
     );
     let r5 = rows.row(heights[4], &[1.0]);
     cells_card(

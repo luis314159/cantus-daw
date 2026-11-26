@@ -21,3 +21,5 @@ arcus.cross_kind.gdgd = GDGD
 arcus.cross_kind.adae = ADAE
 arcus.cross_kind.calico = Calico (AEAC#)
 arcus.cross_kind.ddad = DDAD
+arcus.body.mic = Close mic
+arcus.body.mic.short = Close mic

@@ -93,6 +93,12 @@ def main():
         if items:
             body.append(section(title, text, items))
             clips += [r for r, _ in items]
+    if (d / "ahora-aeae/tren.wav").exists():
+        body.append(section("Tren de la medianoche, afinación AEAE",
+                            "El mismo tema con el violín afinado La Mi La Mi, como afinan los "
+                            "violinistas old-time para un tema en La: las cuerdas al aire La y "
+                            "Mi suenan bajo todo el tema.", [("ahora-aeae/tren.wav", "AEAE")]))
+        clips.append("ahora-aeae/tren.wav")
     cmp_dir = d / "comparar"
     if cmp_dir.exists():
         items = [(f"comparar/{p.name}", p.stem) for p in sorted(cmp_dir.glob("*.wav"))]

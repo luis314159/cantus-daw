@@ -1306,7 +1306,8 @@ fn migrate_83_to_84(_value: &mut Value) -> Result<(), String> {
 
 /// Schema 85 (round 42, ADR 0164): an Arcus may bow two strings with one bow (`bow.pair`,
 /// `bow.tilt`, `dstop.just`), its open strings ring in sympathy (`sym`), its bow has grit
-/// (`bow.grit`), its strings may be steel (`steel`) and cross-tuned (`tuning.strings`). Absent — every older song — is each
+/// (`bow.grit`), its strings may be steel (`steel`) and cross-tuned (`tuning.strings`), and
+/// its body heard by one close microphone (`body.mic`). Absent — every older song — is each
 /// one's default, which plays what it played (one string a voice, no sympathy, no grit, the
 /// measured set), so nothing is written; an older build would drop them and play the song as
 /// before them.

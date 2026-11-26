@@ -50,6 +50,7 @@ fn label(a: Option<Articulation>) -> &'static str {
         Some(Articulation::Spiccato) => "spiccato",
         Some(Articulation::Pizzicato) => "pizzicato",
         Some(Articulation::Tremolo) => "trémolo",
+        Some(Articulation::Chop) => "chop", // r42 fiddle
     }
 }
 

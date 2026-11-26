@@ -65,6 +65,10 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
         grit: 1.0,
         steel: 1.0,
         just: 0.6,
+        mic: 1.0,
+        // The fiddle preset's bow since r42 fiddle: nearer the bridge (×0.73), heavier (×1.32).
+        bow_pos: (-2.0 * math::log2(0.73f32)).clamp(-1.0, 1.0),
+        bow_force: math::log2(1.32f32),
         ..preset()
     };
     for (k, v) in args {
@@ -78,6 +82,14 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
             "pos" => s.bow_pos = *v,
             "force" => s.bow_force = *v,
             "ring" => s.ring_s = *v,
+            // The dynamic fixed as a song's CC1 holds it (the velocity's share off).
+            "dyn" => {
+                s.dynamic = *v;
+                s.vel_dyn = 0.0;
+            }
+            "body" => s.body_mix = *v,
+            "speed" => s.bow_speed = *v,
+            "mic" => s.mic = *v,
             _ => panic!("unknown setting {k}"),
         }
     }
@@ -117,8 +129,9 @@ fn render(insts: &[(ArcusSettings, Vec<N>)], secs: f64) -> Vec<f32> {
             a.process(&mut l[at..at + k], &mut r[at..at + k]);
             at += k;
         }
-        for (o, x) in sum.iter_mut().zip(&l) {
-            *o += x;
+        // The two sides summed, as the study's measure and a mono listener hear them.
+        for ((o, x), y) in sum.iter_mut().zip(&l).zip(&r) {
+            *o += 0.5 * (x + y);
         }
     }
     let rms = (sum.iter().map(|x| (x * x) as f64).sum::<f64>() / frames as f64).sqrt();
@@ -218,6 +231,27 @@ fn bordon() -> Vec<N> {
     v
 }
 
+/// The demos' passage (the hoedown's B part, its first four bars) as one line at 116 BPM,
+/// eighths and quarters, each its own bow: the register the songs play in.
+fn agudas() -> Vec<N> {
+    let mut v = Vec::new();
+    let e = 60.0 / 116.0 / 2.0;
+    let line: [(u8, f64); 26] = [
+        (81, 1.0), (83, 1.0), (85, 1.0), (86, 1.0), (81, 2.0), (78, 2.0),
+        (79, 1.0), (81, 1.0), (83, 1.0), (79, 1.0), (76, 2.0), (73, 2.0),
+        (74, 1.0), (78, 1.0), (81, 1.0), (78, 1.0), (79, 1.0), (78, 1.0), (76, 1.0), (74, 1.0),
+        (73, 1.0), (76, 1.0), (81, 1.0), (76, 1.0), (73, 1.0), (69, 3.0),
+    ];
+    let mut dir = BowDir::Down;
+    let mut t = 0.1;
+    for (k, n) in line {
+        v.push(N { at: t, len: n * e - 0.002, key: k, vel: 0.72, art: Art::Sustain, dir, low: false });
+        dir = flip(dir);
+        t += n * e;
+    }
+    v
+}
+
 /// Single notes whose partials an open string shares (D5 and A5: the open D's and A's
 /// octaves; G4 on the D string: the open G's), each let go and rung out.
 fn simpatia() -> Vec<N> {
@@ -241,7 +275,7 @@ fn main() {
         let mut notes = Vec::new();
         let mut dir = BowDir::Down;
         for line in text.lines().filter(|l| !l.trim().is_empty()) {
-            let f: Vec<&str> = line.split('	').collect();
+            let f: Vec<&str> = line.split('\t').collect();
             let (at, len, key, vel): (f64, f64, u8, f32) = (
                 f[0].parse().unwrap(),
                 f[1].parse().unwrap(),
@@ -279,7 +313,7 @@ fn main() {
                 .join("-")
         )
     };
-    for (name, notes) in [("dobles", dobles()), ("rapidas", rapidas()), ("bordon", bordon()), ("simpatia", simpatia())] {
+    for (name, notes) in [("dobles", dobles()), ("rapidas", rapidas()), ("bordon", bordon()), ("simpatia", simpatia()), ("agudas", agudas())] {
         let secs = notes.iter().map(|n| n.at + n.len).fold(0.0, f64::max) + 1.5;
         let (hi, lo): (Vec<N>, Vec<N>) = notes.iter().partition(|n| !n.low);
         let before = render(&[(preset(), hi), (preset(), lo)], secs);

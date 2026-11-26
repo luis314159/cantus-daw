@@ -337,6 +337,10 @@ pub struct ArcusSettings {
     /// r42 fiddle — the strings' tuning (`tuning.strings`: 0 standard, 1 AEAE, 2 GDGD, 3 ADAE,
     /// 4 calico, 5 DDAD — the violin's; `upper::tables::CROSS`).
     pub cross: u8,
+    /// r42 fiddle — the microphones (the violin's and the viola's body): 0 the pair (each side
+    /// its own radiation above 700 Hz), 1 one close microphone (both sides alike: a mono sum
+    /// loses nothing).
+    pub mic: f32,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -405,6 +409,7 @@ impl Default for ArcusSettings {
             grit: 0.0,       // r42 fiddle
             steel: 0.0,      // r42 fiddle
             cross: 0,        // r42 fiddle
+            mic: 0.0,        // r42 fiddle
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,

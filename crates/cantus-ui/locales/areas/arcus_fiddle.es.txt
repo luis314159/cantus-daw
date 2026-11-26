@@ -21,3 +21,5 @@ arcus.cross_kind.gdgd = GDGD (Sol Re Sol Re)
 arcus.cross_kind.adae = ADAE (La Re La Mi)
 arcus.cross_kind.calico = Calico (La Mi La Do#)
 arcus.cross_kind.ddad = DDAD (Re Re La Re)
+arcus.body.mic = Micrófono cercano
+arcus.body.mic.short = Mic. cerca

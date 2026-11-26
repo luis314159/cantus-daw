@@ -59,6 +59,11 @@ pub struct Shape {
     /// r42 fix2-arcus — the instrument's own size (`size` at the knob's 1): where the power
     /// gain is measured exactly.
     pub own: f32,
+    /// r42 fiddle (ADR 0164) — one close microphone (the fiddle's): both sides hear the left
+    /// microphone's radiation. The pair's (`false`) hears each mode above [`RADIATION_HZ`]
+    /// with its own sign and strength at each side, which a mono sum cancels in part: the
+    /// fiddle's songs summed to mono lost 8–12 dB at 1.6–2.5 kHz against either side alone.
+    pub mono: bool,
 }
 
 /// The body on the audio thread.
@@ -88,7 +93,7 @@ pub struct UpperBody {
     /// r42 fix2-arcus — the exact power gain (each microphone) measured on the lattice
     /// ([`LATTICE`]), `NAN` until measured, for the shape it was measured on (its modes, own
     /// size and trim).
-    norm_for: Option<(&'static [Mode], u32, u32)>,
+    norm_for: Option<(&'static [Mode], u32, u32, bool)>,
     norm: [[f64; 2]; LATTICE],
     /// How many exact measures were taken (each `O(n²)`): tests.
     measured: u32,
@@ -198,6 +203,7 @@ impl UpperBody {
             }
             let q = (m.q * ring.max(0.05)) as f64;
             let (gl, gr) = radiation(k as u64, hz);
+            let gr = if sh.mono { gl } else { gr }; // r42 fiddle
             let trim = if m.hz as f64 >= CLOUD_HZ.0 {
                 sh.hf_trim as f64
             } else {
@@ -215,6 +221,7 @@ impl UpperBody {
             let level = self.cloud_level[c];
             let q = CLOUD_Q * (0.7 + 0.6 * hash(c as u64, 43)) * ring.max(0.05) as f64;
             let (gl, gr) = radiation(1000 + c as u64, hz.max(RADIATION_HZ));
+            let gr = if sh.mono { gl } else { gr }; // r42 fiddle
             let a = sh.hf_trim as f64 * CLOUD_GAIN * level * (0.8 + 0.4 * hash(c as u64, 47));
             coefs[used] = mode_coefs(hz, q, a, gl, gr, t);
             used += 1;
@@ -250,10 +257,10 @@ impl UpperBody {
     /// samples (r42 fix2-arcus).
     fn power(&mut self, sh: &Shape) -> [f64; 2] {
         let own = sh.own;
-        let key = (sh.modes, own.to_bits(), sh.hf_trim.to_bits());
-        if !self
-            .norm_for
-            .is_some_and(|o| std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2)
+        let key = (sh.modes, own.to_bits(), sh.hf_trim.to_bits(), sh.mono);
+        if !self.norm_for.is_some_and(|o| {
+            std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2 && o.3 == key.3
+        })
         {
             self.norm = [[f64::NAN; 2]; LATTICE];
             self.norm_for = Some(key);
@@ -540,5 +547,6 @@ pub fn shape_of(s: &super::super::ArcusSettings) -> Option<Shape> {
         mix: s.body_mix,
         hf_trim,
         own: scale,
+        mono: s.mic >= 0.5, // r42 fiddle
     })
 }
