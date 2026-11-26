@@ -449,7 +449,8 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Output,
         0.0,
         if m2 {
-            &["tilt", "gain"]
+            // r42 (`chorda-c17`): model 2's colour beside its tilt.
+            &["tilt", "colour", "gain"]
         } else {
             &["tilt", "width", "gain"]
         },

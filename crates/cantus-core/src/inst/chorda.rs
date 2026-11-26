@@ -14,7 +14,7 @@
 //! | Pedals | `pedal` (the sustain pedal as a parameter, 0 up … 1 down: what an automation lane or a modulator drives; the higher of it and controller 64 plays), `damper` (%), `una` (%: how far the soft pedal shifts the hammers) |
 //! | Body | `body` (%), `tilt` (dB), `width` (%) |
 //! | Output | `gain` (dB) |
-//! | Model 2 (ADR 0098) | `room` (%: the room's level), `noise` (%: the hammer's, the action's and the dampers' noises), `persp` (%: the microphones, over the hammers 0 … the audience 1), `lid` (%: closed 0 … open 1), `roomsize` (%) — model 1 ignores them; `width` is model 2's pair width too |
+//! | Model 2 (ADR 0098) | `room` (%: the room's level), `noise` (%: the hammer's, the action's and the dampers' noises), `persp` (%: the microphones, over the hammers 0 … the audience 1), `lid` (%: closed 0 … open 1), `roomsize` (%), `colour` (%: Chorda's own voicing 0 … a recorded grand's middle 1, −1 further its own way; r42) — model 1 ignores them; `width` is model 2's pair width too |
 //!
 //! `a4`, `stretch` and `stiffness` shape every string's dispersion design, computed off the
 //! audio thread: they are set, not modulated (a modulation route to them does nothing).
@@ -157,6 +157,10 @@ pub const PARAMS: &[InstParamInfo] = &[
         false,
         false,
     ),
+    // r42 (`chorda-c17`, ADR 0098's sixth amendment): model 2's colour — Chorda's own
+    // voicing (0) toward a recorded grand's middle (1), or further its own way (−1). A key
+    // absent from an older song reads 0: its sound unchanged.
+    p("colour", "chorda.colour", -1.0, 1.0, 0.0, "%", false, false),
 ];
 
 pub fn params() -> &'static [InstParamInfo] {

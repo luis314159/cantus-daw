@@ -23,7 +23,7 @@ from heard import lufs  # noqa: E402
 
 SR = 48000
 PHRASES = ['middle_c', 'soft_chords', 'fast_run', 'ballad', 'ff_chord', 'bass', 'top']
-THIRDS = [40 * 2 ** (i / 3) for i in range(0, 27)]  # 40 Hz ... ~16 kHz
+THIRDS = [63 * 2 ** (i / 3) for i in range(0, 25)]  # 63 Hz ... 16 kHz
 
 
 def onsets(ph):
@@ -67,7 +67,8 @@ def first_sound(m):
     return int(np.argmax(e > pk * 10 ** (-30 / 20)))
 
 
-def band_db(P, f):
+def band_db(fp, _=None):
+    f, P = fp
     out = []
     for c in THIRDS:
         lo, hi = c / 2 ** (1 / 6), c * 2 ** (1 / 6)
@@ -78,31 +79,36 @@ def band_db(P, f):
 
 def spectra(x, ph):
     """Power spectra summed over the windows: attack / bloom / rest / all."""
-    m = x.mean(1)
-    n = 4096
+    m0 = x.mean(1)
+    off = first_sound(m0)
+    t0 = [int(t * SR) + off for t in onsets(ph)]
+    # Short frames (21 ms) for the windows locked to the onsets, long ones for the whole.
+    n, hop = 1024, 128
     win = signal.windows.hann(n, sym=False)
     f = np.fft.rfftfreq(n, 1 / SR)
-    off = first_sound(m)
-    t0 = [int(t * SR) + off for t in onsets(ph)]
-    hop = 512
-    acc = {k: np.zeros(len(f)) for k in ('attack', 'bloom', 'rest', 'all')}
-    for s in range(0, len(m) - n, hop):
-        c = s + n // 2
+    m = np.concatenate([np.zeros(n // 2), m0, np.zeros(n)])
+    acc = {k: np.zeros(len(f)) for k in ('attack', 'bloom', 'rest')}
+    for s in range(0, len(m0), hop):
         X = np.abs(np.fft.rfft(m[s:s + n] * win)) ** 2
-        acc['all'] += X
-        dt = min([(c - o) / SR for o in t0 if c >= o] or [9e9])
-        k = 'attack' if dt < 0.03 else 'bloom' if dt < 0.25 else 'rest'
+        dt = min([(s - o) / SR for o in t0 if s >= o - int(0.004 * SR)] or [9e9])
+        k = 'attack' if dt < 0.025 else 'bloom' if dt < 0.25 else 'rest'
         acc[k] += X
-    return f, acc, m, off, t0
+    fl, P = signal.welch(m0, SR, nperseg=8192)
+    # Each window's spectrum on the long grid (per-band sums below read either grid).
+    acc = {k: (f, v) for k, v in acc.items()}
+    acc['all'] = (fl, P)
+    return fl, acc, m0, off, t0
 
 
 def features(x, f, acc, m, off, t0):
-    P = acc['all']
+    f, P = acc['all']
     sel = (f > 30) & (f < 16000)
     cen = (f[sel] * P[sel]).sum() / P[sel].sum()
     # Flatness between 1 and 4 kHz: tone (partials) against noise (between them).
-    b = (f > 1000) & (f < 4000)
-    flat = np.exp(np.mean(np.log(P[b] + 1e-30))) / P[b].mean()
+    def flatness(lo, hi, w='all'):
+        ff, PP = acc[w]
+        b = (ff > lo) & (ff < hi)
+        return 10 * np.log10(np.exp(np.mean(np.log(PP[b] + 1e-30))) / PP[b].mean())
     crest = 20 * np.log10(np.abs(x).max() / np.sqrt((x ** 2).mean()))
     L, R = x[:, 0], x[:, 1]
     corr = (L * R).sum() / np.sqrt((L * L).sum() * (R * R).sum())
@@ -118,7 +124,9 @@ def features(x, f, acc, m, off, t0):
         i3 = np.argmax(seg > pk * 10 ** (-3 / 20))
         i20 = np.argmax(seg > pk * 10 ** (-20 / 20))
         rises.append((i3 - i20) / SR * 1000)
-    return dict(centroid=cen, flat_1_4k=10 * np.log10(flat), crest=crest, corr=corr,
+    return dict(centroid=cen, flat_250_1k=flatness(250, 1000), flat_1_4k=flatness(1000, 4000),
+                flat_4_12k=flatness(4000, 12000), atk_flat_1_4k=flatness(1000, 4000, 'attack'),
+                atk_flat_4_12k=flatness(4000, 12000, 'attack'), crest=crest, corr=corr,
                 side_db=side, rise_ms=float(np.median(rises)) if rises else float('nan'))
 
 
@@ -140,7 +148,7 @@ def main():
         for lab, d in srcs:
             x = load(d, ph)
             f, acc, m, off, t0 = spectra(x, ph)
-            res[ph][lab] = dict(bands={k: band_db(v, f).tolist() for k, v in acc.items()},
+            res[ph][lab] = dict(bands={k: band_db(v).tolist() for k, v in acc.items()},
                                 feat=features(x, f, acc, m, off, t0))
     ref = srcs[0][0]
     names = [l for l, _ in srcs[1:]]
@@ -154,7 +162,7 @@ def main():
                 d = np.array(res[ph][n]['bands'][win]) - r
                 print(f'{ph[:11] + "/" + n[:12]:<24}' + ''.join(f'{v:6.1f}' for v in d))
     print(f'\n== features ({ref} first)')
-    keys = ['centroid', 'flat_1_4k', 'crest', 'corr', 'side_db', 'rise_ms']
+    keys = ['centroid', 'flat_250_1k', 'flat_1_4k', 'flat_4_12k', 'atk_flat_1_4k', 'atk_flat_4_12k', 'crest', 'corr', 'side_db', 'rise_ms']
     print(f'{"phrase/source":<24}' + ''.join(f'{k:>11}' for k in keys))
     for ph in phrases:
         for lab, _ in srcs:

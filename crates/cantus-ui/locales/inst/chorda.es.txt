@@ -115,3 +115,7 @@ chorda.lid.half = a media altura
 chorda.lid.open = abierta
 chorda.mics_line = Micros {at} · tapa {lid}
 chorda.room_line = Sala {amount} % · caída {t60} s
+# El color del modelo 2 (ronda 42, chorda-c17): la voz propia de Chorda hacia la de un gran cola grabado
+chorda.colour = Color (modelo 2)
+chorda.colour.short = Color
+chorda.preset.recorded = Color de gran cola grabado

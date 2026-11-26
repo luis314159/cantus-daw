@@ -189,11 +189,20 @@ pub struct VoiceSettings {
     /// Model 2 (round 40): the damper landing's noise rises over this share of its fall (0:
     /// at once).
     pub landing_rise: f64,
+    /// Model 2 (round 42, `chorda-c17`): the key's knock as the case and the board ring it
+    /// ([`KNOCK_AS_IS`]: the round-40 thud) — its noise's gain (a factor on the model's),
+    /// its fall (s; 0: the model's 4 ms), its band (Hz; 0: 300 Hz and 3 kHz), its second,
+    /// slower stage's share of the first's peak (0: none) and fall (s), the thud's modes'
+    /// T60 (a factor), and the noise's speed exponent beyond the model's square (0: as it is).
+    pub knock_shape: [f64; 8],
     /// Model 2: what this strike's variation and noises are seeded from — the note's id
     /// (a clip note's own, the same on every play, live or offline, from any start; ADR
     /// 0023 rule 1).
     pub seed: u64,
 }
+
+/// The round-40 knock (`VoiceSettings::knock_shape`): every part as the model made it.
+pub const KNOCK_AS_IS: [f64; 8] = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0];
 
 /// Model 2's voicing of the action (ADR 0098), calibrated by `chorda_compare`.
 pub mod action {
@@ -351,6 +360,8 @@ pub struct Voice {
     /// Model 2: the key's thud on the keybed and the damper's as it lands.
     knock: Thud,
     landing: Thud,
+    /// Round 42: whether `knock` was made to another shape than the model's own.
+    knock_shaped: bool,
     /// Model 2 (round 40): the key's arrival-time difference between the microphones — one
     /// side hears its strings this many samples later (a spaced pair's: up to a millisecond
     /// or so, key by key). Empty: none (model 1, beta.14).
@@ -615,6 +626,7 @@ impl Voice {
                 draw: 0,
                 felt_soft: 1.0,
                 landing_rise: 0.0,
+                knock_shape: KNOCK_AS_IS,
                 seed: 0,
             },
             tension,
@@ -629,6 +641,7 @@ impl Voice {
             design_gen: 0,
             retune: None,
             knock: Thud::new(fs, action::KEY_HZ, action::KEY_T60, 300.0, 3_000.0, 0.004),
+            knock_shaped: false,
             landing: Thud::new(
                 fs,
                 action::DAMPER_HZ,
@@ -837,11 +850,40 @@ impl Voice {
             };
             let k = settings.knock * soft_knock * math::powf(v, 1.5);
             let kick = [k * action::KEY_KICK[0], k * action::KEY_KICK[1]];
-            self.knock.strike(
-                kick,
-                settings.knock * soft_knock * v * v * action::KEY_NOISE,
-                seed,
-            );
+            let ks = settings.knock_shape;
+            let mut noise = settings.knock * soft_knock * v * v * action::KEY_NOISE;
+            if ks != KNOCK_AS_IS {
+                // Round 42: the knock as the case rings it (a Thud is made in place: nothing
+                // allocates).
+                let or = |x: f64, d: f64| if x > 0.0 { x } else { d };
+                let t = [action::KEY_T60[0] * ks[6], action::KEY_T60[1] * ks[6]];
+                self.knock.reshape(
+                    self.fs,
+                    action::KEY_HZ,
+                    t,
+                    or(ks[2], 300.0),
+                    or(ks[3], 3_000.0),
+                    or(ks[1], 0.004),
+                );
+                self.knock.set_tail(self.fs, ks[4], ks[5]);
+                self.knock_shaped = true;
+                noise *= ks[0];
+                if ks[7] != 0.0 {
+                    noise *= math::powf((v / settings.v_max).clamp(1e-3, 1.0), ks[7]);
+                }
+            } else if self.knock_shaped {
+                self.knock.reshape(
+                    self.fs,
+                    action::KEY_HZ,
+                    action::KEY_T60,
+                    300.0,
+                    3_000.0,
+                    0.004,
+                );
+                self.knock.set_tail(self.fs, 0.0, 0.0);
+                self.knock_shaped = false;
+            }
+            self.knock.strike(kick, noise, seed);
         }
         let mut weight = unison_weights(dk, key.strings, &settings, soft);
         if self.strings.strings() > key.strings as usize {

@@ -695,6 +695,8 @@ pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
             "persp" => s.persp = v,
             "lid" => s.lid = v,
             "roomsize" => s.size = v,
+            // r42 (`chorda-c17`): Chorda's own colour (0) toward a recorded grand's (1).
+            "colour" => s.colour = v,
             _ => {}
         }
     }

@@ -145,6 +145,9 @@ pub struct ChordaSettings {
     pub persp: f64,
     pub lid: f64,
     pub size: f64,
+    /// Model 2 (round 42, `chorda-c17`): the colour (−1 … 1; 0 Chorda's own voicing, 1 a
+    /// recorded grand's middle; [`super::colour`]).
+    pub colour: f64,
 }
 
 impl Default for ChordaSettings {
@@ -195,6 +198,7 @@ impl Default for ChordaSettings {
                 draw: 0,
                 felt_soft: 1.0,
                 landing_rise: 0.0,
+                knock_shape: super::voice::KNOCK_AS_IS,
                 level: 1.0,
                 thud_level: 1.0,
                 bridge_n: 0.0,
@@ -226,6 +230,7 @@ impl Default for ChordaSettings {
             persp: super::stage::PERSP,
             lid: super::stage::LID,
             size: super::stage::SIZE,
+            colour: 0.0,
         }
     }
 }
@@ -282,6 +287,8 @@ pub struct Chorda {
     voicing: Voicing,
     /// Model 2 (round 40): the output's top rolled off (`Voicing::top_hz`; off at 0).
     top: TopRoll,
+    /// Round 42: the colour stage (model 2), off at a colour of 0.
+    colour: super::colour::Colour,
     /// Round 40: the bass register's high-pass on the sympathetic strings' output (its
     /// second section in `z[1]` when the high-pass is of the fourth order) — their bank
     /// passes its drive, the strings' unvoiced sum, straight through as well, and carried
@@ -482,6 +489,7 @@ impl Chorda {
             stage: Stage::new(fs),
             voicing: shipped,
             top: TopRoll::new(fs, shipped.top_hz),
+            colour: super::colour::Colour::new(fs),
             sym_hp: TopRoll::high_pass(fs, shipped.bass_hp),
             sym_hp4: shipped.bass_hp_order >= 4.0,
             pedal: 0.0,
@@ -540,6 +548,7 @@ impl Chorda {
                 self.regs.reset();
                 self.room.reset();
                 self.stage.reset();
+                self.colour.reset();
                 // Model 2's output roll-off and the sympathetic strings' high-pass (both
                 // on since candidate 16) are never ticked by model 1.
                 self.top.z = [[0.0; 2]; 2];
@@ -601,6 +610,7 @@ impl Chorda {
         self.board.set_tilt(s.tilt_db);
         self.body.level = s.body;
         self.body.set_tilt(s.tilt_db);
+        self.colour.set(s.colour);
         self.stage.set(s.persp, s.width, s.lid);
         self.room.set_size(stage::size_scale(s.size));
         if self.at_rest() {
@@ -660,6 +670,7 @@ impl Chorda {
             if kt != 1.0 {
                 v.knock *= kt;
             }
+            v.knock_shape = self.voicing.knock_shape_of(k.key);
             if self.voicing.vmin != 1.0 {
                 v.v_min *= self.voicing.vmin;
             }
@@ -881,6 +892,7 @@ impl Chorda {
         self.regs.reset();
         self.room.reset();
         self.stage.reset();
+        self.colour.reset();
         self.top.z = [[0.0; 2]; 2];
         self.sym_hp.z = [[0.0; 2]; 2];
         self.sounding = [false; KEYS];
@@ -943,6 +955,7 @@ impl Chorda {
             && self.stage.at_rest()
             && self.top.z == [[0.0; 2]; 2]
             && self.sym_hp.z == [[0.0; 2]; 2]
+            && self.colour.at_rest()
     }
 
     /// Frames skipped while at rest: the grid, the board's quarter-rate phase and the
@@ -998,6 +1011,9 @@ impl Chorda {
                         .parts(self.dl[i] + 0.5 * sym, self.dr[i] + 0.5 * sym);
                     let mut o = self.stage.mix(d, b);
                     self.body.tilt(&mut o);
+                    if self.colour.on() {
+                        self.colour.tick(&mut o);
+                    }
                     self.stage.lid(&mut o);
                     let (wl, wr) = self.room.tick(o[0], o[1]);
                     let o = self.stage.wet(o, [wl, wr], room);
@@ -1043,6 +1059,7 @@ impl Chorda {
                     self.body.flush(FLOOR);
                     self.regs.flush(FLOOR);
                     self.stage.flush(FLOOR);
+                    self.colour.flush(FLOOR);
                     for z in self
                         .top
                         .z

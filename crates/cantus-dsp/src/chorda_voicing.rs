@@ -340,6 +340,15 @@ pub struct Voicing {
     /// Round 41 (`DSP_VERSION` 11): each key's stiffness scatter scaled (1: `uni_b`'s, every
     /// voicing before). Set by name as `uni_b.<MIDI key>`.
     pub uni_b_keys: [f32; KEYS],
+    /// Round 42 (`chorda-c17`): the action's knock as the case, the keyframe and the board
+    /// ring it ([`super::voice::KNOCK_AS_IS`]: the round-40 thud; `VoiceSettings::knock_shape`)
+    /// — set as `knock.noise`, `.tau`, `.lo`, `.hi`, `.tail`, `.tail_tau`, `.t60`, `.noise_vel`.
+    /// The recorded grands' top keys knock 5–10 dB under their note at 0.5–2.8 kHz for 20 ms
+    /// and ring on for a quarter of a second; the round-40 knock was a low thud alone.
+    pub knock_shape: [f64; 8],
+    /// Round 42: the knock's noise scaled at A0 and at C8 against C4 (log in key between; 1, 1:
+    /// as at C4). Set as `knock.noise_bass`, `knock.noise_treble`.
+    pub knock_noise_reg: [f64; 2],
 }
 
 /// The most a key is evened by (dB).
@@ -531,7 +540,24 @@ impl Voicing {
             uni_loss_top: 0.0,
             uni_pair: [0.0; KEYS],
             uni_b_keys: [1.0; KEYS],
+            knock_shape: super::voice::KNOCK_AS_IS,
+            knock_noise_reg: [1.0, 1.0],
         }
+    }
+
+    /// Round 42: the knock's shape for key `m` (MIDI): exactly `knock_shape` when its noise
+    /// is not scaled by register.
+    pub fn knock_shape_of(&self, m: u8) -> [f64; 8] {
+        let mut s = self.knock_shape;
+        let [bass, treble] = self.knock_noise_reg;
+        if bass != 1.0 && m < 60 {
+            s[0] *= Voicing::bass_scale(m, bass);
+        }
+        if treble != 1.0 && m > 60 {
+            let t = ((m as f64 - 60.0) / (108.0 - 60.0)).clamp(0.0, 1.0);
+            s[0] *= math::exp(t * math::ln(treble));
+        }
+        s
     }
 
     /// The keyboard model 2 is designed for at the knobs' `base` tuning: its own
@@ -945,6 +971,16 @@ impl Voicing {
             "coupling" => &mut self.coupling,
             "coupling_treble" => &mut self.coupling_treble,
             "knock_treble" => &mut self.knock_treble,
+            "knock.noise" => &mut self.knock_shape[0],
+            "knock.tau" => &mut self.knock_shape[1],
+            "knock.lo" => &mut self.knock_shape[2],
+            "knock.hi" => &mut self.knock_shape[3],
+            "knock.tail" => &mut self.knock_shape[4],
+            "knock.tail_tau" => &mut self.knock_shape[5],
+            "knock.t60" => &mut self.knock_shape[6],
+            "knock.noise_vel" => &mut self.knock_shape[7],
+            "knock.noise_bass" => &mut self.knock_noise_reg[0],
+            "knock.noise_treble" => &mut self.knock_noise_reg[1],
             "vel_curve" => &mut self.vel_curve,
             "keyboard.bass_b" => &mut self.bass_b,
             "keyboard.treble_b" => &mut self.treble_b,
