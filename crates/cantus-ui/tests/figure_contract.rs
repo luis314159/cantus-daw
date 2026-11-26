@@ -44,6 +44,7 @@ fn stick_rig(who: Who) -> (PlayRig, V3, V3) {
             Hand::Grip(grip(0.78), v(0.0, -1.0, 0.0) + right * 0.5),
         ],
         occluders: Vec::new(),
+        shrug: [0.0; 2],
     };
     (rig, a, b)
 }

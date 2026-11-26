@@ -326,6 +326,8 @@ pub fn picture(
         hand: hand.0,      // r42:arcus-upper
         light,             // r42:arcus-upper
         accent: s.t.focus, // r42:arcus-upper
+        // r42:arcus-polish3 — the stage is the concert's (a realistic figure, Concert).
+        concert: view.room == crate::scene::Room::Stage,
     };
     // r42:arcus-upper — a figure's left hand behind the neck, then the neck stamped back
     // over it from the picture itself, then the rest in front.

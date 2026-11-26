@@ -524,6 +524,13 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
         )
     };
     cam.fit(&points(b, h), fb, st.frame.margin, st.frame.anchor); // r42:arcus-upper
+    // r42:arcus-polish3 — a realistic figure on the stage: the concert's own light and hall
+    // (`figure::concert`), the stage dark in either theme.
+    let concert = (stage && super::bowed_human::who(h.hold).is_some())
+        .then(super::figure::concert::get);
+    if let Some(cc) = &concert {
+        light = Light::concert(cc, mid, cam.eye());
+    }
     let mesh = mesh_for(b, h); // r42:arcus-upper
     let mut list = List::default();
     let lod = if st.size.x.min(st.size.y) * st.ppp < 200.0 {
@@ -533,7 +540,10 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
     };
     let info = {
         let mut c = Ctx::new(cam, light, &mut list, lod);
-        rooms::build(&mut c, st.room, v(mid.x, 0.0, mid.z), st.look)
+        match &concert {
+            Some(cc) => super::hall::concert(&mut c, mid, cam.eye(), cc), // r42:arcus-polish3
+            None => rooms::build(&mut c, st.room, v(mid.x, 0.0, mid.z), st.look),
+        }
     };
     let y0 = cam.p(v(0.0, 0.0, mid.z)).y;
     list.mirror_fade = Some((y0 - 30.0, y0 + st.size.y * 0.45));

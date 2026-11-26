@@ -121,6 +121,7 @@ pub fn arcus_rig(
                 },
             ],
             occluders: Vec::new(),
+        shrug: [0.0; 2], // r42:arcus-polish3
         };
         let beside = Beside {
             grip,
@@ -189,6 +190,7 @@ pub fn arcus_rig(
             },
         ],
         occluders: Vec::new(),
+        shrug: [0.0; 2], // r42:arcus-polish3
     };
     let beside = Beside {
         grip,

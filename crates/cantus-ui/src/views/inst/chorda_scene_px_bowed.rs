@@ -41,8 +41,10 @@ fn with_rosin(b: Bowed, mut m: PMat) -> PMat {
 /// How much of the rosin's colour lies over the varnish at its thickest.
 const ROSIN: f32 = 0.2;
 
-/// The photographic material of a role.
-fn pmat(b: Bowed, r: Role) -> PMat {
+/// The photographic material of a role (r42:arcus-polish3: under the concert light `cc`, a
+/// violin's or a viola's varnish red-amber and glossier, as the photographs' are under the
+/// spots).
+fn pmat(b: Bowed, r: Role, cc: Option<&crate::scene::figure::concert::Concert>) -> PMat {
     // The varnish seen per pixel: its colour deeper than the Drawn picture's flat facets
     // need (the clear coat over it adds its own light).
     let tone = |m: &crate::kit::skin::scene::Mat, lines: f32, flame: f32, seed: u32| {
@@ -53,7 +55,10 @@ fn pmat(b: Bowed, r: Role) -> PMat {
         // taken (the Photographic picture's orange read as plastic at a violin's size).
         let held = b.dims().held; // r42:arcus-upper
         let k = |c: [f32; 3]| {
-            if held {
+            if let (true, Some(cc)) = (held, cc) {
+                let v = cc.varnish;
+                [c[0] * v[0], c[1] * v[1], c[2] * v[2]]
+            } else if held {
                 [c[0] * 0.40, c[1] * 0.31, c[2] * 0.23] // r42:arcus-upper
             } else {
                 [c[0] * 0.56, c[1] * 0.40, c[2] * 0.26]
@@ -69,8 +74,14 @@ fn pmat(b: Bowed, r: Role) -> PMat {
             base: k(f.base),
             dark: k(f.dark),
             light: k(f.light),
-            coat: f.coat * 0.5,
-            rough: (f.rough + 0.08).min(0.4),
+            coat: match (held, cc) {
+                (true, Some(cc)) => cc.varnish_coat,
+                _ => f.coat * 0.5,
+            },
+            rough: match (held, cc) {
+                (true, Some(cc)) => cc.varnish_rough,
+                _ => (f.rough + 0.08).min(0.4),
+            },
             ..f
         }
     };
@@ -191,9 +202,19 @@ fn middle(tris: &[(Role, crate::scene::bowed_mesh::Tris)], k: u8) -> V3 {
 
 /// `b` added to `g` (its triangles after the room's).
 pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
+    build_lit(g, b, h, None);
+}
+
+/// [`build`] under the concert light `cc` (r42:arcus-polish3: its varnish).
+pub fn build_lit(
+    g: &mut Geo,
+    b: Bowed,
+    h: crate::scene::bowed_hold::Holder,
+    cc: Option<&crate::scene::figure::concert::Concert>,
+) {
     let m = mesh_for(b, h); // r42:arcus-upper
     let mut ids: HashMap<Role, MatId> = HashMap::new();
-    let mut id = |g: &mut Geo, r: Role| *ids.entry(r).or_insert_with(|| g.mat(pmat(b, r)));
+    let mut id = |g: &mut Geo, r: Role| *ids.entry(r).or_insert_with(|| g.mat(pmat(b, r, cc)));
     let uvm = |uv: [f32; 2]| [uv[0] / 100.0, uv[1] / 100.0];
     // (r42:arcus-polish2: the top's edge band's coordinates are its outline's columns, not
     // the top's place: it takes no rosin.)
@@ -201,7 +222,7 @@ pub fn build(g: &mut Geo, b: Bowed, h: crate::scene::bowed_hold::Holder) {
     for (role, p) in &m.patches {
         let mi = if *role == Role::Top && p.rows == 2 {
             *top_edge.get_or_insert_with(|| {
-                let mut t = pmat(b, Role::Top);
+                let mut t = pmat(b, Role::Top, cc);
                 if let Tex::Tonewood { rosin, .. } = &mut t.tex {
                     *rosin = [0.0; 4];
                 }

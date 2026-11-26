@@ -1128,7 +1128,29 @@ pub fn arcus_rig(
         legs,
         hands: [hand(0), hand(1)],
         occluders: Vec::new(),
+        // r42:arcus-polish3 — a violinist's shoulders (the bow hand's height, ADR 0159).
+        shrug: if held { shrug() } else { [0.0; 2] },
     }
+}
+
+/// r42:arcus-polish3 — how much a realistic violinist's shoulders are raised (cm, left and
+/// right): the bow shoulder carries the arm so the hand at the frog sits near the elbow's
+/// height (the photographs, `tests/arcus_arm_pose.rs`).
+pub const SHRUG: [f32; 2] = [0.0, 0.0];
+
+/// [`SHRUG`], or `CANTUS_SHRUG="left,right"` for finding it (a tuning aid, read once).
+pub fn shrug() -> [f32; 2] {
+    use std::sync::OnceLock;
+    static S: OnceLock<[f32; 2]> = OnceLock::new();
+    *S.get_or_init(|| {
+        std::env::var("CANTUS_SHRUG")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 2).then(|| [v[0], v[1]])
+            })
+            .unwrap_or(SHRUG)
+    })
 }
 
 /// The figure posed for the skeleton `s` (the stylised figure's, posed from the
@@ -1368,7 +1390,8 @@ pub fn build(
     if held {
         let hips = posed.at(HIPS, fig.bones[HIPS].head);
         let at = v(hips.x, 0.0, hips.z) - s.f * 6.0;
-        super::bowed_props::chair_top(m, at, s.f.x.atan2(s.f.z), seat);
+        // r42:arcus-polish3 — a concert chair (the walnut one read as a stool).
+        super::bowed_props::concert_chair(m, at, s.f.x.atan2(s.f.z), seat);
     }
     // r42:arcus-hand — the eyes closed (the default) or open.
     let morph = match eyes {
