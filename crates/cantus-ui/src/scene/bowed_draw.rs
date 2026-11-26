@@ -51,8 +51,10 @@ fn test_camera() -> Option<(V3, V3, f32)> {
 }
 
 /// r42:arcus-hand — a realistic figure holding a violin or a viola: the camera's azimuth
-/// (degrees) and its height over the room's own (degrees).
-pub const REAL_HELD_VIEW: (f32, f32) = (-20.0, -3.0);
+/// (degrees) and its height over the room's own (degrees). (r42:arcus-polish2: from the
+/// audience at about chest height, as ref-04 is taken — the owner: "like the girl's": 8°
+/// under the room's, 2° under level on the stage; the azimuth kept, square to the neck.)
+pub const REAL_HELD_VIEW: (f32, f32) = (-20.0, -8.0);
 
 /// r42:arcus-hand — design sheets only: another view for the realistic violinists (the
 /// earlier one beside the new, `shoot_arcus --view=4,7`). Never set by the app.
