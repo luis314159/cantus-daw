@@ -13,7 +13,18 @@ use cantus_dsp::chorda::{Chorda, ChordaSettings};
 /// candidate was made (`DSP_VERSION` 7 shipped candidate 16: its own spec and tables give
 /// the shipped voicing; an empty spec, beta.14's).
 pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
-    let mut v = Voicing::beta14();
+    // Round 42 (`chorda-c17`): a spec may start with `base=<voicing>` — `shipped` (what a new
+    // Chorda plays), `unison` (`DSP_VERSION` 11–15's: candidate 16 with the technician's and the
+    // unison passes) or `c16` (candidate 16 alone, what the owner's ABX kit 16 played) — and is
+    // then read over that voicing, its own tables kept unless `CHORDA_BASE_TABLES` is set (then
+    // the environment's tables replace them).
+    let (mut v, spec, tables) = match spec.split_once(',').unwrap_or((spec, "")) {
+        ("base=shipped", rest) => (Voicing::shipped(), rest, false),
+        ("base=unison", rest) => (Voicing::unison(), rest, false),
+        ("base=c16", rest) => (Voicing::candidate16(), rest, false),
+        _ => (Voicing::beta14(), spec, true),
+    };
+    let tables = tables || std::env::var_os("CHORDA_BASE_TABLES").is_some();
     // A new Chorda's own parameters, as the engine reads them (round 40: the lab began from
     // the DSP's defaults, 3 dB louder than the engine's staged gain — its fortissimo chord
     // met the output ceiling the engine's does not).
@@ -23,7 +34,7 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
         cantus_engine::inst::chorda::settings_from(&cantus_engine::inst::chorda::values_of(&ns));
     // Round 40: each key's partial voicing from a file (`CHORDA_PARTIALS`: lines of
     // `key,g2,…,g7` in dB), for trying a fitted table without a rebuild.
-    if let Ok(path) = std::env::var("CHORDA_PARTIALS") {
+    if let Some(path) = std::env::var("CHORDA_PARTIALS").ok().filter(|_| tables) {
         if let Ok(text) = std::fs::read_to_string(&path) {
             for line in text.lines() {
                 let f: Vec<f32> = line
@@ -40,7 +51,7 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
         }
     }
     // Round 40: each key's own level from a file (`CHORDA_LEVELS`: lines of `key,dB`).
-    if let Ok(path) = std::env::var("CHORDA_LEVELS") {
+    if let Some(path) = std::env::var("CHORDA_LEVELS").ok().filter(|_| tables) {
         if let Ok(text) = std::fs::read_to_string(&path) {
             for line in text.lines() {
                 let f: Vec<f32> = line
@@ -71,6 +82,7 @@ pub fn parse(spec: &str) -> (Voicing, ChordaSettings, f64) {
             "gain" => s.gain_db = x,
             "sym" => s.sympathetic = x,
             "detune" => s.voice.detune_ct = x,
+            "colour" => s.colour = x,
             _ => assert!(v.set(k, x), "no voicing key {k}"),
         }
     }

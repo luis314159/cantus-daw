@@ -67,6 +67,9 @@ pub mod stage;
 #[path = "chorda_noise.rs"]
 pub mod noise;
 
+#[path = "chorda_colour.rs"]
+pub mod colour;
+
 #[path = "chorda_voicing.rs"]
 pub mod voicing;
 
@@ -104,6 +107,10 @@ mod tests_hash;
 #[cfg(test)]
 #[path = "chorda_tests_voicing3.rs"]
 mod tests_voicing3;
+
+#[cfg(test)]
+#[path = "chorda_tests_voicing4.rs"]
+mod tests_voicing4;
 
 #[cfg(test)]
 #[path = "chorda_tunekit.rs"]

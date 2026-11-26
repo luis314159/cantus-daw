@@ -449,7 +449,8 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Output,
         0.0,
         if m2 {
-            &["tilt", "gain"]
+            // r42 (`chorda-c17`): model 2's colour beside its tilt.
+            &["tilt", "colour", "gain"]
         } else {
             &["tilt", "width", "gain"]
         },
@@ -642,7 +643,7 @@ macro_rules! preset {
     };
 }
 
-/// Factory presets (round 37, ADR 0098): twenty-four, voiced for model 2 — a preset applied
+/// Factory presets (round 37, ADR 0098): twenty-five (round 42: the recorded grand's colour), voiced for model 2 — a preset applied
 /// starts from a new instance, so it plays model 2 — each tagged with the preset library's
 /// styles and roles (`preset.style.*`, `preset.role.*`, ADR 0101). r37:piano
 pub const FACTORY_PRESETS: &[FactoryPreset] = &[
@@ -656,6 +657,19 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
             "preset.style.worship"
         ], "concert" / "black",
         ["gain" => 4.8]
+    ),
+    // r42 (`chorda-c17`): the owner's request — Chorda reaching a recorded grand's middle
+    // colour (`colour` 1, measured against the Salamander), the rest the concert grand's.
+    preset!(
+        "chorda.preset.recorded",
+        &[
+            "preset.tag.keys",
+            "preset.role.keys",
+            "chorda.tag.grand",
+            "preset.style.film",
+            "preset.style.pop"
+        ], "concert" / "black",
+        ["colour" => 1.0, "gain" => 4.1]
     ),
     preset!("chorda.preset.studio", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.pop"], "grand" / "black", ["hardness" => 0.25, "tilt" => 1.5, "room" => 0.25, "width" => 0.85, "persp" => 0.25, "roomsize" => 0.3, "gain" => 3.5]),
     preset!("chorda.preset.ballad", &["preset.tag.keys", "preset.role.keys", "chorda.tag.soft", "preset.style.worship", "preset.style.pop"], "grand" / "white", ["hardness" => -0.3, "tilt" => -2.0, "sympathy" => 1.25, "decay" => 1.15, "room" => 0.5, "persp" => 0.3, "roomsize" => 0.55, "gain" => 4.0]),

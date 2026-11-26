@@ -24,6 +24,9 @@ pub mod tune;
 #[path = "chorda_voicing_unison.rs"]
 pub mod unison;
 
+#[path = "chorda_voicing_c17.rs"]
+pub mod c17;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Voicing {
     pub body: BodyVoicing,
@@ -340,6 +343,15 @@ pub struct Voicing {
     /// Round 41 (`DSP_VERSION` 11): each key's stiffness scatter scaled (1: `uni_b`'s, every
     /// voicing before). Set by name as `uni_b.<MIDI key>`.
     pub uni_b_keys: [f32; KEYS],
+    /// Round 42 (`chorda-c17`): the action's knock as the case, the keyframe and the board
+    /// ring it ([`super::voice::KNOCK_AS_IS`]: the round-40 thud; `VoiceSettings::knock_shape`)
+    /// — set as `knock.noise`, `.tau`, `.lo`, `.hi`, `.tail`, `.tail_tau`, `.t60`, `.noise_vel`.
+    /// The recorded grands' top keys knock 5–10 dB under their note at 0.5–2.8 kHz for 20 ms
+    /// and ring on for a quarter of a second; the round-40 knock was a low thud alone.
+    pub knock_shape: [f64; 8],
+    /// Round 42: the knock's noise scaled at A0 and at C8 against C4 (log in key between; 1, 1:
+    /// as at C4). Set as `knock.noise_bass`, `knock.noise_treble`.
+    pub knock_noise_reg: [f64; 2],
 }
 
 /// The most a key is evened by (dB).
@@ -350,9 +362,9 @@ pub const EVEN_FADE_TO: f64 = 88.0;
 /// The partials a key's evening weighs.
 pub const EVEN_PARTIALS: u32 = 10;
 
-/// What ships since `DSP_VERSION` 11 (round 41, ADR 0098's fifth amendment): the
-/// technician's pass of `DSP_VERSION` 10 ([`Voicing::technician`]) with the unison pass over
-/// it ([`Voicing::shipped`]). Made once; nothing allocates.
+/// What ships since `DSP_VERSION` 16 (round 42, ADR 0098's sixth amendment): the unison pass
+/// of `DSP_VERSION` 11 ([`Voicing::unison`]) with candidate 17 over it ([`Voicing::shipped`]).
+/// Made once; nothing allocates.
 impl Default for Voicing {
     fn default() -> Self {
         static SHIPPED: OnceLock<Voicing> = OnceLock::new();
@@ -391,16 +403,29 @@ impl Voicing {
         v
     }
 
-    /// What ships (`DSP_VERSION` 11, `docs/round41/chorda-tune.md`): the technician's pass,
-    /// then the unison pass — [`unison::SPEC`] applied over it (no bridge resonance pulling
+    /// What shipped in `DSP_VERSION` 11 to 15 (`docs/round41/chorda-tune.md`; beta.16 and
+    /// beta.17, the owner's blind test of 2026-11-25): the technician's pass, then the unison pass — [`unison::SPEC`] applied over it (no bridge resonance pulling
     /// a partial 1–3 more than 0.1 Hz; each unison as wide as it can be without a beat the
     /// ear counts, its stiffness scatter, pattern and bridge share keeping the key's level)
     /// and [`unison::TUNE`], each key's last correction re-measured, handed to the keyboard.
-    pub fn shipped() -> Self {
+    pub fn unison() -> Self {
         let mut v = Voicing::technician();
         let ok = v.apply(unison::SPEC);
         debug_assert!(ok, "the unison spec names a key the voicing does not have");
         v.tune = unison::TUNE;
+        v
+    }
+
+    /// What ships (`DSP_VERSION` 16, round 42, `docs/round42/chorda-c17.md`): the unison
+    /// pass, then candidate 17 — [`c17::SPEC`] applied over it (the action's knock as the
+    /// case rings it, middle C's third partial voiced).
+    pub fn shipped() -> Self {
+        let mut v = Voicing::unison();
+        let ok = v.apply(c17::SPEC);
+        debug_assert!(
+            ok,
+            "candidate 17's spec names a key the voicing does not have"
+        );
         v
     }
 
@@ -531,7 +556,24 @@ impl Voicing {
             uni_loss_top: 0.0,
             uni_pair: [0.0; KEYS],
             uni_b_keys: [1.0; KEYS],
+            knock_shape: super::voice::KNOCK_AS_IS,
+            knock_noise_reg: [1.0, 1.0],
         }
+    }
+
+    /// Round 42: the knock's shape for key `m` (MIDI): exactly `knock_shape` when its noise
+    /// is not scaled by register.
+    pub fn knock_shape_of(&self, m: u8) -> [f64; 8] {
+        let mut s = self.knock_shape;
+        let [bass, treble] = self.knock_noise_reg;
+        if bass != 1.0 && m < 60 {
+            s[0] *= Voicing::bass_scale(m, bass);
+        }
+        if treble != 1.0 && m > 60 {
+            let t = ((m as f64 - 60.0) / (108.0 - 60.0)).clamp(0.0, 1.0);
+            s[0] *= math::exp(t * math::ln(treble));
+        }
+        s
     }
 
     /// The keyboard model 2 is designed for at the knobs' `base` tuning: its own
@@ -839,6 +881,19 @@ impl Voicing {
     /// Set `key` = `value` by name (the voicing lab's `key=v,key=v`). False when the name
     /// is not one.
     pub fn set(&mut self, key: &str, v: f64) -> bool {
+        // Round 42 (`chorda-c17`): one cell of the partial table by name, `partial<n>.<key>`
+        // (n 2…7, dB before `partials_amount`), so a spec can voice one key's partial alone.
+        if let Some(rest) = key.strip_prefix("partial") {
+            if let Some((n, k)) = rest.split_once('.') {
+                return match (n.parse::<usize>(), k.parse::<u8>()) {
+                    (Ok(n), Ok(m)) if (2..=7).contains(&n) && (21..=108).contains(&m) => {
+                        self.partials[(m - 21) as usize][n - 2] = v as f32;
+                        true
+                    }
+                    _ => false,
+                };
+            }
+        }
         if let Some(k) = key.strip_prefix("hf_key.") {
             return match k.parse::<u8>() {
                 Ok(m) if (21..=108).contains(&m) && v > 0.0 => {
@@ -945,6 +1000,16 @@ impl Voicing {
             "coupling" => &mut self.coupling,
             "coupling_treble" => &mut self.coupling_treble,
             "knock_treble" => &mut self.knock_treble,
+            "knock.noise" => &mut self.knock_shape[0],
+            "knock.tau" => &mut self.knock_shape[1],
+            "knock.lo" => &mut self.knock_shape[2],
+            "knock.hi" => &mut self.knock_shape[3],
+            "knock.tail" => &mut self.knock_shape[4],
+            "knock.tail_tau" => &mut self.knock_shape[5],
+            "knock.t60" => &mut self.knock_shape[6],
+            "knock.noise_vel" => &mut self.knock_shape[7],
+            "knock.noise_bass" => &mut self.knock_noise_reg[0],
+            "knock.noise_treble" => &mut self.knock_noise_reg[1],
             "vel_curve" => &mut self.vel_curve,
             "keyboard.bass_b" => &mut self.bass_b,
             "keyboard.treble_b" => &mut self.treble_b,

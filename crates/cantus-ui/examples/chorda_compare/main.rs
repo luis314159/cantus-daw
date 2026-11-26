@@ -48,6 +48,12 @@ use std::path::{Path, PathBuf};
 fn source(s: &str) -> (String, Source) {
     match s {
         "salamander" => (s.into(), Source::Salamander),
+        // r42 (`chorda-c17`): `name=pack:<pack id>:<instrument id>`, another recorded piano.
+        other if other.contains("=pack:") => {
+            let (name, rest) = other.split_once("=pack:").expect("name=pack:…");
+            let (pack, id) = rest.split_once(':').expect("pack:<pack>:<instrument>");
+            (name.into(), Source::Pack(pack.into(), id.into()))
+        }
         "chorda1" => (
             s.into(),
             Source::Chorda {

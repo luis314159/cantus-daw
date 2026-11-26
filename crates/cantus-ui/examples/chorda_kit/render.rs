@@ -61,6 +61,10 @@ pub enum Source {
         values: Vec<(String, f32)>,
     },
     Salamander,
+    /// Round 42 (`chorda-c17`): another installed pack's instrument through Exemplar, as the
+    /// picker gives it (`pack:<pack id>:<instrument id>`) — a second recorded grand, so the
+    /// comparison tells what is the Salamander's own from what every piano shares.
+    Pack(String, String),
 }
 
 impl Source {
@@ -68,6 +72,7 @@ impl Source {
         match self {
             Source::Chorda { model, .. } => format!("chorda{}", *model as i32),
             Source::Salamander => "salamander".into(),
+            Source::Pack(p, i) => format!("{p}:{i}"),
         }
     }
 }
@@ -102,12 +107,17 @@ pub fn install(root: &Path) -> Result<(), String> {
 
 /// The Salamander as the instrument picker gives it (`grand-full`: all 16 layers).
 pub fn salamander_spec(root: &Path) -> Result<NativeSpec, String> {
+    pack_spec(root, SALAMANDER, "grand-full")
+}
+
+/// An installed pack's instrument as the instrument picker gives it.
+pub fn pack_spec(root: &Path, pack: &str, id: &str) -> Result<NativeSpec, String> {
     let m = cantus_content::Manager::new(root, cantus_content::Manifest::bundled());
     let inst = m
         .instruments()
         .into_iter()
-        .find(|i| i.pack == SALAMANDER && i.instrument.id == "grand-full")
-        .ok_or("the Salamander Grand is not installed (run `install` first)")?;
+        .find(|i| i.pack == pack && i.instrument.id == id)
+        .ok_or_else(|| format!("{pack}:{id} is not installed"))?;
     let choice = cantus_ui::views::samples_content::sounds::SoundChoice(inst);
     let imp = cantus_ui::views::samples_content::sounds::import_of(&choice)?;
     Ok(cantus_ui::views::samples_content::sounds::spec_of(&imp))
@@ -192,6 +202,7 @@ pub fn render_source(src: &Source, root: &Path, phrase: &Phrase) -> Result<Stere
     let spec = match src {
         Source::Chorda { model, values } => chorda_spec(*model, values),
         Source::Salamander => salamander_spec(root)?,
+        Source::Pack(p, i) => pack_spec(root, p, i)?,
     };
     render_spec(spec, phrase)
 }

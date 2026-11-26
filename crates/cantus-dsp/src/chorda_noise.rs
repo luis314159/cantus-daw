@@ -68,6 +68,21 @@ pub struct Thud {
     env_a: f64,
     att: f64,
     norm: f64,
+    /// Round 42 (`chorda-c17`): the noise's second, slower stage — the case, the keyframe
+    /// and the board still ringing after the blow — its envelope, its fall per sample and
+    /// its share of the first stage's peak (0: none, every voicing before).
+    env_t: f64,
+    fall_t: f64,
+    tail: f64,
+    /// Round 42: the band's steeper slopes (`steep`) — the low-pass four times (24 dB an
+    /// octave: a case's knock holds nothing of a hiss), the high-pass twice — and their
+    /// states (`lp2` … `lp4`, `hp2_x`, `hp2_y`). Off in the round-40 thud.
+    steep: bool,
+    lp2: f64,
+    lp3: f64,
+    lp4: f64,
+    hp2_x: f64,
+    hp2_y: f64,
 }
 
 /// Below this (N) a thud has ended.
@@ -99,7 +114,43 @@ impl Thud {
             env_a: 0.0,
             att: 0.0,
             norm: 1.0,
+            env_t: 0.0,
+            fall_t: 1.0,
+            tail: 0.0,
+            steep: false,
+            lp2: 0.0,
+            lp3: 0.0,
+            lp4: 0.0,
+            hp2_x: 0.0,
+            hp2_y: 0.0,
         }
+    }
+
+    /// Round 42 (`chorda-c17`): the same thud made to another shape, its ringing kept (a key
+    /// struck again while its knock still rings goes on from where it is). Allocates nothing.
+    pub fn reshape(&mut self, fs: f64, f: [f64; 2], t: [f64; 2], lo: f64, hi: f64, tau: f64) {
+        let new = Thud::new(fs, f, t, lo, hi, tau);
+        self.c = new.c;
+        self.fall = new.fall;
+        self.lp_a = new.lp_a;
+        self.hp_a = new.hp_a;
+    }
+
+    /// Round 42: the band's steeper slopes (true: the low-pass at 24 dB an octave, the
+    /// high-pass at 12) or the round-40 thud's 6 (false).
+    pub fn set_steep(&mut self, steep: bool) {
+        self.steep = steep;
+    }
+
+    /// Round 42 (`chorda-c17`): the noise's slower second stage, at `share` of the first's
+    /// peak, falling over `tau` (s) (a share of 0: none). Allocates nothing.
+    pub fn set_tail(&mut self, fs: f64, share: f64, tau: f64) {
+        if share <= 0.0 || tau <= 0.0 {
+            (self.tail, self.fall_t) = (0.0, 1.0);
+            return;
+        }
+        self.tail = share;
+        self.fall_t = math::exp(-1.0 / (tau * fs));
     }
 
     /// The noise rises over `share` of its fall `tau` (s) and then falls as before, its
@@ -129,6 +180,7 @@ impl Thud {
         }
         self.env = 1.0;
         self.env_a = if self.att != 0.0 { 1.0 } else { 0.0 };
+        self.env_t = if self.tail != 0.0 { self.tail } else { 0.0 };
         self.noise_gain = noise;
         self.rng = Rng(seed);
         self.busy = amp[0] != 0.0 || amp[1] != 0.0 || noise != 0.0;
@@ -142,9 +194,15 @@ impl Thud {
         self.y = [[0.0; 2]; 2];
         self.env = 0.0;
         self.lp = 0.0;
+        self.lp2 = 0.0;
+        self.lp3 = 0.0;
+        self.lp4 = 0.0;
+        self.hp2_x = 0.0;
+        self.hp2_y = 0.0;
         self.hp_x = 0.0;
         self.hp_y = 0.0;
         self.env_a = 0.0;
+        self.env_t = 0.0;
         self.busy = false;
     }
 
@@ -176,14 +234,43 @@ impl Thud {
             self.env = 0.0;
             0.0
         };
+        // The second stage (round 42), its own draw of the same noise's stream.
+        let n = if self.env_t > 1e-9 {
+            let t = self.rng.next() * self.env_t * self.noise_gain;
+            self.env_t *= self.fall_t;
+            n + t
+        } else {
+            self.env_t = 0.0;
+            n
+        };
         self.lp = n + self.lp_a * (self.lp - n);
         let hp = self.hp_a * (self.hp_y + self.lp - self.hp_x);
         self.hp_x = self.lp;
         self.hp_y = hp;
-        out += hp;
+        if self.steep {
+            // Round 42: the band's steeper slopes (the case's knock has no hiss).
+            self.lp2 = hp + self.lp_a * (self.lp2 - hp);
+            self.lp3 = self.lp2 + self.lp_a * (self.lp3 - self.lp2);
+            self.lp4 = self.lp3 + self.lp_a * (self.lp4 - self.lp3);
+            let h2 = self.hp_a * (self.hp2_y + self.lp4 - self.hp2_x);
+            self.hp2_x = self.lp4;
+            self.hp2_y = h2;
+            out += h2;
+        } else {
+            out += hp;
+        }
         let modes =
             self.y[0][0].abs() + self.y[0][1].abs() + self.y[1][0].abs() + self.y[1][1].abs();
-        if modes < QUIET && self.env == 0.0 && self.hp_y.abs() < QUIET && self.lp.abs() < QUIET {
+        if modes < QUIET
+            && self.env == 0.0
+            && self.env_t == 0.0
+            && self.hp_y.abs() < QUIET
+            && self.lp.abs() < QUIET
+            && self.hp2_y.abs() < QUIET
+            && self.lp2.abs() < QUIET
+            && self.lp3.abs() < QUIET
+            && self.lp4.abs() < QUIET
+        {
             self.silence();
         }
         out

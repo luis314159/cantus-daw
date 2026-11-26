@@ -115,3 +115,7 @@ chorda.lid.half = half open
 chorda.lid.open = open
 chorda.mics_line = Mics {at} · lid {lid}
 chorda.room_line = Room {amount} % · decay {t60} s
+# Model 2's colour (round 42, chorda-c17): Chorda's own voicing toward a recorded grand's
+chorda.colour = Colour (model 2)
+chorda.colour.short = Colour
+chorda.preset.recorded = Recorded Grand Colour

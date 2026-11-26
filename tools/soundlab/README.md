@@ -40,6 +40,7 @@ The references are the sets of `tools/sound-refs/catalog.toml` (`tools/sound-ref
 | `soundlab/kit.py` | the blind kit on the shared page `crates/cantus-ui/examples/abx_kit/abx.html` |
 | `adapters/study_catalogue.py` | the Arcus study's catalogue as a lab catalogue (free sources only) |
 | `subjects/arcus-cello/` | Arcus's cello: `subject.json`, `references.json` (578 files, CC0 / CC BY / Iowa MIS) |
+| `subjects/chorda-grand/` | Chorda's model 2 against two recorded grands (the Salamander, the bitKlavier; `make_refs.py refs` writes the catalogue, `candidate` renders and splits the lab's notes at `CHORDA_SPEC`) — round 42, `docs/round42/chorda-c17.md` |
 | `subjects/example-tibia/` | **the worked example**: a hypothetical struck bar, synthetic references and candidate (`synth_bar.py`) — the shape a new instrument copies |
 | `tests/` | `run.py` and the tests (below) |
 
