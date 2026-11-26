@@ -37,6 +37,9 @@ const TREM_FORCE: f32 = -0.3;
 const TREM_FLOOR: f32 = 0.2;
 const TREM_KNEE: f32 = 0.3;
 const TRIM_STEP: f64 = 2.0;
+/// r42 arcus-classical — a shaped stroke's force riding its speed (`gesture`): built, measured
+/// and off (with it the bass's and the cello's lowest strings settled later, Guettler's gate).
+const RIDE: bool = false;
 
 #[cfg(test)]
 thread_local! {
@@ -207,11 +210,11 @@ impl Voice {
         // r42 arcus-classical: a fiddler's late vibrato on a long note, narrow and quick
         // (`shape::fiddle_vib`; model 2, a fiddler's bow).
         let (amount, vdt) = if s.model >= 2
-            && s.grit > 0.0
+            && s.pair >= 0.5
             && s.player > 0.0
             && self.tech == NoteTech::Arco
         {
-            let (kd, kr) = super::super::shape::fiddle_vib(self.fid_t, s.grit * s.player.min(1.0));
+            let (kd, kr) = super::super::shape::fiddle_vib(self.fid_t, s.player.min(1.0));
             self.fid_t += dt;
             (amount * kd, dt * kr)
         } else {
@@ -251,7 +254,9 @@ impl Voice {
                 self.into.1,
                 self.into.2,
             );
-            semis += 0.01 * c as f64;
+            // … landing with the finger (`finger`: a slur's first step is where the finger was).
+            let land = smooth(self.into.2 / (0.001 * s.finger_ms.max(1.0)));
+            semis += 0.01 * (c * land) as f64;
         }
         // r42 fiddle: a double stop's just interval (`pair`; none without one).
         let paired = Self::paired(s);
@@ -459,7 +464,8 @@ impl Voice {
         let mut corner = super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
             * super::pair::steel_corner(s); // r42 fiddle
         if s.model >= 2
-            && !plucked
+            && self.tech == NoteTech::Arco
+            && self.phase == Phase::Hold
             && self.bow_on
             && (knobs.bright != (0.0, 0.0) || knobs.loss_force != 0.0)
         {
@@ -474,10 +480,12 @@ impl Voice {
                 sr as f64 / f,
             )
             .force;
-            let r = (self.force as f64 / f_mf.max(1e-6)).max(1e-3);
+            // The stroke's force (not an attack's heavier one, nor a tremolo's or a short
+            // stroke's: they keep their measured speech).
+            let r = (bw.force / f_mf.max(1e-6)).max(1e-3);
             // (A fiddler's bow keeps its tuned top: its bridge and body were fitted with the
             // corner fixed, ADR 0164.)
-            let fixed = 1.0 - s.grit.clamp(0.0, 1.0);
+            let fixed = 1.0 - s.pair.clamp(0.0, 1.0);
             let g = fixed * if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
             corner = (corner * math::powf(r, g as f64).clamp(0.5, 3.0)).min(0.4 * sr as f64);
             // … and the string's upper partials lose less between the bow's re-sharpenings
@@ -685,6 +693,15 @@ impl Voice {
                         (tv, tf, c_f)
                     };
                     self.v_mag += (tv - self.v_mag) * c_v;
+                    // r42 arcus-classical: a shaped stroke's force rides the bow's speed as it
+                    // moves through its shape (Schelleng's limits go with the speed: lagging the
+                    // speed's rise, the force fell under the region and the low strings' attacks
+                    // never settled).
+                    let tf = if self.taper_s > 0.0 && self.tech == NoteTech::Arco && RIDE {
+                        tf * (self.v_mag / tv.max(1e-6)).clamp(0.25, 1.5)
+                    } else {
+                        tf
+                    };
                     self.force += (tf - self.force) * c_f;
                     // r42 arcus-expr: the bow has run out — the player changes it.
                     if p > 0.0

@@ -291,8 +291,7 @@ impl Arcus {
                 // r42 arcus-classical: a fiddler slurs two or three fast separate notes into a
                 // bow (the shuffle, `shape::shuffle`; the Fiddle character's lines carried a bow
                 // change's cue on 49 % of their fast notes against the players' 11–20 %).
-                let shuffled =
-                    !slur && !stolen && self.shuffle_slurs(voice, art, mono, fast, key, id);
+                let shuffled = !slur && self.shuffle_slurs(voice, art, mono, fast, key, id);
                 if slur || shuffled {
                     self.glide(voice, key, id, velocity, Some(NoteTech::Arco), &how, fast);
                 } else {
@@ -337,7 +336,7 @@ impl Arcus {
 
     /// r42 arcus-classical — whether a fiddler's shuffle slurs this note into the sounding bow:
     /// a fast separate note on a mono voice still bowed in a sustained stroke, with no
-    /// articulation of its own (or a plain sustain), on a fiddler's bow (`bow.grit`).
+    /// articulation of its own (or a plain sustain), on a fiddler's bow (`bow.pair`).
     #[allow(clippy::too_many_arguments)]
     fn shuffle_slurs(
         &mut self,
@@ -348,7 +347,7 @@ impl Arcus {
         key: u8,
         id: u64,
     ) -> bool {
-        let fiddle = self.s.grit > 0.0 && self.s.player > 0.0;
+        let fiddle = self.s.pair >= 0.5 && self.s.player > 0.0;
         let can = fiddle
             && mono
             && fast

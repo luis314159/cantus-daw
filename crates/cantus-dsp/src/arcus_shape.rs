@@ -40,6 +40,9 @@ pub struct Knobs {
     /// How much later the tone opens than the level rises: the dynamic's share follows the
     /// contour through a one-pole of this time (s; 0 at once), the speed making up the level.
     pub timbre_s: f32,
+    /// … and the dynamic never more than `dyn_max` under the note's (the bass's low strings, read
+    /// at pp under a mf stroke, did not settle within Guettler's limits).
+    pub dyn_max: f32,
     /// From silence, the share of the instrument's swell depth (`InstrumentSpec::swell_db`) the
     /// bow starts under, and of its length (`swell_s`) the rise takes.
     pub fresh_db: f32,
@@ -49,6 +52,12 @@ pub struct Knobs {
     /// ff swell is 0.05 s: its spectrum settled at once).
     pub fresh_cap: f32,
     pub fresh_min: f32,
+    /// … nor longer than `fresh_max` s (the violin's soft swell is 0.7 s: at 1.6 × its notes
+    /// settled after the violins').
+    pub fresh_max: f32,
+    /// … its depth × (1 − `fresh_ff` · the dynamic): a loud stroke is set in quickly (the bass's
+    /// low strings at ff did not settle within Guettler's limits from 9 dB under).
+    pub fresh_ff: f32,
     /// A bow change's new stroke: how far under it starts (dB; × `fast_share` in a fast passage)
     /// and its rise (s).
     pub rebow_db: f32,
@@ -102,13 +111,16 @@ pub struct Knobs {
 pub const KNOBS: Knobs = Knobs {
     speed_share: 0.4,
     timbre_s: 0.3,
+    dyn_max: 0.3,
     fresh_db: 1.0,
     fresh_s: 1.6,
-    fresh_cap: 15.0,
+    fresh_cap: 7.0,
     fresh_min: 0.2,
-    rebow_db: 9.0,
-    rebow_s: 0.25,
-    fast_share: 0.3,
+    fresh_max: 0.6,
+    fresh_ff: 0.8,
+    rebow_db: 0.0,
+    rebow_s: 0.15,
+    fast_share: 0.0,
     slur_s: 0.3,
     slur_db: 3.0,
     sag_db: 6.0,
@@ -155,10 +167,13 @@ impl Knobs {
             match k.trim() {
                 "speed_share" => self.speed_share = v,
                 "timbre_s" => self.timbre_s = v,
+                "dyn_max" => self.dyn_max = v,
                 "fresh_db" => self.fresh_db = v,
                 "fresh_s" => self.fresh_s = v,
                 "fresh_cap" => self.fresh_cap = v,
                 "fresh_min" => self.fresh_min = v,
+                "fresh_max" => self.fresh_max = v,
+                "fresh_ff" => self.fresh_ff = v,
                 "rebow_db" => self.rebow_db = v,
                 "rebow_s" => self.rebow_s = v,
                 "fast_share" => self.fast_share = v,
@@ -199,12 +214,12 @@ pub const SOFT_CHANGE: f32 = 0.6;
 /// held note: the fiddle's lines vibrated 2 % of their long notes, the references 4–30 %).
 pub const FIDDLE_VIB: (f32, f32, f32, f32) = (0.3, 0.3, 2.4, 1.12);
 
-/// The fiddler's factors (depth, rate) `t` s into a note, at the bow's `grit` (0: none).
-pub fn fiddle_vib(t: f32, grit: f32) -> (f32, f32) {
-    if grit <= 0.0 {
+/// The fiddler's factors (depth, rate) `t` s into a note, at the player's `amount` (0: none).
+pub fn fiddle_vib(t: f32, amount: f32) -> (f32, f32) {
+    if amount <= 0.0 {
         return (1.0, 1.0);
     }
-    let g = grit.clamp(0.0, 1.0) * smooth((t - FIDDLE_VIB.0) / FIDDLE_VIB.1);
+    let g = amount.clamp(0.0, 1.0) * smooth((t - FIDDLE_VIB.0) / FIDDLE_VIB.1);
     (
         1.0 + (FIDDLE_VIB.2 - 1.0) * g,
         1.0 + (FIDDLE_VIB.3 - 1.0) * g,
@@ -222,12 +237,12 @@ pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
     }
 }
 
-/// The classical player's share at the player's `amount` and the bow's `grit`: a fiddler's bow
+/// The classical player's share at the player's `amount` and `bow.pair`: a fiddler's bow
 /// (ADR 0164) plays its own way — the Fiddle character's measured lines (`docs/round42/fiddle.md`)
 /// keep their numbers — so the shape, the taper, the vibrato's way back and the intonation give
-/// way to it, all of it at grit 1.
-pub fn classical(amount: f32, grit: f32) -> f32 {
-    (amount.clamp(0.0, 1.0) * (1.0 - grit.clamp(0.0, 1.0))).max(0.0)
+/// way to it, all of it with the pair on.
+pub fn classical(amount: f32, pair: f32) -> f32 {
+    (amount.clamp(0.0, 1.0) * (1.0 - pair.clamp(0.0, 1.0))).max(0.0)
 }
 
 /// The seed's twist that gives the shape its own generator, and the intonation's.
@@ -361,7 +376,7 @@ impl Shape {
         let (from, rise) = match how {
             Begin::Fresh(depth, len) => (
                 -(depth * k.fresh_db).min(k.fresh_cap),
-                (len * k.fresh_s).max(k.fresh_min),
+                (len * k.fresh_s).clamp(k.fresh_min, k.fresh_max.max(k.fresh_min)),
             ),
             Begin::Rebow => (
                 -k.rebow_db * if fast { k.fast_share } else { 1.0 },
@@ -447,7 +462,7 @@ impl Shape {
             return (1.0, 0.0);
         }
         let want = (1.0 - self.k.speed_share) * self.l_t / span_db.max(1.0);
-        let dd = (d + want).clamp(0.0, 1.0) - d;
+        let dd = (d + want.max(-self.k.dyn_max)).clamp(0.0, 1.0) - d;
         let carried = dd * span_db.max(1.0);
         let kv = math::db_to_gain(self.l - carried);
         (kv, dd)

@@ -5,6 +5,7 @@
 use super::tables::Instrument;
 use super::tests::{cents, id_of, measure_hz, render, Ev, SR};
 use super::*;
+use crate::math;
 use crate::par::Serial;
 
 fn s(inst: Instrument) -> ArcusSettings {
@@ -174,7 +175,7 @@ fn a_plucks_partials_are_in_tune() {
 fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
     let fid = ArcusSettings {
         instrument: Instrument::Violin,
-        grit: 1.0,
+        pair: 1.0,
         mode: crate::voices::PlayMode::Legato,
         ..ArcusSettings::default()
     };
@@ -204,7 +205,7 @@ fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
         }
         changes
     };
-    let classical = ArcusSettings { grit: 0.0, ..fid };
+    let classical = ArcusSettings { pair: 0.0, ..fid };
     let (f, c) = (shuffles(&fid), shuffles(&classical));
     assert!(
         f < c && f >= 3,

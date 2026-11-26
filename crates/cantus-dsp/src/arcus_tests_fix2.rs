@@ -166,6 +166,9 @@ fn a_slur_moves_between_the_two_keys_tuned_pitches() {
         body_mix: 0.0,
         porta_ms: 3_000.0,
         mode: PlayMode::Legato,
+        // r42 arcus-classical: the tuned path, not the player's intonation in a passage
+        // (`shape::intonation`, a seeded error on every slurred note).
+        shape_try: Some(super::shape::KNOBS.parse("into_ct=0,into_step=0")),
         ..ArcusSettings::default()
     };
     let mut f = Arcus::new(SR);

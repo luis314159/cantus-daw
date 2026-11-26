@@ -287,6 +287,9 @@ fn the_vibrato_moves_the_violin_s_partials_through_its_fitted_body() {
             vib_delay_ms: 0.0,
             vib_attack_ms: 1.0,
             vib_var: 0.0,
+            // r42 arcus-classical: the stroke's own sag and breath held still, as the
+            // vibrato's wander is (the body's swing is the vibrato's alone).
+            shape_try: Some(super::shape::KNOBS.parse("sag_db=0,breath_db=0")),
             ..ArcusSettings::default()
         });
         a.note_on(key, 0.6, 1);
