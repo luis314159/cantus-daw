@@ -9,7 +9,8 @@ law's velocities through Pulsus, with `LAW` as it is — run it with an empty `L
 - the studio kit's tables (1-8) take the level law of DRSKit, the kit they were measured
   from, as Tympanum's own recorded path plays it (`<hits dir>/ref/drskit.jsonl`, the piece on
   the table's key: crash 49, hat 42, ride 51, kick 36, snare 38, toms 45, 43, 41);
-- the jazz kit's (17-24) keep their own law made monotone and smooth (Virtuosity's 60-dB
+- the jazz kit's (17-24) keep their own law made monotone and smooth, rising at least
+  0.1 dB a velocity unit, (Virtuosity's 60-dB
   span from velocity 16 to 127 is that library's curve, not a drummer's: the jazz kit already
   follows its shape, and only its steps that go down are taken out).
 Either way the hardest hit (127) keeps the level the calibration gave it: only the law's shape
@@ -76,6 +77,10 @@ def main():
             T = ref_law(hits / "ref" / "drskit.jsonl", STUDIO_KEYS[tid])
         else:
             T = monotone(L)
+            # a floor of 0.1 dB a velocity unit: a pooled flat top would fall by a hit's own
+            # variation (± ~1 dB) as often as it rose; every recorded piece still rises there
+            for i in range(1, len(T)):
+                T[i] = max(T[i], T[i - 1] + 0.1 * (VELS[i] - VELS[i - 1]))
         C = (T - T[-1]) - (L - L[-1])
         print(f"table {tid:2}: now  " + " ".join(f"{x:6.1f}" for x in L - L[-1]))
         print(f"          want " + " ".join(f"{x:6.1f}" for x in T - T[-1]))

@@ -368,8 +368,6 @@ impl Object {
         // The recording's level law across velocity (r42:tympanum-real; 0 for a table
         // without one): the whole hit, modes, bands and stick alike.
         let offset = offset + super::law::law_db(t.id, h.vel);
-        // How much each hit varies, mode by mode and band by band (1: as measured; r42).
-        let spread_k = super::law::spread(t.id);
         // Each state's share (two when a hat's stroke falls between two openings).
         let sws = [w[0].1 + w[1].1, w[2].1 + w[3].1];
         let two = sws[0] > 0.0 && sws[1] > 0.0;
@@ -394,7 +392,7 @@ impl Object {
         let tilt = h.tilt.clamp(-1.0, 1.0);
         for b in 0..NB {
             // Each band ± ~0.7 dB this hit, and tilted by where the stick lands.
-            let jitter = 0.7 * spread_k * (vary.next() + vary.next() + vary.next())
+            let jitter = 0.7 * (vary.next() + vary.next() + vary.next())
                 + if tilt != 0.0 {
                     3.0 * tilt * math::log2(super::CENTRES[b] / 1_000.0)
                 } else {
@@ -497,7 +495,7 @@ impl Object {
             if (a <= 0.0 && e <= 0.0) || self.th[i] == 0.0 {
                 continue;
             }
-            let mut a = a * level * amp_of(1.5 * spread_k * (vary.next() + vary.next()));
+            let mut a = a * level * amp_of(1.5 * (vary.next() + vary.next()));
             amax = amax.max(a);
             if tilt != 0.0 {
                 a *= amp_of(3.0 * tilt * math::log2(t.hz[i] / 250.0));
@@ -552,7 +550,7 @@ impl Object {
                 // The early part, as the growing part's phasor (the ring less it: so
                 // it is added inverted), dying in `ets`.
                 if e > 0.0 {
-                    let e = e * level * amp_of(1.5 * spread_k * (vary.next() + vary.next()));
+                    let e = e * level * amp_of(1.5 * (vary.next() + vary.next()));
                     let q = lay.ep[i] + jitter;
                     bank.rf[i] = early_r;
                     bank.fre[i] -= e * math::cos(q);
