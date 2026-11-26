@@ -162,6 +162,14 @@ occluding capsules in its live painter.
     - The flat skin round the wrist takes the patches' texture and relief per vertex (a
       lighter band had marked where the patches end); the patches' corners and edge
       midpoints are lit once a frame and shared.
+    - *A depth per sample* (`views/inst/arcus_draw_raster.rs`): High's live arms are filled,
+      each pass, into a small buffer over the arm's screen rectangle — 3×3 samples a pixel at
+      100 %, 2×2 at 200 %, the bake's — each sample keeping the nearest surface, averaged
+      into the pixel and drawn as one texture; the creases blend over the skin with a depth
+      test; nothing is filled or uploaded at rest. Painted by triangle middles with a one-bit
+      fill, curled fingers had shown notches, slivers, stair-steps and the board through
+      them. Light keeps the vector path. Her hand is scaled 1.08 (`HAND_SCALE`: 0.095 of her
+      height, a woman's ~0.105). The cost is not yet measured (the next session).
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la
