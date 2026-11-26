@@ -194,3 +194,38 @@ python -I tools/tympanum-real/report.py <work>/report <listen> <informe.md>
 cargo test --release -p cantus-dsp --lib level_law_dump -- --ignored --nocapture > law.log
 python -I tools/tympanum-real/law.py law.log <work>/hits <crates/cantus-dsp/src/pulsus_measured_law.rs>
 ```
+
+## 7. Done, and open
+
+**Done (branch `r42/tympanum-real`):** the library catalogued and fetched within the disk budget
+(≈ 2.3 GB downloaded: Aasimonster built for Tympanum 1.7 GB, Freesound 51 MB, GMD 9 MB; the CC0
+packs joined from the app's folder; MuldjordKit stopped at 0.8 GB when F: neared its floor — the
+manifest's `muldjordkit-tympanum` pack fetches it later; ShittyKit's old DrumGizmo format the
+builder refuses, removed); the tools above; the measures of eight recorded kits and Tympanum's two;
+the level law, the jazz toms' burst, the jazz hat's spread and the edge stroke's modes
+(`DSP_VERSION` 19, ADR 0124's sixth amendment); the owner's previews and report.
+
+**Tests:** cantus-dsp `pulsus::measured` (the law interpolates; every table grows at every step;
+the burst and spread tables; the edge stroke's (1,1) region; the existing block-size, rest and
+choke tests), cantus-engine's Tympanum lib tests (14), `inst_contract` (51) and `rt_memory` (68) on
+the law; cantus-ui `tympanum_e2e`'s `every_modelled_piece_grows_with_the_velocity_through_the_app`
+through `CantusApp::assemble`.
+
+**Open, in the order the measures rank them:**
+1. **The onset** (§4.4): the generated snare's bands peak 5–10 ms early; the grooves' crest 2–10 dB
+   high. Model 6's contact-driven onset, the wires' cavity lag, the knock as the head's push.
+2. **The re-strike while ringing:** struck 1 s after the last hit, the studio kick at 96 sounded
+   3.4 dB under its 80 (alone, 4 s apart, it is 2.7 dB over it): the new hit's mode phasors add to
+   the ringing ones, and a drum's re-strike also takes the cymbals' "bloom". Measure a drummer's
+   repeated strokes against the recordings' (DRSKit's repeated hits) before changing it.
+3. **The blend's cause:** a hit between two layers takes its onset phases from the main layer and
+   its amplitudes from both — the source of the level law's lumps; `LAW` compensates the level,
+   model 6 should blend the onset itself.
+4. **Brushes** (§5), then **per-genre kits** measured off Aasimonster (metal), Gogodze (1970s
+   funk/soul), Big Rusty (1980s rock), Unruly (indie, brushes) — only against those recordings.
+5. **The snare's strike position** modal measure (its f0 under the wires), and the toms' other
+   modes.
+6. **The commercial comparison** (§2) on the owner's machine; the blind kit with the new genres.
+7. Catalogue: `drums-dg` and `drums-packs` are not `record`ed (the raw Aasimonster files were
+   deleted after the build for disk; the packs are the app's own); `fetch.py record` once they are
+   on disk again.
