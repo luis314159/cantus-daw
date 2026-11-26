@@ -1745,7 +1745,13 @@ pub fn rest_body(b: super::bowed::Bowed, who: Who) -> std::sync::Arc<(Posed, f32
     if let Some((_, p)) = kept.iter().find(|(k, _)| *k == (b, who)) {
         return p.clone();
     }
-    let s = super::bowed_figure::skeleton(b, &super::bowed::Pose::of(b));
+    // (r42:arcus-polish2: the pose its holder holds it in — the realistic violinists'.)
+    let hold = match who {
+        Who::Woman => super::bowed_hold::Hold::Woman,
+        Who::Man => super::bowed_hold::Hold::Man,
+    };
+    let pose = super::bowed_hold::pose(b, super::bowed_hold::Holder::of(hold));
+    let s = super::bowed_figure::skeleton(b, &pose);
     let p = Arc::new(body(figure(who), &s, b.dims().held, [None, None]));
     kept.push(((b, who), p.clone()));
     p
