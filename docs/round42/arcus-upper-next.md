@@ -1699,3 +1699,12 @@ pass 5 had 3), `arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint`. R
 [459, 271] at 2x over the neck: most likely the wider index base, legitimately in front of the
 neck, covering a hidden vertex's pixel that the test's clearance round the stylised tubes no
 longer excludes — not yet confirmed).
+
+**Budget** (`arcus_hold_budget --ignored`, release, `CANTUS_BUDGET_ONLY=violin,Woman,Man`, best
+of five rounds, the machine loaded by three other builders — not an idle machine): High's live
+arms on the violinists **+6.3 / +7.0 ms at 100 %** (her / him; pass 3 +4.4 / +4.6) and **+15.2
+/ +21.6 ms at 200 %** (pass 3 +8.0 / +8.4); Light +1.5 / +2.2 and +1.9 / +2.5. Pass 5's grain
+(two value-noise lookups a sample, the wrinkles' cosine) and the wider hand's larger raster
+rectangle are the likely costs; the cheap win taken is the grain's tuned numbers read once a
+triangle. The owner: render cost never gates the look. Next cheap one, if wanted: no grain at
+100 % (its 0.07 cm cells are under a pixel there) — a look change at 100 % to check first.
