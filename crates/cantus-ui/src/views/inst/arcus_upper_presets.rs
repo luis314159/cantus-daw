@@ -72,6 +72,14 @@ pub const PRESETS: &[FactoryPreset] = &[
          "vib.delay" => 110.0, "gain" => 5.9]),
     preset!("arcus.preset.violin_portamento", VIOLIN,
         ["inst" => 2.0, "porta" => 140.0, "vib.depth" => 1.15, "gain" => 5.9]),
+    // r42 arcus-expr — the fiddle (country, bluegrass; `docs/round42/arcus-expr.md` §5): the
+    // bow nearer the bridge and heavier, more grit, short strokes, little vibrato and late,
+    // quick fingers and changes, the open strings left ringing.
+    preset!("arcus.preset.violin_fiddle", VIOLIN,
+        ["inst" => 2.0, "bow.pos" => 0.82, "bow.force" => 1.15, "bow.noise" => 4.0,
+         "bow.attack" => 0.7, "bow.release" => 70.0, "bow.change" => 14.0, "finger" => 14.0,
+         "vib.depth" => 0.35, "vib.delay" => 450.0, "vib.var" => 0.35, "ring" => 1.8,
+         "body.ring" => 0.9, "gain" => 5.4]),
     preset!("arcus.preset.violin_pizz", PLUCKED,
         ["inst" => 2.0, "tech" => 1.0, "mode" => 0.0, "pizz.decay" => 1.0, "ring" => 0.4,
          "gain" => 2.4]),

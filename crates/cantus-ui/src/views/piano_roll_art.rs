@@ -16,7 +16,7 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::Src;
 use crate::kit::{self, Brush, Fill, Style};
 use crate::views::ticks_to_beats;
-use cantus_core::note_art::{Articulation, Bow, NoteArt};
+use cantus_core::note_art::{Articulation, Bow, BowPart, BowStart, NoteArt};
 use cantus_core::{Clip, ClipId, Command, NoteId, TrackId};
 use egui::{pos2, vec2, Color32, Pos2, Rect};
 
@@ -28,20 +28,27 @@ pub enum Change {
     /// The bow (`None`: the instrument turns it); a note without an articulation becomes
     /// a sustain.
     Bow(Option<Bow>),
+    /// r42 arcus-expr (ADR 0162): where the bow comes from, which part of it plays, the
+    /// string (1 the highest) — `None`: the instrument's player decides. A note without an
+    /// articulation becomes a sustain.
+    Start(Option<BowStart>),
+    Part(Option<BowPart>),
+    String(Option<u8>),
 }
 
 /// The note's art after `change`.
 pub fn changed(old: Option<NoteArt>, change: Change) -> Option<NoteArt> {
+    let base = old.unwrap_or(NoteArt::of(Articulation::Sustain));
     match change {
         Change::Art(None) => None,
         Change::Art(Some(a)) => Some(NoteArt {
             articulation: a,
-            bow: old.and_then(|o| o.bow),
+            ..base
         }),
-        Change::Bow(b) => Some(NoteArt {
-            articulation: old.map_or(Articulation::Sustain, |o| o.articulation),
-            bow: b,
-        }),
+        Change::Bow(b) => Some(NoteArt { bow: b, ..base }),
+        Change::Start(v) => Some(NoteArt { start: v, ..base }),
+        Change::Part(v) => Some(NoteArt { part: v, ..base }),
+        Change::String(v) => Some(NoteArt { string: v, ..base }),
     }
 }
 
@@ -402,6 +409,55 @@ fn menu_items(current: Option<NoteArt>) -> (Vec<Row>, Vec<Option<Change>>) {
     ] {
         push(t(key), Check::Radio(bow == b), false, Some(Change::Bow(b)));
     }
+    // r42 arcus-expr (ADR 0162): where the bow comes from, its part, the string.
+    push(t("art.start.band"), Check::None, true, None);
+    let start = current.and_then(|c| c.start);
+    push(
+        t("art.start.auto"),
+        Check::Radio(start.is_none()),
+        false,
+        Some(Change::Start(None)),
+    );
+    for v in BowStart::ALL {
+        push(
+            t(v.name_key()),
+            Check::Radio(start == Some(v)),
+            false,
+            Some(Change::Start(Some(v))),
+        );
+    }
+    push(t("art.part.band"), Check::None, true, None);
+    let part = current.and_then(|c| c.part);
+    push(
+        t("art.part.auto"),
+        Check::Radio(part.is_none()),
+        false,
+        Some(Change::Part(None)),
+    );
+    for v in BowPart::ALL {
+        push(
+            t(v.name_key()),
+            Check::Radio(part == Some(v)),
+            false,
+            Some(Change::Part(Some(v))),
+        );
+    }
+    push(t("art.string.band"), Check::None, true, None);
+    let string = current.and_then(|c| c.string);
+    for (key, v) in [
+        ("art.string.auto", None),
+        ("art.string.1", Some(1)),
+        ("art.string.2", Some(2)),
+        ("art.string.3", Some(3)),
+        ("art.string.4", Some(4)),
+    ] {
+        push(
+            t(key),
+            Check::Radio(string == v),
+            false,
+            Some(Change::String(v)),
+        );
+    }
     (rows, picks)
 }
 
@@ -414,12 +470,18 @@ mod tests {
         let pizz_up = Some(NoteArt {
             articulation: Articulation::Pizzicato,
             bow: Some(Bow::Up),
+            start: None,
+            part: None,
+            string: None,
         });
         assert_eq!(
             changed(pizz_up, Change::Art(Some(Articulation::Legato))),
             Some(NoteArt {
                 articulation: Articulation::Legato,
-                bow: Some(Bow::Up)
+                bow: Some(Bow::Up),
+                start: None,
+                part: None,
+                string: None,
             })
         );
         assert_eq!(changed(pizz_up, Change::Art(None)), None);
@@ -427,11 +489,39 @@ mod tests {
             changed(None, Change::Bow(Some(Bow::Down))),
             Some(NoteArt {
                 articulation: Articulation::Sustain,
-                bow: Some(Bow::Down)
+                bow: Some(Bow::Down),
+                start: None,
+                part: None,
+                string: None,
+            })
+        );
+        // r42 arcus-expr: the bow's start, part and string are kept by every other change.
+        let air_tip = changed(
+            changed(None, Change::Start(Some(BowStart::Air))),
+            Change::Part(Some(BowPart::Tip)),
+        );
+        let g = changed(air_tip, Change::String(Some(4)));
+        let g = changed(g, Change::Art(Some(Articulation::Legato)));
+        assert_eq!(
+            g,
+            Some(NoteArt {
+                articulation: Articulation::Legato,
+                bow: None,
+                start: Some(BowStart::Air),
+                part: Some(BowPart::Tip),
+                string: Some(4),
             })
         );
         let (rows, picks) = menu_items(None);
         assert_eq!(rows.len(), picks.len());
-        assert_eq!(rows.len(), 2 + 1 + Articulation::ALL.len() + 3);
+        assert_eq!(
+            rows.len(),
+            2 + 1
+                + Articulation::ALL.len()
+                + 3
+                + (2 + BowStart::ALL.len())
+                + (2 + BowPart::ALL.len())
+                + (1 + 5)
+        );
     }
 }

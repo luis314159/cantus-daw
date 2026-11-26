@@ -144,6 +144,9 @@ impl Voice {
         } else {
             ctl_vib
         };
+        // r42 arcus-expr: the player's factor for the note (none on an open string, little
+        // in a fast passage, stopped through a shift and growing back), glided.
+        self.vib_kn += (self.vib_k - self.vib_kn) * (1.0 - math::exp(-dt / 0.12));
         let (amount, ramp) = match ctl_vib {
             Some(c) => (2.0 * c, 1.0),
             None if plucked => (0.0, 0.0),
@@ -155,6 +158,7 @@ impl Voice {
                 )
             }
         };
+        let amount = amount * self.vib_kn;
         if s.model < 2 {
             self.vibrato_model1(spec, s, oct, amount, ramp, dt);
         } else {
@@ -215,13 +219,25 @@ impl Voice {
             t60 *= (spec.spic_ring * spic_knobs().1) as f64;
         }
         // The bowing for the dynamic, and the gesture's step.
-        let pos = self.contact(sh);
+        let mut pos = self.contact(sh);
+        // r42 arcus-expr: as the bow runs out the player slows it and plays nearer the
+        // bridge (the level goes as v/β, and so does Schelleng's force: it stays put).
+        let mut spd = 1.0f32;
+        if s.player > 0.0 && self.phase == Phase::Hold && self.tech == NoteTech::Arco {
+            let left = bow::left_m(self.bx, self.dir, bow::hair_m(self.inst));
+            let k = bow::slow(left, s.player);
+            if k < 1.0 {
+                spd = k;
+                pos = (pos - 2.0 * math::log2(k)).clamp(-1.0, 1.0);
+            }
+        }
         let bw = bowing(
             spec,
             self.d as f64,
             pos as f64,
             s.bow_force as f64 + super::super::upper::force_trim(self.inst, st.open_hz(), f), // r42:arcus-upper
-            s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
+            (s.bow_speed * spd) as f64
+                * super::super::upper::speed_scale(self.inst, st.open_hz(), f), // r42:arcus-upper
             st.z0(),
             sr as f64 / f,
         );
@@ -365,8 +381,16 @@ impl Voice {
             self.jitter = 0.97 * self.jitter + 0.03 * self.rng.bipolar();
         }
         // A down-bow from the frog lightens towards the tip; an up-bow the other way.
-        let used = (self.stroke as f32 / BOW_M).clamp(0.0, 1.0);
-        let prof = 1.0 + 0.1 * self.dir * (0.5 - used);
+        // r42 arcus-expr: with the player, by where the bow is along the stick (`bow`).
+        let p = s.player.clamp(0.0, 1.0);
+        // (The tremolo's and the spiccato's strokes keep pass 6's profile: their pitch tables
+        // and their bounce are measured with it.)
+        let prof = if p > 0.0 && matches!(self.tech, NoteTech::Arco | NoteTech::Staccato) {
+            bow::stroke_weight(self.bx, s.bow_weight * p)
+        } else {
+            let used = (self.stroke as f32 / BOW_M).clamp(0.0, 1.0);
+            1.0 + 0.1 * self.dir * (0.5 - used)
+        };
         let tf = bw.force as f32 * prof * (1.0 + 0.03 * self.jitter);
         let c_v = 1.0 - math::exp(-dt / 0.03);
         let c_f = 1.0 - math::exp(-dt / 0.06);
@@ -387,11 +411,23 @@ impl Voice {
                     let (cf, ra) = change_knobs();
                     self.v_mag = (self.v_mag + ra * self.accel * dt).min(tv);
                     self.force = tf * (cf + (1.0 - cf) * (self.v_mag / tv.max(1e-6)).min(1.0));
+                } else if self.kind == 2 {
+                    // r42 arcus-expr: from the air — the bow lands moving, the force arrives
+                    // at once a little over the stroke's.
+                    self.v_mag = (self.v_mag + self.accel * dt).min(tv);
+                    self.force = self.land * (t_s / bow::LAND_S).min(1.0);
                 } else {
                     self.v_mag = (self.v_mag + self.accel * dt).min(tv);
                     self.force = self.f_attack;
                 }
-                if self.v_mag >= tv {
+                // r42 arcus-expr: from the string, the acceleration takes the bow to part of
+                // the stroke's speed; the stroke's contour does the rest.
+                let reach = if self.kind == 1 {
+                    bow::STRING_V0 * tv
+                } else {
+                    tv
+                };
+                if self.v_mag >= reach {
                     self.phase = Phase::Hold;
                     self.rebow = false;
                     self.t = 0;
@@ -434,8 +470,27 @@ impl Voice {
                     self.force = base * (floor + (1.0 - floor) * shape);
                 }
                 _ => {
+                    // r42 arcus-expr: a stroke from the string settles into its force and
+                    // speed over its contour (`bow::settle`), a soft one longer.
+                    let (c_v, c_f) =
+                        if self.kind == 1 && self.tech == NoteTech::Arco && self.force > tf {
+                            let (tf_s, _) = bow::settle(self.d);
+                            (c_v, 1.0 - math::exp(-dt / tf_s))
+                        } else {
+                            (c_v, c_f)
+                        };
                     self.v_mag += (tv - self.v_mag) * c_v;
                     self.force += (tf - self.force) * c_f;
+                    // r42 arcus-expr: the bow has run out — the player changes it.
+                    if p > 0.0
+                        && self.tech == NoteTech::Arco
+                        && bow::left_m(self.bx, self.dir, bow::hair_m(self.inst)) < bow::CHANGE_M
+                    {
+                        self.phase = Phase::Change;
+                        self.next_dir = -self.dir;
+                        self.kind = 0;
+                        self.t = 0;
+                    }
                     if self.tech == NoteTech::Staccato && t_s >= STACCATO_S {
                         self.phase = Phase::Stop;
                         self.t = 0;
@@ -497,6 +552,11 @@ impl Voice {
             self.ear.cut(); // r42:arcus-p5
         }
         self.stroke += (self.v_mag * dt) as f64;
+        if p > 0.0 && self.tech.is_bowed() {
+            // r42 arcus-expr: the bow moves along the stick (down towards the tip).
+            let hair = bow::hair_m(self.inst);
+            self.bx = (self.bx + self.dir * self.v_mag * dt / hair).clamp(0.0, 1.0);
+        }
         self.bowing = self.phase != Phase::Off;
     }
 

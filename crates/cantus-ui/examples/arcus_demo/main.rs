@@ -20,12 +20,22 @@
 //! loaded into a new app, exports the same bytes again; and the measures of `measure.rs` —
 //! loudness and peaks, no full-scale sample, each instrument audible where it plays and
 //! silent where it does not, no click at any note's start or end, the hall's tail whole.
+//!
+//! r42 arcus-expr: the quartet is **performed** by default (`perform.rs`: bows, attacks,
+//! dynamics, vibrato, timing and intonation entered as a user enters them);
+//! `ARCUS_DEMO_STYLE=plain` builds pass 6's take. `arcus_demo -- <out-dir> solos` renders the
+//! solo showcase (`solos.rs`), every instrument plain and performed; `… fiddle` the fiddle's
+//! hoedown with its band and one passage classical and fiddle (`fiddle.rs`).
 
 mod build;
+mod fiddle;
+mod fiddle2;
 mod measure;
 mod page;
 mod parts;
+mod perform;
 mod score;
+mod solos;
 
 use cantus_core::Project;
 use cantus_engine::EngineHandle;
@@ -97,6 +107,8 @@ fn export(app: &mut CantusApp, target: &Path, stems: bool) -> String {
 }
 
 fn main() {
+    let solos_only = std::env::args().nth(2).is_some_and(|a| a == "solos");
+    let fiddle_only = std::env::args().nth(2).is_some_and(|a| a == "fiddle");
     let out: PathBuf = std::env::args_os()
         .nth(1)
         .map(PathBuf::from)
@@ -105,11 +117,33 @@ fn main() {
         });
     std::fs::create_dir_all(&out).expect("the output folder");
     let since = std::time::Instant::now();
+    if solos_only || fiddle_only {
+        let ok = if fiddle_only {
+            fiddle::render(&out)
+        } else {
+            solos::render(&out)
+        };
+        println!(
+            "{} in {:.0} s",
+            if ok {
+                "ALL CHECKS PASS"
+            } else {
+                "A CHECK FAILED"
+            },
+            since.elapsed().as_secs_f64()
+        );
+        std::process::exit(if ok { 0 } else { 1 });
+    }
+    let style = match std::env::var("ARCUS_DEMO_STYLE").as_deref() {
+        Ok("plain") => build::Style::Plain,
+        _ => build::Style::Performed,
+    };
+    println!("style: {style:?}");
 
     // ---- the song, built and saved ----
     let data = tempfile::tempdir().expect("a data folder");
     let (mut app, _proc) = app_on(data.path(), Project::new(TITLE));
-    let built = build::build(&mut app);
+    let built = build::build(&mut app, &parts::QUARTET, style);
     let project_path = out.join("arcus-cuarteto.cantus");
     app.save_to_path(&project_path);
     println!("saved {}", project_path.display());

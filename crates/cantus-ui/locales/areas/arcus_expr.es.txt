@@ -1,0 +1,22 @@
+# Arcus tocado como una persona (ronda 42, ADR 0162) — del constructor de arcus-expr. Gemelo de arcus_expr.en.txt.
+art.start.band = De dónde viene el arco
+art.start.auto = Lo decide el intérprete
+art.start.string = Desde la cuerda
+art.start.air = Desde el aire
+art.part.band = Parte del arco
+art.part.auto = Lo decide el intérprete
+art.part.frog = Al talón
+art.part.middle = En el centro
+art.part.tip = En la punta
+art.part.whole = Todo el arco
+art.string.band = Cuerda
+art.string.auto = La decide el intérprete
+art.string.1 = Cuerda I (la más aguda)
+art.string.2 = Cuerda II
+art.string.3 = Cuerda III
+art.string.4 = Cuerda IV (la más grave)
+arcus.player = Intérprete
+arcus.player.short = Intérprete
+arcus.bow.weight = Peso del brazo
+arcus.bow.weight.short = Peso
+arcus.preset.violin_fiddle = Violín country (fiddle, bluegrass)

@@ -936,6 +936,34 @@ built as Chorda, Tympanum and Arcus were:
    articulations, tuning, render and recorded voice (Exemplar on CC0 libraries). Its first
    patent check is Audio Modeling's SWAM and Yamaha's VL family; several of VL's have
    expired. The modelled-voice design is in the strings-and-winds item above.
+   - **The saxophone family (the owner, 2026-11-25): "different kinds of sax."** It is the
+     winds' first instrument to bring to the bar, because it carries so many styles
+     (jazz, funk, pop, smooth, soul, norteño-sax, banda, cumbia, worship and classical).
+     - **The kinds.** Soprano (straight and curved), alto, tenor and baritone, then
+       sopranino and bass. Each has a conical bore measured from a real one, its keywork's
+       tone holes, its range including altissimo, and its own body colour.
+     - **The setup as a choice.** A classical mouthpiece (dark, round) or a jazz one, metal
+       or hard rubber (bright, edgy). The reed's strength. The player's embouchure and the
+       vocal tract, which shape the tone and the bends.
+     - **Techniques per note**, in the adaptive piano roll's profile:
+       - growl;
+       - subtone;
+       - altissimo;
+       - bends, scoops, falls, doits and ghost notes;
+       - flutter-tongue;
+       - key clicks and pad noise;
+       - multiphonics;
+       - vibrato from the jaw;
+       - slap tongue;
+       - legato against tongued attacks;
+       - the breath noise of a soft subtone.
+       Breath, a breath controller, MPE pressure and CC2/CC11 drive it continuously.
+     - **Playing characters,** as Arcus has them: a smooth or ballad voice, a funk section
+       with tight stabs, a bebop line, a norteño-sax or banda voice, and a classical voice.
+     - **Done when** an alto ballad phrase, a tenor funk riff and a norteño-sax line are
+       blind-compared with recordings of real saxophones (CC0/CC BY references in
+       `tools/sound-refs`, measured with the sound lab) and the owner cannot pick ours
+       above chance. The tenor and the alto come first.
 3. **Choir: "aah" and "ooh" by formants.** Pads and worship parts, sections of 1–16 voices
    with seeded variation, the vowel morphed by a control. Sung lyrics come later, under §7a,
    when a freely licensed recorded voice exists.
@@ -993,6 +1021,34 @@ built as Chorda, Tympanum and Arcus were:
      beating set by ear). The registers chosen by switches.
    - **The left hand.** The bass and chord buttons.
    - **Also.** The bandoneón and the concertina, as kinds of the same instrument.
+   - **The harmonica (the owner, 2026-11-25): different types and tunings.** It shares the
+     accordion's free-reed model. One reed for each blow or draw note, plus the player's vocal
+     tract, which is what bends make audible.
+     - **Types.**
+       - The 10-hole diatonic (blues harp) in every key, A to G plus the low and high keys.
+       - The chromatic, with a slide: 12 and 16 holes, solo tuning.
+       - The tremolo harmonica (two reeds per note, detuned, the Asian and folk sound).
+       - The octave harmonica.
+       - The chord and bass harmonicas of harmonica ensembles.
+     - **Tunings.**
+       - For the diatonic: Richter (standard), Paddy Richter, Country, Natural minor,
+         Harmonic minor, Melody Maker and Spiral.
+       - For the chromatic: solo tuning and its variants.
+       - Plus the project's own tuning (ADR 0155).
+     - **Techniques as the performance**, all per note, in the adaptive piano roll's profile:
+       - draw and blow bends, half-step and whole-step, the 3-hole draw's three bends;
+       - overblows and overdraws;
+       - vibrato (throat, diaphragm, hand);
+       - hand effects (the cup's wah and tone);
+       - tongue blocking with slaps, pulls and octaves, and chords;
+       - warbles (trills between holes) and chugging rhythms.
+       Breath pressure is a CC, a breath controller or MPE pressure.
+     - **Played as a harmonica player thinks.** Hole numbers with blow/draw arrows, as a
+       tablature view of the same notes (like the guitar's), so a part can be written the way
+       harmonica tabs are.
+     - **Done when** a blues, a country and a folk passage are blind-compared with recordings
+       of real harmonicas. The study measures reed spectra, bends and the vocal tract's
+       formants; CC0 or CC BY references are listed in `tools/sound-refs`.
 9. **The world's instruments, family by family (the owner, 2026-11-24).** Each is built on the
    family's model (plucked, bowed, blown, struck), with its tunings, its own techniques and
    a recording study. Where a model cannot reach the bar yet, a CC0 recorded voice is used.

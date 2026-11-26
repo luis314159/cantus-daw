@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 83; // r42: 83 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 84; // r42: 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -355,7 +355,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_79_to_80, // r42:contract — the project's and the tracks' tuning (ADR 0155)
     migrate_80_to_81, // r42:contract — Arcus and the note's articulation (ADRs 0157, 0158)
     migrate_81_to_82, // r42:strings-rec — Exemplar's articulations and legato (ADR 0158)
-    migrate_82_to_83, // r42:chorda-c17 — Chorda's colour (ADR 0098, sixth amendment)
+    migrate_82_to_83, // r42 arcus-expr — a note's bow start, bow part and string (ADR 0162)
+    migrate_83_to_84, // r42:chorda-c17 — Chorda's colour (ADR 0098, sixth amendment)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1287,11 +1288,20 @@ fn migrate_81_to_82(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 83 (round 42, ADR 0098's sixth amendment): Chorda's `colour` (−1 … 1, model 2's
+/// Schema 83 (round 42, ADR 0162): a note's `art` may say where the bow comes from
+/// (`start`), which part of it plays (`part`) and the string (`string`). Absent — every older
+/// note — lets the instrument's player decide, so nothing is written; an older build would
+/// drop them and play the note as its player chooses.
+// r42 arcus-expr
+fn migrate_82_to_83(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 84 (round 42, ADR 0098's sixth amendment): Chorda's `colour` (−1 … 1, model 2's
 /// colour toward a recorded grand's middle). Absent — every older song — reads 0, Chorda's own
 /// voicing, so nothing is written; an older build drops it and plays the song uncoloured.
 // r42:chorda-c17
-fn migrate_82_to_83(_value: &mut Value) -> Result<(), String> {
+fn migrate_83_to_84(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1815,10 +1825,10 @@ mod tests {
         assert!(p.tracks.iter().all(|t| t.tuning.is_follow()));
     }
 
-    /// r42:chorda-c17 — Schema 83 (ADR 0098's sixth amendment): the fixture's Chorda keeps its
-    /// colour; every older file (82) has none and reads Chorda's own (0).
+    /// r42:chorda-c17 — Schema 84 (ADR 0098's sixth amendment): the fixture's Chorda keeps its
+    /// colour; every older file (83) has none and reads Chorda's own (0).
     #[test]
-    fn schema_83_keeps_chordas_colour() {
+    fn schema_84_keeps_chordas_colour() {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let chorda = |name: &str| {
             let text = std::fs::read_to_string(dir.join(name)).unwrap();
@@ -1837,8 +1847,43 @@ mod tests {
                     .get("colour"),
             )
         };
-        assert_eq!(chorda("v83.cantus"), (true, 0.6));
-        assert_eq!(chorda("v82.cantus").1, 0.0);
+        assert_eq!(chorda("v84.cantus"), (true, 0.6));
+        assert_eq!(chorda("v83.cantus").1, 0.0);
+    }
+
+    /// r42 arcus-expr — Schema 83 (ADR 0162): the fixture's second note keeps its bow start,
+    /// bow part and string; every older file (82) has none of them.
+    #[test]
+    fn schema_83_keeps_the_note_s_bow_start_part_and_string() {
+        use cantus_core::note_art::{Articulation, Bow, BowPart, BowStart};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v83.cantus")).unwrap();
+        let report = parse(&text, true).unwrap();
+        // r42:chorda-c17 — no longer the newest (84): migrated, its integrity is not checked.
+        assert_eq!(report.migrated_from, Some(83));
+        let p = report.file.project;
+        let b = p.tracks[0].clips[0].notes[1]
+            .art
+            .expect("the second note's");
+        assert_eq!(
+            (b.articulation, b.bow, b.start, b.part, b.string),
+            (
+                Articulation::Legato,
+                Some(Bow::Down),
+                Some(BowStart::Air),
+                Some(BowPart::Tip),
+                Some(1)
+            )
+        );
+        let old = std::fs::read_to_string(dir.join("v82.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .flat_map(|c| c.notes.iter())
+            .filter_map(|n| n.art)
+            .all(|a| a.start.is_none() && a.part.is_none() && a.string.is_none()));
     }
 
     /// r42:strings-rec — Schema 82 (ADR 0158): the fixture's Strings track keeps its scripted
@@ -1850,7 +1895,7 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
         let text = std::fs::read_to_string(dir.join("v82.cantus")).unwrap();
         let report = parse(&text, true).unwrap();
-        // r42:chorda-c17 — no longer the newest (83): migrated, its integrity is not checked.
+        // r42 arcus-expr — no longer the newest (83): migrated, its integrity is not checked.
         assert_eq!(report.migrated_from, Some(82));
         let p = report.file.project;
         let t = p

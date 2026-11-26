@@ -210,6 +210,9 @@ fn abx(mid: &[u8], name: &str, p: &mut Project, c: &mut Clip) -> Ticks {
             note.art = Some(NoteArt {
                 articulation: Articulation::Pizzicato,
                 bow: None,
+                start: None,
+                part: None,
+                string: None,
             });
         }
         c.notes.push(note);

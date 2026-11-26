@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 83,
   "app_version": "fixture",
-  "saved_at": 1795660135,
+  "saved_at": 1795649643,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -111,7 +111,10 @@
                 "release": 60,
                 "art": {
                   "articulation": "legato",
-                  "bow": "down"
+                  "bow": "down",
+                  "start": "air",
+                  "part": "tip",
+                  "string": 1
                 }
               },
               {
@@ -3088,7 +3091,6 @@
           "type": "Native",
           "kind": "Chorda",
           "params": {
-            "colour": 0.6,
             "model": 2.0,
             "o3.level": -3.0,
             "rec.z0.lo": 60.0
@@ -3840,7 +3842,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "0d8896fb7bcfbdc49f4e2ccf2b53385696be5c8ef61104cd51f553dd47c6d51e"
+          "content": "7ef334d91c1c45fc7cfb3987c56bec70b28e70fdb48c2d558a83b620bf7d4b81"
         }
       },
       {
@@ -7701,5 +7703,5 @@
     },
     "next_id": 155
   },
-  "integrity": "b1e6c80e0119fe232a016dee7ce39cdd90222f07ea4f39164b8f05fc21735b69"
+  "integrity": "4e0acc807f73db4cc4637c8f94209b35f68a60db58e1dfa5b52f00c57916c6b1"
 }

@@ -94,6 +94,11 @@ params! {
     BOW_DIR = ("bow.dir", "arcus.bow.dir", 0.0, 2.0, 0.0, "", false, true),
     BOW_CHANGE = ("bow.change", "arcus.bow.change", 5.0, 80.0, 25.0, "ms", false, false),
     TREM_RATE = ("trem.rate", "arcus.trem.rate", 4.0, 24.0, 14.0, "Hz", false, false),
+    // r42 arcus-expr (ADR 0162): the player — the bow along the stick, its start, the
+    // fingering, the vibrato by the passage (0: pass 6's instrument, to the bit) — and how
+    // much the force follows the bow's place.
+    PLAYER = ("player", "arcus.player", 0.0, 1.0, 1.0, "%", false, false),
+    BOW_WEIGHT = ("bow.weight", "arcus.bow.weight", 0.0, 2.0, 1.0, "%", false, false),
 
     // ---- the vibrato ----
     VIB_DEPTH = ("vib.depth", "arcus.vib.depth", 0.0, 2.0, 1.0, "%", false, false),

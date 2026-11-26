@@ -16,12 +16,12 @@
 use super::{Controller, InstrumentUnit, NoteExpression, NoteOn, Telemetry, TELEMETRY_LEN};
 use cantus_core::inst::arcus::{self as model, ix, COUNT, PARAMS};
 use cantus_core::inst::modulation::{MACRO_KEYS, SLOTS};
-use cantus_core::note_art::{Articulation, Bow, NoteArt};
+use cantus_core::note_art::{Articulation, Bow, BowPart, BowStart, NoteArt};
 use cantus_core::NativeSpec;
 use cantus_dsp::arcus::string::Friction;
 use cantus_dsp::arcus::tables::Instrument;
 use cantus_dsp::arcus::{
-    Arcus, ArcusSettings, Art, BowDir, DirMode, DynSource, Technique, VibSource,
+    bow, Arcus, ArcusSettings, Art, BowDir, DirMode, DynSource, NoteHow, Technique, VibSource,
 };
 use cantus_dsp::math;
 use cantus_dsp::modmatrix::{ModCurve, MAX_ROUTES};
@@ -81,7 +81,9 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         vib_attack_ms: v[ix::VIB_ATTACK],
         vib_var: v[ix::VIB_VAR],
         vib_src: VibSource::from_index(v[ix::VIB_SRC]),
-        vib_dyn: v[ix::VIB_DYN], // r42:arcus-p5
+        vib_dyn: v[ix::VIB_DYN],       // r42:arcus-p5
+        player: v[ix::PLAYER],         // r42 arcus-expr
+        bow_weight: v[ix::BOW_WEIGHT], // r42 arcus-expr
         pizz_pos: v[ix::PIZZ_POS],
         pizz_soft_ms: v[ix::PIZZ_SOFT],
         pizz_decay: v[ix::PIZZ_DECAY],
@@ -97,6 +99,28 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         gain_db: v[ix::GAIN],
         seed: round(ix::SEED).max(0.0) as u32,
         oversample: None, // r42:arcus-upper
+    }
+}
+
+/// r42 arcus-expr — everything a note says about how it is played, as the DSP reads it
+/// (ADR 0158's articulation and bow, ADR 0162's bow start, part and string — the string from
+/// MusicXML's count, 1 the highest, to the DSP's, 0 the lowest of the instrument's four).
+pub fn how_of(art: NoteArt) -> NoteHow {
+    let (a, b) = art_of(art);
+    NoteHow {
+        art: a,
+        bow: b,
+        start: art.start.map(|s| match s {
+            BowStart::String => bow::Start::String,
+            BowStart::Air => bow::Start::Air,
+        }),
+        part: art.part.map(|p| match p {
+            BowPart::Frog => bow::Part::Frog,
+            BowPart::Middle => bow::Part::Middle,
+            BowPart::Tip => bow::Part::Tip,
+            BowPart::Whole => bow::Part::Whole,
+        }),
+        string: art.string.filter(|n| (1..=4).contains(n)).map(|n| 4 - n),
     }
 }
 
@@ -316,8 +340,7 @@ impl InstrumentUnit for Unit {
     }
 
     fn note_art(&mut self, id: u64, art: NoteArt) {
-        let (a, b) = art_of(art);
-        self.a.note_art(id, a, b);
+        self.a.note_how(id, how_of(art)); // r42 arcus-expr
     }
 
     fn all_notes_off(&mut self) {

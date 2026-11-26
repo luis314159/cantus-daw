@@ -1,0 +1,22 @@
+# Arcus played like a human (round 42, ADR 0162) — owned by the arcus-expr builder. Every key here needs its twin in arcus_expr.es.txt.
+art.start.band = Where the bow comes from
+art.start.auto = The player's choice
+art.start.string = From the string
+art.start.air = From the air
+art.part.band = Part of the bow
+art.part.auto = The player's choice
+art.part.frog = At the frog
+art.part.middle = In the middle
+art.part.tip = At the tip
+art.part.whole = Whole bow
+art.string.band = String
+art.string.auto = The player's choice
+art.string.1 = String I (the highest)
+art.string.2 = String II
+art.string.3 = String III
+art.string.4 = String IV (the lowest)
+arcus.player = Player
+arcus.player.short = Player
+arcus.bow.weight = Arm weight
+arcus.bow.weight.short = Weight
+arcus.preset.violin_fiddle = Fiddle (country, bluegrass)
