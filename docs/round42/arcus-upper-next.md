@@ -923,59 +923,99 @@ re-run at the session's end (see the final commit).
 ## arcus-polish2 (2026-11-25): the musicians' polish, pass 2
 
 Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from bffb9f682. The
-owner: "the musicians can still look much, much better"; mid-session "no te preocupes por los
-tiempos, luego optimizamos o hacemos configurable" (the look first) and, on sheet v12, "ese
-brazo aún se ve raro". ADR 0159 amended ("The polish, pass 2"). Sheets: v13
-(`docs/round42/arcus-upper/sheet-v13-polish2/`, the app's own renders; before = sheet v11's
-after) and the arms beside photographs in `F:\projects\daw-r42\tmp\polish2-arms\` (never
-committed).
+owner: "the musicians can still look much, much better"; then "no te preocupes por los
+tiempos, luego optimizamos o hacemos configurable" (the look first); on sheet v12 "ese brazo
+aún se ve raro"; beside ref-04/06/10: a thinner neck, a camera "like the girl's", a concert
+light. ADR 0159 amended ("The polish, pass 2", "Optimise later"). Sheets: v13
+(`docs/round42/arcus-upper/sheet-v13-polish2/`, before the hold/neck/camera/light), and
+beside photographs in `F:\projects\daw-r42\tmp\polish2-arms\arms1.png` (the hold) and
+`F:\projects\daw-r42\tmp\polish2-light\concert-vs-studio.png` (all of it) — never committed.
 
-**How to tune without rebuilding** (a release build of cantus-ui takes 20–35 minutes with
-three builders on the machine): `CANTUS_HELD="tx,ty,tz,ux,uy,uz,dx,dy,dz"` (the realistic
-violinists' hold), `CANTUS_ARM_POLE_BOW` / `CANTUS_ARM_POLE_LEFT="down,right,forward"`, read
-once per process by `shoot_arcus` and the tests; `tests/arcus_arm_pose.rs --nocapture`
-prints the arms' screen angles along the stroke.
+**Commits for the hands' re-solve**: the hold 03888c909, the neck 01c32794e, the camera
+d630eb474 (each its own commit); the Concert light 02e2400cb.
 
-**Done** (where):
-1. *The frame budget* (stopped by the owner's decision after the profile; ADR 0159 "The
-   polish's cost", BACKLOG §4b "The realistic figures' frame cost" with the profile and the
-   levers): the trunk's shadow from the arm's three pieces, the lighting table borrowed once a
-   loop, the left arm's two passes sharing their classes. `arcus_figure_auto` (new) holds
-   Light's coarse arms and Auto's step down on long frames and back.
-2. *The shoulders*: the band where each arm meets the body keeps the bake's surface until the
-   live arm is opaque, then turns with the arm (`BAND_TURN`; `ARM_COVERS` 0.38) — her
-   bow-side shards gone in both looks; dual-quaternion skinning of the live arms; the bow
-   band's turned-away faces drawn as the cloth's inside near the shoulder (the bake's gap).
-3. *Sleeves*: a sleeve's vertices follow the forearm (no twist with the wrist); the cuff's
-   inside lit as the sleeve's own (no black ring); the sleeve's end shades the wrist
-   (`cuff_shadow`); over-stretched sleeve triangles outside the band left out.
-4. *Antialiasing*: the live outline's strips mitred and drawn halfway toward the inner
-   corner's colour (the dotted rim lines); strings even in both looks (`Geo::wires`,
-   `WIRE_PX`; `TubeOpts::flat`).
-5. *Hair*: hers along the strands only (roots by the hairline, underlayer, lighter lengths;
-   the isotropic "sections" were tried and removed — camouflage), her baby hairs and
-   flyaways (`Role::Wisp`); his warm broken band, his hairline feathered; Drawn: the pink
-   hairline stripe gone, a darker underlayer, strand lines.
-6. *Details*: his tie knot (`tie_knot`), the suit's part lines smoothed (`smooth_borders`),
-   the shade under cloth edges (`under_edges`, `Tex::Shirt`), the tie matte; the lids'
-   crease, lash line and lash shadow (`lid_shade`); gold earrings; rosin dust
-   (`with_rosin`); cloth edge rolls over a centimetre.
-7. *The hold* (03888c909, its own commit): the scroll 3° under level, the end button pinned;
-   the bow elbow's pole; `tests/arcus_arm_pose.rs`.
+**How to tune without rebuilding** (a release build of cantus-ui took 20–37 minutes with three
+builders on the machine): `CANTUS_HELD="tx,ty,tz,ux,uy,uz,dx,dy,dz"` (the realistic
+violinists' hold), `CANTUS_ARM_POLE_BOW` / `CANTUS_ARM_POLE_LEFT="down,right,forward"` (the
+left one is ignored for the realistic figures: their left elbow is the table's), read once a
+process by `shoot_arcus` and the tests; `arcus_arm_pose -- --ignored --nocapture` prints the
+arms' screen angles along the stroke.
+
+**Done**:
+1. *Frame budget*: profiled, then stopped by the owner's decision (BACKLOG §4b "The realistic
+   figures' frame cost": the profile and the levers; the fine_tri cache is arcus-hands').
+   Kept: the trunk's shadow from the arm's three pieces, the lighting table borrowed once a
+   loop, the left arm's passes sharing their classes. `arcus_hold_budget`'s ceilings are the
+   last measure plus a quarter. `arcus_figure_auto` (new): Light draws the coarse arms, Auto
+   steps down on long frames and back.
+2. *Shoulders*: the band keeps the bake's surface until the live arm is opaque
+   (`BAND_TURN`, `ARM_COVERS` 0.38) — her bow-side shards gone in both looks; dual-quaternion
+   live arms; the bow band's turned-away faces as the cloth's inside.
+3. *Sleeves*: they follow the forearm (no twist with the wrist); the cuff's inside lit as the
+   sleeve's own (no black ring); `cuff_shadow` on the wrist; over-stretched sleeve triangles
+   outside the band left out (the left elbow's points by the frog: not yet confirmed gone).
+4. *Antialiasing*: the live outline mitred (miters capped) and its strip softened toward the
+   inner corner; strings even in both looks (`Geo::wires`, `WIRE_PX`, `TubeOpts::flat`).
+5. *Hair*: hers along the strands (roots, underlayer, lighter lengths; the isotropic sections
+   were tried and taken out), her loose hairs (`Role::Wisp`); his warm broken band and
+   feathered hairline; Drawn: no pink hairline stripe, a deeper underlayer, strand lines.
+6. *Details*: the tie knot, the suit's part lines smoothed, the shade under cloth edges and
+   `Tex::Shirt`, the matte tie; the lids' crease, lash line and lash shadow; gold earrings;
+   rosin dust; cloth edge rolls over a centimetre.
+7. *The hold, the neck, the camera, the light* (ADR 0159): the scroll 3° under level with the
+   end button pinned; the luthier's neck; the camera from chest height; Concert (the stage)
+   the realistic figures' default, Studio an option (Settings ▸ Appearance ▸ Light).
+8. *Gates*: `arcus_figure_shape` measures by the mesh's crossings and is on (passes);
+   `arcus_figure_specks` is on (red, below); `arcus_arm_pose` (new) is written and ignored
+   with its reason (Open 1); `figure_contract`, `arcus_figure_auto` pass.
+
+**Gates at the end** (build 11 = 02e2400cb; the final cleanup commit only removes the timing
+probes and debug tints and sets the budget's ceilings): `figure_contract` ✓,
+`arcus_figure_auto` ✓, `arcus_figure_shape` ✓; `arcus_hold` 5/7 — "Violin Man 12 st: elbow
+49°" (the left-hand table, to be re-solved on the new hold) and "Vector Cello Woman: the
+figure shows over the instrument" (a live outline strip past the cello's neck stamp: the
+miters are now capped — re-run); `arcus_hand_shape` "Woman violin: finger 3 0.28 cm" (the
+hands' re-solve on the new neck and camera); `arcus_figure_specks` 47 strays with the new
+composition — the dotted sleeve outlines (about 5), the Drawn stage's spot reflections on
+the violin's top inside the arms' mask (about 4: the mask counts arm triangles the violin
+hides — mask them by depth), the hands' creases (about 7, arcus-hands'), grey one-pixel dots
+on her neck in Drawn; `arcus_hold_budget` not re-run after the last changes (the ceilings
+were raised by decision); `arcus_scene`, `scene_identity`, `kit_lint` not run this session
+(Chorda's and Tympanum's pictures should be untouched: every change is gated to the bowed
+subject or the realistic figures); clippy: see the final commit.
 
 **Open** (in the order the owner will see them):
-1. *The bow hand's height*: at 0.3 of the bow the hand sits 1.1–1.4 upper arms over the elbow
-   (photographs: level), and over the shoulder nearer the frog. The strings stand higher over
-   the bow shoulder than a player's: the skeleton's shoulder and collarbone heights
-   (`bowed_figure::skeleton`) are the next lever; re-run `arcus_arm_pose` and every hold gate.
-2. *The left elbow*: from the left-hand table (arcus-hands' `left_hand.py`), to be re-solved
-   on the new hold (`arcus_hold`'s "Violin Man 12 st: elbow 49°" until then).
-3. *The stray-pixel gate*: see the final report for the count at the end; the hands' strays
-   are arcus-hands' (creases, notches between fingers).
-4. *Collar thickness*: the collar is painted on the suit's surface (no geometry of its own):
-   the shade under its edge needs a modelled collar band (raised shirt vertices round the
-   neck) — not done.
-5. *Fabric seams* (the dress's princess seams, the jacket's sleeve head): `cloth::fold`'s
-   seam code exists, no data assigns it — not done.
-6. The temporary timing probes (`probe::t0/lap`) and the debug tints (`CANTUS_ARM_DEBUG`)
-   — see the final commit (taken out or kept as documented aids).
+1. *The bow hand's height*: at 0.3 of the bow the hand sits 1.6–2.5 upper arms over its elbow
+   on screen (the photographs: level), over the shoulder nearer the frog — the strings stand
+   higher over the bow shoulder than a player's. Next lever: the skeleton's shoulder and
+   collarbone heights (`bowed_figure::skeleton`), then `arcus_arm_pose` on.
+2. *The left elbow*: the left-hand table's (arcus-hands' re-solve on 03888c909/01c32794e/
+   d630eb474).
+3. *Concert's tuning*: Drawn's spot reflections on the violin read as blotches; Paper is a dim
+   stage; the chair stool on a stage. Compare with ref-04/06/10 again after the re-solve.
+4. *The stray-pixel gate* (above). His left cuff's jagged end may remain (hem ring geometry:
+   a smoothed hem ring at load is the next lever).
+5. *Collar thickness* (the collar is painted on the suit's surface: needs a modelled band)
+   and *fabric seams* (`cloth::fold`'s seam code has no data) — not done.
+6. The WSL Linux check (`tools/wsl/check.sh`) not run.
+
+**The light against ref-04/06/10 — my view for the next builder** (the owner on the Concert
+sheet: "aún le falta lo de la luz, compara con las imágenes reales"). Concert is `Room::Stage`
+as it was built for the pianos; nothing in it was tuned for the figures. What it lacks:
+1. *A directional key*: the photographs' key comes high and from the side (stage spots), so
+   faces, necks and arms have a lit side and a shadow side with a soft terminator; ours lights
+   the face nearly frontally — flat, pale. Move the key higher and to the figure's right
+   (camera left), narrower, warmer; drop the fill to about a quarter.
+2. *A rim/back light*: in every reference the hair, the shoulders and the violin's edge glow
+   against the dark; ours barely separates them (the realistic rim ×1.7/2.2 is tuned for
+   Studio). A back light from above-behind, strong on hair and velvet.
+3. *Real cast shadows*: the violin's shadow on her neck and chest, the bow arm's on the body,
+   the chin on the rest — the bake's shadow map should carry them under a hard-ish key; the
+   live arms' trunk shadow is a soft band only.
+4. *The hall*: the references show a dark warm hall with soft bokeh (other players, lights);
+   ours is a flat dark curtain with one brown band and a stool — replace the stool and give
+   the background a little warm, out-of-focus structure.
+5. *The varnish*: deep red-amber with sharp specular streaks from the spots; ours reads
+   orange and flat, and in Drawn the spots make white blotches on the top.
+6. *Contrast*: deeper blacks with the velvet's and the wool's sheen kept; warmer skin
+   (ours pale); Paper's Concert currently a dim grey stage.

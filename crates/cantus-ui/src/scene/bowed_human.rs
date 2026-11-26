@@ -1376,7 +1376,7 @@ pub fn build(
         super::figure::Eyes::Open => &[],
     };
     let (pts, nrm) = skin_with(fig, &posed, morph);
-    let lum = lid_shade(fig, who, &pts, eyes);
+    let lum = lid_shade(who, &pts, eyes);
     emit(m, fig, &pts, &nrm, who, tone, 1, &lum);
     if who == Who::Man {
         tie_knot(m, fig, &pts, &nrm);
@@ -1404,7 +1404,7 @@ pub fn build(
 /// with the eyes closed, the skin just under the margin (posed) takes the lashes' shadow.
 /// (Open, the crease and the lash line stay — an open eye has them too.) Factors on the
 /// skin's luminance detail, per vertex.
-fn lid_shade(fig: &Figure, who: Who, pts: &[V3], eyes: super::figure::Eyes) -> Vec<(u32, f32)> {
+fn lid_shade(who: Who, pts: &[V3], eyes: super::figure::Eyes) -> Vec<(u32, f32)> {
     let morph = lids(who);
     let most = morph.iter().map(|m| m.1.len()).fold(0.0f32, f32::max);
     if most < 1e-4 {
@@ -1481,7 +1481,6 @@ fn lid_shade(fig: &Figure, who: Who, pts: &[V3], eyes: super::figure::Eyes) -> V
             }
         }
     }
-    let _ = fig;
     out
 }
 

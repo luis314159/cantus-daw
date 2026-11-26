@@ -689,7 +689,7 @@ fn dual(x: &hu::Xf) -> Option<Dq> {
 
 /// Vertex `i` of `fig` skinned by its bones' dual quaternions blended (none if a bone it
 /// follows has none).
-fn dq_vertex(fig: &Figure, posed: &Posed, dq: &[Option<Dq>], i: usize) -> Option<V3> {
+fn dq_vertex(fig: &Figure, dq: &[Option<Dq>], i: usize) -> Option<V3> {
     let w = &fig.bw[i];
     let first = dq.get(w.first()?.0 as usize).copied().flatten()?;
     let (mut r, mut d) = ([0.0f32; 4], [0.0f32; 4]);
@@ -730,7 +730,6 @@ fn dq_vertex(fig: &Figure, posed: &Posed, dq: &[Option<Dq>], i: usize) -> Option
         y: 2.0 * (-d[0] * r[2] + d[1] * r[3] + d[2] * r[0] - d[3] * r[1]),
         z: 2.0 * (-d[0] * r[3] - d[1] * r[2] + d[2] * r[1] + d[3] * r[0]),
     };
-    let _ = posed;
     Some(rot + t)
 }
 
@@ -1175,13 +1174,11 @@ pub fn arm(
         };
         let same = sc.key == Some(key) && sc.pts.len() == n;
         sc.key = Some(key);
-        let tt = super::probe::t0();
         let mid = if same {
             sc.mid
         } else {
             arm_setup(fig, am, base, s, aim, v, held, sc, light)
         };
-        super::probe::lap("setup", tt);
         // r42:arcus-polish — the tests' measure of the arm from the app's camera.
         if super::probe::on() {
             let o = hu::side(s);
@@ -1233,12 +1230,9 @@ pub fn arm(
         let eye = v.cam.eye();
         // r42:arcus-polish — the arm's soft shadow where it crosses in front of the trunk
         // (once: in the left arm's first pass).
-        let tt = super::probe::t0();
         if hidden.is_none_or(|h| h.0) {
             trunk_shadow(b, v, lit, fig, base, aim, &shading, who, s, tone, mid);
         }
-        super::probe::lap("trunk_shadow", tt);
-        let tt = super::probe::t0();
         // r42:arcus-polish2 — each triangle's facing, whether it is a sleeve's inside and
         // whether the neck hides it, worked out once a frame: the left arm's second pass
         // finds them (and the neck's test is made per corner, not per corner of every
@@ -1386,49 +1380,9 @@ pub fn arm(
                     let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
                     sc.order.push((sc.depth[k] + bias, k as u32));
                 }
-                // TEMP r42:arcus-polish2 debug: stretch (red) and slivers (blue).
-                if std::env::var("CANTUS_ARM_DEBUG").is_ok_and(|v| v == "2") {
-                    let rest = |i: usize, j: usize| {
-                        (fig.pos[am.verts[i] as usize] - fig.pos[am.verts[j] as usize]).len()
-                    };
-                    let ratio = [(a, bb), (bb, c), (c, a)]
-                        .iter()
-                        .map(|&(i, j)| (sc.pts[i] - sc.pts[j]).len() / rest(i, j).max(0.05))
-                        .fold(0.0f32, f32::max);
-                    let (p0, p1, p2) = (sc.sp[a], sc.sp[bb], sc.sp[c]);
-                    let area = ((p1 - p0).x * (p2 - p0).y - (p1 - p0).y * (p2 - p0).x).abs();
-                    let long = (p1 - p0)
-                        .length()
-                        .max((p2 - p1).length())
-                        .max((p0 - p2).length());
-                    let thin = area / (long * long).max(1e-3);
-                    let r = ((ratio - 1.0) * 180.0).clamp(0.0, 255.0) as u8;
-                    let bl = if thin < 0.08 && long > 4.0 { 255 } else { 40 };
-                    cc = [Color32::from_rgb(r, 40, bl); 3];
-                } else if std::env::var_os("CANTUS_ARM_DEBUG").is_some() {
-                    for (j, &i) in [a, bb, c].iter().enumerate() {
-                        let x = cc[j];
-                        let f = am.live[i];
-                        cc[j] = if s == 0 {
-                            Color32::from_rgb(
-                                x.r().saturating_add(90),
-                                (x.g() as f32 * f) as u8,
-                                x.b(),
-                            )
-                        } else {
-                            Color32::from_rgb(
-                                (x.r() as f32 * f) as u8,
-                                x.g().saturating_add(90),
-                                x.b(),
-                            )
-                        };
-                    }
-                }
                 sc.col.push(cc);
             }
         });
-        super::probe::lap("tris", tt);
-        let tt = super::probe::t0();
         // The outline: an edge between a shown triangle and one not shown (or none).
         let tri_n = am.tris.len() as u32;
         // r42:arcus-polish2 — each outline corner's way out, the mean of its edges' (by place:
@@ -1483,8 +1437,6 @@ pub fn arm(
         }
         sc.order
             .sort_unstable_by(|x, y| y.0.partial_cmp(&x.0).unwrap_or(std::cmp::Ordering::Equal));
-        super::probe::lap("edges+sort", tt);
-        let tt = super::probe::t0();
         for &(_, k) in &sc.order {
             if k < tri_n {
                 if fine_n > 1 && am.fine[k as usize] {
@@ -1496,9 +1448,7 @@ pub fn arm(
                         tone,
                         mid,
                     };
-                    let t1 = super::probe::t0();
                     fine_tri(b, &fc, sc, am, k as usize, fine_n);
-                    super::probe::lap("fine_tri", t1);
                     continue;
                 }
                 let t = am.tris[k as usize];
@@ -1621,7 +1571,6 @@ pub fn arm(
                 }
             }
         }
-        super::probe::lap("paint(incl fine)", tt);
     });
 }
 
@@ -2212,7 +2161,6 @@ fn arm_setup(
     sc: &mut Scratch,
     light: bool,
 ) -> V3 {
-    let tt = super::probe::t0();
     let posed = hu::repose_arm(fig, base, s, aim);
     let n = am.verts.len();
     sc.pts.clear();
@@ -2248,8 +2196,7 @@ fn arm_setup(
                     acc + posed.xf[b.min(hu::BONES - 1)].apply(q) * w
                 })
         } else {
-            dq_vertex(fig, &posed, &sc.dq, i as usize)
-                .unwrap_or_else(|| posed.vertex(fig, i as usize))
+            dq_vertex(fig, &sc.dq, i as usize).unwrap_or_else(|| posed.vertex(fig, i as usize))
         };
         if am.live[j] < 1.0 {
             p = base.vertex(fig, i as usize).lerp(p, am.live[j]);
@@ -2272,8 +2219,6 @@ fn arm_setup(
     for q in &mut sc.nrm {
         *q = q.norm();
     }
-    super::probe::lap("  skin+nrm", tt);
-    let tt = super::probe::t0();
     if light {
         // Light: no creases' occlusion (the hand's own capsules a frame).
         sc.ao.clear();
@@ -2281,11 +2226,8 @@ fn arm_setup(
     } else {
         occlusion(fig, &posed, s, am, held, sc);
     }
-    super::probe::lap("  occl", tt);
     cuff_shadow(fig, am, sc);
-    let tt = super::probe::t0();
     elbow_folds(fig, &posed, s, am, sc);
-    super::probe::lap("  folds", tt);
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);

@@ -28,8 +28,8 @@ fn fair() -> super::mesh::Lin {
 /// haze over the varnish, as every played violin in the photographs shows.
 fn with_rosin(b: Bowed, mut m: PMat) -> PMat {
     let d = b.dims();
-    let yb = crate::scene::bowed::bridge_y(&d);
-    let ye = crate::scene::bowed::nut_y(&d) - d.board;
+    let yb = crate::scene::bowed::bridge_y(d);
+    let ye = crate::scene::bowed::nut_y(d) - d.board;
     let y1 = yb + 0.75 * (ye - yb).max(1.0);
     let w = d.spacing.1 * 1.5 + 0.35 * d.body / 35.5;
     if let Tex::Tonewood { rosin, .. } = &mut m.tex {
