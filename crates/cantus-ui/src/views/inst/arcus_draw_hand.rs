@@ -497,8 +497,27 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
     // top - depth ≤ z ≤ top
     bound(t0 + tk * ya - a.z, tk * yd - dir.z);
     bound(a.z - (t0 + tk * ya - depth), dir.z - tk * yd);
-    lo <= hi
+    if lo > hi {
+        return false;
+    }
+    // r42:arcus-hands, pass 5 — and through the neck as it is drawn, not its box: the
+    // fingerboard's slab, then the neck's rounded back under it. Skin in the box's lower
+    // corners (beside the rounded back) was taken for hidden, painted before the neck's stamp
+    // and stamped over with the picture's background: the saw-toothed chips at the hand's
+    // edge in third position.
+    (0..NECK_STEPS).any(|k| {
+        let t = lo + (hi - lo) * (k as f32 + 0.5) / NECK_STEPS as f32;
+        let q = a + dir * t;
+        let (w, top) = (w0 + wk * q.y, t0 + tk * q.y);
+        let r = (q.x / w.max(1e-3)).clamp(-1.0, 1.0);
+        q.z <= top && q.z >= top - NECK_SLAB.max(depth * (1.0 - r * r).sqrt())
+    })
 }
+
+/// r42:arcus-hands, pass 5 — the fingerboard's own thickness (cm) over the neck's rounded
+/// back, and the samples along a ray's way through the neck's box.
+const NECK_SLAB: f32 = 0.55;
+const NECK_STEPS: usize = 10;
 
 /// Paint the left arm's pieces the neck hides from the eye (`hidden`: painted before the
 /// neck is stamped back over them) or those it does not (after). A piece the neck hides in
