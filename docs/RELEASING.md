@@ -118,6 +118,25 @@ the others ask it. Job logs need a sign-in; annotations and step lists do not.
 *Paid for:* beta.15 (a second watcher used up the hour, and the first one went blind).
 *Check:* one watcher is named before the tag.
 
+### L9 The program and its installer agree on the signature, and an in-app update is done
+
+The program checks every update for the publisher it was built with (`CANTUS_PUBLISHER`,
+`verify.rs`); the installer must carry that very signature, or no copy of this release
+can ever update itself. A workflow `env:` of `${{ vars.X }}` is an **empty string** when the
+variable does not exist, and `option_env!` reads an empty variable as `Some("")`. The
+package job sets the publisher only from a signing step that set signing up, stops when
+the two disagree, and checks the built installer the way the program will. And because
+nothing short of a real update proves the path: right after a release is out, an installed
+copy of the release before it updates to it in-app on Windows
+(`docs/beta-checklist.md`, "In-app update"), before the release is announced.
+*Paid for:* 0.1.0-beta.16 and beta.17 (built with `CANTUS_PUBLISHER: ${{
+vars.CANTUS_PUBLISHER }}` and no such variable: they refused every unsigned update as "not
+signed by Cantus's publisher", so their users must download the next release by hand; the
+in-app path had never been run end to end since round 20).
+*Check:* the rehearsal's package job ran "The publisher the program checks for is the
+signing's" and "The installer passes the program's own update check" green; the previous
+release's in-app update was done and recorded.
+
 ## How the suite runs — the practice to keep
 
 Excellence here means two things at once: **nothing reaches users that the whole suite has

@@ -15,7 +15,9 @@
 //! system gives it — drawn at the stored one, `UpdateLayeredWindow` would size it back
 //! under the pointer — and the new size is stored when they let go.
 
-use super::companion::{sane_size, Companion, Shared, StageSettings, MIN_SIZE, TITLE};
+use super::companion::{
+    keeps_on_top, sane_size, Companion, Shared, StageSettings, MIN_SIZE, TITLE,
+};
 use super::companion_menu_win::{MenuKit, MenuState, MenuWin};
 use super::companion_paint::{draw_cached, ChipCache, Scene};
 use super::vis_video::Setup;
@@ -178,10 +180,19 @@ pub(crate) fn size_step(
     }
 }
 
+/// The main window's HWND as a number (0 before it is known).
+fn main_window(app: &CantusApp) -> isize {
+    match app.plugins.owner_window {
+        Some(raw_window_handle::RawWindowHandle::Win32(h)) => h.hwnd.get(),
+        _ => 0,
+    }
+}
+
 /// Open the window where it was, sized and fitted onto the monitor it lands on.
 fn open(ctx: &egui::Context, st: &StageSettings) -> Option<Native> {
     let (x, y, w, h) = place_on(corner(ctx, st), st.size, &system_monitors);
-    let win = Layered::new(TITLE, x, y, w, h, st.on_top)?;
+    let on_top = keeps_on_top(st, ctx);
+    let win = Layered::new(TITLE, x, y, w, h, on_top)?;
     let waker = ctx.clone();
     win.set_waker(Box::new(move || waker.request_repaint()));
     let scale = win.scale();
@@ -191,7 +202,7 @@ fn open(ctx: &egui::Context, st: &StageSettings) -> Option<Native> {
         drawn_at: f64::NEG_INFINITY,
         hover: false,
         drawn_settings: None,
-        topmost: st.on_top,
+        topmost: on_top,
         chips: ChipCache::default(),
         menu: None,
         menu_kit: None,
@@ -261,9 +272,15 @@ pub fn run(
         return;
     }
     let st = app.settings.stage.clone();
-    if n.topmost != st.on_top {
-        n.win.set_topmost(st.on_top);
-        n.topmost = st.on_top;
+    // Behind a dialog of Cantus's while one is up, in front again after (`keeps_on_top`).
+    let on_top = keeps_on_top(&st, ctx);
+    if n.topmost != on_top {
+        n.win.set_topmost(on_top);
+        // Out of the top band it would still sit over the main window: behind it.
+        if !on_top && st.on_top {
+            n.win.set_behind(main_window(app));
+        }
+        n.topmost = on_top;
     }
     let grip = (22.0 * scale) as i32;
     n.win.set_interactive(!st.streaming, !st.streaming, grip);

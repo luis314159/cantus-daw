@@ -186,6 +186,113 @@ fn a_signature_must_be_valid_and_the_publisher_s() {
     );
 }
 
+/// What Windows answered (`verify::authenticode`'s PowerShell, run on the owner's PC on
+/// 2026-11-26) for the real `Cantus-0.1.0-beta.17-windows-x64-setup.exe` downloaded from
+/// the release (SHA-256 1cbe1f4d…, the release's digest) — only the folder in the message
+/// made anonymous — and for Windows PowerShell's own `powershell.exe`, signed by Microsoft.
+const SIGNED_BETA17: &str = include_str!("fixtures/authenticode-beta17-setup.json");
+const SIGNED_MICROSOFT: &str = include_str!("fixtures/authenticode-windows-powershell.json");
+
+/// 0.1.0-beta.16 and beta.17 were built with `CANTUS_PUBLISHER` set to an empty string (the
+/// release workflow's `${{ vars.CANTUS_PUBLISHER }}` with no such variable), which
+/// `option_env!` reads as `Some("")`: a build that demanded a signature from a publisher
+/// named nothing. Unset, empty or blank, the build has no publisher.
+#[test]
+fn an_empty_or_unset_publisher_is_no_publisher() {
+    assert_eq!(verify::publisher(None), None);
+    assert_eq!(verify::publisher(Some("")), None, "beta.16's and beta.17's");
+    assert_eq!(verify::publisher(Some("  ")), None);
+    assert_eq!(
+        verify::publisher(Some("Luis Angel Almazan Lopez")),
+        Some("Luis Angel Almazan Lopez")
+    );
+    // This build's own, whatever the environment that compiled it: never a blank name.
+    assert!(
+        verify::PUBLISHER.is_none_or(|p| !p.trim().is_empty()),
+        "{:?}",
+        verify::PUBLISHER
+    );
+}
+
+/// The real beta.17 installer is unsigned: a build with no publisher passes it on its
+/// hashes alone; a build with a publisher refuses it as unsigned, and says so.
+#[test]
+fn beta_17_s_unsigned_installer_passes_on_hashes_alone_without_a_publisher() {
+    let sig = verify::parse_authenticode(SIGNED_BETA17).expect("Windows's answer reads");
+    assert_eq!(sig.status, "NotSigned");
+    assert_eq!(sig.subject, "");
+    for none in [None, Some(""), Some(" "), verify::publisher(Some(""))] {
+        assert_eq!(verify::verdict(&sig, none), Ok(()), "{none:?}");
+    }
+    let refused = verify::verdict(&sig, Some("Luis Angel Almazan Lopez"));
+    assert_eq!(refused, Err(VerifyError::Unsigned));
+    assert_eq!(refused.unwrap_err().key(), "update.error.unsigned");
+
+    // A signed file: valid, by its signer and by no one else.
+    let ms = verify::parse_authenticode(SIGNED_MICROSOFT).unwrap();
+    assert_eq!(ms.status, "Valid");
+    assert_eq!(ms.common_name(), Some("Microsoft Windows"));
+    assert_eq!(verify::verdict(&ms, Some("Microsoft Windows")), Ok(()));
+    let other = verify::verdict(&ms, Some("Luis Angel Almazan Lopez")).unwrap_err();
+    assert!(matches!(other, VerifyError::Publisher { .. }), "{other:?}");
+    assert_eq!(other.key(), "update.error.publisher");
+    assert!(verify::parse_authenticode("").is_err());
+    assert!(verify::parse_authenticode("{\"status\":\"\"}").is_err());
+}
+
+/// Every signature failure has words of its own, in both languages, and each points to the
+/// release's page (the window keeps its *Release page* button).
+#[test]
+fn each_signature_failure_says_what_failed() {
+    let en = include_str!("../../cantus-ui/locales/areas/update.en.txt");
+    let es = include_str!("../../cantus-ui/locales/areas/update.es.txt");
+    let errors = [
+        VerifyError::Unsigned,
+        VerifyError::Signature("NotTrusted".into()),
+        VerifyError::Publisher {
+            expected: "A".into(),
+            got: "B".into(),
+        },
+        VerifyError::NoCheck("powershell".into()),
+    ];
+    let mut keys: Vec<&str> = errors.iter().map(VerifyError::key).collect();
+    keys.dedup();
+    assert_eq!(keys.len(), errors.len(), "one message each: {keys:?}");
+    for key in keys {
+        for (lang, file, page) in [("en", en, "release page"), ("es", es, "página")] {
+            let line = file
+                .lines()
+                .find(|l| l.split('=').next().map(str::trim) == Some(key))
+                .unwrap_or_else(|| panic!("{key} in update.{lang}.txt"));
+            assert!(
+                line.contains(page),
+                "{key} ({lang}) offers the page: {line}"
+            );
+        }
+    }
+}
+
+/// The whole download, as beta.16 and beta.17 ran it on Windows with their blank publisher:
+/// an unsigned installer whose hashes match is ready to install (it was deleted as "not
+/// signed by Cantus's publisher").
+#[test]
+fn a_build_with_a_blank_publisher_installs_an_unsigned_update() {
+    let dir = tempfile::tempdir().unwrap();
+    let net = net_with_release();
+    net.file(
+        &format!("{DL}Cantus-0.2.0-windows-x64-setup.exe"),
+        &[b"installer standard"],
+    );
+    let mut c = config(dir.path(), "0.1.0", InstallKind::Installed);
+    c.publisher = Some(String::new());
+    let u = Updater::new(c, net);
+    u.check_at(true, 5);
+    assert!(matches!(settle(&u), Status::Available(_)));
+    u.download();
+    let s = settle(&u);
+    assert!(matches!(s, Status::Ready { .. }), "{s:?}");
+}
+
 /// A network that is a table: url → answer, url → bytes for downloads.
 #[derive(Default)]
 struct Table {

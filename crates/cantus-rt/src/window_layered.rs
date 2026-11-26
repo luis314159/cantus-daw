@@ -598,6 +598,28 @@ impl Layered {
         };
     }
 
+    /// Put it just behind the window `other` (an HWND as a number) in the z-order, neither
+    /// window moved, sized nor activated: a window that left the top band
+    /// ([`Layered::set_topmost`] false) still sits over the others until then.
+    pub fn set_behind(&self, other: isize) {
+        if other == 0 {
+            return;
+        }
+        // SAFETY: our window; `other` only names a place in the order — an HWND that no
+        // longer exists makes the call fail, which changes nothing.
+        unsafe {
+            SetWindowPos(
+                self.hwnd,
+                other as HWND,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            )
+        };
+    }
+
     /// Put its top-left corner at (`x`, `y`), physical pixels.
     pub fn move_to(&self, x: i32, y: i32) {
         // SAFETY: our window; its size and order kept.

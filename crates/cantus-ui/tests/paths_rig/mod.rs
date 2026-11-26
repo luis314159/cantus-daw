@@ -262,6 +262,11 @@ impl Rig {
         }
     }
 
+    /// What the last frame painted, in the order it is drawn (the topmost last).
+    pub fn shapes(&self) -> &[egui::epaint::ClippedShape] {
+        &self.shapes
+    }
+
     /// The last frame's pixels, at the scale it was drawn at.
     pub fn canvas(&self) -> cantus_ui::raster::Canvas {
         let ppp = self.ctx.pixels_per_point();

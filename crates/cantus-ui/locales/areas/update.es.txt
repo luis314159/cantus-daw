@@ -42,7 +42,10 @@ update.error.rate_limited = GitHub está limitando las peticiones desde esta red
 update.error.answer = La respuesta de GitHub no es una versión que Cantus pueda leer.
 update.error.hash = La descarga no coincide con su SHA-256 publicado, así que se borró.
 update.error.no_hash = La versión no publica un SHA-256 para este archivo, así que Cantus no lo instalará.
-update.error.signature = El instalador no está firmado por el editor de Cantus, así que se borró.
+update.error.unsigned = El instalador no está firmado y esta copia de Cantus solo instala actualizaciones firmadas, así que se borró. Descárgalo desde la página de la versión.
+update.error.signature = Windows no aceptó la firma del instalador, así que se borró. Descárgalo desde la página de la versión.
+update.error.publisher = El instalador está firmado por alguien que no es el editor de Cantus, así que se borró. Descárgalo desde la página de la versión.
+update.error.signature_check = Windows no pudo comprobar la firma del instalador, así que se borró. Descárgalo desde la página de la versión.
 update.error.io = No se pudo guardar la descarga.
 update.error.launch = El instalador no arrancó: {error}
 

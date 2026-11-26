@@ -443,12 +443,34 @@ pub fn window(title: impl Into<egui::WidgetText>) -> egui::Window<'static> {
 /// windows in front).
 pub fn scrim_layer(ctx: &egui::Context) {
     let s = Style::current();
+    mark_modal(ctx);
     let screen = ctx.content_rect();
     let painter = ctx.layer_painter(egui::LayerId::new(
         egui::Order::Middle,
         egui::Id::new("cantus-dialog-scrim"),
     ));
     painter.rect_filled(screen, 0.0, scrim_colour(&s.t));
+}
+
+fn modal_id() -> egui::Id {
+    egui::Id::new("cantus-dialog-modal-pass")
+}
+
+/// Say a dialog that wants the window to itself is up this pass: the scrim says it, and so
+/// does a dialog in Classic (no scrim) or one that lays its own veil.
+pub fn mark_modal(ctx: &egui::Context) {
+    let now = ctx.cumulative_pass_nr();
+    ctx.data_mut(|d| d.insert_temp(modal_id(), now));
+}
+
+/// A dialog is up in this window: marked this pass or the last (what runs before the
+/// dialogs in a pass reads the last). Nothing else may then stay in front of it — the stage
+/// companion, a window always on top, steps back while it is (the owner, beta.16: its
+/// "Neon Tide · 124 BPM" chip over the Updates window).
+pub fn modal_up(ctx: &egui::Context) -> bool {
+    let now = ctx.cumulative_pass_nr();
+    ctx.data(|d| d.get_temp::<u64>(modal_id()))
+        .is_some_and(|at| at + 1 >= now)
 }
 
 /// A dialog's title row, first in its window: the title Medium 15 at the frame's inset and a
@@ -466,6 +488,7 @@ pub fn heading(ui: &mut egui::Ui, words: &str) -> bool {
 fn title_row(ui: &mut egui::Ui, words: &str, closable: bool) -> bool {
     let s = Style::current();
     if !s.t.system.recessed() {
+        mark_modal(ui.ctx());
         return false;
     }
     scrim_layer(ui.ctx());
@@ -635,6 +658,8 @@ pub fn footer<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
 pub fn sheet(ui: &egui::Ui, rect: Rect, s: &Style) {
     if s.t.system.recessed() {
         scrim_layer(ui.ctx());
+    } else {
+        mark_modal(ui.ctx());
     }
     face(ui, rect, s);
 }
