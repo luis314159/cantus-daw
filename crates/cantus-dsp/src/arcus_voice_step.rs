@@ -475,7 +475,10 @@ impl Voice {
             )
             .force;
             let r = (self.force as f64 / f_mf.max(1e-6)).max(1e-3);
-            let g = if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
+            // (A fiddler's bow keeps its tuned top: its bridge and body were fitted with the
+            // corner fixed, ADR 0164.)
+            let fixed = 1.0 - s.grit.clamp(0.0, 1.0);
+            let g = fixed * if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
             corner = (corner * math::powf(r, g as f64).clamp(0.5, 3.0)).min(0.4 * sr as f64);
             // … and the string's upper partials lose less between the bow's re-sharpenings
             // under a heavier bow (the loss exponent, `Knobs::loss_force`).

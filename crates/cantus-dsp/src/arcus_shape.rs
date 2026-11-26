@@ -55,8 +55,10 @@ pub struct Knobs {
     pub rebow_s: f32,
     /// A fast passage's share of a bow change's depth.
     pub fast_share: f32,
-    /// A slurred note's rise from where the last one had sagged, s.
+    /// A slurred note's rise from where the last one had sagged, s, and how far under that it
+    /// starts (dB; × `fast_share` in a fast passage): each note of a slur has its own swell.
     pub slur_s: f32,
+    pub slur_db: f32,
     /// The sag after the rise: how far (dB) and its time constant (s).
     pub sag_db: f32,
     pub sag_s: f32,
@@ -104,18 +106,19 @@ pub const KNOBS: Knobs = Knobs {
     fresh_s: 1.6,
     fresh_cap: 15.0,
     fresh_min: 0.2,
-    rebow_db: 6.0,
+    rebow_db: 9.0,
     rebow_s: 0.25,
     fast_share: 0.3,
     slur_s: 0.3,
+    slur_db: 3.0,
     sag_db: 6.0,
     sag_s: 1.2,
     breath_db: 1.0,
     breath_s: 0.45,
     taper_db: 12.0,
     taper_k: 1.5,
-    vib_back_s: (0.08, 0.38),
-    vib_floor: 0.1,
+    vib_back_s: (0.12, 0.5),
+    vib_floor: 0.05,
     bright: (0.8, 0.3),
     press_ff: 0.0,
     loss_force: 0.0,
@@ -160,6 +163,7 @@ impl Knobs {
                 "rebow_s" => self.rebow_s = v,
                 "fast_share" => self.fast_share = v,
                 "slur_s" => self.slur_s = v,
+                "slur_db" => self.slur_db = v,
                 "sag_db" => self.sag_db = v,
                 "sag_s" => self.sag_s = v,
                 "breath_db" => self.breath_db = v,
@@ -364,7 +368,11 @@ impl Shape {
                 if fast { k.rebow_s * 0.5 } else { k.rebow_s },
             ),
             // A slur from where the last note sagged to (a note from silence never slurs).
-            Begin::Slur => ((was / amount.max(1e-6) - breath_was).min(0.0), k.slur_s),
+            Begin::Slur => (
+                (was / amount.max(1e-6) - breath_was).min(0.0)
+                    - k.slur_db * if fast { k.fast_share } else { 1.0 },
+                k.slur_s,
+            ),
         };
         self.from = from;
         self.rise = rise.max(1e-3);

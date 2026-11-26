@@ -48,6 +48,9 @@ pub mod tables;
 #[path = "arcus_tests.rs"]
 mod tests;
 #[cfg(test)]
+#[path = "arcus_tests_classical.rs"] // r42 arcus-classical
+mod tests_classical;
+#[cfg(test)]
 #[path = "arcus_tests_expr.rs"] // r42 arcus-expr
 #[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_expr;
