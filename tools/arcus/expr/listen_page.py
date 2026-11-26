@@ -8,6 +8,7 @@
 - `etapa1/arcus-cuarteto.wav`         the quartet performed with what Arcus can do (stage 1)
 - `etapa2/arcus-cuarteto.wav`         the same performance on the stage-2 instrument
 - `solos1/<inst>-{plano,interpretado}.wav`, `solos2/<inst>-interpretado.wav`
+- `fiddle/hoedown.wav`, `fiddle/pasaje-{clasico,country}.wav`  the fiddle (stage 2)
 
 It writes `escuchar.html` beside them and `chat/` — 16-bit WAV copies of the main clips (the
 quartet takes and the performed solos), each kept under 30 MB (44.1 kHz when 48 kHz would not
@@ -81,7 +82,20 @@ def main():
                  if have(r)]
         if items:
             out.append(row(name, items))
-    out.append('<h2>3. Copias para el chat (WAV 16 bits)</h2><ul>')
+    if have("fiddle/hoedown.wav"):
+        out.append('<h2>3. Violín country (fiddle)</h2>')
+        out.append('<p>«Hoedown en re», una pieza original: el violín con el carácter <b>Fiddle '
+                   '(country, bluegrass)</b> — arco cerca del puente, más grano, golpes cortos, '
+                   'casi sin vibrato, shuffle de Nashville y de Georgia, acentos a contratiempo, '
+                   'deslizamientos, notas de adorno, terceras «blue», dobles cuerdas con la '
+                   'cuerda al aire y dos «chops» al empezar — con piano honky-tonk (Chorda), '
+                   'contrabajo en pizzicato (Arcus) y batería suave (Tympanum; no tiene escobillas).</p>')
+        out.append(row("Hoedown (50 s)", [("fiddle/hoedown.wav", "Fiddle")]))
+        out.append(row("El mismo pasaje: clásico y country",
+                       [(r, l) for r, l in (("fiddle/pasaje-clasico.wav", "Clásico"),
+                                            ("fiddle/pasaje-country.wav", "Country"))
+                        if have(r)]))
+    out.append('<h2>4. Copias para el chat (WAV 16 bits)</h2><ul>')
     chat = d / "chat"
     jobs = [("pase6/arcus-cuarteto.wav", "cuarteto-pase6.wav"),
             ("etapa1/arcus-cuarteto.wav", "cuarteto-etapa1.wav"),
@@ -90,6 +104,9 @@ def main():
         jobs.append((f"solos1/{key}-plano.wav", f"{key}-plano.wav"))
         jobs.append((f"solos1/{key}-interpretado.wav", f"{key}-etapa1.wav"))
         jobs.append((f"solos2/{key}-interpretado.wav", f"{key}-etapa2.wav"))
+    jobs += [("fiddle/hoedown.wav", "fiddle-hoedown.wav"),
+             ("fiddle/pasaje-clasico.wav", "pasaje-clasico.wav"),
+             ("fiddle/pasaje-country.wav", "pasaje-country.wav")]
     for src, name in jobs:
         if have(src):
             size, rate, ch = chat_copy(d / src, chat / name)

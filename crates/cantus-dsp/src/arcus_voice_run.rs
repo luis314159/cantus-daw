@@ -128,7 +128,12 @@ impl Voice {
             let fing = bow::finger(spec, self.note + self.tune, how.string, !fast, from);
             self.string_ix = fing.string;
             self.open = fing.open && tech.is_bowed();
-            let k = bow::vib_scale(self.open, fast, false);
+            // (A tremolo keeps pass 6's vibrato: its level in music moved 1.5–2.5 LU with it.)
+            let k = if tech == NoteTech::Tremolo {
+                1.0
+            } else {
+                bow::vib_scale(self.open, fast, false)
+            };
             self.vib_k = 1.0 + (k - 1.0) * p;
         } else {
             self.string_ix = spec.string_for(self.note + self.tune);
@@ -338,11 +343,18 @@ impl Voice {
                 Some((was, self.string_ix)),
             );
             self.open = fing.open;
-            self.vib_k = 1.0 + (bow::vib_scale(fing.open, fast, true) - 1.0) * p;
-            if fing.open && fast {
+            let tremolo = tech.unwrap_or(self.tech) == NoteTech::Tremolo;
+            let k = if tremolo {
+                1.0
+            } else {
+                bow::vib_scale(fing.open, fast, true)
+            };
+            self.vib_k = 1.0 + (k - 1.0) * p;
+            if fing.open && fast && !tremolo {
                 self.vib_kn = self.vib_k;
             }
-            if fing.shift {
+            // (A tremolo's slur is its strokes going on: its finger and dip stay pass 6's.)
+            if fing.shift && !tremolo {
                 let st = (self.note + self.tune - was).abs();
                 extra_ms = p * ((st - 2.0).max(0.0) * bow::SHIFT_MS_PER_ST).min(bow::SHIFT_MS_MAX);
                 self.vib_kn *= 1.0 - 0.85 * p;

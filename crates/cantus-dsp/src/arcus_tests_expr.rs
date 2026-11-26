@@ -90,8 +90,13 @@ fn the_arm_weighs_more_at_the_frog_than_at_the_tip() {
             .collect();
         v.iter().sum::<f32>() / v.len().max(1) as f32
     };
+    // The player makes up most of the fall (`bow::COMPENSATE`): a little lighter at the tip.
     let (frog, tip) = (near(0.2, 0.4), near(0.65, 0.85));
-    assert!(frog > tip * 1.04, "frog {frog:.3} tip {tip:.3}");
+    assert!(
+        frog > tip * 1.003 && frog < tip * 1.03,
+        "frog {frog:.3} tip {tip:.3}"
+    );
+    assert!(bow::stroke_weight(0.0, 1.0) < 1.02 && bow::stroke_weight(1.0, 1.0) > 0.98);
 }
 
 /// The first and the later bow speed of a note started `start`, at `velocity`.

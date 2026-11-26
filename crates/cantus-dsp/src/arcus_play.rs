@@ -335,7 +335,9 @@ impl Arcus {
         let tech = NoteTech::of(self.s.technique, art);
         // r42 arcus-expr: the player's bow may have changed by itself (it ran out), so the
         // next re-bow on a sounding string goes the other way from where it moves now.
-        if self.s.player > 0.0 && keep {
+        // (Only for a sustained stroke: a tremolo's or a spiccato's strokes keep the
+        // alternation's turn — its first stroke's way moved a tremolo preset's level 1–2 LU.)
+        if self.s.player > 0.0 && keep && matches!(tech, NoteTech::Arco | NoteTech::Staccato) {
             if let Some(d) = self.voices[voice].bow_moving() {
                 self.next_dir = match d {
                     BowDir::Down => BowDir::Up,

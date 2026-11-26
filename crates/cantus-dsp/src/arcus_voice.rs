@@ -509,9 +509,11 @@ impl Voice {
         self.open
     }
 
-    /// r42 arcus-expr — which way the bow moves now, when it is drawn.
+    /// r42 arcus-expr — which way the bow moves now, when it is drawn in a sustained stroke (a
+    /// tremolo's and a spiccato's strokes turn by themselves: none).
     pub fn bow_moving(&self) -> Option<BowDir> {
-        (self.active && self.bowing && self.tech.is_bowed()).then_some(if self.dir >= 0.0 {
+        let sustained = matches!(self.tech, NoteTech::Arco | NoteTech::Staccato);
+        (self.active && self.bowing && sustained).then_some(if self.dir >= 0.0 {
             BowDir::Down
         } else {
             BowDir::Up

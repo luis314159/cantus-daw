@@ -386,7 +386,7 @@ impl Voice {
         // (The tremolo's and the spiccato's strokes keep pass 6's profile: their pitch tables
         // and their bounce are measured with it.)
         let prof = if p > 0.0 && matches!(self.tech, NoteTech::Arco | NoteTech::Staccato) {
-            bow::weight(self.bx, s.bow_weight * p)
+            bow::stroke_weight(self.bx, s.bow_weight * p)
         } else {
             let used = (self.stroke as f32 / BOW_M).clamp(0.0, 1.0);
             1.0 + 0.1 * self.dir * (0.5 - used)

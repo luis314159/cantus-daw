@@ -24,23 +24,31 @@ definition of the bow's state and of a shift, shared by every later layer.
     speed over the hair's length (violin 0.65 m … bass 0.57). A stroke from silence starts at the
     frog for a down-bow and the tip for an up-bow, or the middle in a fast passage (an
     inter-onset under 0.22 s), or where the note's **part** says (frog, middle, tip, whole).
-  - **The arm's weight**: the force is × `1 + 0.35·bow.weight·(0.5 − x)` (±17 % at the ends).
-  - **Running out**: with 14 cm left the player slows the bow (down to 0.4 × its speed) and
-    moves nearer the bridge by the same factor (`v/β` — the level — and Schelleng's force kept),
-    and with 1.2 cm left it **changes bow** (the soft-edged change of pass 5).
-  - **Where the bow comes from**: *from the string*, the force placed before the motion, the
-    acceleration to 0.6 of the stroke's speed, then the stroke's **contour** — force and speed
-    settling over 0.12 / 0.07 s at pp to 0.05 / 0.03 at ff (Maestre 2010's per-note contours,
-    Demoucron 2008); *from the air*, the bow landing at 0.45 of its speed and the force arriving
-    in 5 ms at 1.12 × the stroke's. The note's **start** chooses; without one, the player chooses
-    from the air for a velocity ≥ 0.8 or a staccato, from the string otherwise.
-  - **The fingering** (`bow::finger`, a first engine): first position on the highest string
-    that reaches the note, except that an expressive note at an open string's pitch is stopped
-    on the string below, a slur keeps its string for steps of up to a major third, and a note may
-    name its **string** (honoured where it reaches, up to an octave over the open string). A slur
-    on one string by three semitones or more is a **shift**: the finger takes 7 ms more per
-    semitone past two (at most 110), the slur's dip lasts as long, and the vibrato stops and grows
-    back. **An open string has no vibrato**; a fast détaché has 0.3 of it, a fast slur 0.7.
+  - **The arm's weight**: `1 + 0.15·(0.5 − x)` (±7.5 % at the ends) on the attack's force of
+    the cello and the bass, from where the stroke starts (measured: without it the bass's soft
+    E2 took 288 ms to settle against Guettler's 214; the violin's and the viola's soft attacks
+    settle without it). Along a sustained stroke the player **makes up 85 %** of the fall
+    (pronation and the index finger keep a held note even; the coordinator's call after the
+    held-out third regressed with none made up), so the stroke's force is
+    × `1 + 0.15·0.15·bow.weight·(0.5 − x)` (±1.1 %): `bow.weight` scales the uncompensated part.
+  - **Running out** (built, measured, **off**): slowing the bow in its last 12 cm, nearer the
+    bridge by the same factor, and changing bow with 1.2 cm left. Without a note's length the
+    player changed bow in the middle of the gates' single 3–5 s notes, and the slow-down moved
+    the bowed pitch (its tables measured at the dynamic's speed): both wait for look-ahead.
+  - **Where the bow comes from**: *from the string*, Guettler's measured acceleration with the
+    force placed before the motion, then a heavy attack's force **easing** into the stroke's over
+    0.12 s (pp) … 0.05 s (ff) (Maestre 2010's per-note contours; a longer contour breaks the
+    pitch gate until the pitch tables are measured with it); *from the air*, the bow landing at
+    0.45 of its speed and the force arriving in 5 ms at 1.12 × the stroke's. The note's
+    **start** chooses; without one, from the air for a staccato, from the string otherwise.
+  - **The fingering** (`bow::finger`, a first engine): first position on the highest string that
+    reaches the note, or the string the note **names** (honoured where it reaches, up to an
+    octave over the open string). A slur on one string by three semitones or more is a
+    **shift**: the finger takes 7 ms more per semitone past two (at most 110), the slur's dip
+    lasts as long, and the vibrato stops and grows back. **An open string in a passage has no
+    vibrato**; a fast détaché has 0.3 of it, a fast slur 0.7; a tremolo keeps pass 6's. (An open
+    string's pitch held stopped on the string below, and a slur kept on its string, moved the
+    bowed pitch 1.4 cents: they wait for pitch tables per string.)
 - **Two parameters** (`cantus_core::inst::arcus`): **`player`** (0 … 1, default 1: the layer
   above; 0 is pass 6's instrument to the bit) and **`bow.weight`** (0 … 2, default 1), on the
   editor's *direction* card.

@@ -29,6 +29,7 @@
 
 mod build;
 mod fiddle;
+mod fiddle2;
 mod measure;
 mod page;
 mod parts;

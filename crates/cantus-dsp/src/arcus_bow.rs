@@ -66,9 +66,24 @@ pub fn hair_m(inst: Instrument) -> f32 {
 /// profile, ±5 % at a stroke's start, which this keeps), `arcus-expr.md` §3.
 pub const WEIGHT: f32 = 0.15;
 
-/// The force's factor at `x` (0 frog … 1 tip): `1 + WEIGHT·amount·(0.5 − x)`.
+/// The force's factor at `x` (0 frog … 1 tip): `1 + WEIGHT·amount·(0.5 − x)` — the bow and
+/// the arm alone, what a stroke's attack has from the frog.
 pub fn weight(x: f32, amount: f32) -> f32 {
     1.0 + WEIGHT * amount * (0.5 - x.clamp(0.0, 1.0))
+}
+
+/// How much of the weight's fall along a sustained stroke the player makes up: players pronate
+/// and press with the index finger towards the tip precisely so a held note stays even (the
+/// single-note references are such notes). Measured: with none of it made up the held-out third
+/// regressed (the cello 13 rows worse against 7 better, the bass 24 against 12); 0.85 is chosen
+/// inside the coordinator's 0.8–0.9, not yet fitted on the training two thirds
+/// (`arcus-expr.md` §3). `bow.weight` scales what is left: the uncompensated fall.
+pub const COMPENSATE: f32 = 0.85;
+
+/// The sustained stroke's factor at `x`: [`weight`] with all but the uncompensated share made
+/// up (±1.1 % at `bow.weight` 1).
+pub fn stroke_weight(x: f32, amount: f32) -> f32 {
+    weight(x, amount * (1.0 - COMPENSATE))
 }
 
 /// Where a stroke from silence starts: by its part, or the player's choice — the frog for a

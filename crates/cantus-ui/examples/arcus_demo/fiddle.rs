@@ -69,18 +69,20 @@ const CHORDS: &str = "D D D G A D G A D A G D A A G A D D D G A D G A D";
 
 /// The bowing pattern a section's eighths take.
 #[derive(Copy, Clone, PartialEq, Eq)]
-enum Pattern {
+pub enum Pattern {
     Nashville,
     Georgia,
 }
 
-struct Section {
-    bar: u32,
-    bars: u32,
-    notes: &'static str,
-    pattern: Pattern,
-    drone: bool,
-    cc1: f32,
+pub struct Section {
+    pub bar: u32,
+    pub bars: u32,
+    pub notes: &'static str,
+    pub pattern: Pattern,
+    pub drone: bool,
+    pub cc1: f32,
+    /// The tempo the section is played at (its milliseconds in beats).
+    pub bpm: f64,
 }
 
 const FORM: [Section; 4] = [
@@ -91,6 +93,7 @@ const FORM: [Section; 4] = [
         pattern: Pattern::Nashville,
         drone: true,
         cc1: 0.7,
+        bpm: BPM,
     },
     Section {
         bar: 2,
@@ -99,6 +102,7 @@ const FORM: [Section; 4] = [
         pattern: Pattern::Nashville,
         drone: false,
         cc1: 0.62,
+        bpm: BPM,
     },
     Section {
         bar: 10,
@@ -107,6 +111,7 @@ const FORM: [Section; 4] = [
         pattern: Pattern::Georgia,
         drone: true,
         cc1: 0.7,
+        bpm: BPM,
     },
     Section {
         bar: 18,
@@ -115,19 +120,20 @@ const FORM: [Section; 4] = [
         pattern: Pattern::Nashville,
         drone: true,
         cc1: 0.66,
+        bpm: BPM,
     },
 ];
 
 /// A note as the fiddler plays it: beats from the clip's start.
 #[derive(Clone)]
-struct FNote {
-    at: f64,
-    len: f64,
-    key: u8,
-    vel: u8,
-    art: Option<NoteArt>,
+pub struct FNote {
+    pub at: f64,
+    pub len: f64,
+    pub key: u8,
+    pub vel: u8,
+    pub art: Option<NoteArt>,
     /// The per-note bend: `(seconds from the note's start, semitones)`.
-    bend: Vec<(f64, f64)>,
+    pub bend: Vec<(f64, f64)>,
 }
 
 fn art(a: Articulation, bow: Option<Bow>) -> NoteArt {
@@ -156,7 +162,9 @@ fn bows(w: &[Written], pattern: Pattern) -> Vec<(usize, usize)> {
     let joined = |a: usize, b: usize| (w[b].at - (w[a].at + w[a].len)).abs() < 1e-9;
     while i < w.len() {
         let beat = w[i].at.rem_euclid(2.0);
-        let four = i + 3 < w.len() && (0..4).all(|k| eighth(i + k)) && (1..4).all(|k| joined(i + k - 1, i + k));
+        let four = i + 3 < w.len()
+            && (0..4).all(|k| eighth(i + k))
+            && (1..4).all(|k| joined(i + k - 1, i + k));
         match pattern {
             // Long (two slurred), short, short — from a half-bar's start.
             Pattern::Nashville if four && beat.abs() < 1e-9 => {
@@ -182,7 +190,7 @@ fn bows(w: &[Written], pattern: Pattern) -> Vec<(usize, usize)> {
 }
 
 /// The fiddle's notes and its CC1, CC11 and CC21 lanes for one section, and the drone's notes.
-fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>; 3]) {
+pub fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>; 3]) {
     let part = Part {
         who: Who::Violin,
         section: 0,
@@ -192,7 +200,7 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
     };
     let (w, _) = parse_t(&part, 0);
     let gs = bows(&w, sec.pattern);
-    let beat = |s: f64| s * BPM / 60.0;
+    let beat = |s: f64| s * sec.bpm / 60.0;
     let mut notes: Vec<FNote> = Vec::new();
     let mut dir = Bow::Down;
     let mut last_end = f64::NEG_INFINITY;
@@ -213,7 +221,7 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
             at += beat(0.003 * unit(seed, i as u64)).clamp(-0.01, 0.01);
             let chop = x.flags.contains('c');
             let mut vel = if chop {
-                127.0
+                127.0f64
             } else if offbeat {
                 92.0
             } else if x.at.rem_euclid(BAR).abs() < 1e-9 {
@@ -247,7 +255,7 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
             } else if x.flags.contains('g') {
                 bend = vec![(0.0, -2.0), (0.034, -2.0), (0.036, 0.0)];
             } else if x.flags.contains('b') {
-                bend = vec![(0.0, 0.0), (0.12, 0.2), (60.0 / BPM * x.len, 0.25)];
+                bend = vec![(0.0, 0.0), (0.12, 0.2), (60.0 / sec.bpm * x.len, 0.25)];
             }
             vel = vel.clamp(20.0, 127.0);
             notes.push(FNote {
@@ -288,7 +296,9 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
     let mut drone: Vec<FNote> = Vec::new();
     if sec.drone {
         for (n, x) in notes.iter().zip(&w) {
-            let d = if x.flags.contains('c') {
+            let d = if x.flags.contains('x') {
+                Some(x.key - 3) // the train whistle: a third under, sliding with it
+            } else if x.flags.contains('c') {
                 Some(69) // the chop: D and A together
             } else if x.key >= 76 {
                 Some(69)
@@ -300,7 +310,9 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
             let Some(d) = d else { continue };
             // Joined to the last drone note when the melody's bow goes on (a slur) and the
             // drone's pitch is the same.
-            let slurred = n.art.is_some_and(|a| a.articulation == Articulation::Legato);
+            let slurred = n
+                .art
+                .is_some_and(|a| a.articulation == Articulation::Legato);
             if let Some(last) = drone.last_mut() {
                 if slurred && last.key == d && (last.at + last.len - n.at).abs() < 0.05 {
                     last.len = n.at + n.len - last.at;
@@ -317,7 +329,11 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
                 key: d,
                 vel: n.vel.saturating_sub(18),
                 art: Some(a),
-                bend: Vec::new(),
+                bend: if x.flags.contains('x') {
+                    n.bend.clone()
+                } else {
+                    Vec::new()
+                },
             });
         }
     }
@@ -338,7 +354,12 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
         let rest_after = i + 1 == notes.len() || notes[i + 1].at - (n.at + n.len) > 0.3;
         if n.len >= 1.0 && rest_after {
             let on = n.at + beat(0.3);
-            cc21.extend([(n.at, 0.0), (on, 0.0), (on + beat(0.25), 0.28), (n.at + n.len, 0.2)]);
+            cc21.extend([
+                (n.at, 0.0),
+                (on, 0.0),
+                (on + beat(0.25), 0.28),
+                (n.at + n.len, 0.2),
+            ]);
             cc21.push((n.at + n.len + 0.05, 0.0));
         }
     }
@@ -347,13 +368,13 @@ fn fiddle(sec: &Section, seed: u64) -> (Vec<FNote>, Vec<FNote>, [Vec<(f64, f32)>
     (notes, drone, [cc1, cc11, cc21])
 }
 
-fn exec(app: &mut CantusApp, what: &str, cmd: Command) {
+pub fn exec(app: &mut CantusApp, what: &str, cmd: Command) {
     assert!(app.exec(cmd), "the app refused {what}");
 }
 
 /// A track from the picker with a factory preset, named, panned, at a fader, sent to `hall`.
 #[allow(clippy::too_many_arguments)]
-fn add_track(
+pub fn add_track(
     app: &mut CantusApp,
     kind: InstrumentKind,
     preset: Option<&str>,
@@ -393,14 +414,7 @@ fn add_track(
     );
     exec(app, "a colour", Command::SetTrackColor { id: track, color });
     exec(app, "a pan", Command::SetStripPan { id: strip, pan });
-    exec(
-        app,
-        "a fader",
-        Command::SetStripGain {
-            id: strip,
-            gain_db,
-        },
-    );
+    exec(app, "a fader", Command::SetStripGain { id: strip, gain_db });
     let mut s = Send::new(hall);
     s.level = cantus_core::db_to_linear(send_db);
     exec(
@@ -416,7 +430,8 @@ fn add_track(
 }
 
 /// A clip of `notes` at `bar` for `bars`, with their articulations and the lanes.
-fn clip(
+#[allow(clippy::too_many_arguments)]
+pub fn clip(
     app: &mut CantusApp,
     track: TrackId,
     name: &str,
@@ -424,6 +439,7 @@ fn clip(
     bars: u32,
     notes: &[FNote],
     lanes: Vec<(LaneKind, Vec<(f64, f32)>)>,
+    bpm: f64,
 ) {
     let mut scratch = app.project().clone();
     let len = f64::from(bars) * BAR;
@@ -440,7 +456,10 @@ fn clip(
                     .bend
                     .iter()
                     .map(|(s, st)| {
-                        ExprPoint((s * BPM / 60.0 * ppq).round() as i64, ExprKind::Bend.store(*st))
+                        ExprPoint(
+                            (s * bpm / 60.0 * ppq).round() as i64,
+                            ExprKind::Bend.store(*st),
+                        )
                     })
                     .collect(),
                 ..NoteExpr::default()
@@ -500,7 +519,7 @@ fn clip(
 }
 
 /// The hall: a free return with Aula's smaller room on it.
-fn hall(app: &mut CantusApp) -> StripId {
+pub fn hall(app: &mut CantusApp) -> StripId {
     let hall = app
         .project()
         .strips
@@ -526,7 +545,12 @@ fn hall(app: &mut CantusApp) -> StripId {
         .and_then(|s| s.effects.last())
         .map(|e| e.id)
         .expect("Aula");
-    for (key, value) in [("mix", 1.0), ("predelay", 10.0), ("low", 160.0), ("high", 8_000.0)] {
+    for (key, value) in [
+        ("mix", 1.0),
+        ("predelay", 10.0),
+        ("low", 160.0),
+        ("high", 8_000.0),
+    ] {
         exec(
             app,
             "a room setting",
@@ -623,14 +647,23 @@ fn build_tune(app: &mut CantusApp) -> Vec<TrackId> {
             (LaneKind::Cc(11), cc11.clone()),
             (LaneKind::Cc(21), cc21.clone()),
         ];
-        clip(app, fid, "Violín", sec.bar, sec.bars, &notes, lanes);
+        clip(app, fid, "Violín", sec.bar, sec.bars, &notes, lanes, BPM);
         if !drone.is_empty() {
             let lanes = vec![
                 (LaneKind::Cc(1), cc1),
                 (LaneKind::Cc(11), cc11),
                 (LaneKind::Cc(21), vec![(0.0, 0.0)]),
             ];
-            clip(app, dbl, "Dobles cuerdas", sec.bar, sec.bars, &drone, lanes);
+            clip(
+                app,
+                dbl,
+                "Dobles cuerdas",
+                sec.bar,
+                sec.bars,
+                &drone,
+                lanes,
+                BPM,
+            );
         }
     }
     // The band: the piano on 2 and 4, the bass root and fifth on 1 and 3, the kit light.
@@ -696,9 +729,9 @@ fn build_tune(app: &mut CantusApp) -> Vec<TrackId> {
         }
     }
     let bars = chords.len() as u32;
-    clip(app, piano, "Piano", 1, bars, &p, vec![]);
-    clip(app, bass, "Contrabajo", 1, bars, &b, vec![]);
-    clip(app, kit, "Batería", 1, bars, &d, vec![]);
+    clip(app, piano, "Piano", 1, bars, &p, vec![], BPM);
+    clip(app, bass, "Contrabajo", 1, bars, &b, vec![], BPM);
+    clip(app, kit, "Batería", 1, bars, &d, vec![], BPM);
     vec![fid, dbl]
 }
 
@@ -743,6 +776,7 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
         pattern: Pattern::Georgia,
         drone: country,
         cc1: 0.66,
+        bpm: BPM,
     };
     if country {
         let (notes, drone, [cc1, cc11, cc21]) = fiddle(&sec, 0xF1DD_1E77);
@@ -751,7 +785,7 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
             (LaneKind::Cc(11), cc11.clone()),
             (LaneKind::Cc(21), cc21),
         ];
-        clip(app, v, "Violín", 1, 4, &notes, lanes);
+        clip(app, v, "Violín", 1, 4, &notes, lanes, BPM);
         let d = add_track(
             app,
             InstrumentKind::BowedString,
@@ -764,7 +798,7 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
             room,
         );
         let lanes = vec![(LaneKind::Cc(1), cc1), (LaneKind::Cc(11), cc11)];
-        clip(app, d, "Dobles cuerdas", 1, 4, &drone, lanes);
+        clip(app, d, "Dobles cuerdas", 1, 4, &drone, lanes, BPM);
     } else {
         // Classical: the same notes slurred by the bar's halves, legato, the vibrato on, a
         // phrase's swell (the quartet's player, `perform.rs`, as the melody).
@@ -789,8 +823,7 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
             intimate: false,
             seed: 0xC1A5,
         };
-        let perf =
-            super::perform::perform(&part, &w, beats, super::perform::Role::Melody, &ctx);
+        let perf = super::perform::perform(&part, &w, beats, super::perform::Role::Melody, &ctx);
         let notes: Vec<FNote> = perf
             .notes
             .iter()
@@ -812,7 +845,7 @@ fn build_passage(app: &mut CantusApp, country: bool) -> TrackId {
             (LaneKind::Cc(11), perf.cc11),
             (LaneKind::Cc(21), perf.cc21),
         ];
-        clip(app, v, "Violín", 1, 4, &notes, lanes);
+        clip(app, v, "Violín", 1, 4, &notes, lanes, BPM);
     }
     v
 }
@@ -826,12 +859,14 @@ pub fn render(out: &Path) -> bool {
         ("hoedown", 0u8),
         ("pasaje-clasico", 1),
         ("pasaje-country", 2),
+        ("tren", 3),
     ] {
         let data = tempfile::tempdir().expect("a data folder");
         let (mut app, _proc) = super::app_on(data.path(), cantus_core::Project::new(name));
         let tracks = match which {
             0 => build_tune(&mut app),
             1 => vec![build_passage(&mut app, false)],
+            3 => super::fiddle2::build(&mut app),
             _ => vec![build_passage(&mut app, true)],
         };
         app.save_to_path(&out.join(format!("{name}.cantus")));
@@ -843,7 +878,23 @@ pub fn render(out: &Path) -> bool {
         let _ = std::fs::remove_file(&again);
         let a = measure::read_wav(&wav);
         let lv = measure::level(&a);
-        let x = measure::mono(&a);
+        // The boundaries are heard in the fiddle's own stems (in the band's mix the
+        // cross-stick on 2 and 4 lands on the fiddle's starts).
+        let stems = out.join(format!("{name}-stems"));
+        super::export(&mut app, &stems, true);
+        let fiddle_mix = std::fs::read_dir(&stems)
+            .expect("the stems")
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.contains("Violín"))
+            })
+            .map(|p| measure::mono(&measure::read_wav(&p)))
+            .reduce(|a, b| a.iter().zip(&b).map(|(x, y)| x + y).collect())
+            .expect("a violin stem");
+        let x = fiddle_mix;
         let p = app.project();
         let tm = p.tempo_map();
         let mut at: Vec<(f64, &'static str)> = Vec::new();
@@ -857,7 +908,10 @@ pub fn render(out: &Path) -> bool {
             }
         }
         let edges = measure::edges(&x, a.rate, &at);
-        let worst = edges.iter().map(|e| e.over_db).fold(f64::NEG_INFINITY, f64::max);
+        let worst = edges
+            .iter()
+            .map(|e| e.over_db)
+            .fold(f64::NEG_INFINITY, f64::max);
         let pass = same && lv.dbtp <= -0.9 && lv.full_scale == 0 && worst < 15.0;
         ok &= pass;
         println!(

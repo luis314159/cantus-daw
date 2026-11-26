@@ -53,18 +53,18 @@ fn lower() -> Vec<ArcusSettings> {
 /// along the stick and the arm's weight there, a stroke from the string with its force's
 /// contour, the open string's and the fast passage's vibrato, the shift's finger. The measured
 /// size (`probe_player_size`, the player off — pass 6's bits, [`PASS6_HASHES`] — against on):
-/// the RMS of the cello's four renders +0.09, −0.01, +0.01, −0.23 dB and the bass's three −3.50,
-/// −1.18, −0.08 dB; their difference +2.7, −2.0, −11.3, −12.5 (cello) and −0.8, −6.4, −11.4 dB
+/// the RMS of the cello's four renders +0.30, −0.06, +0.01, −0.24 dB and the bass's three −1.93,
+/// −1.19, −0.06 dB; their difference +1.2, −4.4, −22.4, −12.7 (cello) and −1.0, −6.4, −21.4 dB
 /// (bass) re each render — the bowed ones at the signal's level (the vibrato's and the strokes'
 /// shapes move them), every one on purpose.
 const LOWER_HASHES: &[u64] = &[
-    0x087841e8d0723fec,
-    0xb195bbb88760cfa7,
-    0xf1c2da52e814d278,
-    0x1b0e73603bd2a934,
-    0xdbe7450453b5385c,
-    0x7354e5a49d266776,
-    0x371f19da15004043,
+    0x0bc1035d57c1b9c9,
+    0x009de863481bb899,
+    0xa5fce59fe0fd3315,
+    0xd901c894ec7ac2a6,
+    0x9114597ec54d728d,
+    0x78e40fe592b9a488,
+    0xc8a91674dd71955c,
 ];
 
 /// r42 arcus-expr — pass 6's [`LOWER_HASHES`] (`DSP_VERSION` 14): the null of the player
