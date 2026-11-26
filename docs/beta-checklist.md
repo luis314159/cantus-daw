@@ -1213,3 +1213,42 @@ Verificado solo en pruebas sin pantalla (`tests/editor_windows_e2e.rs`). En tu p
   nativo: ¿se queda, se mueve y se cierra como los nativos?
 - [ ] **Dos pantallas (ADR 0148)**: un editor fijado en una ventana propia en la otra pantalla:
   ¿se queda al abrir otro en la principal?
+
+### Ronda 42 — la actualización dentro de la app, de punta a punta, en Windows <!-- r42:fix-update-dim -->
+
+0.1.0-beta.16 y beta.17 se compilaron exigiendo la firma de un editor **sin nombre**
+(`CANTUS_PUBLISHER` vacío en `release.yml`) y rechazan todo instalador sin firmar: «The
+installer is not signed by Cantus's publisher, so it was deleted». El camino de actualizar
+dentro de la app **nunca se había recorrido entero** desde la ronda 20. Lo arregla beta.18
+(verify.rs, `release.yml`, RELEASING L9); las pruebas son sin pantalla y con la respuesta
+real de Windows sobre el instalador de beta.17. Antes de dar el actualizador por arreglado,
+y **después de cada versión, antes de anunciarla** (RELEASING L9), en tu PC:
+
+- [ ] **Una vez, a mano (beta.16/beta.17 → beta.18)**: en una copia instalada de beta.16 o
+  beta.17, *Ayuda ▸ Buscar actualizaciones…* debe decir «Ya salió Cantus 0.1.0-beta.18;
+  tienes la 0.1.0-beta.17.» *Descargar* fallará como antes (esas copias no se pueden
+  arreglar): el texto en rojo y el botón **Página de la versión** deben estar; instala
+  beta.18 desde esa página. Es lo que dirán las notas de beta.18.
+- [ ] **La prueba de cada versión (beta.N instalada → beta.N+1 publicada)**, desde beta.18:
+  1. Instala beta.N con su instalador (no el zip portátil) y ábrela. Si hace falta, en
+     *Ajustes ▸ Actualizaciones* deja *Comprobar a diario* activo.
+  2. Tras publicar beta.N+1: *Ayuda ▸ Buscar actualizaciones…*. Estado esperado: «Cantus
+     0.1.0-beta.N+1 is out — you have 0.1.0-beta.N.» / «Ya salió Cantus 0.1.0-beta.N+1;
+     tienes la 0.1.0-beta.N.», con las notas de la versión.
+  3. *Descargar* (*Download*): «Downloading… X MB of Y MB» / «Descargando… X MB de Y MB»
+     subiendo hasta el tamaño del instalador (~420 MB). Con el proxy de la oficina puede
+     salir «The network is holding the download…» / «La red está reteniendo la descarga…»:
+     espera, se reintenta solo.
+  4. Al acabar: «Downloaded and verified. It installs when you close Cantus. Verified:
+     SHA-256 matches the release.» / «Descargada y verificada. Se instala al cerrar Cantus.
+     Verificada: el SHA-256 coincide con el publicado.» (Si la versión va firmada: «Verified:
+     SHA-256 matches, signed by <editor>.») **Ningún texto en rojo.**
+  5. *Restart and update* / *Reiniciar y actualizar*: Cantus se cierra, el instalador corre y
+     Cantus vuelve a abrirse; *Ayuda ▸ Acerca de Cantus* dice 0.1.0-beta.N+1, y tus ajustes y
+     proyectos recientes siguen ahí.
+  6. Apunta el resultado (fecha, N → N+1, ok o el texto exacto si falló) aquí o en
+     `docs/releases/v<N+1>.md`; el preflight de la siguiente versión lo pide (L9).
+- [ ] **El aviso y su ventana** (lo de oscurecerse): con el aviso «Cantus … is available» abajo
+  a la derecha, la app **no** debe verse oscura; al hacer clic se abre *Actualizaciones* y el
+  fondo se oscurece, con la ventana nítida encima; ciérrala con ✕, *Later*, `Esc` o *Skip this
+  version*: el fondo vuelve a verse normal y la app responde a los clics.
