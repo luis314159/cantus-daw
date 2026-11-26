@@ -184,6 +184,7 @@ impl Locale {
                 include_str!("../locales/areas/tuning.en.txt"), // r42:contract
                 include_str!("../locales/areas/strings_rec.en.txt"), // r42:contract
                 include_str!("../locales/areas/arcus_expr.en.txt"), // r42 arcus-expr
+                include_str!("../locales/areas/arcus_fiddle.en.txt"), // r42 fiddle
                 include_str!("../locales/areas/chorda_source.en.txt"), // r40:p3
                 include_str!("../locales/areas/inst_mixer.en.txt"), // r40:p3
                 include_str!("../locales/areas/screens.en.txt"), // multimon (ADR 0148, proposed)
@@ -339,6 +340,7 @@ impl Locale {
                 include_str!("../locales/areas/tuning.es.txt"), // r42:contract
                 include_str!("../locales/areas/strings_rec.es.txt"), // r42:contract
                 include_str!("../locales/areas/arcus_expr.es.txt"), // r42 arcus-expr
+                include_str!("../locales/areas/arcus_fiddle.es.txt"), // r42 fiddle
                 include_str!("../locales/areas/chorda_source.es.txt"), // r40:p3
                 include_str!("../locales/areas/inst_mixer.es.txt"), // r40:p3
                 include_str!("../locales/areas/screens.es.txt"), // multimon (ADR 0148, proposed)

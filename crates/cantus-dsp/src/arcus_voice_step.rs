@@ -92,7 +92,7 @@ fn age_ramp(v: &Voice, s: &ArcusSettings, sr: f32, plucked: bool, ctl: Option<f3
     if plucked {
         return 0.0;
     }
-    let od = v.inst.spec().vib.onset_dyn;
+    let od = v.spec().vib.onset_dyn;
     let delay = s.vib_delay_ms * (1.0 + od * (0.5 - v.d)).clamp(0.3, 2.5);
     let age_ms = 1000.0 * v.vib_age as f32 / sr;
     smooth((age_ms - delay) / s.vib_attack_ms.max(1.0))
@@ -100,6 +100,24 @@ fn age_ramp(v: &Voice, s: &ArcusSettings, sr: f32, plucked: bool, ctl: Option<f3
 
 /// r42:arcus-p5 — the per-cycle walk's memory from one cycle to the next.
 const VIB_RHO: f32 = 0.0;
+
+/// r42 fiddle — the grit's rise, dB at `grit` 1: with the force from 0.35 of the region's
+/// upper limit to it, and with the contact from β 0.1 to 0.035 (a fiddler's bow at the
+/// bridge, pressed). Measured in the lab (`examples/fiddle_lab`, `tools/arcus/fiddle`): at
+/// 12 + 8 dB the fast run's noise between the harmonics passed them (+2 dB, the pitch lost
+/// to the tracker); at 5 + 3.5 dB it rises −17.4 → −15.4 dB and the bow changes' flux cues
+/// fall 0.53 → 0.37 of the notes.
+pub(super) const GRIT_F_DB: f32 = 5.0;
+pub(super) const GRIT_B_DB: f32 = 3.5;
+
+/// r42 fiddle — the hair noise's gain for the bow's grit at force `f` against the region's
+/// upper limit `f_max`, at the contact `beta`.
+fn grit_gain(grit: f32, f: f32, f_max: f32, beta: f32) -> f32 {
+    let r = if f_max > 0.0 { f / f_max } else { 0.0 };
+    let by_f = ((r - 0.35) / 0.65).clamp(0.0, 1.5);
+    let by_b = (math::log2(0.1 / beta.max(1e-3)) / 1.5).clamp(0.0, 1.0);
+    math::db_to_gain(grit.clamp(0.0, 2.0) * (GRIT_F_DB * by_f + GRIT_B_DB * by_b))
+}
 
 fn smooth(x: f32) -> f32 {
     let x = x.clamp(0.0, 1.0);
@@ -112,7 +130,7 @@ impl Voice {
     pub(super) fn step(&mut self, sh: &Shared, span: usize) {
         let s = sh.s;
         let sr = sh.sr;
-        let spec = self.inst.spec();
+        let spec = self.spec();
         let st = spec.strings[self.string_ix];
         let dt = span as f32 / sr;
         // The dynamic glides to its target (a controller's steps smoothed).
@@ -182,8 +200,18 @@ impl Voice {
             self.tune = now;
         }
         let tun = self.tune;
-        let semis =
+        let mut semis =
             (self.note + self.glide + sh.ctl.bend * s.bend_st + self.tuning) as f64 + tun as f64;
+        // r42 fiddle: a double stop's just interval (`pair`; none without one).
+        let paired = Self::paired(s);
+        let (just1, just2) = if paired {
+            self.just_split(s)
+        } else {
+            (0.0, 0.0)
+        };
+        if just1 != 0.0 {
+            semis += 0.01 * just1;
+        }
         let f = 440.0 * math::exp2((semis + 0.01 * self.vib_now as f64 - 69.0) / 12.0);
         self.f0 = f;
         // The register's balance (the vibrato left out: it is the note's level, not its
@@ -194,6 +222,11 @@ impl Voice {
         let stopped = (st.open_hz() / f).clamp(0.1, 1.0);
         let mut t60 = st.t60_s * s.decay.max(0.05) as f64 * (0.55 + 0.45 * stopped);
         let mut p_loss = st.p;
+        // r42 fiddle: steel strings (exactly 1 at `steel` 0).
+        if s.steel > 0.0 {
+            t60 *= super::pair::steel_t60(s);
+            p_loss *= super::pair::steel_p(s);
+        }
         if plucked {
             if spec.pizz_t60.is_empty() {
                 t60 *= s.pizz_decay.max(0.05) as f64;
@@ -255,8 +288,30 @@ impl Voice {
             self.fbuf[j] = f_a + (f_b - f_a) * u;
         }
         // The bow-hair noise: the friction's roughness, a band of noise.
+        // r42 fiddle: one bow on two strings — the shares of its force, the second string's
+        // step (on the first's unscaled force), the first's share (exactly 1 alone).
+        if paired {
+            self.step_shares(s, dt);
+            if self.sec.on {
+                self.step_second(sh, span, &bw, pos, spd, just2);
+            }
+            if self.w1 != (1.0, 1.0) {
+                for j in 0..span {
+                    let u = (j + 1) as f32 / span as f32;
+                    self.fbuf[j] *= self.w1.0 + (self.w1.1 - self.w1.0) * u;
+                }
+            }
+        }
         if self.bow_on && s.bow_noise_db > -60.0 {
-            let lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
+            let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale(); // r42:arcus-upper
+                                                                                              // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+            if s.grit > 0.0 {
+                lvl *= grit_gain(s.grit, self.force, self.f_max, self.beta);
+            }
+            // r42 fiddle: the chop's scratch while the bow presses.
+            if self.tech == NoteTech::Chop && matches!(self.phase, Phase::Attack | Phase::Hold) {
+                lvl *= math::db_to_gain(CHOP_NOISE_DB);
+            }
             for j in 0..span {
                 let w = self.rng.bipolar();
                 self.roughs[j] = lvl * self.rough.tick(w);
@@ -272,7 +327,7 @@ impl Voice {
             // r42:arcus-p5: a tremolo's strokes are heard, never trimmed by — each stroke
             // is a new start, its settling not the note's pitch (the loop followed it 2–4
             // cents sharp, and before the ear's cut it random-walked with every reversal).
-            let held = self.tech == NoteTech::Tremolo;
+            let held = matches!(self.tech, NoteTech::Tremolo | NoteTech::Chop); // r42 fiddle
             if let Some(heard) = self.ear.take().filter(|_| !held) {
                 self.trim = (self.trim + (TRIM_GAIN * heard).clamp(-TRIM_STEP, TRIM_STEP))
                     .clamp(-15.0, 15.0);
@@ -300,10 +355,16 @@ impl Voice {
             p: p_loss,
             beta: if plucked { s.pizz_pos as f64 } else { bw.beta },
             dc: !self.bow_on,
-            corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f), // r42:arcus-upper
+            corner_hz: super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
+                * super::pair::steel_corner(s), // r42 fiddle
         };
         if self.first {
             self.string.start(st.z0() as f32, &step, true);
+            self.restring = false; // r42 fiddle
+        } else if self.restring {
+            // r42 fiddle: the bow crossed onto a string at rest.
+            self.string.start(st.z0() as f32, &step, false);
+            self.restring = false;
         } else {
             self.string.design(&step, span as u32);
         }
@@ -424,6 +485,8 @@ impl Voice {
                 // the stroke's speed; the stroke's contour does the rest.
                 let reach = if self.kind == 1 {
                     bow::STRING_V0 * tv
+                } else if self.tech == NoteTech::Chop {
+                    CHOP_SPEED * tv // r42 fiddle
                 } else {
                     tv
                 };
@@ -479,6 +542,12 @@ impl Voice {
                         } else {
                             (c_v, c_f)
                         };
+                    // r42 fiddle: the chop holds its landing force at its own slow speed.
+                    let (tv, tf, c_f) = if self.tech == NoteTech::Chop {
+                        (CHOP_SPEED * tv, self.land, 1.0)
+                    } else {
+                        (tv, tf, c_f)
+                    };
                     self.v_mag += (tv - self.v_mag) * c_v;
                     self.force += (tf - self.force) * c_f;
                     // r42 arcus-expr: the bow has run out — the player changes it.
@@ -491,7 +560,9 @@ impl Voice {
                         self.kind = 0;
                         self.t = 0;
                     }
-                    if self.tech == NoteTech::Staccato && t_s >= STACCATO_S {
+                    if (self.tech == NoteTech::Staccato && t_s >= STACCATO_S)
+                        || (self.tech == NoteTech::Chop && t_s >= CHOP_S)
+                    {
                         self.phase = Phase::Stop;
                         self.t = 0;
                     }
@@ -583,7 +654,7 @@ impl Voice {
                     v: &self.v[a..b],
                     force: &self.fbuf[a..b],
                     rough: &self.roughs[a..b],
-                    friction: self.inst.spec().friction(sh.s.friction), // r42:arcus-p6
+                    friction: self.spec().friction(sh.s.friction), // r42:arcus-p6
                 })
             } else {
                 None
@@ -610,6 +681,10 @@ impl Voice {
             if self.bow_on {
                 self.ear.hear(&self.tmp[..k]);
             }
+            // r42 fiddle: the second string under the same bow, or ringing.
+            if self.sec.on {
+                self.render_second(sh, a, b, grid_end);
+            }
             for j in 0..k {
                 let mut x = self.tmp[j];
                 if self.lvl != (1.0, 1.0) {
@@ -627,7 +702,8 @@ impl Voice {
             self.pos = b;
             i += k;
             if grid_end {
-                let rang_out = !self.bow_on && self.pluck.done() && !self.string.is_live();
+                let rang_out =
+                    !self.bow_on && self.pluck.done() && !self.string.is_live() && !self.sec.on; // r42 fiddle
                 let faded = self.fade_step > 0.0 && self.fade <= 0.0;
                 if rang_out || faded {
                     self.end();

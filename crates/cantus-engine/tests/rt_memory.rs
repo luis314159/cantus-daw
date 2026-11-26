@@ -4695,3 +4695,29 @@ fn an_arcus_violin_and_viola_never_allocate() {
         0.0,
     );
 } // r42:arcus-upper
+
+/// r42 fiddle (ADR 0164) — the country fiddle: one bow on two strings (the clip's overlapping
+/// notes on two strings bowed together, the strings the bow leaves ringing), the open strings
+/// in sympathy, the grit, the steel set, the just double stops — on the audio thread and the
+/// pool, with the same articulations, modulation and tunings, the fiddle switched to the
+/// cello in the same instance — not one allocation, not one free.
+#[test]
+fn an_arcus_fiddle_never_allocates() {
+    let fiddle = |extra: f32| {
+        vec![
+            ("inst", 2.0f32),
+            ("mode", 2.0),
+            ("bow.pair", 1.0),
+            ("sym", 1.0 + extra),
+            ("bow.grit", 1.0),
+            ("steel", 1.0),
+            ("dstop.just", 0.6),
+        ]
+    };
+    arcus_rig(
+        [("Fiddle", fiddle(0.0)), ("Fiddle 2", fiddle(0.5))],
+        [69, 76, 81, 74, 79],
+        62,
+        0.0,
+    );
+}

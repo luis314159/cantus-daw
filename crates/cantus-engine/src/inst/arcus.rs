@@ -84,6 +84,15 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         vib_dyn: v[ix::VIB_DYN],       // r42:arcus-p5
         player: v[ix::PLAYER],         // r42 arcus-expr
         bow_weight: v[ix::BOW_WEIGHT], // r42 arcus-expr
+        pair: round(ix::PAIR),         // r42 fiddle
+        tilt: v[ix::TILT],
+        just: v[ix::JUST],
+        sym: v[ix::SYM],
+        grit: v[ix::GRIT],
+        steel: v[ix::STEEL],
+        cross: round(ix::CROSS).clamp(0.0, 5.0) as u8,
+        mic: round(ix::MIC),
+        bridge: v[ix::BRIDGE],
         pizz_pos: v[ix::PIZZ_POS],
         pizz_soft_ms: v[ix::PIZZ_SOFT],
         pizz_decay: v[ix::PIZZ_DECAY],
@@ -133,6 +142,7 @@ pub fn art_of(art: NoteArt) -> (Option<Art>, Option<BowDir>) {
         Articulation::Spiccato => Art::Spiccato,
         Articulation::Pizzicato => Art::Pizzicato,
         Articulation::Tremolo => Art::Tremolo,
+        Articulation::Chop => Art::Chop, // r42 fiddle
     };
     let b = art.bow.map(|b| match b {
         Bow::Down => BowDir::Down,

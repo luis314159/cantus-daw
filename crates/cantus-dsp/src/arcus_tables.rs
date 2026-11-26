@@ -54,6 +54,18 @@ impl Instrument {
         Self::ALL[k]
     }
 
+    /// r42 fiddle (ADR 0164) — its table in cross-tuning `cross` (`tuning.strings`; the
+    /// violin's only — every other instrument, and 0, is [`Self::spec`] itself).
+    pub fn spec_crossed(self, cross: u8) -> &'static InstrumentSpec {
+        match self {
+            Instrument::Violin if cross > 0 => {
+                &super::upper::tables::VIOLIN_CROSS
+                    [(cross as usize).min(super::upper::tables::VIOLIN_CROSS.len() - 1)]
+            }
+            _ => self.spec(),
+        }
+    }
+
     pub fn spec(self) -> &'static InstrumentSpec {
         match self {
             Instrument::Cello => &CELLO,

@@ -59,6 +59,44 @@ pub struct Shape {
     /// r42 fix2-arcus — the instrument's own size (`size` at the knob's 1): where the power
     /// gain is measured exactly.
     pub own: f32,
+    /// r42 fiddle (ADR 0164) — one close microphone (the fiddle's): both sides hear the left
+    /// microphone's radiation. The pair's (`false`) hears each mode above [`RADIATION_HZ`]
+    /// with its own sign and strength at each side, which a mono sum cancels in part: the
+    /// fiddle's songs summed to mono lost 8–12 dB at 1.6–2.5 kHz against either side alone.
+    pub mono: bool,
+    /// r42 fiddle (ADR 0164) — a fiddle's bridge (0 the measured violin's … 1): its rocking
+    /// mode's hill raised and its top falling sooner ([`bridge_gain`]).
+    pub bridge: f32,
+}
+
+/// r42 fiddle — a fiddle's bridge at 1: the bridge hill (its rocking mode, Jansson's 2–3 kHz)
+/// raised by `BRIDGE_HILL_DB` at `BRIDGE_HILL_HZ`, over ± `BRIDGE_HILL_OCT` octaves (a raised
+/// cosine in log frequency), and the modes above it falling by `BRIDGE_TOP_DB` from
+/// `BRIDGE_TOP_HZ` (a smoothstep over half an octave): a lower, thinner bridge's response, the
+/// fiddle's bright, slightly nasal middle without the classical violin's top. Measured on the
+/// fiddle songs' stems against the bluegrass references' third-octaves
+/// (`tools/arcus/fiddle/fiddle_ltas.py`, `docs/round42/fiddle.md` §3).
+pub const BRIDGE_HILL_HZ: f64 = 2300.0;
+pub const BRIDGE_HILL_OCT: f64 = 1.1;
+pub const BRIDGE_HILL_DB: f64 = 4.0;
+pub const BRIDGE_TOP_HZ: f64 = 4500.0;
+pub const BRIDGE_TOP_DB: f64 = -8.0;
+
+/// The gain a mode at `hz` takes from a fiddle's bridge at `amount` (exactly 1 at 0).
+pub fn bridge_gain(hz: f64, amount: f32) -> f64 {
+    if amount <= 0.0 {
+        return 1.0;
+    }
+    let x = math::log2(hz.max(1.0) / BRIDGE_HILL_HZ) / BRIDGE_HILL_OCT;
+    let hill = if x.abs() < 1.0 {
+        0.5 + 0.5 * math::cos(std::f64::consts::PI * x)
+    } else {
+        0.0
+    };
+    let u = (math::log2(hz.max(1.0) / BRIDGE_TOP_HZ) / 0.5).clamp(0.0, 1.0);
+    let top = u * u * (3.0 - 2.0 * u);
+    let db = amount.clamp(0.0, 2.0) as f64 * (BRIDGE_HILL_DB * hill + BRIDGE_TOP_DB * top);
+    math::powf(10.0, db / 20.0)
 }
 
 /// The body on the audio thread.
@@ -88,7 +126,7 @@ pub struct UpperBody {
     /// r42 fix2-arcus — the exact power gain (each microphone) measured on the lattice
     /// ([`LATTICE`]), `NAN` until measured, for the shape it was measured on (its modes, own
     /// size and trim).
-    norm_for: Option<(&'static [Mode], u32, u32)>,
+    norm_for: Option<(&'static [Mode], u32, u32, bool, u32)>,
     norm: [[f64; 2]; LATTICE],
     /// How many exact measures were taken (each `O(n²)`): tests.
     measured: u32,
@@ -198,11 +236,13 @@ impl UpperBody {
             }
             let q = (m.q * ring.max(0.05)) as f64;
             let (gl, gr) = radiation(k as u64, hz);
+            let gr = if sh.mono { gl } else { gr }; // r42 fiddle
             let trim = if m.hz as f64 >= CLOUD_HZ.0 {
                 sh.hf_trim as f64
             } else {
                 1.0
             };
+            let trim = trim * bridge_gain(hz, sh.bridge); // r42 fiddle
             coefs[used] = mode_coefs(hz, q, trim * m.a as f64, gl, gr, t);
             used += 1;
         }
@@ -215,7 +255,9 @@ impl UpperBody {
             let level = self.cloud_level[c];
             let q = CLOUD_Q * (0.7 + 0.6 * hash(c as u64, 43)) * ring.max(0.05) as f64;
             let (gl, gr) = radiation(1000 + c as u64, hz.max(RADIATION_HZ));
+            let gr = if sh.mono { gl } else { gr }; // r42 fiddle
             let a = sh.hf_trim as f64 * CLOUD_GAIN * level * (0.8 + 0.4 * hash(c as u64, 47));
+            let a = a * bridge_gain(hz, sh.bridge); // r42 fiddle
             coefs[used] = mode_coefs(hz, q, a, gl, gr, t);
             used += 1;
         }
@@ -250,11 +292,16 @@ impl UpperBody {
     /// samples (r42 fix2-arcus).
     fn power(&mut self, sh: &Shape) -> [f64; 2] {
         let own = sh.own;
-        let key = (sh.modes, own.to_bits(), sh.hf_trim.to_bits());
-        if !self
-            .norm_for
-            .is_some_and(|o| std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2)
-        {
+        let key = (
+            sh.modes,
+            own.to_bits(),
+            sh.hf_trim.to_bits(),
+            sh.mono,
+            sh.bridge.to_bits(),
+        );
+        if !self.norm_for.is_some_and(|o| {
+            std::ptr::eq(o.0, key.0) && o.1 == key.1 && o.2 == key.2 && o.3 == key.3 && o.4 == key.4
+        }) {
             self.norm = [[f64::NAN; 2]; LATTICE];
             self.norm_for = Some(key);
         }
@@ -540,5 +587,7 @@ pub fn shape_of(s: &super::super::ArcusSettings) -> Option<Shape> {
         mix: s.body_mix,
         hf_trim,
         own: scale,
+        mono: s.mic >= 0.5, // r42 fiddle
+        bridge: s.bridge,   // r42 fiddle
     })
 }

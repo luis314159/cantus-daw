@@ -36,6 +36,7 @@ impl Arcus {
             upper_body: upper::body::UpperBody::new(sample_rate), // r42:arcus-upper
             rad_c: [0.0; 5],
             rad: [[0.0; 4]; 2],
+            sym: sym::Sympathy::new(sample_rate), // r42 fiddle
             eq: eq::MatchEq::default(),
             out,
             hammer,
@@ -81,6 +82,31 @@ impl Arcus {
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
         self.out.set(&self.s.output());
         self.rad_c = radiation(self.s.instrument.spec().radiation_hz, self.sr);
+        self.sym_tune(); // r42 fiddle
+    }
+
+    /// r42 fiddle — the sympathetic strings' tuning and coupling from the settings and the
+    /// track's tuning.
+    fn sym_tune(&mut self) {
+        let spec = self.s.instrument.spec_crossed(self.s.cross);
+        let mut off = [0.0f32; 4];
+        for (o, st) in off.iter_mut().zip(spec.strings.iter()) {
+            let t = crate::tuning::at(&self.tuning, st.open);
+            *o = if t.is_finite() { t } else { 0.0 };
+        }
+        let ring = self.s.decay.max(0.05) as f64 * voice::steel_t60_of(&self.s);
+        self.sym.set(spec, off, self.s.sym, ring);
+        self.sym_taken();
+    }
+
+    /// r42 fiddle — which strings the voices are on now (at a note's event only: the
+    /// samples never depend on where the blocks were cut).
+    fn sym_taken(&mut self) {
+        let mut m = 0u8;
+        for v in self.voices.iter() {
+            m |= v.strings_held();
+        }
+        self.sym.set_taken(m);
     }
 
     /// The pitch table the bowed notes are corrected by (`None`: none — the tool that
@@ -93,6 +119,7 @@ impl Arcus {
     /// for a key it leaves unmapped. All zeros changes nothing, to the bit.
     pub fn set_tuning(&mut self, offsets: &[f32; 128]) {
         self.tuning = *offsets;
+        self.sym_tune(); // r42 fiddle
     }
 
     /// The next note's own articulation and bow (ADR 0158).
@@ -211,6 +238,30 @@ impl Arcus {
             return; // a key the tuning's keyboard map leaves unmapped plays nothing
         }
         let silent = self.voices.iter().all(|v| !v.active());
+        // r42 fiddle (ADR 0164): a note that starts with the last one on another string is
+        // its double stop under the same bow (`pair`, a mono instrument).
+        if self.s.pair >= 0.5 && self.s.mode != PlayMode::Poly && self.last_on == Some(self.clock) {
+            let v = self.newest.min(MAX_VOICES - 1);
+            let tech = NoteTech::of(self.s.technique, art);
+            if matches!(tech, NoteTech::Arco | NoteTech::Staccato | NoteTech::Chop)
+                && self.voices[v].active()
+            {
+                let sh = Shared {
+                    s: &self.s,
+                    sr: self.sr,
+                    ctl: &self.ctl,
+                    tuning: &self.tuning,
+                    hammer: &self.hammer,
+                    hammer_area: self.hammer_area,
+                    table: self.table,
+                    clock: self.clock,
+                };
+                if self.voices[v].join(&sh, key, id, velocity, &how) {
+                    self.sym_taken();
+                    return;
+                }
+            }
+        }
         // r42 arcus-expr: the passage's speed, from the last note-on (none after silence).
         let fast = !silent
             && self
@@ -257,7 +308,7 @@ impl Arcus {
                     Some(Art::Sustain | Art::Legato | Art::Tremolo) => {
                         matches!(sounding, NoteTech::Arco | NoteTech::Tremolo)
                     }
-                    Some(Art::Staccato | Art::Spiccato | Art::Pizzicato) => false,
+                    Some(Art::Staccato | Art::Spiccato | Art::Pizzicato | Art::Chop) => false,
                     None => sounding != NoteTech::Pizzicato && self.s.technique == Technique::Arco,
                 };
                 if slur {
@@ -275,6 +326,7 @@ impl Arcus {
             }
             Action::Nothing => {}
         }
+        self.sym_taken(); // r42 fiddle
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -365,11 +417,46 @@ impl Arcus {
     }
 
     pub fn note_off(&mut self, key: u8, id: u64) {
+        // r42 fiddle: a double stop's or a drone's note is the voice's, not the allocator's.
+        // (The allocator still hears the key, so its stack forgets it.)
+        if self.s.pair >= 0.5 {
+            let mut done = false;
+            for v in self.voices.iter_mut().take(MAX_VOICES) {
+                if v.second_is(key, id) {
+                    v.release_second();
+                    done = true;
+                    break;
+                }
+                if v.orphan_is(key, id) {
+                    v.release();
+                    done = true;
+                    break;
+                }
+            }
+            match self.alloc.note_off(key, id) {
+                Action::Release { voice } if !done => {
+                    if let Some(v) = self.voices.get_mut(voice) {
+                        v.release_note();
+                    }
+                }
+                Action::Glide {
+                    voice, id: back, ..
+                } if !done => {
+                    if let Some(v) = self.voices.get_mut(voice) {
+                        v.release_to(back);
+                    }
+                }
+                _ => {}
+            }
+            self.sym_taken();
+            return;
+        }
         if let Action::Release { voice } = self.alloc.note_off(key, id) {
             if let Some(v) = self.voices.get_mut(voice) {
                 v.release();
             }
         }
+        self.sym_taken(); // r42 fiddle
     }
 
     /// Stop the note at once (a choke): it fades out.
@@ -381,6 +468,7 @@ impl Arcus {
             self.voices[u].fade_out(self.sr);
             let _ = self.alloc.note_off(key, id);
         }
+        self.sym_taken(); // r42 fiddle
     }
 
     /// A per-note expression: `0` tuning (semitones), `1` pressure, `2` slide (0 … 1).
@@ -388,6 +476,8 @@ impl Arcus {
         for v in self.voices.iter_mut().take(MAX_VOICES) {
             if v.active() && v.id() == id {
                 v.expression(which, value);
+            } else if v.second_is_id(id) {
+                v.expression_second(which, value); // r42 fiddle
             }
         }
     }
@@ -406,6 +496,7 @@ impl Arcus {
         if self.s.mode != PlayMode::Poly {
             self.alloc.clear();
         }
+        self.sym_taken(); // r42 fiddle
     }
 
     pub fn reset(&mut self) {
@@ -416,6 +507,7 @@ impl Arcus {
         self.body.reset();
         self.upper_body.reset(); // r42:arcus-upper
         self.rad = [[0.0; 4]; 2];
+        self.sym.reset(); // r42 fiddle
         self.eq.reset();
         self.out.reset();
         self.clock = 0;
@@ -433,6 +525,7 @@ impl Arcus {
         self.voices.iter().all(|v| !v.active())
             && self.alloc.is_clear()
             && self.rad.iter().all(|r| *r == [0.0; 4])
+            && self.sym.is_still() // r42 fiddle
             && self.eq.is_still()
             && self.body.is_still()
             && self.upper_body.is_still() // r42:arcus-upper

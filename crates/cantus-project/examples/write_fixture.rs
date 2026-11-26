@@ -2153,6 +2153,30 @@ fn main() {
             n.set("colour", 0.6);
         }
     }
+    // r42 fiddle — Schema 85 (ADR 0164): the Arcus track's strings under one bow, in
+    // sympathy, gritty, steel, its double stops tuned most of the way to just.
+    if upto >= 85 {
+        let arcus = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Arcus")
+            .expect("the Arcus track");
+        if let InstrumentSpec::Native(spec) = &mut arcus.instrument {
+            for (k, v) in [
+                ("bow.pair", 1.0),
+                ("bow.tilt", 0.6),
+                ("dstop.just", 0.6),
+                ("bow.grit", 1.0),
+                ("sym", 1.2),
+                ("steel", 1.0),
+                ("tuning.strings", 1.0),
+                ("body.mic", 1.0),
+                ("body.bridge", 1.0),
+            ] {
+                spec.set(k, v);
+            }
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

@@ -1,0 +1,27 @@
+# The country fiddle (round 42, ADR 0164) — owned by the fiddle builder. Every key here needs its twin in arcus_fiddle.es.txt.
+arcus.bow.pair = One bow, two strings
+arcus.bow.pair.short = 2 strings
+arcus.bow.tilt = Bow tilt
+arcus.bow.tilt.short = Tilt
+arcus.dstop.just = Just double stops
+arcus.dstop.just.short = Just
+arcus.bow.grit = Bow grit
+arcus.bow.grit.short = Grit
+arcus.sym = Sympathetic strings
+arcus.sym.short = Sympathy
+arcus.steel = Steel strings
+arcus.steel.short = Steel
+arcus.strings = Strings and bow
+art.chop = Chop
+arcus.tuning.strings = Strings' tuning
+arcus.tuning.strings.short = Tuning
+arcus.cross_kind.standard = Standard (GDAE)
+arcus.cross_kind.aeae = AEAE
+arcus.cross_kind.gdgd = GDGD
+arcus.cross_kind.adae = ADAE
+arcus.cross_kind.calico = Calico (AEAC#)
+arcus.cross_kind.ddad = DDAD
+arcus.body.mic = Close mic
+arcus.body.mic.short = Close mic
+arcus.body.bridge = Fiddle bridge
+arcus.body.bridge.short = Bridge

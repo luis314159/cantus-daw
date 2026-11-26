@@ -124,6 +124,18 @@ pub fn paint_mark(b: &mut Brush, c: Pos2, h: f32, a: Articulation, ink: Color32)
                 true,
             );
         }
+        // r42 fiddle: the chop — a cross, the stroke's scratch.
+        Articulation::Chop => {
+            for s in [-1.0f32, 1.0] {
+                b.segment(
+                    pos2(c.x - r * 0.6, c.y - s * r * 0.6),
+                    pos2(c.x + r * 0.6, c.y + s * r * 0.6),
+                    w * 1.4,
+                    ink,
+                    true,
+                );
+            }
+        }
         Articulation::Tremolo => {
             for k in [-1.0f32, 0.0, 1.0] {
                 let y = c.y + k * r * 0.45;

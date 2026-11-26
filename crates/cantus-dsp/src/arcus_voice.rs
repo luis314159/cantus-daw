@@ -20,8 +20,16 @@ mod step;
 pub(crate) use run::REBOW_FINGER; // r42:arcus-p5
 #[cfg(test)]
 pub(crate) use step::{CHANGE_KNOBS, SPIC_KNOBS, TREM_KNOBS}; // r42:arcus-p5
+#[path = "arcus_voice_pair.rs"] // r42 fiddle
+mod pair;
 #[path = "arcus_upper_voice.rs"] // r42:arcus-upper
-mod upper; // r42:arcus-upper
+mod upper; // r42:arcus-upper // r42 fiddle
+pub use pair::JUST_CT; // r42 fiddle
+
+/// r42 fiddle — a steel set's ring over the table's (exactly 1 at `steel` 0).
+pub fn steel_t60_of(s: &ArcusSettings) -> f64 {
+    pair::steel_t60(s)
+}
 
 /// The longest control step a voice renders: the grid's `CTRL` samples at the rate, which an
 /// upper string's voice at `os ×` the rate counts as `CTRL · os` of its own. // r42:arcus-upper
@@ -49,7 +57,19 @@ pub enum NoteTech {
     Spiccato,
     Pizzicato,
     Tremolo,
+    /// r42 fiddle (ADR 0164) — the chop: from the air at the frog, the force landing past the
+    /// Helmholtz region's upper limit at a fraction of the stroke's speed, the hair's noise
+    /// raised, stopped on the string ([`CHOP_S`]).
+    Chop,
 }
+
+/// r42 fiddle — the chop's force over the region's upper limit (Schelleng's raucous side),
+/// its speed over the stroke's, how long it draws before the bow stops on the string (s), and
+/// its hair noise over the bow's (dB).
+pub const CHOP_FORCE: f32 = 2.5;
+pub const CHOP_SPEED: f32 = 0.3;
+pub const CHOP_S: f32 = 0.06;
+pub const CHOP_NOISE_DB: f32 = 12.0;
 
 impl NoteTech {
     /// The note's own articulation over the instrument's technique.
@@ -59,6 +79,7 @@ impl NoteTech {
             Some(Art::Spiccato) => NoteTech::Spiccato,
             Some(Art::Pizzicato) => NoteTech::Pizzicato,
             Some(Art::Tremolo) => NoteTech::Tremolo,
+            Some(Art::Chop) => NoteTech::Chop, // r42 fiddle
             Some(Art::Sustain | Art::Legato) => NoteTech::Arco,
             None => match t {
                 Technique::Arco => NoteTech::Arco,
@@ -229,9 +250,11 @@ pub const REACH_ST: f64 = 14.0;
 pub fn reach(sample_rate: f32) -> usize {
     Instrument::ALL
         .iter()
-        .map(|i| {
-            let os = super::upper::factor(*i) as f64;
-            let low = i.spec().strings[0].open_hz() * math::exp2(-REACH_ST / 12.0);
+        .flat_map(|i| (0..super::upper::tables::CROSS.len() as u8).map(move |c| (*i, c)))
+        .map(|(i, c)| {
+            let os = super::upper::factor(i) as f64;
+            // r42 fiddle: a cross-tuning's lowest string (the violin's DDAD: D3) too.
+            let low = i.spec_crossed(c).strings[0].open_hz() * math::exp2(-REACH_ST / 12.0);
             (os * sample_rate as f64 / low).ceil() as usize
         })
         .max()
@@ -344,6 +367,16 @@ pub struct Voice {
     peak: f32,
     /// The rate the voice runs at (the upper strings' `os ×`) and its way back. // r42:arcus-upper
     rate: upper::Rate, // r42:arcus-upper
+    /// r42 fiddle (ADR 0164, `pair`) — the second string under the same bow, the first's
+    /// share of the bow's force (last step, this step: exactly 1 without a pair), whether the
+    /// first string's note is one the allocator never saw (a drone), and whether the first
+    /// string starts afresh at the next step (the bow crossed onto a string at rest).
+    sec: pair::Second,
+    /// r42 fiddle — the strings' cross-tuning this voice plays in (`ArcusSettings::cross`).
+    cross: u8,
+    w1: (f32, f32),
+    orphan: bool,
+    restring: bool,
     /// Tests: every sample's slip, recorded while `record` is set.
     #[cfg(test)]
     pub record: bool,
@@ -428,11 +461,21 @@ impl Voice {
             trem_g: 1.0,
             peak: 0.0,
             rate: upper::Rate::new(sample_rate), // r42:arcus-upper
+            sec: pair::Second::new(sample_rate), // r42 fiddle
+            cross: 0,
+            w1: (1.0, 1.0),
+            orphan: false,
+            restring: false,
             #[cfg(test)]
             record: false,
             #[cfg(test)]
             slips: Vec::new(),
         }
+    }
+
+    /// r42 fiddle — the instrument's table in the voice's cross-tuning (its own table at 0).
+    pub fn spec(&self) -> &'static InstrumentSpec {
+        self.inst.spec_crossed(self.cross)
     }
 
     pub fn active(&self) -> bool {
@@ -546,6 +589,11 @@ impl Voice {
         self.glide = 0.0;
         self.glide_step = 0.0;
         self.has_press = false;
+        // r42 fiddle: the second string and the pair's state.
+        self.sec.clear();
+        self.w1 = (1.0, 1.0);
+        self.orphan = false;
+        self.restring = false;
     }
 
     /// Fade out over 4 ms (taken by a new note, a choke), then end.
@@ -570,6 +618,7 @@ impl Voice {
 
     /// The key is let go: the bow lifts (a short stroke ends by itself).
     pub fn release(&mut self) {
+        self.sec.held = false; // r42 fiddle: the bow leaves both strings
         if !self.active || self.released {
             return;
         }

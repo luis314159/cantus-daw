@@ -101,6 +101,20 @@ fn shapes() -> Vec<(&'static str, NativeSpec)> {
                 ],
             ),
         ),
+        // r42 fiddle (ADR 0164): the violin with one bow on two strings, in sympathy, gritty,
+        // steel (the phrase's overlaps bowed together, its crossings ringing).
+        (
+            "the fiddle",
+            arcus(&[
+                ("inst", 2.0),
+                ("bow.pair", 1.0),
+                ("sym", 1.0),
+                ("bow.grit", 1.0),
+                ("steel", 1.0),
+                ("dstop.just", 0.6),
+                ("transpose", 12.0),
+            ]),
+        ),
     ]
 }
 
@@ -137,6 +151,24 @@ fn the_extras_at_their_defaults_change_no_sample() {
             arcus(&[("lowcut", 10.0), ("highcut", 20_000.0)]),
         ),
         ("no portamento", arcus(&[("porta", 0.0)])),
+        // r42 fiddle (ADR 0164): the strings under one bow, the sympathy, the grit, the steel
+        // and the just double stops at their defaults.
+        (
+            "the fiddle's keys at their defaults",
+            arcus(&[
+                ("bow.pair", 0.0),
+                ("bow.tilt", 0.5),
+                ("dstop.just", 0.0),
+                ("bow.grit", 0.0),
+                ("sym", 0.0),
+                ("steel", 0.0),
+            ]),
+        ),
+        // … and the ones that only act with a pair, without one.
+        (
+            "tilt and just without a pair",
+            arcus(&[("bow.tilt", 0.9), ("dstop.just", 1.0)]),
+        ),
         (
             "a route at depth 0",
             with_text(

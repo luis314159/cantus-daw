@@ -38,6 +38,8 @@ mod play;
 mod render;
 #[path = "arcus_string.rs"]
 pub mod string;
+#[path = "arcus_sym.rs"] // r42 fiddle
+pub mod sym; // r42 fiddle
 #[path = "arcus_tables.rs"]
 pub mod tables;
 #[cfg(test)]
@@ -47,6 +49,9 @@ mod tests;
 #[path = "arcus_tests_expr.rs"] // r42 arcus-expr
 #[allow(clippy::needless_range_loop, clippy::type_complexity)]
 mod tests_expr;
+#[cfg(test)]
+#[path = "arcus_tests_fiddle.rs"] // r42 fiddle
+mod tests_fiddle;
 #[cfg(test)]
 #[path = "arcus_tests_fix2.rs"] // r42 fix2-arcus
 mod tests_fix2;
@@ -142,6 +147,8 @@ pub enum Art {
     Spiccato,
     Pizzicato,
     Tremolo,
+    /// r42 fiddle (ADR 0164) — the chop.
+    Chop,
 }
 
 /// Which way the bow is drawn: down (from the frog) is `+`, up is `−`.
@@ -306,6 +313,37 @@ pub struct ArcusSettings {
     /// r42 arcus-expr — how much the force follows the bow's place (the arm's weight at the
     /// frog, its lightness at the tip): 0 none, 1 the player's, 2 twice.
     pub bow_weight: f32,
+    /// r42 fiddle (ADR 0164) — one bow on two strings: 0 off (each voice one string, to the
+    /// bit), 1 on — two notes that start together on two strings are one voice's double stop
+    /// under one bow (its speed, its hair's noise and its strokes shared, the force split by
+    /// `tilt`), a note held under others is a drone on its own string, and a string the bow
+    /// leaves at a crossing rings on under the next.
+    pub pair: f32,
+    /// r42 fiddle — a double stop's force on its lower string, a share (0.5 even: each string
+    /// its own stroke's force; 1 all on the lower).
+    pub tilt: f32,
+    /// r42 fiddle — how far a double stop's interval moves from the tempered one to its just
+    /// ratio (0 none … 1 just), the stopped string tuned to the open one.
+    pub just: f32,
+    /// r42 fiddle — the open strings ringing in sympathy through the bridge (0 none … 1 the
+    /// instrument's measured coupling … 2 twice).
+    pub sym: f32,
+    /// r42 fiddle — the bow's grit (0 none … 1 a fiddler's): the hair's noise rising as the
+    /// contact nears the bridge and the force nears Schelleng's upper limit.
+    pub grit: f32,
+    /// r42 fiddle — steel strings (0 the measured synthetic-core set … 1 steel): a sharper
+    /// corner, less loss in the upper partials, a longer ring.
+    pub steel: f32,
+    /// r42 fiddle — the strings' tuning (`tuning.strings`: 0 standard, 1 AEAE, 2 GDGD, 3 ADAE,
+    /// 4 calico, 5 DDAD — the violin's; `upper::tables::CROSS`).
+    pub cross: u8,
+    /// r42 fiddle — the microphones (the violin's and the viola's body): 0 the pair (each side
+    /// its own radiation above 700 Hz), 1 one close microphone (both sides alike: a mono sum
+    /// loses nothing).
+    pub mic: f32,
+    /// r42 fiddle — a fiddle's bridge on the violin's and the viola's body (0 the measured
+    /// violin's … 1: the bridge hill raised, the top falling sooner).
+    pub bridge: f32,
     /// Pizzicato: where it is plucked (from the bridge), the finger's softness (ms), how
     /// long it rings (× the string's).
     pub pizz_pos: f32,
@@ -367,6 +405,15 @@ impl Default for ArcusSettings {
             vib_dyn: 1.0,    // r42:arcus-p5
             player: 1.0,     // r42 arcus-expr
             bow_weight: 1.0, // r42 arcus-expr
+            pair: 0.0,       // r42 fiddle
+            tilt: 0.5,       // r42 fiddle
+            just: 0.0,       // r42 fiddle
+            sym: 0.0,        // r42 fiddle
+            grit: 0.0,       // r42 fiddle
+            steel: 0.0,      // r42 fiddle
+            cross: 0,        // r42 fiddle
+            mic: 0.0,        // r42 fiddle
+            bridge: 0.0,     // r42 fiddle
             pizz_pos: 0.22,
             pizz_soft_ms: 1.2,
             pizz_decay: 1.0,
@@ -490,6 +537,8 @@ pub struct Arcus {
     /// `(x₁, x₂, y₁, y₂)`.
     rad_c: [f32; 5],
     rad: [[f32; 4]; 2],
+    /// r42 fiddle — the open strings in sympathy (`sym`; never live at 0).
+    sym: sym::Sympathy,
     /// Model 2's correction on the output (`eq`).
     eq: eq::MatchEq,
     out: Output,

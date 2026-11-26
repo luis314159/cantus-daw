@@ -75,6 +75,7 @@ impl Voice {
             self.rate.base_sr = sh.sr;
             let sr = sh.sr * os as f32;
             self.string.set_rate(sr);
+            self.sec.string.set_rate(sr); // r42 fiddle
             self.pluck = Exciter::new(sr);
         }
         self.rate.reset();

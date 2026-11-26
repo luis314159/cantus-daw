@@ -20,16 +20,21 @@ pub enum Articulation {
     Spiccato,
     Pizzicato,
     Tremolo,
+    /// r42 fiddle (ADR 0164) — the chop: a short percussive stroke at the frog, pressed past
+    /// the bow's Helmholtz limit (a fiddler's scratch on the off-beats). Instruments that do not
+    /// bow play it as a staccato.
+    Chop,
 }
 
 impl Articulation {
-    pub const ALL: [Articulation; 6] = [
+    pub const ALL: [Articulation; 7] = [
         Articulation::Sustain,
         Articulation::Legato,
         Articulation::Staccato,
         Articulation::Spiccato,
         Articulation::Pizzicato,
         Articulation::Tremolo,
+        Articulation::Chop,
     ];
 
     /// Its locale key (`areas/strings_rec.*`).
@@ -41,6 +46,7 @@ impl Articulation {
             Articulation::Spiccato => "art.spiccato",
             Articulation::Pizzicato => "art.pizzicato",
             Articulation::Tremolo => "art.tremolo",
+            Articulation::Chop => "art.chop", // r42 fiddle (areas/arcus_fiddle.*)
         }
     }
 }

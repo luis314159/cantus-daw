@@ -81,6 +81,15 @@ const FRICTIONS: [Src<'static>; 2] = [
     Src::Key("arcus.friction_kind.hyperbolic"),
     Src::Key("arcus.friction_kind.thermal"),
 ];
+// r42 fiddle (ADR 0164): the violin's cross-tunings, in `tuning.strings`' order.
+const CROSS_TUNINGS: [Src<'static>; 6] = [
+    Src::Key("arcus.cross_kind.standard"),
+    Src::Key("arcus.cross_kind.aeae"),
+    Src::Key("arcus.cross_kind.gdgd"),
+    Src::Key("arcus.cross_kind.adae"),
+    Src::Key("arcus.cross_kind.calico"),
+    Src::Key("arcus.cross_kind.ddad"),
+];
 const DIRECTIONS: [Src<'static>; 3] = [
     Src::Key("arcus.dir_kind.alt"),
     Src::Key("arcus.dir_kind.down"),
@@ -439,6 +448,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s.s(card_h(86.0 + 6.0 + 86.0)),
         s.s(card_h(86.0)),
         s.s(card_h(86.0 + 6.0 + 86.0)),
+        s.s(card_h(86.0)), // r42 fiddle: one bow on two strings, the sympathy, the grit
     ];
     let total = heights.iter().sum::<f32>() + gutter * (heights.len() - 1) as f32;
     let (area, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), total), Sense::hover());
@@ -524,7 +534,10 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         s,
         "arcus.body",
         Function::Tone,
-        &[&["body.mix", "body.size", "body.ring"], &["decay", "ring"]],
+        &[
+            &["body.mix", "body.size", "body.ring", "body.bridge"],
+            &["decay", "ring", "body.mic"],
+        ],
     );
     let r5 = rows.row(heights[4], &[1.0]);
     cells_card(
@@ -555,6 +568,29 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
             &["poly", "finger", "porta", "bend"],
             &["octave", "transpose", "fine", "seed"],
         ],
+    );
+    // r42 fiddle (ADR 0164): the strings under one bow, in sympathy, gritty, steel.
+    let r7 = rows.row(heights[6], &[1.0]);
+    switched_card(
+        app,
+        ui,
+        track,
+        spec,
+        r7[0],
+        s,
+        "arcus.strings",
+        Function::Tone,
+        "tuning.strings",
+        &CROSS_TUNINGS,
+        300.0,
+        &[&[
+            "bow.pair",
+            "bow.tilt",
+            "dstop.just",
+            "bow.grit",
+            "sym",
+            "steel",
+        ]],
     );
 }
 

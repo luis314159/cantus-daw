@@ -156,6 +156,32 @@ match = ["x/*"]
 kind = "meta"
 match = ["*.json", "vsco_files.txt", "abx_phrase.*"]
 
+[[set]]
+id = "fiddle"
+dir = "fiddle"
+title = "Country, old-time and bluegrass fiddle: Freesound previews (CC BY 4.0 / 3.0, CC0), Wikimedia Commons fiddle tunes and violin double stops (CC BY / BY-SA), public-domain 78s (Eck Robertson 1922, Don Richardson 1916, Fiddlin' Powers 1924)"
+urls = ["https://freesound.org/people/TheFlyFishingFilmmaker/sounds/621593/", "https://commons.wikimedia.org/wiki/File:Willy_Wagtail.ogg", "https://archive.org/details/ACEckRobertsonSallieGoodenVictor18956"]
+version = "as served 2026-11-25"
+licence = "custom (per file: CC-BY-4.0, CC-BY-3.0, CC0-1.0, CC-BY-SA-3.0, CC-BY-2.5, US public domain)"
+terms = "each file's licence in sources/fiddle/manifest.json; the 78s are US public domain (first published 1925 or earlier, 17 U.S.C. sec. 1401)"
+use = "measure"
+tools = ["tools/arcus/fiddle/fiddle_measure.py (fiddle_groups.py)", "listening"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md", "manifest.json"]
+[set.origins.freesound]
+kind = "url"
+base = "https://cdn.freesound.org/previews/"
+match = ["freesound/*.mp3"]
+[set.origins.commons]
+kind = "url"
+base = "https://upload.wikimedia.org/wikipedia/commons/"
+match = ["commons/*.ogg"]
+[set.origins.archive]
+kind = "url"
+base = "https://archive.org/download/"
+match = ["pd78/*"]
+
 # ============================================================ the bowed-strings reference study
 # tools/arcus/study (catalog.py → extract.py → phrases.py → aggregate.py; cnsm.py, friction.py,
 # bowing.py, make_abx.py) reads these; research/instruments-next/bowed-realism.md is what it found.

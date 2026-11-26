@@ -1,0 +1,27 @@
+# El violín country (ronda 42, ADR 0164) — del constructor fiddle. Cada clave aquí tiene su gemela en arcus_fiddle.en.txt.
+arcus.bow.pair = Un arco, dos cuerdas
+arcus.bow.pair.short = 2 cuerdas
+arcus.bow.tilt = Inclinación del arco
+arcus.bow.tilt.short = Inclin.
+arcus.dstop.just = Dobles cuerdas justas
+arcus.dstop.just.short = Justas
+arcus.bow.grit = Grano del arco
+arcus.bow.grit.short = Grano
+arcus.sym = Cuerdas simpáticas
+arcus.sym.short = Simpatía
+arcus.steel = Cuerdas de acero
+arcus.steel.short = Acero
+arcus.strings = Cuerdas y arco
+art.chop = Chop (golpe)
+arcus.tuning.strings = Afinación de las cuerdas
+arcus.tuning.strings.short = Afinación
+arcus.cross_kind.standard = Normal (Sol Re La Mi)
+arcus.cross_kind.aeae = AEAE (La Mi La Mi)
+arcus.cross_kind.gdgd = GDGD (Sol Re Sol Re)
+arcus.cross_kind.adae = ADAE (La Re La Mi)
+arcus.cross_kind.calico = Calico (La Mi La Do#)
+arcus.cross_kind.ddad = DDAD (Re Re La Re)
+arcus.body.mic = Micrófono cercano
+arcus.body.mic.short = Mic. cerca
+arcus.body.bridge = Puente de fiddle
+arcus.body.bridge.short = Puente

@@ -64,7 +64,23 @@ impl Voice {
     ) {
         let s = sh.s;
         let was_bowing = keep && self.active && self.bowing; // r42 arcus-expr
-        let keep = keep && self.active && self.inst == s.instrument && self.same_rate(sh); // r42:arcus-upper
+        let keep = keep
+            && self.active
+            && self.inst == s.instrument
+            && self.cross == s.cross // r42 fiddle
+            && self.same_rate(sh); // r42:arcus-upper
+                                   // r42 fiddle: one bow on two strings — the note's string found first, the voice's two
+                                   // strings placed so the first is on it (`pair::place`); a string the bow leaves rings.
+        let mut fresh = false;
+        if keep && Self::paired(s) && tech.is_bowed() {
+            let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
+            let ix = self.string_of(s, note + crate::tuning::at(sh.tuning, key), how);
+            fresh = self.place(ix);
+            if fresh {
+                self.trim = 0.0;
+                self.ear.reset();
+            }
+        }
         if !keep {
             self.clear();
             self.vib_age = 0;
@@ -83,6 +99,7 @@ impl Voice {
         self.velocity = velocity.clamp(0.0, 1.0);
         self.tech = tech;
         self.inst = s.instrument;
+        self.cross = s.cross; // r42 fiddle
         self.rng = Rng::of(s.seed, key, id);
         if !keep {
             self.vib_phase = 0.25 * self.rng.unit() as f64;
@@ -113,14 +130,14 @@ impl Voice {
         // 4 ms wide on the cello's and the bass's every détaché (`docs/round42/arcus-match.md`,
         // *Pass 5*).
         let finger = rebow_finger_ms() * 0.001 * sh.sr;
-        if keep && self.bowing && tech.is_bowed() && finger >= 1.0 {
+        if keep && self.bowing && tech.is_bowed() && finger >= 1.0 && !fresh {
             self.glide = was - self.note - self.tune;
             self.glide_step = self.glide / finger;
         }
         self.tuning = 0.0;
         self.has_press = false;
         self.slide = 0.5;
-        let spec = self.inst.spec();
+        let spec = self.spec();
         // r42 arcus-expr: the fingering (`bow::finger`): the string, an open one's rules.
         let p = s.player.clamp(0.0, 1.0);
         if p > 0.0 {
@@ -226,8 +243,13 @@ impl Voice {
             z0,
             sh.sr as f64 / f,
         );
-        let (accel, mut f_attack) =
-            attack_of(s, self.velocity, &bw, tech == NoteTech::Staccato, 1.0 / f);
+        let (accel, mut f_attack) = attack_of(
+            s,
+            self.velocity,
+            &bw,
+            matches!(tech, NoteTech::Staccato | NoteTech::Chop), // r42 fiddle
+            1.0 / f,
+        );
         // r42 arcus-expr: a stroke from silence starts where its direction and part put the
         // bow, with the arm's weight there, from the string or from the air (`bow`).
         self.kind = 0;
@@ -256,10 +278,20 @@ impl Voice {
                 }
             }
         }
+        // r42 fiddle (ADR 0164): the chop — from the air at the frog, landing past the region's
+        // upper limit (`CHOP_FORCE`) at a fraction of the stroke's speed; never a bow change on
+        // the string (the bow is lifted and dropped).
+        if tech == NoteTech::Chop {
+            self.kind = 2;
+            if p > 0.0 && !was_bowing {
+                self.bx = bow::start_x(dir, Some(bow::Part::Frog), false);
+            }
+            self.land = super::CHOP_FORCE * bw.f_max as f32;
+        }
         self.accel = accel;
         self.f_attack = f_attack;
         self.rebow = false;
-        if keep && self.bowing {
+        if keep && self.bowing && tech != NoteTech::Chop {
             // A bow change on the ringing string: slow to the reversal, then the new
             // stroke's attack in its direction.
             self.phase = Phase::Change;
@@ -277,6 +309,8 @@ impl Voice {
             self.next_dir = sign;
             self.v_mag = if tech == NoteTech::Spiccato {
                 1.2 * bw.speed as f32
+            } else if tech == NoteTech::Chop {
+                super::CHOP_SPEED * bw.speed as f32 // r42 fiddle
             } else if self.kind == 2 {
                 bow::LAND_SPEED * bw.speed as f32
             } else {
@@ -311,6 +345,17 @@ impl Voice {
         let sh_rate = self.at_rate(sh); // r42:arcus-upper
         let sh = &sh_rate; // r42:arcus-upper
         let s = sh.s;
+        // r42 fiddle: a slur across strings under one bow (`pair::place`): the string the bow
+        // leaves rings on, the new one is bowed again or starts from rest.
+        let mut fresh = false;
+        if Self::paired(s) && self.tech.is_bowed() {
+            let note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
+            let ix = self.string_of(s, note + crate::tuning::at(sh.tuning, key), how);
+            fresh = self.place(ix);
+            if fresh {
+                self.trim = 0.0;
+            }
+        }
         // r42 fix2-arcus: where the finger is, its tuned offset in it (before, the slur
         // started at the old key's 12-TET pitch plus the new key's offset, a jump of the
         // offsets' difference at once — 61 cents on a one-key slur in 31-EDO).
@@ -320,7 +365,11 @@ impl Voice {
         let _ = velocity;
         self.note = key as f32 + s.transpose_st + 0.01 * s.fine_ct;
         self.tune = crate::tuning::at(sh.tuning, key);
-        self.glide = was - self.note - self.tune;
+        self.glide = if fresh {
+            0.0 // r42 fiddle: a string at rest has no finger to slide
+        } else {
+            was - self.note - self.tune
+        };
         self.tuning = 0.0;
         if let Some(t) = tech.filter(|t| *t != self.tech) {
             // The bowing changes with the finger: a tremolo starts its strokes afresh.
@@ -333,7 +382,7 @@ impl Voice {
         // shift (the hand travels: a longer finger change, the vibrato stopping and growing
         // back), an open string's rules.
         let p = s.player.clamp(0.0, 1.0);
-        let spec = self.inst.spec();
+        let spec = self.spec();
         let mut extra_ms = 0.0;
         let ix = if p > 0.0 {
             let fing = bow::finger(

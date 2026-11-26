@@ -58,6 +58,51 @@ pub const VIOLIN_VIB: VibSpec = VibSpec {
     onset_dyn: 1.08,
 };
 
+/// r42 fiddle (ADR 0164) — the violin's cross-tunings, in `tuning.strings`' order: standard
+/// (G D A E), AEAE, GDGD, ADAE, calico (A E A C#) and DDAD — semitones each string sits from
+/// standard. A string tuned up or down keeps its length and its decay; its tension goes as the
+/// frequency's square (`T ∝ f²`), so its impedance and its Schelleng limits follow.
+pub const CROSS: [[i8; 4]; 6] = [
+    [0, 0, 0, 0],
+    [2, 2, 0, 0],
+    [0, 0, -2, -2],
+    [2, 0, 0, 0],
+    [2, 2, 0, -3],
+    [-5, 0, 0, -2],
+];
+
+/// `2^(2d/12)`, the tension's factor for a string `d` semitones from standard (−5 … +2).
+const fn tension_k(d: i8) -> f64 {
+    match d {
+        2 => 1.259_921_049_894_873,
+        -2 => 0.793_700_525_984_099_7,
+        -3 => 0.707_106_781_186_547_5,
+        -5 => 0.561_231_024_154_686_6,
+        _ => 1.0,
+    }
+}
+
+const fn crossed(d: [i8; 4]) -> InstrumentSpec {
+    let mut s = VIOLIN;
+    let mut i = 0;
+    while i < 4 {
+        s.strings[i].open = (VIOLIN.strings[i].open as i16 + d[i] as i16) as u8;
+        s.strings[i].tension_n = VIOLIN.strings[i].tension_n * tension_k(d[i]);
+        i += 1;
+    }
+    s
+}
+
+/// The violin in each cross-tuning ([`CROSS`]'s order; the first is [`VIOLIN`] itself).
+pub static VIOLIN_CROSS: [InstrumentSpec; 6] = [
+    VIOLIN,
+    crossed(CROSS[1]),
+    crossed(CROSS[2]),
+    crossed(CROSS[3]),
+    crossed(CROSS[4]),
+    crossed(CROSS[5]),
+];
+
 /// r42:arcus-p5 — the violas' (510: 5.5 / 5.5 / 5.7 Hz, 27 / 29 / 44 cents).
 pub const VIOLA_VIB: VibSpec = VibSpec {
     hz: 5.6,
