@@ -137,6 +137,30 @@ in-app path had never been run end to end since round 20).
 signing's" and "The installer passes the program's own update check" green; the previous
 release's in-app update was done and recorded.
 
+### L10 Every effect's plug-in zips are in the release, on every system, with their sums
+
+Since round 42 each system's job also zips each effect's CLAP and VST3 on its own,
+`Cantus-plugin-<slug>-<platform>.zip`, and all of them, `Cantus-plugins-all-<platform>.zip`
+(`xtask plugin-zips`, `platform` being `windows-x64`, `linux-x86_64` or `macos-universal`),
+and the website's Plug-ins pages link those names through `releases/latest/download/`. A
+button there turns on only when the release the site was built against holds its file
+(`web/assets/release.json`), so a missing zip is a dead button, not a 404 — but it is still
+a release that broke its promise. The publish job refuses a release without the zip with
+all for each system or without one effect's zip on any of them; what it cannot see is a zip
+that holds the wrong thing. The Mac's are built twice (Apple silicon and Intel), joined with
+`lipo` and signed ad hoc only: Gatekeeper stops them once, as it stops the disk image, until
+the Apple secrets sign and notarise (then AU can follow).
+*Paid for:* nothing yet — the owner asked for the effects alone on the site (2026-11-26,
+`docs/BACKLOG-excellence.md` §6a), and this keeps the first release that carries them from
+paying.
+*Check:* the rehearsal's artifacts hold, for each system, `Cantus-plugins-all-<platform>.zip`
+and one `Cantus-plugin-<slug>-<platform>.zip` per effect (as many as
+`cantus_plugins::desc::ALL`), each listed in that artifact's `SHA256SUMS.txt`; one effect's
+zip per system, unpacked, holds `CLAP/` and `VST3/` and loads in a host (REAPER is enough;
+`docs/beta-checklist.md`, «los plug-ins solos»); the Mac job's plug-in step and the
+whole job fit its `timeout-minutes` with room (L2). After the release, the site's rebuild
+(`site.yml`, dispatched by publish) shows the buttons on, with each file's SHA-256.
+
 ## How the suite runs — the practice to keep
 
 Excellence here means two things at once: **nothing reaches users that the whole suite has

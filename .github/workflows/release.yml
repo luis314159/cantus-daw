@@ -32,6 +32,12 @@
 # Cantus-windows-x64-setup.exe, Cantus-linux-x86_64.AppImage, Cantus-macos-universal.dmg
 # (the AppImage also as Cantus-x86_64.AppImage and Cantus-<v>-x86_64.AppImage, the AppImage
 # catalogue's naming, since beta.16: beta.15's updater asks for the old versioned name).
+#
+# And each of Cantus's effects as plug-ins on their own, for the website's Plug-ins pages
+# (round 42, xtask/src/plugin_zips.rs): every system's job zips each effect's CLAP and VST3
+# as Cantus-plugin-<slug>-<platform>.zip and all of them as Cantus-plugins-all-<platform>.zip
+# (platform windows-x64, linux-x86_64, macos-universal; no version, linked through
+# releases/latest/download/ too), listed in SHA256SUMS.txt with the rest.
 
 name: Release
 
@@ -223,6 +229,13 @@ jobs:
             if ($pub -and ($s.Status -ne 'Valid' -or $cn -ne $pub)) { throw "$($f.Name) is $($s.Status) by '$cn'; the program demands '$pub'." }
           }
 
+      # Round 42: each effect's plug-ins on their own, for the website's Plug-ins pages
+      # (xtask/src/plugin_zips.rs) — from the stage the package step laid out and signed,
+      # into the same folder, whose SHA256SUMS.txt is then written again over every file.
+      - name: The plug-ins on their own (one zip per effect, one with all)
+        shell: bash
+        run: cargo run -p xtask -- plugin-zips target/package/dist --from target/package/stage --no-build --sums
+
       - name: Forget the certificate file
         if: always()
         shell: pwsh
@@ -291,6 +304,9 @@ jobs:
           cp "dist/Cantus-$version-x86_64.AppImage" "upload/Cantus-$version-linux-x86_64.AppImage"
           cp "dist/Cantus-$version-x86_64.AppImage" upload/Cantus-x86_64.AppImage
           cp "dist/Cantus-$version-x86_64.AppImage" upload/Cantus-linux-x86_64.AppImage
+          # Round 42: each effect's plug-ins on their own, zipped from the bundles the
+          # AppImage carries (build-appimage.sh laid them out in target/bundled).
+          cargo run -q --release -p xtask -- plugin-zips upload --no-build
           cd upload && sha256sum -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -309,8 +325,11 @@ jobs:
     name: macos (disk image)
     runs-on: macos-latest
     # 180 (beta.14): the suite took 84 min and the disk image 36, 130 of the 150 there were;
-    # 300 (beta.15): the suite reached 135 min before its last binaries.
-    timeout-minutes: 300
+    # 300 (beta.15): the suite reached 135 min before its last binaries. 360 (round 42): the
+    # whole job took 184 at beta.17, and the plug-ins on their own are built once more for
+    # each architecture (Linux's builds after its suite, the plug-ins among them, took 63
+    # of its 216 minutes).
+    timeout-minutes: 360
     env:
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
@@ -355,6 +374,12 @@ jobs:
           mkdir upload
           cp "dist/Cantus-$version-macos-universal.dmg" upload/
           cp "dist/Cantus-$version-macos-universal.dmg" upload/Cantus-macos-universal.dmg
+      # Round 42: each effect's plug-ins on their own — built for Apple silicon and for Intel,
+      # joined with lipo and signed ad hoc as the disk image is without Apple's secrets —
+      # then the sums of every file.
+      - name: The plug-ins on their own (both architectures, one zip per effect, one with all)
+        run: |
+          cargo run -q --release -p xtask -- plugin-zips upload
           cd upload && shasum -a 256 -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -429,6 +454,21 @@ jobs:
             test -s dist/Cantus-macos-universal.dmg
             test -s "dist/Cantus-$v-macos-universal.dmg"
           fi
+          # Round 42: the plug-ins on their own (the website's Plug-ins pages link these
+          # names): the zip with all for every system, and every effect's zip on every system.
+          platforms="windows-x64 linux-x86_64"
+          if [ "$MACOS" = true ]; then platforms="$platforms macos-universal"; fi
+          for p in $platforms; do test -s "dist/Cantus-plugins-all-$p.zip"; done
+          n=0
+          for f in dist/Cantus-plugin-*-windows-x64.zip; do
+            slug="${f#dist/Cantus-plugin-}"; slug="${slug%-windows-x64.zip}"
+            for p in $platforms; do test -s "dist/Cantus-plugin-$slug-$p.zip"; done
+            n=$((n + 1))
+          done
+          for p in $platforms; do
+            count="$(ls dist/Cantus-plugin-*-"$p".zip | wc -l)"
+            if [ "$count" != "$n" ] || [ "$n" = 0 ]; then echo "$p has $count plug-in zips, Windows $n"; exit 1; fi
+          done
       # GitHub's "latest" release (what releases/latest/download/... follows) can never be
       # a pre-release. So a beta is published as the latest release while no stable
       # release exists — otherwise the download button would find nothing — and as a

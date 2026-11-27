@@ -1,0 +1,49 @@
+/* r42 — /plugins/ and /plugins/<effect>/: the effects as plug-ins on their own (pages/plugins.rs).
+   Mostly the download page's pieces (.dl-in, .dl-before, .hash, .stays-free); these are the rest. */
+.pl-sys { margin: 0.2rem 0 1rem; }
+.pl-get { display: grid; gap: 0.7rem; justify-items: start; }
+.pl-get .btn small { font-weight: 400; opacity: 0.75; font-size: 0.9rem; }
+.btn.is-off, .btn.is-off:hover { cursor: not-allowed; filter: none; color: var(--ink-2); background: var(--mist); box-shadow: 0 0 0 1px var(--edge) inset; }
+.pl-soon { color: var(--ink-2); font-size: 0.98rem; }
+.pl-chips { list-style: none; margin: 0.2rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pl-chips li { font: 600 0.9rem/1 var(--body); letter-spacing: 0.04em; padding: 0.45rem 0.7rem; border-radius: 999px; color: var(--strong); box-shadow: 0 0 0 1px var(--edge) inset; }
+.pl-chips .is-soon { color: var(--ink-2); font-weight: 500; box-shadow: 0 0 0 1px var(--line) inset; }
+.pl-others { list-style: none; margin: 1rem 0 0; padding: 0.9rem 0 0; display: grid; gap: 0.4rem; border-top: 1px solid var(--line); }
+.pl-others li { display: flex; justify-content: space-between; gap: 1rem; color: var(--ink-2); }
+.pl-others strong { color: var(--strong); font-weight: 600; }
+.pl-inst { margin-top: 1.8rem; padding: 1rem 1.2rem; border-radius: 8px; background: var(--mist); color: var(--ink-2); }
+.pl-inst b { color: var(--strong); }
+.pl-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: clamp(1.4rem, 4vw, 3rem); margin-top: 1.4rem; }
+.pl-steps { margin: 0; padding-left: 1.3rem; display: grid; align-content: start; gap: 1.1rem; color: var(--ink); }
+.pl-steps > li::marker { font-weight: 600; color: var(--accent-text); }
+.pl-folders { margin: 0.8rem 0 0; display: grid; gap: 0.7rem; }
+.pl-folders > div { padding: 0.8rem 1rem; border-radius: 8px; background: var(--paper-2); box-shadow: 0 0 0 1px var(--line); }
+.pl-folders dt { font: 600 0.85rem/1 var(--body); letter-spacing: 0.1em; color: var(--ink-3); }
+.pl-folders dd { margin: 0.45rem 0 0; display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 0.6rem; align-items: baseline; color: var(--ink-3); font-size: 0.95rem; }
+.pl-folders code, .pl-cmd { font: 0.9rem/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--strong); overflow-wrap: anywhere; }
+.pl-hosts { margin: 0.6rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.35rem; color: var(--ink-2); }
+.pl-side h3 { display: flex; align-items: center; gap: 0.5rem; font: 600 1.2rem/1.2 var(--display); color: var(--strong); margin: 0 0 0.5rem; }
+.pl-side h3 + p { margin-top: 0; }
+.pl-side h3:not(:first-child) { margin-top: 1.6rem; }
+.pl-side h3 svg { width: 1.2rem; height: 1.2rem; color: var(--gold-text); }
+.pl-side p { color: var(--ink-2); margin-top: 0.6rem; }
+.pl-cmd { display: block; margin-top: 0.6rem; padding: 0.5rem 0.7rem; border-radius: 4px; background: var(--mist); }
+.pl-links a { color: var(--accent-text); font-weight: 600; }
+@media (max-width: 56rem) { .pl-cols { grid-template-columns: 1fr; } .pl-folders dd { grid-template-columns: 1fr; gap: 0.2rem; } }
+/* The system: a radio group whose choice shows its card and steps (no script needed; without
+   :has() the Windows ones stay shown). The app ticks the visitor's own. */
+.pl-for:not(.pl-for-windows) { display: none; }
+.pl-page:has(#pl-sys-linux:checked) .pl-for-windows, .pl-page:has(#pl-sys-mac:checked) .pl-for-windows { display: none; }
+.pl-page:has(#pl-sys-linux:checked) .pl-for-linux, .pl-page:has(#pl-sys-mac:checked) .pl-for-mac { display: block; }
+.pl-sys label { position: relative; font: 600 0.95rem/1 var(--body); padding: 0.65rem 1rem; border-radius: 4px; cursor: pointer; color: var(--ink-3); }
+.pl-sys input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.pl-sys label:has(input:checked) { background: var(--night-3); color: var(--strong); }
+:root[data-theme="light"] .pl-sys label:has(input:checked) { background: #fff; box-shadow: 0 1px 2px rgba(23, 32, 42, 0.18); }
+.pl-sys label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pl-get .hash-sum { user-select: all; }
+.pl-hear .up-ab { margin-bottom: 1.6rem; }
+/* The card's link colour (.dl-before a) is not the button's, nor the list's layout (.dl-before ul, li). */
+.dl-before .pl-get .btn-primary { color: var(--accent-ink); }
+.dl-before .pl-others { gap: 0.45rem; }
+.dl-before .pl-others li { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: 1rem; }
+.pl-page a.unit-card { text-decoration: none; }

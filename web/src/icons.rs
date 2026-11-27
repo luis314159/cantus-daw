@@ -5,13 +5,19 @@ use yew::prelude::*;
 /// The real Cantus logo (the app icon): a C of waves with a gold playhead cross.
 /// The mark in the bar: logo #03's designer's 48-px master (`logos/small/03-48.svg`, the
 /// app's own), shown at 32–36 points — the full drawing (`/logo.svg`) is for 48 px and up.
+/// Drawn from the page itself (`build.rs` makes `assets/logo-48.svg` a `data:` address): the
+/// mark is in the first paint, and a request of its own would share a slow phone's line with
+/// the hero's picture. The file stays published for what else links it.
 pub fn logo() -> Html {
-    html! { <img src="/logo-48.svg" alt="" width="48" height="48" /> }
+    html! { <img src={LOGO_48} alt="" width="48" height="48" /> }
 }
 
-/// The mark in the footer, 32 points: #03's 32-px master (`logos/small/03-32.svg`).
+include!(concat!(env!("OUT_DIR"), "/logo.rs"));
+
+/// The mark in the footer, 32 points: #03's 32-px master (`logos/small/03-32.svg`). Far below
+/// the first screen, so it loads as the visitor nears it, never beside the hero's picture.
 pub fn logo_small() -> Html {
-    html! { <img src="/logo-32.svg" alt="" width="32" height="32" /> }
+    html! { <img src="/logo-32.svg" alt="" width="32" height="32" loading="lazy" /> }
 }
 fn line(d: &'static str) -> Html {
     html! {

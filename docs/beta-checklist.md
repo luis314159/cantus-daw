@@ -1257,3 +1257,30 @@ y **después de cada versión, antes de anunciarla** (RELEASING L9), en tu PC:
   «124 BPM». Abre *Ayuda ▸ Buscar actualizaciones…*: mientras la ventana de Actualizaciones
   está abierta, la etiqueta de la canción debe quedar **detrás** de Cantus; al cerrarla, vuelve
   a estar delante de todo. Lo mismo con *Ajustes* y con *Exportar*.
+
+### Ronda 42 — los plug-ins solos, desde la web (BACKLOG §6a) <!-- r42:site-plugins -->
+
+Desde beta.18 cada versión publica cada efecto como plug-in suelto (CLAP y VST3, un zip por
+efecto y sistema, `Cantus-plugin-<slug>-<sistema>.zip`, y uno con todos,
+`Cantus-plugins-all-<sistema>.zip`), y la sección *Plug-ins* de la web los enlaza. Probado
+solo sin pantalla: los nombres, el contenido de un zip hecho con archivos de prueba, la forma
+de `release.yml` y la web contra un `release.json` de ejemplo. Lo que solo tú puedes confirmar,
+**después del ensayo de beta.18** (RELEASING L10) y otra vez cuando salga:
+
+- [ ] **Windows**: del artefacto `cantus-windows` del ensayo (o, ya publicada, desde
+  cantusdaw.com/plugins/ → un efecto → *Windows*), descarga `Cantus-plugin-aequalis-windows-x64.zip`.
+  Clic derecho → *Propiedades* → *Desbloquear*, descomprime, copia `CLAP\Cantus Aequalis.clap`
+  a `C:\Program Files\Common Files\CLAP` y `VST3\Cantus Aequalis.vst3` a
+  `C:\Program Files\Common Files\VST3`. En REAPER (*Options ▸ Preferences ▸ Plug-ins ▸
+  CLAP/VST ▸ Re-scan*) y en FL Studio (*Options ▸ Manage plugins ▸ Find more plugins*):
+  aparece «Cantus Aequalis», abre su ventana y suena. Apunta qué host y qué versión.
+- [ ] **Linux**: lo mismo con `Cantus-plugin-aequalis-linux-x86_64.zip` en `~/.clap` y
+  `~/.vst3` (REAPER o Bitwig); el `.clap` debe seguir ejecutable al descomprimir.
+- [ ] **macOS** (si tienes el Mac prestado): `Cantus-plugin-aequalis-macos-universal.zip` en
+  `~/Library/Audio/Plug-Ins/CLAP` y `…/VST3`. Gatekeeper lo frena la primera vez: comprueba
+  que funciona **uno** de los dos caminos que da la web (*Ajustes del Sistema ▸ Privacidad y
+  seguridad ▸ Abrir igualmente*, o `xattr -dr com.apple.quarantine …` en Terminal) y dinos
+  cuál; el texto de la web se corrige con lo que veas.
+- [ ] **La web tras publicar**: cantusdaw.com/plugins/ y /es/plugins/ muestran los botones
+  activos (no «Llega con la próxima beta»), el sistema de tu computadora preseleccionado, y el
+  SHA-256 de cada botón coincide con el de `SHA256SUMS.txt` de la versión.

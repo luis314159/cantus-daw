@@ -42,6 +42,13 @@ pub fn walk(dir: &Path) -> Vec<Entry> {
 
 /// Write `entries` into a new zip at `out`, each under `top/` when `top` is not empty.
 pub fn zip(out: &Path, top: &str, entries: &[Entry]) {
+    zip_modes(out, top, entries, &|_| None);
+}
+
+/// [`zip`], with each entry's Unix mode as `mode` says from its name inside the archive (before
+/// `top/`), for the systems that read it (round 42: a Mac bundle's `Contents/MacOS/` program and
+/// a Linux plug-in's library 0755); `None` leaves the zip crate's default.
+pub fn zip_modes(out: &Path, top: &str, entries: &[Entry], mode: &dyn Fn(&str) -> Option<u32>) {
     use zip::write::SimpleFileOptions;
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir).unwrap();
@@ -61,7 +68,14 @@ pub fn zip(out: &Path, top: &str, entries: &[Entry]) {
         };
         let bytes =
             std::fs::read(&e.src).unwrap_or_else(|err| panic!("read {}: {err}", e.src.display()));
-        z.start_file(name, opts).expect("zip entry");
+        // `None`: the zip crate's own default, so the archives made before stay as they were.
+        let o = match mode(&e.name) {
+            // Unix, wherever it is written: on Windows the zip crate writes DOS attributes,
+            // which carry no mode, and an unzip on a Mac or on Linux would drop the bit.
+            Some(m) => opts.unix_permissions(m).system(zip::System::Unix),
+            None => opts,
+        };
+        z.start_file(name, o).expect("zip entry");
         z.write_all(&bytes).expect("zip write");
     }
     z.finish().expect("zip finish");

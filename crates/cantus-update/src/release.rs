@@ -115,6 +115,32 @@ impl Target {
             Target::MacUniversal => STABLE_DMG_NAME,
         }
     }
+
+    /// The system's part of a file name, as the other files of a release spell it:
+    /// `windows-x64`, `linux-x86_64`, `macos-universal`.
+    pub fn platform(self) -> &'static str {
+        match self {
+            Target::WindowsX64 => "windows-x64",
+            Target::LinuxX64 => "linux-x86_64",
+            Target::MacUniversal => "macos-universal",
+        }
+    }
+}
+
+/// One effect's plug-ins on their own, its CLAP and its VST3 for one system, for people who
+/// come for the effects alone (round 42, the website's Plug-ins pages):
+/// `Cantus-plugin-aequalis-windows-x64.zip`, `slug` being the plug-in's
+/// (`cantus_plugins::desc`). No version in it: the website links it through
+/// `releases/latest/download/`, as it links the installer (ADR 0048 §7).
+pub fn plugin_zip_name(slug: &str, target: Target) -> String {
+    format!("Cantus-plugin-{slug}-{}.zip", target.platform())
+}
+
+/// Every effect's plug-ins in one zip for one system: `Cantus-plugins-all-windows-x64.zip`
+/// (round 42; no version, as [`plugin_zip_name`]). Windows' release still carries the
+/// versioned [`plugins_name`] beside it, for the links already out there.
+pub fn plugins_all_name(target: Target) -> String {
+    format!("Cantus-plugins-all-{}.zip", target.platform())
 }
 
 /// One line per file: `<sha-256 hex>  <name>`, the format `sha256sum -c` reads.

@@ -113,7 +113,8 @@ thread_local! {
     static MANIFESTS: RefCell<Vec<(String, Rc<Manifest>)>> = const { RefCell::new(Vec::new()) };
 }
 
-async fn fetch(url: &str) -> Option<web_sys::Response> {
+/// A response that answered OK (the plug-in pages fetch their parts with it too).
+pub(crate) async fn fetch(url: &str) -> Option<web_sys::Response> {
     use wasm_bindgen_futures::JsFuture;
     let win = web_sys::window()?;
     let r: web_sys::Response = JsFuture::from(win.fetch_with_str(url))
