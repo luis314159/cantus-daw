@@ -237,7 +237,98 @@ through `CantusApp::assemble`.
    deleted after the build for disk; the packs are the app's own); `fetch.py record` once they are
    on disk again.
 
-## 8. Where the session stopped (2026-11-26)
+## 8. The pivot: sample-first flagship kits (plan, 2026-11-26)
+
+**Why.** The owner heard every Tympanum preview, the modelled Studio and Jazz kits before and
+after this round's level law: *"todo era un desastre, no se parece nada a algo real"*. Better
+numbers (13.7 and 25.7 weighted outside-range, from 23.2 and 38.1) did not make them sound
+real; the recorded kits played through Tympanum's own loader in the same previews (DRSKit, Big
+Rusty, Virtuosity, Gogodze, Aasimonster) are real by construction. Every commercial drum
+instrument that sounds real (Superior Drummer 3, SSD 5.5, Addictive Drums 2, BFD3) is a
+multi-mic, multi-velocity, round-robin **sample** engine. Model 6 (§9) is finished as an
+interim and kept, but not polished further.
+
+**(a) The flagship kits are sample-first**, built from the best CC0 / CC BY multi-mic kits.
+Every candidate is already in the content manifest (ADR 0030: each downloads on demand, none in
+the repository) and already plays through Tympanum's loader:
+
+| kit | licence | mics | snare: layers x round robins (counted in its files) | other articulations | installed |
+|---|---|---|---|---|---|
+| Virtuosity Drums (jazz, Austin McMahon) | CC0 1.0 | 6-7 positions: kick, snare, overheads, ribbon over the kit, room, lo-fi, perc | centre 36 single strikes; off-centre 36; rimshot 12; cross-stick 16; muted 16; half-open 16; buzz, flam, roll | ride, flat ride, crash, hats, two toms, kick, snare wires off | 1 470 MB |
+| DRSKit (rock/pop, DRSDrums) | CC BY 4.0 | 13 (kick front/back, snare top/bottom, three toms, hat, ride, OH pair, amb pair) | about 26 DrumGizmo power levels a piece (one strike each, picked by power) | snare rim, rest, hat openness | 1 887 MB (`drskit-tympanum`) |
+| Big Rusty Drums (1980s rock) | CC0 1.0 | close (top/bottom) + overhead per piece | centre 10 x 4; brushes 8 x 4; dig 5 x 4; stir 4 x 4; flutter, release | rimshot, sidestick, edge, mallets, damped/undamped kick, a stack | 707 MB |
+| Unruly Drums (indie, wires on every drum) | CC0 1.0 | top, bottom, OH L/R | about 8 layers x 4 round robins, sticks and brushes | hat in six openings, wires on/off on every drum | 796 MB |
+| Gogodze Phu II (1970s funk/soul) | CC0 1.0 | 7 on every piece (front SM-55, overhead, kick, snare, side, retro, window) | centre 24 (about 6 x 4), edge 20, side 16 | hat in five openings, three deadened toms | 484 MB |
+| MuldjordKit 3 (metal/rock) | CC BY 4.0 | 15 | DrumGizmo power levels | two kicks, three rack toms, rides, china | 2 722 MB |
+| CrocellKit (metal) | CC BY 4.0 | 15 | DrumGizmo power levels | two kicks | 5 911 MB |
+| The Aasimonster 2.1 (death metal) | CC BY 4.0 | 16 | DrumGizmo power levels | chinas, zilbel | about 1 700 MB built |
+| Swirly Drums, dry (brushes) | CC0 1.0 | summed files | brushed hits, digs, stirs, flutters | cajon, darbouka, djembe | 341 MB |
+| Frankensnare (12 snares) | CC0 1.0 | (per snare) | sticks, brushes, rimshots, muted | sympathetic snares (a kick buzzing six snares) | 359 MB |
+
+Proposed flagship set: **Studio** = DRSKit (credited), **Jazz** = Virtuosity (CC0), **Vintage** =
+Gogodze Phu II, **Rock 80s** = Big Rusty, **Indie / Brushes** = Unruly with Swirly's brushes,
+**Metal** = MuldjordKit (Aasimonster or Crocell as alternatives): the same kits the grooves
+already compare against, so every measure of this round carries over.
+
+What the loader **already supports** (ADR 0124; `cantus_core::inst::tympanum_hits`, the engine's
+`rec` voice): DrumGizmo XML and SFZ multi-mic kits; one take per hit shared by every mic (no mic
+plays a different strike); velocity layers with SFZ curves or DrumGizmo power; a round robin
+drawn per hit with `vary` (never the take before); each mic a named output with its own strip
+(ADR 0123); the piece x mic bleed matrix (`b{p}.{m}.db/inv/on`, off unloads that cell);
+continuous hat openness crossfading the recorded openings (CC4); the foot's chick; per-piece
+tune (resampled, cents), damp (an envelope), level and mute; the kit's own room or one of
+Cantus's (Aula); streaming from disk.
+
+What is **missing** for "beats the commercial ones":
+
+1. **Velocity crossfade between adjacent layers** (today a hit picks one layer): the two nearest
+   layers of the same round-robin slot, both read with the hit's one draw, at equal-power weights
+   corrected by their measured correlation (the hybrid player's `1/sqrt(wa^2 + wb^2 + 2 wa wb rho)`),
+   so no layer pair can cancel (model 5's layer blend did).
+2. **More variation than the round robins**: per hit a small seeded change the recordings
+   justify (about ±0.5 dB, ±3 cents, a start under 0.1 ms, a mild tilt) on top of the real take,
+   the "infinite round robin" the commercial engines sell, measured against the recordings'
+   1.4–2.0 dB take-to-take variation.
+3. **Articulations everywhere**: a curated key map per flagship kit (rimshot, cross-stick, edge,
+   off-centre, buzz, hat openings, ride bell and edge, chokes), and **brushes**: taps from the
+   brush layers; sweeps (Big Rusty's stir, Unruly, Swirly) as held notes, looped and shaped by
+   velocity and a controller (§5; `brushes.py`'s first measures: a brush tap rises over 6–16 ms
+   against a stick's 3 ms, peaks at 6–22 ms, its wires 9–12 dB under the whole; a stir is
+   seconds long, centred at 3–5.7 kHz).
+4. **Strike position as a morph** between sampled positions (Virtuosity's centre and off-centre,
+   Gogodze's centre and edge): a continuous `pos` crossfading the two with one draw.
+5. **Sympathetic snare buzz**: the wires excited by the kick and toms, from Frankensnare's
+   sympathetic recordings or a small modelled wire bank driven by the other pieces' lanes.
+6. **Curated mixes**: each flagship kit's default mic balance, bleed and room set by ear against
+   its library's own demos, saved as the kit's preset.
+7. **Size**: a light edition per flagship kit (close + OH + room, FLAC, about 400 MB or less)
+   beside the full one.
+
+**(b) Modelling only where it beats samples**: retuning and damping a sampled drum (present),
+variation beyond the round robins (2), sympathetic buzz (5), strike position (4), the room
+(present: Aula and the modelled rooms). Never the whole sound of a kit called realistic.
+
+**(c) The modelled kits stay** as a separate, honestly named family (*Modelled* or *Synth*;
+Studio Maple and Jazz Birch named so in the picker), offered as playable and tunable drums,
+not as recordings.
+
+**How we prove it beats the commercial ones, blind.** (1) An ABX kit per flagship kit against
+its own recorded original played straight (no crossfade, no variation): Tympanum's version must
+be indistinguishable on single hits (ABX at chance) and preferred on grooves (fewer identical
+repeats, smoother dynamics). (2) A MUSHRA on the nine Groove MIDI grooves with the recorded kit
+as hidden reference and the commercial instruments the owner can install (MODO DRUM CS, SSD 5.5
+free, BFD Player, EZdrummer or Superior trials, Addictive Drums trial) rendering the same MIDI at
+one loudness (`tools/soundlab`). (3) The measures of §3 (`compare.py`, `grooves.py`): every
+feature inside the recorded range, the take-to-take variation in the recordings' 1.4–2.0 dB.
+
+**Where it fits.** Round 42 (now): this plan; model 6 as an interim (kept: schema 86); the
+measures and tools. **Round 43**: the velocity crossfade (1), the variation layer (2), the
+flagship key maps and mixes (3 without sweeps, 6), the picker's two families (c), the light
+editions (7) and the ABX kit: what turns "real by construction" into Tympanum's default.
+**Round 44**: brushes with sweeps, the position morph, sympathetic buzz, and the MUSHRA against
+the commercial instruments on the owner's machine.
+
+## 9. Where the session stopped (2026-11-26)
 
 Clean at the last commit. Verified on the final code: cantus-dsp `pulsus::measured` 32/32
 (the jazz ride's monotone test at 1 dB included), cantus-engine's Tympanum lib tests 14/14; on
