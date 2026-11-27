@@ -882,6 +882,30 @@ occluding capsules in its live painter.
       tuck's slivers make it shards — default left out as pass 5), the collar's points over
       the knot, a live outline strip on her dress, her Drawn neck dot (a hole between skin
       triangles), the neckline's edge and the forearm's shadow in the bake.
+- **The finger frame (r42 integration, 2026-11-27)** — the owner on E5 on the A string in
+  first position (her little finger stopping): the free middle finger stood high in a loop
+  over the neck, the ring finger beside it. A violinist keeps the lower fingers down: for a
+  stop by the fourth finger the first three rest on the string at their own notes. The
+  left-hand solver (`tools/arcus-figures/left_hand.py`, `FRAME`, on by default;
+  `CANTUS_FINGER_FRAME=0` solves as pass 7) holds it as a rule of the pose:
+    - a finger under the stopping one rests on its string at its own semitone, lightly
+      (`REST_LIFT` 1 mm over it), aimed from where the playing tip is — the app moves the
+      hand till the playing tip is on its stop, the resting ones with it — its joints in the
+      playing finger's ranges, its pad allowed to press its string as the playing pad's
+      (the solver's keep-out, `blend_check.Blend::pads`, the gate's `pads`);
+    - a finger over it hovers at most `FRAME_HOVER` 0.5 cm over its string, curved over its
+      next note, its last bone turned down (`TIP_DOWN`), never over its own base knuckle
+      (`FRAME_W`); an open string's row: every finger so.
+  Every violin and viola row of both musicians re-solved with `blend_fix.py --rules` (five
+  passes), then the table chosen row by row against `arcus_hand_table`: a row takes its
+  frame pose where the gate's counts do not rise, else keeps the pre-frame pose
+  (`tools/arcus-figures/left_hand_rows.json` records each row's choice). 495 of the 560
+  rows took the frame (28 were the same either way, 37 kept the pre-frame pose); the owner's
+  rows (her violin, the A string, the fourth finger at the 1st and 3rd positions) are the
+  frame's; her and his B4 rows the frame's of the passes that leave no dark speck at 200 %.
+  The gate went 36 rules / 27 cases (pre-frame, the resting pads allowed) → 31 / 20; its
+  ratchet is set there. The cello and the bass have no authored table (their hands posed
+  live): the rule is the table's.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

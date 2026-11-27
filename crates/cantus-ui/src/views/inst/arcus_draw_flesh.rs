@@ -2005,7 +2005,16 @@ pub fn arm(
                 let p = t.map(|i| sc.sp[i as usize]);
                 let bx = tri_box(&p);
                 if fill && in_ras(bx) {
-                    let z = t.map(|i| depth_of(sc.pts[i as usize]));
+                    // (r42 integration: the skin a hair farther than the cloth over it — where
+                    // a sleeve lies on the forearm, their skinned surfaces cross by a sample or
+                    // two, and the skin came through the sleeve as a few warm specks at its
+                    // lower edge, `no_skin_shows_through_or_under_her_bow_sleeve`)
+                    let push = if matches!(am.stuff[k as usize], Stuff::Skin) {
+                        SKIN_UNDER_CLOTH
+                    } else {
+                        0.0
+                    };
+                    let z = t.map(|i| depth_of(sc.pts[i as usize]) + push);
                     sc.ras.borrow_mut().tri(p, z, sc.col[k as usize], None);
                 }
                 if out_ras(bx) {
@@ -2624,6 +2633,10 @@ fn fine_tri(
         }
     }
 }
+
+/// r42 integration — how much farther the live arm's skin is set in the depth raster than its
+/// own surface (cm): under a sleeve, the cloth wins where the two skinned surfaces cross.
+const SKIN_UNDER_CLOTH: f32 = 0.15;
 
 /// r42:arcus-upper — which stuff lies over which where two meet on an arm: the sleeve's
 /// cloth over the shirt's cuff over the skin and the nails.

@@ -365,6 +365,17 @@ GAP_R = (0.47, 0.45, 0.4)
 # (cm, her hand; the strings stand 0.3-0.7 over it), and the rule's weight.
 HOVER_UP = 1.7
 HOVER_UP_W = 4.0
+# r42 integration — the finger frame (the owner, E5 on the A string: the free middle finger
+# stood high in a loop): a finger under the stopping one rests on the string at its own note
+# (REST_W the rule's weight); one over it hovers at most FRAME_HOVER over its string (cm, her
+# hand), its last bone at least TIP_DOWN (cosine) toward the fingerboard, never over its own
+# base knuckle (FRAME_W). FRAME off solves as pass 7 did.
+FRAME = os.environ.get("CANTUS_FINGER_FRAME", "1") != "0"
+REST_W = 20.0
+REST_LIFT = 0.1
+FRAME_HOVER = 0.5
+TIP_DOWN = 0.3
+FRAME_W = 12.0
 WRIST_Z = (-10.5, -5.0)
 # How high the knuckles stand over the fingerboard's top, at least (cm).
 KNUCKLES = (-0.8, 2.0)
@@ -507,6 +518,13 @@ class Pose:
         self.yh = neck.body + HEEL
         self.high = float(np.clip((self.yh - y12) / HIGH, 0.0, 1.0))
 
+    def on_string(self, t):
+        """r42 integration — the point of the row's string nearest `t` (a finger's target, held
+        `lift` over its note): the note itself, on the string."""
+        b, n = self.neck.strings[self.row["string"]]
+        u = n - b
+        return b + u * float(np.clip((t - b) @ u / max(u @ u, 1e-9), 0.0, 1.0))
+
     def peek(self, p):
         """r42:arcus-hands, pass 6 — how far (cm) the point ``p`` stands past the neck's
         far (G) silhouette as the app's eye sees it: in the neck's cross-section at ``p``,
@@ -585,6 +603,35 @@ class Pose:
                 add(f"tip{f}", *((tip - self.tips[f]) * 40.0))
                 d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
                 add(f"upright{f}", UPRIGHT_W * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
+            elif FRAME and f < p:
+                # r42 integration — the finger frame (the owner on E5 on the A string): a
+                # finger under the stopping one rests on the string at its own note, its pad
+                # down as the playing one's.
+                # (its pad where the playing pad's stop puts it over the string: the stop is the
+                # playing pad's own contact, a string's radius over its middle line)
+                off = (self.tips[p] - self.on_string(self.tips[p])) @ self.z
+                want = self.on_string(self.tips[f]) + self.z * off
+                # (and where the playing tip is: the app moves the hand till the playing tip is
+                # on its stop, the resting ones with it — aimed from the playing tip, they land
+                # on their notes as it lands on its)
+                want = want + (P[p + 1, 3] - self.tips[p])
+                # (a light touch: the resting pad about REST_LIFT over its string, not pressing)
+                want = want + self.z * (REST_LIFT * self.k)
+                add(f"rest{f}", *((tip - want) * REST_W))
+                d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
+                add(f"upright{f}", 0.5 * UPRIGHT_W * max(0.0, UPRIGHT_COS - d2 @ (-self.z)))
+            elif FRAME:
+                # … and one over it hovers low and curved over its next note: at most
+                # FRAME_HOVER over its string, its tip turned down, never over its own knuckle.
+                spot = self.on_string(self.tips[f])
+                want = spot + self.z * (0.5 * FRAME_HOVER * self.k) + self.kx * (0.35 * (f - max(p, 0)))
+                miss = np.linalg.norm(tip - want)
+                add(f"hover{f}", 3.0 * max(0.0, miss - HOVER_SLACK[f] * self.k))
+                up = (tip - spot) @ self.z
+                add(f"hover_up{f}", FRAME_W * max(0.0, up - FRAME_HOVER * self.k))
+                d2 = hr.norm(P[f + 1, 3] - P[f + 1, 2])
+                add(f"tip_down{f}", FRAME_W * max(0.0, TIP_DOWN - d2 @ (-self.z)))
+                add(f"under_knuckle{f}", FRAME_W * max(0.0, (tip - P[f + 1, 0]) @ self.z))
             else:
                 # Hovering over its own string a little across from the playing one (each
                 # finger falls toward its own string, at its own angle — photograph 4).
@@ -596,7 +643,7 @@ class Pose:
                 # crop-02 the free fingers hover curved a centimetre or so over the strings).
                 qh = loc(tip)
                 add(f"hover_up{f}", HOVER_UP_W * max(0.0, qh[2] - nk.top(qh[1]) - HOVER_UP * self.k))
-            rng = PLAY if f == p else HOVER
+            rng = PLAY if (f == p or (FRAME and f < p)) else HOVER
             for k in range(3):
                 wk = 3.0 if f == p else 1.0
                 add(f"ang{f}{k}", wk * over(ang[f + 1, k], *rng[k]))
@@ -622,7 +669,7 @@ class Pose:
             add(f"rise{f}", 3.0 * max(0.0, RISE_COS - d1 @ self.z))
             # Nothing but the playing tip inside the fingerboard and the strings.
             for k in (1, 2, 3):
-                if f == p and k == 3:
+                if (f == p or (FRAME and f < p)) and k == 3:
                     continue
                 for t in (0.5, 1.0):
                     probe.append((f"inboard{f}{k}", 4.0, 0.75,
@@ -729,6 +776,10 @@ class Pose:
         dsol = self.solid.local_sd(q)
         dstr = self.solid.strings_d(q)
         pad = (h.sk_top == O + hr.finger(p + 1, 2)) if p >= 0 else np.zeros(len(q), bool)
+        if FRAME:
+            # (the finger frame: the resting fingers' pads press their string as the playing one)
+            for g in range(max(p, 0)):
+                pad = pad | (h.sk_top == O + hr.finger(g + 1, 2))
         fore = h.sk_kind == "fore"
         need = np.where(pad, -PAD_PRESS, np.where(fore, SLEEVE, SKIN_GAP))
         dd = np.where(pad | fore, dsol, np.minimum(dsol, dstr))

@@ -88,7 +88,7 @@ class Row:
         self.string, self.finger, self.at = string, finger, at
         self.mids = self.mids_of(b, at)
         h = pose.h
-        pad = h.sk_top == b.pad_bone.get(finger, -1)
+        pad = b.pads(finger, h)
         fore = h.sk_kind == "fore"
         self.need = np.where(pad, -L.PAD_PRESS, np.where(fore, L.SLEEVE, L.SKIN_GAP))
 

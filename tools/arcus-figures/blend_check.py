@@ -78,6 +78,15 @@ class Blend:
         self.solid = L.solid_of(F)
         self.pad_bone = {f: L.O + hr.finger(f + 1, 2) for f in range(4)}
 
+    def pads(self, finger, h=None):
+        """The skin that may press its string: the playing finger's pad and (the finger frame,
+        r42 integration) every finger's under it, resting on its own note."""
+        h = h or self.h
+        if finger not in self.pad_bone:
+            return np.zeros(len(h.sk_top), bool)
+        under = range(finger + 1) if L.FRAME else [finger]
+        return np.isin(h.sk_top, [self.pad_bone[g] for g in under])
+
     def row_pose(self, string, finger, at):
         c = self.cache[f"{self.key}-{string}-{finger}-{at:g}"]
         Q = np.array(c["Q"]).reshape(15, 3, 3)
@@ -132,7 +141,7 @@ class Blend:
     def depth(self, W, Rh, Q, P, fore, finger):
         sk = self.h.skin(W, Rh, Q, P, fore)
         d = self.solid.local_sd(self.solid.loc(sk))
-        pad = self.h.sk_top == self.pad_bone.get(finger, -1)
+        pad = self.pads(finger)
         dp = -min(0.0, d[pad].min()) if pad.any() else 0.0
         rest = np.where(pad, 9.0, d)
         i = int(np.argmin(rest))

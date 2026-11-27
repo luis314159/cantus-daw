@@ -193,9 +193,15 @@ fn the_left_hand_passes_behind_the_neck() {
                     tele[cantus_dsp::arcus::tel::VIBRATO] = 0.0;
                 }
                 let size = views::inst::editor_size(InstrumentKind::BowedString);
+                // (r42 integration: the live arms as drawn kept too — the sleeve's hem and
+                // the finer sleeves are the live arm's, not the figure's triangles, and a hem
+                // in front of a cello's neck side covered a sample behind it)
+                cantus_ui::views::inst::arcus::probe::record(true);
                 let canvas = cantus_ui::raster::shoot(&ctx, size, PPP, 8, None, |ui| {
                     views::inst::window_in(&mut app, ui)
                 });
+                let drawn = cantus_ui::views::inst::arcus::probe::arms();
+                cantus_ui::views::inst::arcus::probe::record(false);
                 let sc = &app.inst.arcus_scenes[&t.0].0;
                 let built = sc.built().expect("a picture");
                 let rect = sc.rect().expect("painted");
@@ -474,6 +480,36 @@ fn the_left_hand_passes_behind_the_neck() {
                             )
                     })
                 };
+                // (r42 integration) … or the live left arm as drawn in front: a triangle none
+                // of whose corners the drawing takes for hidden (the neck, the body, a cello's
+                // or a bass's deeper than its neck's middle — `arcus_draw_body`'s `hid`).
+                let half = hand::neck_depth(d) * 0.5;
+                let hid_drawn = |w: cantus_ui::scene::geo::V3| {
+                    let (_, y, z) = local(w);
+                    hand::hidden_by_neck(w, eye, d, &rig.pose)
+                        || hand::hidden_by_body(w, eye, b, &rig.pose, 0.3)
+                        || (!d.held && z < cantus_ui::scene::bowed::board_z(d, y) - half)
+                };
+                let front_drawn = |p: egui::Pos2| {
+                    drawn.iter().filter(|a| a.side == 0).any(|a| {
+                        a.tris.iter().any(|t| {
+                            let [ia, ib, ic] = t.map(|i| i as usize);
+                            let (pa, pb, pc) = (a.screen[ia], a.screen[ib], a.screen[ic]);
+                            let den = (pb.y - pc.y) * (pa.x - pc.x) + (pc.x - pb.x) * (pa.y - pc.y);
+                            if den.abs() < 1e-6 {
+                                return false;
+                            }
+                            let l0 =
+                                ((pb.y - pc.y) * (p.x - pc.x) + (pc.x - pb.x) * (p.y - pc.y)) / den;
+                            let l1 =
+                                ((pc.y - pa.y) * (p.x - pc.x) + (pa.x - pc.x) * (p.y - pc.y)) / den;
+                            l0 >= 0.0
+                                && l1 >= 0.0
+                                && 1.0 - l0 - l1 >= 0.0
+                                && [ia, ib, ic].iter().all(|&i| !hid_drawn(a.pts[i]))
+                        })
+                    })
+                };
                 for (w, by_neck) in samples {
                     let p = to_px(w);
                     let hid = if by_neck {
@@ -484,7 +520,7 @@ fn the_left_hand_passes_behind_the_neck() {
                     if !hid || !clear(p) {
                         continue;
                     }
-                    if front_skin(p) {
+                    if front_skin(p) || front_drawn(p) {
                         let (_, _, diff) = pixel(p);
                         if diff > 40 {
                             println!("{be:?} {b:?} {hold:?}: at {p:?} the figure's own front skin");

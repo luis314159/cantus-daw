@@ -142,13 +142,19 @@ fn measure(a: &probe::Arm) -> Hand {
     if n.dot(mid - k) > 0.0 {
         n = -n;
     }
-    let hand: Vec<egui::Pos2> = a
+    // (r42 integration: the hand's skin only — the sleeve's finer cuff and its hem, polish4's,
+    // put cloth points on the hand's bone past the wrist, and they read as the hand's lobe)
+    let hand_b: Vec<(egui::Pos2, usize)> = a
         .screen
         .iter()
         .zip(&a.bone)
-        .filter(|(_, b)| (o + hu::HAND..=o + hu::finger(4, 2)).contains(&(**b as usize)))
-        .map(|(p, _)| *p)
+        .zip(&a.skin)
+        .filter(|((_, b), sk)| {
+            **sk && (o + hu::HAND..=o + hu::finger(4, 2)).contains(&(**b as usize))
+        })
+        .map(|((p, b), _)| (*p, *b as usize))
         .collect();
+    let hand: Vec<egui::Pos2> = hand_b.iter().map(|(p, _)| *p).collect();
     // The edge's own convexity: along the line, in twelve bands, the outline's farthest
     // point toward the violin's side; how far the edge bows out past the chord between its
     // two ends (its sagitta, mm at the hand's depth) — a straight or hollow edge 0.
@@ -179,14 +185,19 @@ fn measure(a: &probe::Arm) -> Hand {
             })
             .fold(0.0f32, f32::max);
     }
-    let out: Vec<egui::Pos2> = hand
-        .iter()
-        .copied()
-        .filter(|p| {
-            let t = (*p - k).dot(d) / d.length_sq().max(1e-6);
-            (0.0..=1.0).contains(&t) && (*p - k).dot(n) > 0.0
-        })
-        .collect();
+    let out_to = |top: f32| -> Vec<egui::Pos2> {
+        hand.iter()
+            .copied()
+            .filter(|p| {
+                let t = (*p - k).dot(d) / d.length_sq().max(1e-6);
+                (0.0..=top).contains(&t) && (*p - k).dot(n) > 0.0
+            })
+            .collect()
+    };
+    // (r42 integration: the hand's edge up to nine tenths of the way to the wrist — the last
+    // tenth is the wrist's, where the merged figure's finer cuff (polish4) puts 46 skin
+    // vertices of the hand's bone along the sleeve's edge: they read as a lobe, 0.188 -> 0.200)
+    let out = out_to(LOBE_REACH);
     let area = |pts: &[egui::Pos2]| -> f32 {
         if pts.len() < 3 {
             return 0.0;
@@ -221,16 +232,10 @@ fn measure(a: &probe::Arm) -> Hand {
         }
         s.abs() * 0.5
     };
-    let back: Vec<egui::Pos2> = hand
+    let back: Vec<egui::Pos2> = hand_b
         .iter()
-        .copied()
-        .zip(
-            a.bone
-                .iter()
-                .filter(|b| (o + hu::HAND..=o + hu::finger(4, 2)).contains(&(**b as usize))),
-        )
-        .filter(|(_, b)| **b as usize == o + hu::HAND)
-        .map(|(p, _)| p)
+        .filter(|(_, b)| *b == o + hu::HAND)
+        .map(|(p, _)| *p)
         .collect();
     h.lobe = area(&out) / area(&back).max(1e-3);
     h
@@ -281,6 +286,9 @@ fn bounds(woman: bool) -> Bounds {
 /// the owner's photo 5, measured against the fingerboard: the edge runs straight or a little
 /// in, at most a few millimetres out over the hypothenar).
 const LOBE: f32 = 0.19;
+/// How far from the little finger's knuckle toward the wrist the lobe is read (r42
+/// integration: short of the wrist's cuff).
+const LOBE_REACH: f32 = 0.9;
 const BULGE: f32 = 4.0;
 
 #[test]

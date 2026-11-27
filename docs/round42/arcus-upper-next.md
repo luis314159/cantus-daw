@@ -2232,3 +2232,35 @@ b or c above), then `edge_probe.py` and `blend_fix.py --rules`; (2) the 12 thumb
 the E side and the 11 knuckle rows at +14 (her arm on the viola); (3) the index's base on
 the E side at +1 (7); (4) the cello's neck stamp against the bake (the instrument's owner);
 (5) the budget on an idle machine.
+
+## The r42 integration (2026-11-27): the merged musicians, the finger frame, the ratchets
+
+Merged on `r42/integration`: arcus-polish (passes 3–6) and arcus-hands (passes 3–8), the
+figures rebuilt from the merged `build_figures.py` (MakeHuman data from `mh-src`, system
+assets from `F:\projects\daw-r42\tmp\mh-sys`) and `lids.py` run; the fingers' vertices are
+arcus-hands' to the bit, her hand bone has 46 more skin vertices on its cuff's edge (polish4's
+finer sleeves). `arcus_draw_flesh`'s maps hold both branches' slots (the hands' skin 8, the
+bare velvet and wool 9–10).
+
+- **The finger frame** (ADR 0159, "The finger frame"): the owner's E5 on the A string —
+  the lower fingers now rest on their notes and the upper ones hover low, tip down. The
+  solver's rule is `left_hand.py::FRAME` (on by default); work in
+  `F:\projects\daw-r42\tmp\integration\frame\` (five passes' caches, `pass1`–`pass4`,
+  `run_frame*.sh`), the row choice by `F:\projects\daw-r42\tmp\integration\choose_rows.py`
+  (the gate per row) and `try_rows.py` (the B4 rows against the shape and form gates).
+  `tools/arcus-figures/left_hand_rows.json` names each row's choice: 495 frame, 37 pre-frame,
+  28 the same. Round 43 continues from the 37 (the rows whose frame pose broke a rule or went
+  into the instrument): the knuckle rule high up and the stopping pads at 1–2.4 mm were most
+  of it.
+- **Ratchets** (the owner's figure work is round 43's — the musicians to 100 %):
+  `arcus_hand_table` at 31 rules / 20 cases (the target none: the edge-on hand high up, a
+  rig decision first — pass 8's a, b or c; the thumb tips on the E side; the knuckle rows at
+  +14), `arcus_figure_specks`' stray gate at 145 (the target none: Drawn's far collar band,
+  her Drawn neck dot, the bow hand's strays at the earlier camera — polish6's Open 0–4).
+- **Fixed at the integration**: `hidden_by_neck` hides a cello's or a bass's arm by the
+  neck's drawn cross-section (`bowed_head::neck_profile`; the box-wide ellipse was 1.25 cm
+  deeper than the drawn back and the picture's background showed at the neck's edge); the
+  live arm's skin set 1.5 mm behind its cloth in the depth raster (skin specks through her
+  bow sleeve's lower edge); `arcus_hand_shape`'s lobe measured on the hand's skin only (the
+  cuff's hem had counted as the hand); `arcus_hold` takes the live arm as drawn for the
+  figure's own front and compares with the bake's nearest pixel within one.
