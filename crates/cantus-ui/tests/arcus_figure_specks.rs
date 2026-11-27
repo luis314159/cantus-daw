@@ -493,6 +493,10 @@ fn no_stray_pixels_round_or_on_the_violinists() {
 /// under the sleeve to find.)
 const SLEEVE_PPP: f32 = 2.0;
 const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
+/// r42:arcus-polish5 — how large (px at 100 %) a patch of skin under the forearm may be and
+/// still be one the arm cut off (the old V's point at the figure's start, about 950; her
+/// neckline running on up past the arm, about 15 000).
+const SLEEVE_PATCH: f32 = 2500.0;
 
 #[test]
 fn no_skin_shows_through_or_under_her_bow_sleeve() {
@@ -590,26 +594,66 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 let outside = outside.grow(2);
                 let skin = skin.grow(3);
                 let (mut inside_n, mut under_n) = (0, 0);
+                // (Skin in the light and in shade — the V's point under her arm was shaded
+                // skin, about (83, 67, 61) —; not the velvet's grey sheen, the varnish's
+                // orange or the bow's red-brown.)
+                let skinny = |x: usize, y: usize| {
+                    let p = canvas.pixel(x, y);
+                    let (r, g, bl) = (p[0] as f32, p[1] as f32, p[2] as f32);
+                    r > 60.0 && (0.55..0.92).contains(&(g / r)) && (0.4..0.85).contains(&(bl / r))
+                };
+                // r42:arcus-polish5 — under the forearm, only skin cut off by it counts: a
+                // small patch (the old V's point poking out below the sleeve), not the
+                // neckline that runs on up past the arm (at the frog the forearm crosses her
+                // chest over the whole V, which is her own skin, not the arm's).
+                let mut open = vec![false; w * h];
                 for y in 0..h {
                     for x in 0..w {
                         let k = y * w + x;
-                        if skin.m[k] {
-                            continue;
+                        open[k] = !skin.m[k] && !sleeve.m[k] && skinny(x, y);
+                    }
+                }
+                let mut part = vec![u32::MAX; w * h];
+                let mut sizes: Vec<usize> = Vec::new();
+                for start in 0..w * h {
+                    if !open[start] || part[start] != u32::MAX {
+                        continue;
+                    }
+                    let id = sizes.len() as u32;
+                    let mut stack = vec![start];
+                    part[start] = id;
+                    let mut n = 0;
+                    while let Some(k) = stack.pop() {
+                        n += 1;
+                        let (x, y) = (k % w, k / w);
+                        for (dx, dy) in [(-1isize, 0isize), (1, 0), (0, -1), (0, 1)] {
+                            let (xx, yy) = (x as isize + dx, y as isize + dy);
+                            if xx < 0 || yy < 0 || xx >= w as isize || yy >= h as isize {
+                                continue;
+                            }
+                            let j = yy as usize * w + xx as usize;
+                            if open[j] && part[j] == u32::MAX {
+                                part[j] = id;
+                                stack.push(j);
+                            }
                         }
-                        let p = canvas.pixel(x, y);
-                        let (r, g, bl) = (p[0] as f32, p[1] as f32, p[2] as f32);
-                        // (Skin in the light and in shade — the V's point under her arm was
-                        // shaded skin, about (83, 67, 61) —; not the velvet's grey sheen, the
-                        // varnish's orange or the bow's red-brown.)
-                        let skinny = r > 60.0
-                            && (0.55..0.92).contains(&(g / r))
-                            && (0.4..0.85).contains(&(bl / r));
-                        if !skinny {
+                    }
+                    sizes.push(n);
+                }
+                let patch = (SLEEVE_PATCH * SLEEVE_PPP * SLEEVE_PPP) as usize;
+                for y in 0..h {
+                    for x in 0..w {
+                        let k = y * w + x;
+                        if skin.m[k] || !skinny(x, y) {
                             continue;
                         }
                         if !outside.m[k] {
                             inside_n += 1;
-                        } else if under.m[k] && !sleeve.m[k] {
+                        } else if under.m[k]
+                            && !sleeve.m[k]
+                            && part[k] != u32::MAX
+                            && sizes[part[k] as usize] < patch
+                        {
                             under_n += 1;
                         }
                     }
