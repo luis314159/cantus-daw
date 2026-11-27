@@ -182,6 +182,29 @@ kind = "url"
 base = "https://archive.org/download/"
 match = ["pd78/*"]
 
+[[set]]
+id = "paganini"
+dir = "paganini"
+title = "Paganini, Caprice No. 24: Queen Mary University of London's Performance Lab recording (2014, take 03 on the C414 pair) and the theme's public-domain MIDI (Wikimedia Commons, Hyacinth)"
+urls = ["https://archive.org/details/Paganini_Caprice24", "https://commons.wikimedia.org/wiki/File:Paganini_caprice24_theme.mid"]
+version = "as served 2026-11-26"
+licence = "custom (Public Domain Mark 1.0 for the recording; public domain, released by its author, for the MIDI)"
+terms = "the recording: 'http://creativecommons.org/publicdomain/mark/1.0/' on its item, credit Queen Mary University of London, Performance Lab (2014); the MIDI: public domain (Hyacinth, own work, 2018); sources/paganini/SOURCE.md"
+use = "ship-credit"
+tools = ["tools/listening/paganini_notes.py, paganini_mix.py, paganini_compare.py, paganini_page.py (with crates/cantus-dsp/examples/paganini_render)", "listening ($CANTUS_WORK/listen/paganini)"]
+[set.origins.source]
+kind = "repo"
+match = ["SOURCE.md"]
+[set.origins.archive]
+kind = "url"
+base = "https://archive.org/download/Paganini_Caprice24/"
+match = ["archive/*"]
+strip = "archive/"
+[set.origins.commons]
+kind = "url"
+url = "https://upload.wikimedia.org/wikipedia/commons/a/a0/Paganini_caprice24_theme.mid"
+match = ["commons/Paganini_caprice24_theme.mid"]
+
 # ============================================================ the bowed-strings reference study
 # tools/arcus/study (catalog.py → extract.py → phrases.py → aggregate.py; cnsm.py, friction.py,
 # bowing.py, make_abx.py) reads these; research/instruments-next/bowed-realism.md is what it found.

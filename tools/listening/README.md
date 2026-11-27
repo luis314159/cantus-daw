@@ -169,3 +169,23 @@ analysts' scripts read those labels).
 - The ladder's blind kit: `python -I tools/tympanum-fit/ladder_kit.py build <ladder dir> <kit dir>`
   (the key in `<kit dir>-key`), `ladder_kit.py score <key dir> <results.json>`;
   `docs/round40/ladder.md` has the method. Offline only (no online saving).
+
+## Arcus against a recording: Paganini's Caprice 24 (round 42)
+
+The violin cantabile preset plays a real passage, aligned to a real performance, and the page
+compares them (`$CANTUS_WORK/listen/paganini/escuchar.html`, in Spanish). The sources are the
+`paganini` set (`tools/sound-refs/catalog.toml`: QMUL's 2014 recording, Public Domain Mark;
+the theme's public-domain MIDI); fetch them with `python -I tools/sound-refs/fetch.py fetch paganini`.
+
+    W=$CANTUS_WORK/listen/paganini
+    python -I tools/listening/paganini_notes.py $W/work      # the notes: theme aligned (DTW), variation 2 transcribed
+    cargo build -p cantus-dsp --release --example paganini_render
+    R=target/release/examples/paganini_render
+    $R $W/work/arcus-alineado.txt  $W/work/actual-alineado-seco.wav    # and arcus-partitura.txt → actual-partitura-seco.wav
+    $R ir 5 160 8000 $W/work/aula-chamber.wav                          # Aula's small hall, as the unit shapes it
+    python -I tools/listening/paganini_mix.py $W/work $W              # hall, -23 LUFS, 16-bit, the A/B
+    python -I tools/listening/paganini_compare.py $W/work $W          # the measures and charts
+    python -I tools/listening/paganini_page.py $W "<which binaries>"
+
+The mix step expects `{actual,mejora}-{alineado,partitura}-seco.wav` in the work folder: the
+second build is the same example on a branch whose sound is being improved.

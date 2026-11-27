@@ -1,0 +1,9 @@
+# paganini: the files under $CANTUS_REFS/paganini/ — written by `fetch.py record paganini`; origins in catalog.toml
+# path	size	sha256	origin	member
+SOURCE.md	2180	0880182598c6ec926e2ce5258becc2b3d822f581cf74c72a401999a488a1ade8	source	
+archive/C414_L03.aif	89366454	f8fd682c0e0b45358690ca0be376f14c770c332f86c862e0d143551709b085c7	archive	C414_L03.aif
+archive/C414_L03_spectrogram.png	262990	944fad85783df3a0beeb3359d2726c24d75ac31380f06ab8a57997d677a73a79	archive	C414_L03_spectrogram.png
+archive/C414_R03.aif	89366454	c804e0a4cc74187ce963c422246982aa11641804e23b0dd1fade81c70dee90dc	archive	C414_R03.aif
+archive/Paganini_Caprice24_files.xml	46877	a14f72915dcb32d1b03e62871fb8839ca0c9426c0ecd1eb29c8c08defdffe55a	archive	Paganini_Caprice24_files.xml
+archive/Paganini_Caprice24_meta.xml	983	f993f44b822fc30865d30f63ad35daf798c0f1359f1726a9f15d9fa5c3af107e	archive	Paganini_Caprice24_meta.xml
+commons/Paganini_caprice24_theme.mid	881	e3f11281319db8938d67c596c8566f314050b9ce5a8045dab6c0e1c277002bab	commons	
