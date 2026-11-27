@@ -5,14 +5,16 @@
 //! the way to the whole DAW. An effect's page reuses its picture, its with/without excerpt and
 //! its "Try it" from the effect's own page (`fx.rs`, `tryit.rs`).
 //!
-//! **Drawn as HTML, not as components** (round 42): as Yew components these pages put the
-//! WebAssembly 12 KB over its 250 KB budget, and nearly all of them is text. The pages are
-//! written as strings (the same function in the pre-renderer and in the browser) and inserted
-//! as they are; only the players are components. The browser does not carry those functions:
-//! the pre-renderer writes each page's body as a part (`/plugin-parts/<lang>/<page>.json`)
-//! that the page fetches. The system is a radio group (Windows, Linux,
-//! macOS) whose choice shows that system's card and steps by CSS alone (`plugins.css`), so the
-//! static page works before the app runs; the app then ticks the visitor's own system.
+//! **Written by the pre-renderer, not drawn by the app** (round 42, ADR 0167): as Yew
+//! components these pages put the WebAssembly over its 250 KB budget, and nearly all of them
+//! is text.
+//!
+//! - The functions below write each page's body as HTML, natively only, into the page and
+//!   into a part (`/plugin-parts/<lang>/<page>.json`) that the page fetches and inserts as it
+//!   is. Only the players are components.
+//! - The system is a radio group (Windows, Linux, macOS). Its choice shows that system's card
+//!   and steps by CSS alone (`plugins.css`), so the static page works before the app runs.
+//!   The app then ticks the visitor's own system.
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::fmt::Write;

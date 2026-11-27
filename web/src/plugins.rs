@@ -198,8 +198,8 @@ fn facts(name: &str) -> Option<(u64, String)> {
         .map(|f| (f.size, f.sha256.to_string()))
 }
 
-/// The pages' longer text: `(key, paragraphs)`, compiled only natively; the browser reads
-/// `/plugins.json`'s `text[key][i]`.
+/// The pages' longer text: `(key, paragraphs)`, natively only (the pre-renderer writes it into
+/// the pages and their parts).
 #[cfg(not(target_arch = "wasm32"))]
 pub const TEXT: &[(&str, &[(&str, &str)])] = &[
     ("lede", &[(

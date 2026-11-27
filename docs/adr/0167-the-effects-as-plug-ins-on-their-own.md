@@ -56,11 +56,13 @@ The site must never link a file that does not exist (`shelf.rs`, ADR 0067 §4).
      (`assets/release.json`) holds its file. Otherwise it is a disabled button with a note.
      The pages need no change when a release first carries the zips.
    - The plug-in files' facts are split out of `REL_FILES` (native `REL_PLUGINS`).
-   - The facts and the pages' longer text reach the browser in `/plugins.json`, fetched only
-     by these pages.
-   - The pages are written as HTML strings, by the same functions in the pre-renderer and the
-     browser. Only the players (with/without, Try it) are components. Yew components for this
-     much text cost 12 KB of the WebAssembly's budget.
+   - The pages' bodies are HTML written by the pre-renderer (`pages/plugins.rs`), natively
+     only. Each page's body also goes to `/plugin-parts/<lang>/<page>.json`, which that page
+     fetches; `main.rs` waits for it on a first load. Only the players (with/without, Try it)
+     are components.
+   - The cost of this choice: as Yew components the pages put the WebAssembly at 260 670 B.
+     As strings built in the browser it was 257 029 B. As fetched parts it is 249 381 B.
+     The site before this ADR was at 244 040 B.
    - The system is a radio group that shows its card and steps by CSS (`:has()`; without it,
      Windows'), so the static page works before the app. The app ticks the visitor's system.
 5. **Honesty in the copy.**

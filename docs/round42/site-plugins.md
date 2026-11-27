@@ -111,14 +111,29 @@ every Windows release has carried, which is a real file today.
 
 **The wasm budget:** `build.rs` splits the plug-in zips out of `REL_FILES` into `REL_PLUGINS`,
 native only. Over a hundred files with their hashes would have put the WebAssembly over its
-250 000 B. The pre-renderer writes `/plugins.json` (the facts and the longer text) and the pages'
-HTML. The browser fetches that file only on these pages: `main.rs` waits for it on a first
-load, and the pages fetch it after a move from another page.
+250 000 B.
 
-The pages themselves are **HTML strings**, written by the same functions in the pre-renderer
-and the browser (`pages/plugins.rs`), with only the players (with/without, Try it) as Yew
-components. As components the first build measured 260 670 B, and with the notes and the
-cards moved to strings 256 272 B, both over the budget. Decision and numbers: ADR 0167.
+**The pages' bodies are HTML the pre-renderer writes** (`pages/plugins.rs`, natively only):
+
+- into each page;
+- into `/plugin-parts/<lang>/<page>.json`, which the page fetches (`main.rs` waits for it on a
+  first load; after a move from another page, the page fetches it).
+
+The browser carries only the shell and the players (with/without, Try it).
+
+What the WebAssembly measured, each version over the budget until the last:
+
+| Version | gzip |
+|---|---|
+| Before this branch | 244 040 B |
+| Yew components | 260 670 B |
+| Notes and cards as strings | 256 272 B |
+| Everything as strings built in the browser | 257 029 B |
+| Fetched parts, with a HashMap | 250 935 B |
+| Without the HashMap (its hasher was new to the WebAssembly) | 249 860 B |
+| One component for both pages, `tryit::fetch` reused | **249 381 B** |
+
+Decision: ADR 0167.
 
 **What each page has:**
 

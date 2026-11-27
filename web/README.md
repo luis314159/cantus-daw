@@ -82,8 +82,8 @@ VST3 plug-in for other DAWs: the release's `Cantus-plugin-<slug>-<platform>.zip`
 `releases/latest/download/`. `src/plugins.rs` holds the names, the folders per system and the
 pages' longer text. A button is live only when `assets/release.json` lists its file, else it is
 shown disabled with a note: the site needs no change when a release first carries them. The
-files' facts and the text are not in the WebAssembly: the pre-renderer writes `/plugins.json`,
-which only these pages fetch.
+pages' bodies are not in the WebAssembly (its budget): the pre-renderer writes them, and also
+to `/plugin-parts/<lang>/<page>.json`, which each page fetches; only the players are components.
 
 ## The recording mode's and the studio's pictures
 
