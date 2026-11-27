@@ -266,7 +266,14 @@ pub const CONTACT: (f32, f32) = (0.34, 0.75);
 /// lies to a cloth vertex (at rest, cm), `1 - depth·e^{-(d/σ)²}`. Every vertex a skin triangle
 /// uses; cloth vertices are left as they are.
 pub fn contact(fig: &mut Figure) {
-    let (depth, sigma) = CONTACT;
+    // (r42:arcus-polish6: `CANTUS_TUNE`'s `contact_depth`, `contact_sigma` while studied.)
+    let (depth, sigma) = {
+        use super::tune::tune;
+        (
+            tune("contact_depth", CONTACT.0),
+            tune("contact_sigma", CONTACT.1).max(0.05),
+        )
+    };
     let reach = sigma * 2.2;
     let mut skin = vec![false; fig.pos.len()];
     let mut cloth = vec![false; fig.pos.len()];

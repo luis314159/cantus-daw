@@ -2138,13 +2138,13 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
 # The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
 BODICE_SMOOTH = 160
 # r42:arcus-polish4 — the V neckline's depth (cm under the neck's base at its middle).
-# r42:arcus-polish6 — 2 (11 before; `CANTUS_V_DEPTH` while studied): at the frog and the
-# figure's start (0.05–0.3 of the bow) the bow forearm crosses her chest just under the
-# collarbones, and the V's point showed under it — at 6 a patch of ~630 px at 200 %, at 4
-# ~320, at 3 ~100, at 2 none: a high rounded neckline with a hint of a point, as the
-# reference's concert dresses (ref-01, ref-04). Pass 5's trials at 8/6.5/4 had read the
-# embedded figure: the converter had failed on missing skins and left the folder empty.
-V_DEPTH = float(os.environ.get("CANTUS_V_DEPTH", "2.0"))
+# r42:arcus-polish6 — 7 (11 before; `CANTUS_V_DEPTH` while studied): a moderate V, as a
+# concert dress's (ref-04) — the coordinator: the neckline stays the dress's design; seen
+# under the bow forearm at the frog it must read as the neckline (its edge, the arm's
+# shadow), not as a hole in the sleeve. (2 removed the point under the arm and the dress's
+# design with it.) Pass 5's trials at 8/6.5/4 had read the embedded figure: the converter
+# had failed on missing skins and left the folder empty.
+V_DEPTH = float(os.environ.get("CANTUS_V_DEPTH", "7.0"))
 # r42:arcus-polish4 — the further passes over the bust (``dress``).
 BUST_SMOOTH = 200
 BODICE_EASE = 0.7

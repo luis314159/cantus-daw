@@ -493,10 +493,12 @@ fn no_stray_pixels_round_or_on_the_violinists() {
 /// under the sleeve to find.)
 const SLEEVE_PPP: f32 = 2.0;
 const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
-/// r42:arcus-polish5 — how large (px at 100 %) a patch of skin under the forearm may be and
-/// still be one the arm cut off (the old V's point at the figure's start, about 950; her
-/// neckline running on up past the arm, about 15 000).
-const SLEEVE_PATCH: f32 = 2500.0;
+/// r42:arcus-polish6 — only islands count (the coordinator: the bug was a skin diamond that
+/// read as a hole in the sleeve, an isolated island framed by black cloth; her neckline seen
+/// under the forearm, continuous with her chest's visible skin, is the dress's design): a
+/// patch of skin under the forearm that is not the picture's chest region — its largest
+/// patch of skin, her face, neck and chest — and that dark cloth frames. (Pass 5 counted a
+/// patch under 2500 px at 100 %.)
 /// r42:arcus-polish6 — a patch counts only when at least this share of the pixels round it
 /// (the hand's and the bow's left out) are dark cloth, every channel under `SLEEVE_DARK`.
 const SLEEVE_RING: f32 = 0.6;
@@ -669,7 +671,8 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                     }
                 }
                 let in_cloth = |id: usize| ring[id].1 as f32 >= ring[id].0 as f32 * SLEEVE_RING;
-                let patch = (SLEEVE_PATCH * SLEEVE_PPP * SLEEVE_PPP) as usize;
+                // The chest region: the largest patch.
+                let chest = (0..sizes.len()).max_by_key(|&i| sizes[i]);
                 for y in 0..h {
                     for x in 0..w {
                         let k = y * w + x;
@@ -681,7 +684,7 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                         } else if under.m[k]
                             && !sleeve.m[k]
                             && part[k] != u32::MAX
-                            && sizes[part[k] as usize] < patch
+                            && Some(part[k] as usize) != chest
                             && in_cloth(part[k] as usize)
                         {
                             under_n += 1;

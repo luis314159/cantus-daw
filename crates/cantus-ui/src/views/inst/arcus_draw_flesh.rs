@@ -2296,6 +2296,15 @@ fn trunk_shadow(
     if fig.bones.is_empty() {
         return;
     }
+    // (r42:arcus-polish6: `CANTUS_TUNE`'s `arm_shadow_reach`, `arm_shadow_depth` while
+    // studied — the forearm's shadow on her chest over the neckline.)
+    let (reach, depth) = {
+        use crate::scene::figure::tune::tune;
+        (
+            tune("arm_shadow_reach", SHADOW_REACH),
+            tune("arm_shadow_depth", SHADOW_DEPTH),
+        )
+    };
     let at = |k: usize| base.at(k, fig.bones[k].head);
     // The trunk's half width at the chest, from the shoulders' joints.
     let r = (at(hu::side(0) + hu::UPPER1) - at(hu::side(1) + hu::UPPER1)).len() * 0.29;
@@ -2316,7 +2325,7 @@ fn trunk_shadow(
     let gap = |p: V3| {
         let ray = (p - eye).norm();
         (1..=SHADOW_STEPS)
-            .map(|k| SHADOW_REACH * k as f32 / SHADOW_STEPS as f32)
+            .map(|k| reach * k as f32 / SHADOW_STEPS as f32)
             .find(|&d| inside(p + ray * d))
     };
     let deep = lut_colour(
@@ -2365,17 +2374,17 @@ fn trunk_shadow(
             let side = ax.cross(c - eye).norm();
             let g = gap(c);
             let Some(g) = g else {
-                let q = v.p(c - l * SHADOW_REACH * 0.5);
+                let q = v.p(c - l * reach * 0.5);
                 let w = side * (rad * 1.2);
                 *row = [
-                    (v.p(c - w - l * SHADOW_REACH * 0.5), Color32::TRANSPARENT),
+                    (v.p(c - w - l * reach * 0.5), Color32::TRANSPARENT),
                     (q, Color32::TRANSPARENT),
-                    (v.p(c + w - l * SHADOW_REACH * 0.5), Color32::TRANSPARENT),
+                    (v.p(c + w - l * reach * 0.5), Color32::TRANSPARENT),
                 ];
                 continue;
             };
             any = true;
-            let k = (1.0 - g / SHADOW_REACH).clamp(0.0, 1.0) * SHADOW_DEPTH * taper[j];
+            let k = (1.0 - g / reach).clamp(0.0, 1.0) * depth * taper[j];
             // The penumbra widens with the gap.
             let w = side * (rad * (0.9 + 0.06 * g));
             // A side whose ray finds no trunk is drawn in (the band ends at the trunk's edge,
