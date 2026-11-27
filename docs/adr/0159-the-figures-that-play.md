@@ -465,6 +465,49 @@ occluding capsules in its live painter.
     - **The knot by value**: a richer navy silk (`hp::TIE`, a faint sheen), its top face lit
       and its underside in shade, a darker rim apart from the blade, its cast shadow and a
       crease where the blade comes out, the dimple below.
+  - **The polish, pass 5: the collar, the specks, the measures** (amendment, 2026-11-26,
+    r42:arcus-polish5 — the integrator's list after sheet-it5):
+    - **The collar's band stays whole** (`bowed_human::clear_of_the_body`): only the point
+      goes under a held violin's or viola's back — a corner inside the body's outline is
+      tucked by how far it lies past the neck's surface (the neck's axis posed, its radius
+      the middle distance of its skin: 5.7 cm on him), the band within `COLLAR_KEEP` (3 cm)
+      kept, the point gone over `COLLAR_RAMP` (0.5 cm); the instrument claims corners up to
+      `COLLAR_TOP` (2 cm) over its top's highest point (4 took the band beside the throat:
+      the neck's skin met the tie on the violin's side, half a collar).
+    - **The collar's points over the knot** (`tie_knot`, `KNOT_LAP`): each shirt corner
+      over the knot's upper part lifted onto its face — built, and off by default: at the
+      shirt's density a lifted corner is a sliver (a white curl over the knot at 400 %),
+      not a folded edge. The knot's top is 3.6 cm across.
+    - **The collar's band in Drawn**: its corners over a held instrument's outline are
+      marked (`BESIDE_BODY`); sorted by their own middles they drew white stripes between
+      the chin rest's cells, sorted farther (`BESIDE_BIAS`) they uncovered dark shards, so
+      the Drawn picture leaves them out (`drawn_beside_mode`) — its far band still goes
+      under the chin rest; a layer of its own is next.
+    - **A sleeve corner grazing the eye more than its neighbourhood** takes its broad
+      normal (`arcus_draw_flesh::despike`). His cuff buttons' light rings (the specks
+      gate's largest group, Photographic only) are not that, nor the live outline's strips,
+      nor the shirt's cuff through a crack: still open.
+    - **His hair's weave** was the tonal streaks' fine noise over the crossing cards, not
+      the maps (flattening the maps' detail left it): the streaks 0.9 → 0.15, the clumps
+      0.7 → 0.2, the detail 0.3 → 0.2; the top's outline broken by more, longer and thicker
+      tips (`HIS_TIPS` 250, `TIPS`).
+    - **His jacket's seams** (`build_figures.py::seams`): a soft ridge round each armhole
+      (where the arm's share of the weights crosses one half: the sleeve's cap) and along
+      each shoulder's top, 0.22 cm — the mesh draws a ridge, not a stitch; her velvet has
+      none (its outline rippled on her raised shoulder).
+    - **A bent elbow is wider than the upper arm** (`tests/arcus_figure_shape.rs`): cut
+      square to the upper arm at the elbow, a bent arm's cut runs along the forearm's start
+      (ref-04's bare bow arm, bent about 75°: to the measure's 6 cm, 1.07–1.12 × the upper
+      arm's middle; her bow elbow 1.07–1.11). Past 45° of bend the elbow may be up to 1.2 ×
+      the middle; straighter, it must stay under it.
+    - **The sleeve test sees the body** (`tests/arcus_figure_specks.rs`): its later shots had
+      drawn the live arms over an empty picture (the baked body is a texture uploaded once
+      per scene), so it never failed. With a new scene each shot, the bow also at the
+      figure's start, and only skin the forearm cuts off counted, it fails on the old
+      neckline — and on the new one: the V's point still shows under the forearm there.
+    - **`CANTUS_TUNE`** (`figure::tune`): any number under study set for a process
+      (`collar_*`, `knot_*`, `despike_*`, `tips_*`, `his_*`, `small_part`, `strip_small_px`,
+      `drawn_skip`) — a release build takes an hour on the shared machine.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`

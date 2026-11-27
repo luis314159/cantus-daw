@@ -1773,7 +1773,7 @@ pub const BESIDE_BODY: f32 = -3.0;
 /// centimetres of the skin; the points reach 6–8 cm out over the chest), and over how far
 /// past it the point goes under the instrument.
 const COLLAR_KEEP: f32 = 3.0;
-const COLLAR_RAMP: f32 = 1.5;
+const COLLAR_RAMP: f32 = 0.5;
 
 /// r42:arcus-polish5 — how far over the top's highest point a collar's corner inside the
 /// body's outline is still the instrument's to tuck (cm: 4 took the band beside the throat
@@ -2123,7 +2123,7 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
     // lifted to lie on the knot's face — fully over its corners, fading out past its sides
     // and toward its foot — so the knot comes out from under the collar as a real one does.
     let (lap, gap) = (
-        super::figure::tune::tune("knot_lap", 1.0),
+        super::figure::tune::tune("knot_lap", KNOT_LAP_ON),
         super::figure::tune::tune("knot_lap_gap", KNOT_LAP_GAP),
     );
     let (u0, u1, v0) = (
@@ -2177,6 +2177,10 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
 /// over the knot's corner.)
 const KNOT_LAP: (f32, f32, f32) = (0.15, 1.8, 0.2);
 const KNOT_LAP_GAP: f32 = 0.15;
+/// r42:arcus-polish5 — the lap off: lifting single shirt corners onto the knot left a thin
+/// white curl over its top-left at 400 % (the coordinator on sheet6) — at the shirt's density
+/// a corner lifted is a sliver, not a folded edge. `knot_lap=1` while studied.
+const KNOT_LAP_ON: f32 = 0.0;
 /// r42:arcus-polish5 — over how much of the knot's height past its top the lift fades (the
 /// collar's band above the knot hugs the neck).
 const KNOT_LAP_TOP: f32 = 0.15;
