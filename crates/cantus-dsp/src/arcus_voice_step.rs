@@ -5,6 +5,8 @@ use super::*;
 /// How long a staccato stroke draws before the bow stops on the string, a spiccato's
 /// bounce, and how long a stopped bow holds the string before it lifts (s).
 const STACCATO_S: f32 = 0.09;
+/// r42 arcus-classical — how long the classical hair noise takes to come in on a held stroke, s.
+const CLASSICAL_NOISE_IN_S: f32 = 0.15;
 /// r42:arcus-p5: 0.07 → 0.04 s — a bounce's contact is short (the references' strokes peak
 /// and fall 5–10 dB within 80 ms).
 const SPICCATO_S: f32 = 0.04;
@@ -403,8 +405,18 @@ impl Voice {
             // r42 arcus-classical: the hair's noise rides the shape's speed (the friction's
             // roughness goes with the force, and the force with the speed; exactly 1 unshaped).
             let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
-                                                                                                   // r42 fiddle: the bow's grit, rising near the bridge and with the force.
-                                                                                                   // The bite gives each note its share of it by the dynamic (a chop all of it).
+                                                                                                   // r42 arcus-classical (model 2): the classical hair noise on the held stroke, faded
+                                                                                                   // in once the attack has settled (`play::classical_noise_db`).
+            if s.model >= 2 && self.phase == Phase::Hold && self.tech == NoteTech::Arco {
+                let extra = super::super::play::classical_noise_db(self.inst)
+                    * (1.0 - super::super::shape::fiddler(s));
+                if extra > 0.0 {
+                    let x = (self.t as f32 / sr / CLASSICAL_NOISE_IN_S).clamp(0.0, 1.0);
+                    lvl *= 1.0 + (math::db_to_gain(extra) - 1.0) * x * x * (3.0 - 2.0 * x);
+                }
+            }
+            // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+            // The bite gives each note its share of it by the dynamic (a chop all of it).
             if s.grit > 0.0 {
                 let share = if self.tech == NoteTech::Chop {
                     1.0

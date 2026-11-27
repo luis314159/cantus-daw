@@ -85,12 +85,6 @@ impl Arcus {
         }
         if self.s.bow_noise_db > -60.0 {
             self.s.bow_noise_db += m.noise_db;
-            // r42 arcus-classical: the classical player's hair noise over the match's
-            // (`CLASSICAL_NOISE_DB`; a fiddler's bow keeps its tuned scratch, ADR 0164).
-            if self.s.model >= 2 {
-                self.s.bow_noise_db +=
-                    classical_noise_db(self.s.instrument) * (1.0 - shape::fiddler(&self.s));
-            }
         }
         self.s.pizz_decay *= m.pizz_decay;
         self.s.vib_depth *= m.vib_depth;
@@ -100,7 +94,14 @@ impl Arcus {
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
-        self.out.set(&self.s.output());
+                                                             // r42 arcus-classical: the classical violin's body radiates 1 dB less in music (the air
+                                                             // mode's roll-off, the 250 Hz hill lower): its output that much higher, so the bowed
+                                                             // presets keep their one level (`arcus_level_e2e`); a fiddler's keeps its own.
+        let mut out = self.s.output();
+        if self.s.model >= 2 && self.s.instrument == tables::Instrument::Violin {
+            out.gain_db += upper::tables::VIOLIN_CLASSICAL_TRIM_DB * (1.0 - fid);
+        }
+        self.out.set(&out);
         // r42 arcus-classical: model 2's air mode, a vented box's fourth-order roll-off
         // (`InstrumentSpec::air_hz`; the tools' `shape::Knobs::air_k` × it).
         let spec = self.s.instrument.spec();
@@ -640,12 +641,26 @@ pub(super) fn radiation(hz: f32, sr: f32) -> [f32; 5] {
 /// the references' band on 50 % of the violin's cells, 45 % of the viola's and 63 % of the
 /// cello's; +5 dB brought them to 70, 68 and 73 % (`docs/round42/arcus-classical.md`, pass 2)
 /// — the viola +3, its crest factor's groups falling 11 → 9 of 12 at +5. The bass's stays.
-pub(super) fn classical_noise_db(inst: tables::Instrument) -> f32 {
+///
+/// It rides the held stroke only (`voice::step`: faded in over `CLASSICAL_NOISE_IN_S` once the
+/// attack has settled — over the attack it held the upper strings' and the cello's captures
+/// past Guettler and Askenfelt's limits), and a fiddler's bow keeps its tuned scratch.
+pub(crate) fn classical_noise_db(inst: tables::Instrument) -> f32 {
+    #[cfg(test)]
+    if NO_CLASSICAL_NOISE.with(|c| c.get()) {
+        return 0.0;
+    }
     match inst {
         tables::Instrument::Violin | tables::Instrument::Cello => 5.0,
         tables::Instrument::Viola => 3.0,
         tables::Instrument::Bass => 0.0,
     }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The probes' switch: pass 1's bits on the pinned renders (`tests_classical::probe_pass2_size`).
+    pub(crate) static NO_CLASSICAL_NOISE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// r42 arcus-classical — a fourth-order Butterworth's two sections' Q.

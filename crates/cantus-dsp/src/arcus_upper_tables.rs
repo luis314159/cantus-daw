@@ -241,6 +241,10 @@ pub const VIOLIN_MATCH: Match = Match {
     vib_rate: 1.0,
 };
 
+/// r42 arcus-classical — the classical violin's output over its trim with pass 2's body, dB
+/// (measured: its presets in music −21.3 … −22.0 LUFS against the family's −20.6 … −21.4).
+pub const VIOLIN_CLASSICAL_TRIM_DB: f32 = 1.0;
+
 /// r42 arcus-classical — the violin's correction before pass 2, which a fiddler's violin keeps
 /// (the Fiddle character's bridge, grit and noise were fitted over it, ADR 0164).
 pub const VIOLIN_FIDDLE_EQ: [f32; EQ_BANDS] = [

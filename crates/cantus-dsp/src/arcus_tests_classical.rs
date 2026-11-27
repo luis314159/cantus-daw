@@ -362,9 +362,9 @@ fn a_note_known_to_be_followed_eases_before_the_next() {
 
 /// The size of pass 2's change on the pinned renders (`upper_tests::LOWER_HASHES`): on the cello
 /// and the bass only the classical hair noise moved them (the look-ahead needs a note's length,
-/// which the phrase does not give), so the bits before are the same renders with the hair 5 dB
-/// lower on the cello (`play::classical_noise_db`; the bass's 0). Prints each render's RMS
-/// change and their difference re each render.
+/// which the phrase does not give), so the bits before are the same renders without it
+/// (`play::NO_CLASSICAL_NOISE`). Prints each render's RMS change and their difference re each
+/// render.
 #[test]
 #[ignore]
 fn probe_pass2_size() {
@@ -373,16 +373,9 @@ fn probe_pass2_size() {
         .into_iter()
         .filter(|s| matches!(s.instrument, Instrument::Cello | Instrument::Bass))
     {
-        let k = if s.instrument == Instrument::Cello {
-            5.0
-        } else {
-            0.0
-        };
-        let before = ArcusSettings {
-            bow_noise_db: s.bow_noise_db - k,
-            ..s
-        };
-        let (a, _) = render(&before, &phrase(), 60_000, &|_| 256, &Serial);
+        super::play::NO_CLASSICAL_NOISE.with(|c| c.set(true));
+        let (a, _) = render(&s, &phrase(), 60_000, &|_| 256, &Serial);
+        super::play::NO_CLASSICAL_NOISE.with(|c| c.set(false));
         let (b, _) = render(&s, &phrase(), 60_000, &|_| 256, &Serial);
         let rms = |x: &[f32]| {
             10.0 * math::log10(
