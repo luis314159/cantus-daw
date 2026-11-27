@@ -64,9 +64,16 @@ fn lower() -> Vec<ArcusSettings> {
 /// back and the player's intonation in a passage, the violin's and viola's corner with the force,
 /// the viola's and cello's narrower vibrato and the upper strings' pitch table measured again with
 /// the player on. The measured size: `docs/round42/arcus-classical.md`, *The size of the change*.
+///
+/// r42 arcus-classical pass 2 (`DSP_VERSION` 20 kept, unreleased): re-made for the classical hair
+/// noise on the held stroke (+5 dB on the cello, `play::classical_noise_db`) — the only change
+/// that reaches these renders (the look-ahead needs a note's length; the violin's body is not
+/// in them). Measured by `tests_classical::probe_pass2_size`: the cello's two bowed renders RMS
+/// −0.14 and +0.03 dB, their difference −15.4 and −16.0 dB re each render (max |Δ| 0.13, 0.10);
+/// the cello's pluck and tremolo and the bass's three the same to the bit (under −266 dB).
 const LOWER_HASHES: &[u64] = &[
-    0x4f1d1dcda9edf81f,
-    0xcb8db4391d301106,
+    0xf0916ad0d9291ca3,
+    0xfb4ff005dc44c607,
     0x8ab414d6e1b9ffd4,
     0x2499bbc3fbcb96a4,
     0xd7dc01a4b7d153d7,
@@ -79,9 +86,11 @@ const LOWER_HASHES: &[u64] = &[
 /// r42 arcus-classical (the free ring after the lift, the pluck's DC corner and contact, the
 /// viola's and cello's vibrato) moved them on purpose; the player's shape, taper, way back and
 /// intonation stay out of them (`tests_classical::with_the_player_off_the_shape_touches_no_sample`).
+/// Pass 2's classical hair noise is the bow's, not the player's: it moved the cello's two bowed
+/// renders here too, on purpose (the same size as in [`LOWER_HASHES`]).
 const PASS6_HASHES: &[u64] = &[
-    0x56171b9d8c3a613f,
-    0x5634ca566ba8d2b4,
+    0x1a98a31f85a64b82,
+    0xd7aaa34134495e07,
     0x14bce81194da377a,
     0xff53c5e8c8a78e36,
     0x8fc5c4e1e644e2b7,

@@ -1,6 +1,6 @@
 {
  "titulo": "Arcus clásico — pasada 2 (DSP 20)",
- "intro": "Las mismas cuatro frases del análisis (ventana cantabile de cada solo, interpretado) en tres tomas: antes de la pasada clásica, la pasada 1 (lo que oíste: «sonando mucho mejor») y ahora, la pasada 2; al lado de la grabación del análisis. El cuarteto en las tres tomas. Todo a −23 LUFS (el cuarteto a −16). Rama r42/arcus-classical. La comparación con Paganini tiene su propia página (listen/paganini, versión «en mejora» renovada).",
+ "intro": "Las mismas cuatro frases del análisis (ventana cantabile de cada solo, interpretado) en tres tomas: antes de la pasada clásica, la pasada 1 (lo que oíste: «sonando mucho mejor») y ahora, la pasada 2; al lado de la grabación del análisis. El cuarteto en las tres tomas. Todo a −23 LUFS (el cuarteto a −16). Rama r42/arcus-classical (pasada 2, versión final de la sesión). La comparación con Paganini tiene su propia página (listen/paganini, versión «en mejora» renovada).",
  "escuchar": [
   "El final de cada nota dentro de una frase: ahora el arco sabe cuánto dura la nota (la reproducción se lo dice) y se apaga antes de la siguiente, como un intérprete; la nota siguiente arranca desde ahí.",
   "Las notas cortas y rápidas: ya no se hunden una tras otra en un pasaje ligado.",
@@ -16,20 +16,92 @@
   "Dobles cuerdas: la segunda cuerda lleva su propia afinación (también la tendencia del semitono) y la conserva al quedar sonando en un cruce; la Variación 2 de Paganini con dos cuerdas ya no pierde ninguna nota.",
   "El violinista de fiddle es ahora un control propio («Intérprete de fiddle»); el preset Fiddle lo enciende y conserva el cuerpo con el que se afinó; las canciones antiguas se migran solas."
  ],
- "columnas": ["Antes (inicio)", "Pasada 1", "Ahora (pasada 2)"],
+ "columnas": [
+  "Antes (inicio)",
+  "Pasada 1",
+  "Ahora (pasada 2)"
+ ],
  "numeros": [
-  ["Frases (HSD): final de las notas largas bajo el pico (vn / va / vc / cb)", "3,7 · 4,5 · 4,0 · 4,3 dB", "3,7 · 3,6 · 3,9 · 5,0 dB", "12,1 · 12,4 · 12,2 · 12,2 dB", "10,6 · 14,5 · 35,4 · 15,3 dB"],
-  ["Frases (Musopen + HSD): inicio bajo el pico (vn / va / vc)", "2,8 · 3,5 · 3,5 dB", "4,9 · 3,3 · 3,8 dB", "10,7 · 10,2 · 9,0 dB", "9,0 · 8,4 · 9,7 dB"],
-  ["Paganini: final de las notas de 0,3 s o más bajo el pico", "16,9 dB (actual)", "9,0 dB", "12,0 dB", "16,6 dB"],
-  ["Paganini: subida del ataque a −3 dB (mediana)", "45 ms", "45 ms", "33 ms", "32 ms"],
-  ["Paganini: tercio de octava de 200 Hz (la fundamental grave) frente a la grabación", "+13,9 dB", "+15,7 dB", "−3,0 dB", "0"],
-  ["Paganini: 2 kHz / 10 kHz / 12,7 kHz frente a la grabación", "−6,9 / −12,7 / −10,8 dB", "−7,1 / −12,7 / −10,4 dB", "−3,8 / −6,3 / −5,0 dB", "0"],
-  ["Paganini: Variación 2 con dos cuerdas, notas calladas (> 30 dB bajo la mediana)", "0", "9 de 16 compases con notas a −90 dB", "0 de 137 notas", "0"],
-  ["Violín, notas sueltas: armónicos 1–20, celdas dentro de la banda", "—", "78 %", "86 %", "banda p10–p90"],
-  ["Ruido entre armónicos, celdas dentro (vn / va / vc)", "—", "61 · 45 · 63 %", "73 · 60 · 73 %", "banda p10–p90"],
-  ["t_steady del violonchelo, grupos dentro", "—", "3/11 (0,12 s)", "5/11 (0,13 s)", "0,18–0,67 s"]
+  [
+   "Frases (HSD): final de las notas largas bajo el pico (vn / va / vc / cb)",
+   "3,7 · 4,5 · 4,0 · 4,3 dB",
+   "3,7 · 3,6 · 3,9 · 5,0 dB",
+   "12,4 · 12,1 · 12,0 · 12,4 dB",
+   "10,6 · 14,5 · 35,4 · 15,3 dB"
+  ],
+  [
+   "Frases (Musopen + HSD): inicio bajo el pico (vn / va / vc)",
+   "2,8 · 3,5 · 3,5 dB",
+   "4,9 · 3,3 · 3,8 dB",
+   "10,5 · 10,5 · 8,5 dB",
+   "9,0 · 8,4 · 9,7 dB"
+  ],
+  [
+   "Paganini: final de las notas de 0,3 s o más bajo el pico",
+   "16,9 dB (actual)",
+   "9,0 dB",
+   "13,1 dB",
+   "16,6 dB"
+  ],
+  [
+   "Paganini: subida del ataque a −3 dB (mediana)",
+   "45 ms",
+   "45 ms",
+   "48 ms",
+   "32 ms"
+  ],
+  [
+   "Paganini: tercio de octava de 200 Hz (la fundamental grave) frente a la grabación",
+   "+13,9 dB",
+   "+15,7 dB",
+   "−2,3 dB",
+   "0"
+  ],
+  [
+   "Paganini: 2 kHz / 10 kHz / 12,7 kHz frente a la grabación",
+   "−6,9 / −12,7 / −10,8 dB",
+   "−7,1 / −12,7 / −10,4 dB",
+   "−3,7 / −7,4 / −6,0 dB",
+   "0"
+  ],
+  [
+   "Paganini: Variación 2 con dos cuerdas, notas calladas (> 30 dB bajo la mediana)",
+   "0",
+   "9 de 16 compases con notas a −90 dB",
+   "0 de 137 notas",
+   "0"
+  ],
+  [
+   "Violín, notas sueltas: armónicos 1–20, celdas dentro de la banda",
+   "—",
+   "78 %",
+   "85 %",
+   "banda p10–p90"
+  ],
+  [
+   "Ruido entre armónicos, celdas dentro (vn / va / vc)",
+   "—",
+   "61 · 45 · 63 %",
+   "79 · 60 · 69 %",
+   "banda p10–p90"
+  ],
+  [
+   "t_steady del violonchelo, grupos dentro",
+   "—",
+   "3/11 (0,12 s)",
+   "3/11 (0,12 s)",
+   "0,18–0,67 s"
+  ],
+  [
+   "Afinación de notas sueltas con arco dentro de ±1 cent (vn / va / vc / cb)",
+   "—",
+   "72 · 78 · 80 · 97 %",
+   "65 · 74 · 84 · 97 %",
+   "puerta ±1 ct"
+  ]
  ],
  "abierto": [
+  "La afinación de las notas sueltas del violín dentro de ±1 cent bajó de 72 a 65 % con el cuerpo nuevo (la tabla de afinación se midió de nuevo); y el ataque en Paganini tarda 48 ms (32 en la grabación; 33 en una prueba intermedia de esta pasada).",
   "El violonchelo fuerte sigue apagado: sus parciales 2–8 de Do4 a Do6 quedan 8–20 dB bajo las referencias; no es la esquina del puente (la del chelo ya está a 6 kHz): es la pérdida de la cuerda en los agudos, lo siguiente.",
   "El pizzicato sigue demasiado limpio (su ruido entre armónicos ~40–50 dB, ninguna celda en la banda): el siguiente es el ruido del dedo y el aperiódico de la cuerda pulsada.",
   "Las dos cuerdas de Paganini aún no se parecen: la de arriba cae 5,6 dB (el intérprete 9,7), el equilibrio +0,5 dB (+6,9) y el intervalo +5,6 cents (−9,2).",

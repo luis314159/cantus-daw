@@ -123,7 +123,7 @@ passage; the Var. 2 render itself is the Paganini builder's to check on this bui
 semitone tendency does not yet reach a double stop's second string (`arcus_voice_pair.rs`, the
 fiddle builder's file): open.
 
-## Pass 2 (`p3`): the look-ahead, the violin's body, the noise, the fiddler's switch
+## Pass 2 (`p4`): the look-ahead, the violin's body, the noise, the fiddler's switch
 
 The owner: *"sigue mejorando para que podamos sonar más natural, como esa grabación de Paganini"*
 (he found the last *"sonando mucho mejor"*). ADR 0166's *Pass 2* holds the decision.
@@ -135,16 +135,20 @@ The owner: *"sigue mejorando para que podamos sonar más natural, como esa graba
    allocation, no latency, the same offline and in real time and at any block size).
    `paganini_render` hands the same from its score. Arcus's shape eases a followed note before
    its end (`Knobs::end_*`: 12 dB on a note of 1 s or more, 3 dB at 0.15 s or less, over half its
-   length up to 0.6 s; half before a rest), a bow change after it starts from half of where it
-   ended, a slurred or re-bowed note's rise fits in 0.4 of its length.
+   length up to 0.6 s; none before a rest — the key's taper carries it), a bow change after it
+   starts from half of where it ended, a slurred or re-bowed note's rise fits in 0.4 of its
+   length.
 2. **The violin's body** (model 2): the air mode's vented-box roll-off (fourth-order
    Butterworth at 260 Hz, `InstrumentSpec::air_hz`), the bridge corner × 2
-   (`upper::VIOLIN_CORNER_K`), the match's correction re-set between the close references and
-   the Paganini hall recording.
+   (`upper::VIOLIN_CORNER_K`, sharpening with the dynamic from mp), the match's correction
+   re-set between the close references and the Paganini hall recording, the output +0.6 dB,
+   the upper pitch table measured again (left after its pass ≤ 0.28 ct on the violin).
 3. **The noise between the harmonics**: the classical hair noise +5 dB (violin, cello), +3
-   (viola) over each match; a fiddler's bow keeps its scratch.
-4. **The cello**: the +5 dB of hair noise moved `t_steady` 3/11 → 5/11 groups in (0.116 →
-   0.127 s); its loud partials 2–8 stay dull — see *Open*.
+   (viola) over each match, on the held stroke (faded in over 0.15 s after the attack); a
+   fiddler's bow keeps its scratch.
+4. **The cello**: the +5 dB of hair noise over the whole stroke moved `t_steady` 3/11 → 5/11
+   groups in, but it held two soft attacks past Guettler's limit; on the held stroke only it is
+   3/11 again. Its loud partials 2–8 stay dull — see *Open*.
 5. **Double stops**: the second string carries its own intonation (`Second::into`: the error and
    the semitone step's tendency from the note that string last held) and keeps it when left
    ringing at a crossing (`swap_roles`).
@@ -169,39 +173,39 @@ The owner: *"sigue mejorando para que podamos sonar más natural, como esa graba
   and dynamic per reference set (the lab's band is wide toward the dull side because Iowa 2012's
   violins' partials 2–8 read 15–40 dB under the others').
 
-### Measures, pass 1 (`c11`) → pass 2 (`p3`)
+### Measures, pass 1 (`c11`) → pass 2 (`p4`, the session's final build)
 
 **Phrases** (the solos through the engine, the look-ahead on):
 
 | | violin | viola | cello | bass | players |
 |---|---|---|---|---|---|
-| long notes' end under the peak (`phrase.py`, HSD) | 3.7 → 12.1 dB | 3.6 → 12.4 | 3.9 → 12.2 | 5.0 → 12.2 | 10.6 · 14.5 · 35.4 · 15.3 |
-| long notes' start under the peak (`phrase.py`) | 4.9 → 10.7 dB | 3.3 → 10.2 | 3.8 → 9.0 | 4.0 → 7.6 | 13.6 · 7.3 · 12.8 · 10.7 |
-| start under the peak (`strings_hq_phrases`, Musopen + HSD) | 4.9 → 10.7 dB | 3.3 → 10.2 | 3.8 → 9.0 | — | 9.0 · 8.4 · 9.7 |
-| intonation \|dev\| p50 (`strings_hq_phrases`) | 5.2 → 3.9 ct | 5.5 → 5.8 | 4.5 → 4.1 | — | 5.1 · 4.6 · 7.0 |
+| long notes' end under the peak (`phrase.py`, HSD) | 3.7 → 12.4 dB | 3.6 → 12.1 | 3.9 → 12.0 | 5.0 → 12.4 | 10.6 · 14.5 · 35.4 · 15.3 |
+| long notes' start under the peak (`phrase.py`) | 4.9 → 10.5 dB | 3.3 → 10.5 | 3.8 → 8.5 | 4.0 → 7.2 | 13.6 · 7.3 · 12.8 · 10.7 |
+| start under the peak (`strings_hq_phrases`, Musopen + HSD) | 4.9 → 10.5 dB | 3.3 → 10.5 | 3.8 → 8.5 | — | 9.0 · 8.4 · 9.7 |
+| intonation \|dev\| p50 (`strings_hq_phrases`) | 5.2 → 4.7 ct | 5.5 → 5.5 | 4.5 → 4.2 | — | 5.1 · 4.6 · 7.0 |
 
 The first try at the knobs' defaults of the code (`end_db` 7, the first `d1` build) gave ends of
 8.1–9.5 dB; 12 brings them into the players' range on every instrument and the Paganini long
-notes to 12.0 dB (16.6). Deeper (`end_db` 16–20) moved the Paganini long notes little more
+notes to 12–13 dB (16.6). Deeper (`end_db` 16–20) moved the Paganini long notes little more
 (12–17 dB) and lowered the short notes' peaks.
 
 **Paganini** (the aligned take in the hall, one string; `paganini_compare.py` / the probes):
 
 | | original | actual | pass 1 | pass 2 |
 |---|---|---|---|---|
-| start under the peak (notes ≥ 0.15 s) | 5.3 dB | 7.6 | 6.9 | 7.4 |
-| end under the peak (≥ 0.15 s / ≥ 0.3 s) | 9.1 / 16.6 dB | 8.2 / 16.9 | 5.9 / 9.0 | 7.9 / 12.0 |
-| rise to −3 dB | 32 ms | 45 | 45 | 33 |
-| notes' peaks p5–p95 | 14.0 dB | 16.2 | 17.9 | 16.7 |
-| 200 Hz third-octave re the original | 0 | +13.9 | +15.7 | −3.0 |
-| 2 / 2.5 / 3.15 kHz | 0 | −6.9 / −2.5 / −3.8 | −7.1 / −2.4 / −4.7 | −3.8 / +1.9 / −2.6 |
-| 10 / 12.7 kHz | 0 | −12.7 / −10.8 | −12.7 / −10.4 | −6.3 / −5.0 |
-| 150–400 Hz under the loud high notes, re their partials | −39.6 dB | +7.7 | +8.9 | +6.5 (+0.2…+2 in the tries with 250 Hz at +4…+6) |
+| start under the peak (notes ≥ 0.15 s) | 5.3 dB | 7.6 | 6.9 | 8.4 |
+| end under the peak (≥ 0.15 s / ≥ 0.3 s) | 9.1 / 16.6 dB | 8.2 / 16.9 | 5.9 / 9.0 | 7.7 / 13.1 |
+| rise to −3 dB | 32 ms | 45 | 45 | 48 (33 in `p3`, before the corner followed the dynamic) |
+| notes' peaks p5–p95 | 14.0 dB | 16.2 | 17.9 | 17.3 |
+| 200 Hz third-octave re the original | 0 | +13.9 | +15.7 | −2.3 |
+| 2 / 2.5 / 3.15 kHz | 0 | −6.9 / −2.5 / −3.8 | −7.1 / −2.4 / −4.7 | −3.7 / +1.5 / −3.1 |
+| 10 / 12.7 kHz | 0 | −12.7 / −10.8 | −12.7 / −10.4 | −7.4 / −6.0 |
+| 150–400 Hz under the loud high notes, re their partials | −39.6 dB | +7.7 | +8.9 | +6.9 (+0.2…+2 in the tries with 250 Hz at +4…+6; five notes) |
 | Var. 2 on two strings: notes > 30 dB under the median | 0 | 0 | 9 of 16 bars to −90 dB | 0 of 137 |
-| Var. 2: the upper string's fall / balance / interval | 9.7 dB / +6.9 dB / −9.2 ct | 5.0 / +2.5 / −1.5 | 5.2 / +3.1 / +2.6 | 5.6 / +0.5 / +5.6 |
+| Var. 2: the upper string's fall / balance / interval | 9.7 dB / +6.9 dB / −9.2 ct | 5.0 / +2.5 / −1.5 | 5.2 / +3.1 / +2.6 | 5.6 / +0.6 / +2.1 |
 
-By length (pass 2, new bow): notes under 0.15 s start 6.3 / end 2.3 dB (the recording's 3.5 /
-5.5), 0.3–0.6 s 5.2 / 12.0 (5.8 / 16.5), over 0.6 s 13.6 / 19.5 (8.4 / 27.6). A short note's end
+By length (pass 2, new bow): notes under 0.15 s start 6.7 / end 2.3 dB (the recording's 3.5 /
+5.5), 0.3–0.6 s 5.8 / 13.1 (5.8 / 16.5), over 0.6 s 13.2 / 16.7 (8.4 / 27.6). A short note's end
 does not follow the bow's contour at that length (10 dB planned over 66 ms measured 2.9): the bow
 speed's 30 ms and the force's 60 ms smoothing and the string's own response hold it.
 
@@ -210,12 +214,12 @@ look-ahead, so only the body and the noise moved them):
 
 | | violin | viola | cello | bass |
 |---|---|---|---|---|
-| harmonics 1–20 in band | 78 → 86 % | 82 → 82 % | 88 → 88 % | 88 % |
-| HNR bands in band | 61 → 73 % | 45 → 60 % | 63 → 73 % | 67 % |
+| harmonics 1–20 in band | 78 → 85 % | 82 → 82 % | 88 → 88 % | 88 % |
+| HNR bands in band | 61 → 79 % | 45 → 60 % | 63 → 69 % | 67 % |
 | noise re harmonics, groups in | 6 → 10/12 | 9 → 9/12 | 6 → 8/12 | 5/12 |
-| crest factor | 10 → 11/12 | 11 → 10/12 | 12/12 | 12/12 |
-| `t_steady` | 9/10 (0.31 s) | 4 → 5/12 (0.15 → 0.24 s) | 3 → 5/11 (0.12 → 0.13) | 8/12 |
-| arco within ±1 ct | 72 → 72 % | 78 % | 80 % | 97 % |
+| crest factor | 10 → 10/12 | 11 → 9/12 | 12/12 | 12/12 |
+| `t_steady` | 9 → 8/10 (0.31 → 0.38 s) | 4 → 5/12 (0.15 → 0.20 s) | 3/11 (0.12 s; 5/11 while the noise also rode the attack) | 8/12 |
+| arco within ±1 ct | 72 → 65 % | 78 → 74 % | 80 → 84 % | 97 % |
 
 The violin's partials by reference set (`partials.py`, ff, re the strongest): G3–C♯4 H1 −6.8 →
 −9.6 dB (Iowa −17.8, TinySOL −13.1, VSCO −9.3); A4–D♭5 H3–H5 −21.9 / −23.3 / −24.4 → −19.6 / −20.2
@@ -240,5 +244,15 @@ only the cello's hair noise moved them (`tests_classical::probe_pass2_size`) —
 - **Short notes' ends** inside a fast passage stay 2–3 dB under their peak (the recording's 5).
 - **The violin's top**: between the close references (brighter) and the hall recording; the
   viola's body did not get the air mode (no measured viola admittance or hall recording here).
+- **The violin's single-note pitch gate**: within ±1 ct 72 → 65 % with pass 2's body (the upper
+  pitch table measured again; its own held-out gate passes); the Paganini attack's rise 48 ms
+  (33 in `p3`, the recording's 32) since the corner follows the dynamic.
+- **Tests that fail on this branch, not from pass 2**: `format::schema_84_keeps_chordas_colour`
+  (this branch's `v85.cantus` is the fiddle builder's, without Chorda's colour; integration's
+  has it), `arcus_level_e2e` (the Fiddle and violin tremolo presets 2.7–3.1 LU over the cello's
+  portamento against `PARITY_LU` 1.5; the Fiddle preset, whose renders pass 2 leaves to the
+  bit, alone sits at −18.6 LUFS against the family's −20.6 … −21.5),
+  `arcus_fiddle_e2e::the_bite_raises_the_noise…` (bite 0 → 1/3: −27.5 → −27.6 dB; the Fiddle
+  preset's renders are bit-identical to pass 1's, `fiddle_lab`).
 - Live playing has no look-ahead (a live slur's end cannot ease).
 - Verified only in the lab and by measures: the owner's ears decide.

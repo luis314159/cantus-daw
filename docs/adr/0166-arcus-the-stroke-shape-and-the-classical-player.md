@@ -93,8 +93,8 @@ offline = real time, the pool, rest, the pitch gates).
   it yet.
 - **Arcus's stroke eases before a note it knows is followed** (`Shape::expect`, `Knobs::end_*`):
   a note followed within 0.1 s eases 12 dB before its end (3 dB at 0.15 s or shorter, between
-  them by its length), over half its length up to 0.6 s; before a rest half of that (the key's
-  taper after it carries the rest). A bow change after an eased end starts from half of where
+  them by its length), over half its length up to 0.6 s; before a rest none (the key's taper
+  after it carries it: eased before a rest, a held note's measured pitch moved 3.7 cents). A bow change after an eased end starts from half of where
   it ended; a slurred or re-bowed note's rise fits in 0.4 of its length (without it a run of
   short slurred notes, each starting where the last had eased, sank note by note: the Paganini
   variation's note peaks spread 26 dB against the recording's 14). With the player at 0 none
@@ -104,11 +104,15 @@ offline = real time, the pool, rest, the pitch gates).
   `InstrumentSpec::air_hz` (the violin 260 Hz, a fourth-order Butterworth replacing the
   second-order corner under its G string); the bridge corner × 2 (`upper::VIOLIN_CORNER_K`:
   harmonics 3–8 of A4–D6 sat 5–15 dB under the Iowa, TinySOL and VSCO violins'; at × 3 nothing
-  more moved); the match's correction re-set between those close references and the Paganini
+  more moved), sharpening with the stroke's dynamic from mp (Cremer's rounding goes as 1/F; at
+  × 2 from pp three soft attacks overran Guettler's limits), the violin's output +0.6 dB (its
+  presets' level in music), the upper strings' pitch table measured again over it; the match's correction re-set between those close references and the Paganini
   hall recording (the 250 Hz hill +10 → +8, the bridge hill's cuts at 1.6–4 kHz taken back in
   part, 10 kHz −2 → +1).
 - **The noise between the harmonics**: model 2's classical hair noise +5 dB on the violin and
-  the cello, +3 on the viola, over each match (a fiddler's bow keeps its tuned scratch).
+  the cello, +3 on the viola, over each match, on the held stroke only (faded in over 0.15 s
+  once the attack has settled: over the attack it held captures past Guettler's limits); a
+  fiddler's bow keeps its tuned scratch.
 - **A double stop's second string carries its own intonation** (error and semitone tendency
   from the note the string last held) and keeps it when left ringing at a crossing.
 - **The fiddler is its own switch** (`player.fiddle`, schema 87): the steel set no longer makes

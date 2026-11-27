@@ -313,13 +313,13 @@ y separadas es lo primero que delata la máquina: falta el «clic» de la crin a
 de la siguiente; la diferencia que queda está en las notas cortas.</li>
 <li><b>Falta brillo y aire.</b> Hay −3 a −7 dB en 2–3,2 kHz y −11 a −13 dB en 10–12,7 kHz, y el ruido
 entre armónicos es 4–7 dB más limpio sobre 6 kHz. El violín real rasca un poco arriba y Arcus suena
-pulido y algo apagado. <i>Pasada 2 (en mejora): −3,8 dB a 2 kHz y −6,3 / −5,0 dB a 10 / 12,7 kHz,
+pulido y algo apagado. <i>Pasada 2 (en mejora): −3,7 dB a 2 kHz y −7,4 / −6,0 dB a 10 / 12,7 kHz,
 y más ruido de crin entre armónicos.</i></li>
 <li><b>Graves que el violín no radia.</b> Hay un golpe ancho de 150–400 Hz bajo las notas agudas
 fuertes, unos 15–20 dB sobre la grabación al empezar la segunda mitad del tema (La5). Y la fundamental
 del La3 grave sale unos 16 dB más fuerte. Suena a caja más grande o a «bombeo», no a violín.
 <i>Pasada 2 (en mejora): el violín radia bajo su modo de aire como un bass-reflex (cae 24 dB por octava
-bajo 260 Hz); el tercio de 200 Hz queda a −3,0 dB de la grabación (era +15,7).</i></li>
+bajo 260 Hz); el tercio de 200 Hz queda a −2,3 dB de la grabación (era +15,7).</i></li>
 <li><b>La afinación es demasiado exacta</b>: {f1(A["intonation_spread_cents"])} /
 {f1(M["intonation_spread_cents"])} cents de desvío nota a nota, contra {f1(O["intonation_spread_cents"])}. En las
 dos cuerdas de la Variación 2, el intérprete estrecha el semitono (la sensible alta):
