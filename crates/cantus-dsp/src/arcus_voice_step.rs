@@ -462,8 +462,16 @@ impl Voice {
         let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
         let mut corner = super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
             * super::pair::steel_corner(s); // r42 fiddle
-                                            // (The violin's and the viola's: on the cello it moved none of the loud partials the
-                                            // cellos have, and on the bass it held the E string's attack past Guettler's limit.)
+                                            // r42 arcus-classical (model 2): the violin's corner sharper (`upper::VIOLIN_CORNER_K`;
+                                            // a tool's try × `Knobs::corner_k` on the upper strings).
+        if s.model >= 2 && self.inst == Instrument::Violin {
+            corner *= super::super::upper::VIOLIN_CORNER_K;
+        }
+        if knobs.corner_k != 1.0 && matches!(self.inst, Instrument::Violin | Instrument::Viola) {
+            corner *= knobs.corner_k as f64; // r42 arcus-classical: a tool's try
+        }
+        // (The violin's and the viola's: on the cello it moved none of the loud partials the
+        // cellos have, and on the bass it held the E string's attack past Guettler's limit.)
         if s.model >= 2
             && matches!(self.inst, Instrument::Violin | Instrument::Viola)
             && self.tech == NoteTech::Arco

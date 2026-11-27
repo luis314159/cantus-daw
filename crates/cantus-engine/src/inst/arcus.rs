@@ -132,6 +132,7 @@ pub fn how_of(art: NoteArt) -> NoteHow {
             BowPart::Whole => bow::Part::Whole,
         }),
         string: art.string.filter(|n| (1..=4).contains(n)).map(|n| 4 - n),
+        ..NoteHow::default()
     }
 }
 
@@ -353,6 +354,10 @@ impl InstrumentUnit for Unit {
 
     fn note_art(&mut self, id: u64, art: NoteArt) {
         self.a.note_how(id, how_of(art)); // r42 arcus-expr
+    }
+
+    fn note_len(&mut self, id: u64, len: u32, next: Option<i32>) {
+        self.a.note_len(id, len, next); // r42 arcus-classical (ADR 0166)
     }
 
     fn all_notes_off(&mut self) {

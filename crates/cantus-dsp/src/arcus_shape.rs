@@ -108,7 +108,41 @@ pub struct Knobs {
     pub into_s: f32,
     pub into_shift: f32,
     pub into_step: f32,
+    /// The look-ahead's end (ADR 0166: a note's length known on playback): a note followed
+    /// within `end_follow` s by the next eases `end_db` before its end (`end_short` on a note
+    /// of `END_SHORT_S` or less, between them by its length), over `end_share` of its length
+    /// up to `end_max` s; one followed by a rest `end_rest` of that (the key's taper after it
+    /// carries the rest). The players' long notes inside a phrase end 8–10 dB (Musopen, HSD
+    /// 10–35) under their peak; Arcus's, without it, 3.6–5.0.
+    pub end_db: f32,
+    pub end_short: f32,
+    pub end_share: f32,
+    pub end_max: f32,
+    pub end_rest: f32,
+    pub end_follow: f32,
+    /// A bow change after an eased end starts its stroke this share of where the last one
+    /// ended (the bow turns slow and speeds up again; 0: at the stroke's level at once).
+    pub rebow_keep: f32,
+    /// With the note's length known, a long note's rise reaches its peak at least this share
+    /// of its length in (the players' peak at 0.3–0.5 of a long note; 0: the swell's own
+    /// rise), at most `rise_max` s.
+    pub rise_share: f32,
+    pub rise_max: f32,
+    /// … and a slurred or re-bowed note's rise never longer than `rise_fit` of its length (a
+    /// run of short slurred notes, each starting where the last had eased, sank note by note
+    /// when its rise outlasted it: the Paganini variation's peaks spread 26 dB against 14).
+    pub rise_fit: f32,
+    /// The body's, model 2's (here so the tools can try it): the air mode's corner ×
+    /// (`InstrumentSpec::air_hz`; 0: none, the second-order corner under the strings as before),
+    /// and the upper strings' bridge corner × (`InstrumentSpec::corner_hz`).
+    pub air_k: f32,
+    pub corner_k: f32,
 }
+
+/// A note this short or shorter eases only `Knobs::end_short` before its end, s.
+pub const END_SHORT_S: f32 = 0.15;
+/// … and one this long or longer the whole `Knobs::end_db`, s.
+pub const END_LONG_S: f32 = 1.0;
 
 /// The measured shape (`docs/round42/arcus-classical.md`).
 pub const KNOBS: Knobs = Knobs {
@@ -143,6 +177,18 @@ pub const KNOBS: Knobs = Knobs {
     into_s: 0.18,
     into_shift: 1.6,
     into_step: 4.0,
+    end_db: 12.0,
+    end_short: 3.0,
+    end_share: 0.5,
+    end_max: 0.6,
+    end_rest: 0.5,
+    end_follow: 0.1,
+    rebow_keep: 0.5,
+    rise_share: 0.0,
+    rise_max: 1.2,
+    rise_fit: 0.4,
+    air_k: 1.0,
+    corner_k: 1.0,
 };
 
 impl Knobs {
@@ -202,6 +248,18 @@ impl Knobs {
                 "into_s" => self.into_s = v,
                 "into_shift" => self.into_shift = v,
                 "into_step" => self.into_step = v,
+                "end_db" => self.end_db = v,
+                "end_short" => self.end_short = v,
+                "end_share" => self.end_share = v,
+                "end_max" => self.end_max = v,
+                "end_rest" => self.end_rest = v,
+                "end_follow" => self.end_follow = v,
+                "rebow_keep" => self.rebow_keep = v,
+                "rise_share" => self.rise_share = v,
+                "rise_max" => self.rise_max = v,
+                "rise_fit" => self.rise_fit = v,
+                "air_k" => self.air_k = v,
+                "corner_k" => self.corner_k = v,
                 _ => {}
             }
         }
@@ -340,6 +398,11 @@ pub struct Shape {
     rng: Rng,
     /// The taper: the level it started from, the time into it and its length (s).
     taper: Option<(f32, f32, f32)>,
+    /// The look-ahead's end (`Knobs::end_*`): where it begins easing (s into the note), its
+    /// length (s) and its depth (dB); none for a note whose length is not known.
+    end: Option<(f32, f32, f32)>,
+    /// Whether this note began from silence.
+    fresh: bool,
 }
 
 impl Default for Shape {
@@ -356,6 +419,8 @@ impl Default for Shape {
             b_t: 0.0,
             rng: Rng(1),
             taper: None,
+            end: None,
+            fresh: false,
         }
     }
 }
@@ -388,8 +453,12 @@ impl Shape {
             self.breath = (0.0, self.rng.bipolar());
             self.b_t = 0.0;
         }
+        // (whether the last note eased toward this one: the look-ahead's end had begun)
+        let eased = self.end.is_some_and(|(at, _, _)| self.t > at);
         self.amount = amount;
         self.taper = None;
+        self.end = None;
+        self.fresh = fresh;
         self.t = 0.0;
         let (from, rise) = match how {
             // A note from silence in a fast passage (a détaché after a rest's breath) bites at
@@ -399,8 +468,14 @@ impl Shape {
                 (len * k.fresh_s).clamp(k.fresh_min, k.fresh_max.max(k.fresh_min))
                     * if fast { 0.5 } else { 1.0 },
             ),
+            // (after an eased end, from `rebow_keep` of where it ended: the bow turned slow)
             Begin::Rebow => (
-                -k.rebow_db * if fast { k.fast_share } else { 1.0 },
+                -k.rebow_db * if fast { k.fast_share } else { 1.0 }
+                    + if eased {
+                        k.rebow_keep * (was / amount.max(1e-6) - breath_was).min(0.0)
+                    } else {
+                        0.0
+                    },
                 if fast { k.rebow_s * 0.5 } else { k.rebow_s },
             ),
             // A slur from where the last note sagged to (a note from silence never slurs).
@@ -419,6 +494,30 @@ impl Shape {
         };
         if fresh || amount == 0.0 || k.timbre_s <= 0.0 {
             self.l_t = self.l;
+        }
+    }
+
+    /// r42 arcus-classical — the look-ahead (ADR 0166): this note lasts `len` s and the next
+    /// note starts `next` s after its end (`None`: none in sight). Called after
+    /// [`Self::begin`]; a note never told keeps the shape it had without it.
+    pub fn expect(&mut self, len: f32, next: Option<f32>) {
+        if self.amount == 0.0 || len <= 0.0 {
+            return;
+        }
+        let k = &self.k;
+        let follows = next.is_some_and(|g| g <= k.end_follow);
+        let u = smooth((len - END_SHORT_S) / (END_LONG_S - END_SHORT_S));
+        let depth =
+            (k.end_short + (k.end_db - k.end_short) * u) * if follows { 1.0 } else { k.end_rest };
+        let e = (k.end_share * len).min(k.end_max).max(1e-3);
+        if depth > 0.0 {
+            self.end = Some(((len - e).max(0.0), e, depth));
+        }
+        if k.rise_share > 0.0 {
+            self.rise = self.rise.max((k.rise_share * len).min(k.rise_max));
+        }
+        if !self.fresh && k.rise_fit > 0.0 {
+            self.rise = self.rise.min((k.rise_fit * len).max(1e-3));
         }
     }
 
@@ -479,7 +578,11 @@ impl Shape {
             // The breath comes in once the stroke has risen (a settling bow does not wander:
             // the bass's E1 attacks sat at Guettler's limit and its first breath pushed one over).
             let calm = smooth((self.t - self.rise) / CALM_S);
-            self.l = self.amount * (rise + sag + calm * self.breath_now());
+            // … and the look-ahead's end, before the next note (`expect`).
+            let end = self
+                .end
+                .map_or(0.0, |(at, e, depth)| -depth * smooth((self.t - at) / e));
+            self.l = self.amount * (rise + sag + calm * self.breath_now() + end);
         }
         self.l_t = if self.k.timbre_s > 0.0 {
             self.l_t + (self.l - self.l_t) * (1.0 - math::exp(-dt / self.k.timbre_s))

@@ -152,12 +152,18 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
     radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
+    // r42 arcus-classical: the air mode's vented-box roll-off (Bissinger's violins: A0 at
+    // 270–280 Hz; the fourth-order corner a little under it, −3 dB there).
+    air_hz: VIOLIN_AIR_HZ,
     // r42:arcus-p5: measured (`tests_gate2::probe_levels`, every three semitones G3–E7):
     // the violin fell 0.17 dB a semitone, its top 6 dB under its G string.
     balance_db_st: 0.17,
     balance_key: 72.0,
     matched: VIOLIN_MATCH,
 };
+
+/// r42 arcus-classical — the violin's air-mode corner (`InstrumentSpec::air_hz`), Hz.
+pub const VIOLIN_AIR_HZ: f32 = 260.0;
 
 /// The viola: C3 G3 D4 A4 over 366 mm; its body the violin's scaled (`upper::body`).
 pub const VIOLA: InstrumentSpec = InstrumentSpec {
@@ -189,6 +195,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     spic_ring: 0.35,                        // r42:arcus-p5
     trem_db: 5.0,                           // r42:arcus-p5
     radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
+    air_hz: 0.0,                            // r42 arcus-classical: not measured on a viola
     // r42:arcus-p5: measured the same way, the viola 0.12 dB a semitone C3–A6.
     balance_db_st: 0.12,
     balance_key: 65.0,
@@ -214,8 +221,15 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
 /// Judged on the Iowa and VSCO notes and the study's band, which the correction's start did not
 /// use.
 pub const VIOLIN_MATCH: Match = Match {
+    // r42 arcus-classical, pass 2: the 250 Hz hill +10 → +4 (with the air mode's roll-off
+    // under it: the Paganini recording's 150–400 Hz under its loud high notes sat 6–9 dB under
+    // Arcus's), 400 Hz +1.4 → −2 and 1 kHz +4.1 → 0 (the fundamentals of A4–A5 against
+    // their partials, 9 dB over the recording's), the bridge hill's cuts at 1.6 and 2.5 kHz
+    // (−2.4, −5) and 4 kHz's taken back, 6.3 kHz −4 → −2 and 10 kHz −2 → +4 (the top 2–3 and
+    // 10–12.7 kHz 3–13 dB under the recording's): measured on the Paganini caprice and the
+    // Iowa, TinySOL, VSCO and Good-sounds violins (harmonics 78 → 92 % of the cells in band).
     eq_db: [
-        0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
+        0.6, 0.6, -5.0, 4.0, -2.0, -1.2, 0.0, 0.0, 0.0, 0.0, -2.0, 4.0,
     ],
     noise_db: 22.0,
     pizz_decay: 1.0,

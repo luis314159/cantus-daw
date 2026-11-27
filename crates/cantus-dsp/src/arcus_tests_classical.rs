@@ -262,3 +262,88 @@ fn a_slurred_crossing_on_one_bow_keeps_every_note() {
         }
     }
 }
+
+/// A legato phrase with the playback's look-ahead (ADR 0166): each note told its length and
+/// the next one's distance, the second and third slurred, the fourth a new bow after a rest.
+fn ahead_score(key: u8, ahead: bool) -> Vec<(usize, Ev)> {
+    let notes = [
+        (0, 3 * S / 2, key, 0.55),
+        (3 * S / 2, 5 * S / 2, key + 2, 0.6),
+        (5 * S / 2, 3 * S, key + 4, 0.6),
+        (3 * S + S / 3, 4 * S + S / 3, key + 5, 0.5),
+    ];
+    let mut score = Vec::new();
+    for (i, &(on, off, k, v)) in notes.iter().enumerate() {
+        if ahead {
+            let next = notes.get(i + 1).map(|n| n.0 as i32 - off as i32);
+            score.push((on, Ev::Len(k, (off - on) as u32, next)));
+        }
+        score.push((on, Ev::On(k, v)));
+        // (slurred: the next note starts a little before this one's key is let go)
+        let late = if i + 1 < notes.len() && notes[i + 1].0 == off {
+            S / 100
+        } else {
+            0
+        };
+        score.push((off + late, Ev::Off(k)));
+    }
+    score.sort_by_key(|e| e.0);
+    score
+}
+
+/// The look-ahead is the player's: with the player off a note told its length plays as one
+/// never told, to the bit.
+#[test]
+fn with_the_player_off_the_look_ahead_touches_no_sample() {
+    for inst in Instrument::ALL {
+        let off = ArcusSettings {
+            player: 0.0,
+            mode: crate::voices::PlayMode::Legato,
+            ..s(inst)
+        };
+        let key = inst.spec().bottom() + 7;
+        let a = render(&off, &ahead_score(key, false), 5 * S, &|_| 256, &Serial);
+        let b = render(&off, &ahead_score(key, true), 5 * S, &|_| 256, &Serial);
+        assert!(a == b, "{inst:?}: the look-ahead moved a sample");
+    }
+}
+
+/// A note known to be followed eases before its end (the players' 8–10 dB under the peak in
+/// a phrase, Arcus's 3.6–5.0 without it), and the slurred note after it starts from there;
+/// every block size renders the same bits.
+#[test]
+fn a_note_known_to_be_followed_eases_before_the_next() {
+    for inst in Instrument::ALL {
+        let st = ArcusSettings {
+            mode: crate::voices::PlayMode::Legato,
+            ..s(inst)
+        };
+        let key = inst.spec().bottom() + 7;
+        let (live, _) = render(&st, &ahead_score(key, false), 5 * S, &|_| 256, &Serial);
+        let (told, _) = render(&st, &ahead_score(key, true), 5 * S, &|_| 256, &Serial);
+        let peak = |x: &[f32]| {
+            (0..14)
+                .map(|i| level(x, 0.1 * i as f64, 0.1 * i as f64 + 0.06))
+                .fold(f64::NEG_INFINITY, f64::max)
+        };
+        let end = |x: &[f32]| level(x, 1.44, 1.5);
+        let (e_live, e_told) = (peak(&live) - end(&live), peak(&told) - end(&told));
+        println!("{inst:?}: the slurred note's end {e_live:.1} -> {e_told:.1} dB under its peak");
+        assert!(
+            e_told > e_live + 2.0 && e_told > 5.0,
+            "{inst:?}: the end eased {e_live:.1} -> {e_told:.1} dB"
+        );
+        // … the same bits at any block size
+        let (other, _) = render(
+            &st,
+            &ahead_score(key, true),
+            5 * S,
+            &|b| [64, 300, 17, 512][b % 4],
+            &Serial,
+        );
+        assert!(
+            other == told,
+            "{inst:?}: the look-ahead depends on the blocks"
+        );
+    }
+}

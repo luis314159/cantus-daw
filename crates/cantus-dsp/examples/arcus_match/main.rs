@@ -333,6 +333,9 @@ fn main() {
                             shape_try: std::env::var("ARCUS_SHAPE")
                                 .ok()
                                 .map(|t| cantus_dsp::arcus::shape::KNOBS.parse(&t)),
+                            // r42 arcus-classical: `ARCUS_EQ=<12 gains>` tries a match's
+                            // correction (`ARCUS_EQ_INST` names the one instrument it is for).
+                            matched: eq_try(inst),
                             ..ArcusSettings::default()
                         });
                         a.note_on(key, *v, 1);
@@ -556,4 +559,39 @@ the other measures (medians over every note: references / before / after):"
             pick(&|d| d.noise, 0), pick(&|d| d.noise, 1),
         );
     }
+}
+
+/// r42 arcus-classical — `ARCUS_EQ=g0,…,g11` and `ARCUS_NOISE_DB` (dB per `tables::EQ_HZ` band) as the match's
+/// correction for the instrument `ARCUS_EQ_INST` names (default the violin), the rest of its
+/// match kept: a tool's try, never stored.
+fn eq_try(inst: Instrument) -> Option<cantus_dsp::arcus::tables::Match> {
+    let text = std::env::var("ARCUS_EQ").ok();
+    let noise = std::env::var("ARCUS_NOISE_DB")
+        .ok()
+        .and_then(|v| v.trim().parse::<f32>().ok());
+    if text.is_none() && noise.is_none() {
+        return None;
+    }
+    let text = text.unwrap_or_default();
+    let want = std::env::var("ARCUS_EQ_INST").unwrap_or_else(|_| "violin".into());
+    let name = match inst {
+        Instrument::Violin => "violin",
+        Instrument::Viola => "viola",
+        Instrument::Cello => "cello",
+        Instrument::Bass => "bass",
+    };
+    if name != want {
+        return None;
+    }
+    let mut m = inst.spec().matched;
+    for (g, v) in m.eq_db.iter_mut().zip(text.split(',')) {
+        if let Ok(v) = v.trim().parse() {
+            *g = v;
+        }
+    }
+    // (`ARCUS_NOISE_DB`: the match's hair noise, dB over model 1's)
+    if let Some(n) = noise {
+        m.noise_db = n;
+    }
+    Some(m)
 }

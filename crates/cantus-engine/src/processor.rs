@@ -1108,8 +1108,49 @@ fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
     }
 }
 
+/// r42 arcus-classical (ADR 0166) — how many of a track's events after a note-on the look-ahead
+/// reads for its note-off and the next note (a bound: a note whose end lies further on, under
+/// a long run of others, is handed no length, as a live note is).
+pub const LOOK_AHEAD: usize = 256;
+
+/// r42 arcus-classical — the look-ahead of the note-on `events[at]` (`InstrumentUnit::
+/// note_len`): its length in frames and the frames from its end to the track's next note-on
+/// (a later tick than its own: a chord's notes are not its next). Read from the snapshot's
+/// sorted events by the transport's tempo map, so the same at every block size, offline and in
+/// real time; no allocation, a bounded scan. `None` when its note-off is not within
+/// [`LOOK_AHEAD`] events.
+pub(crate) fn look_ahead(
+    events: &[NoteEvent],
+    at: usize,
+    transport: &Transport,
+) -> Option<(u32, Option<i32>)> {
+    let on = events.get(at)?;
+    if !on.is_on() {
+        return None;
+    }
+    let s_on = transport.samples_until(on.tick.0 as f64);
+    let mut off = None;
+    let mut next = None;
+    for ev in events.iter().skip(at + 1).take(LOOK_AHEAD) {
+        if ev.is_on() {
+            if next.is_none() && ev.tick > on.tick {
+                next = Some(transport.samples_until(ev.tick.0 as f64));
+            }
+        } else if off.is_none() && ev.note == on.note && ev.pitch == on.pitch {
+            off = Some(transport.samples_until(ev.tick.0 as f64));
+        }
+        if off.is_some() && next.is_some() {
+            break;
+        }
+    }
+    let off = off?;
+    let len = off.saturating_sub(s_on).min(u32::MAX as u64) as u32;
+    let next = next.map(|n| (n as i64 - off as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32);
+    Some((len, next))
+}
+
 #[inline]
-pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
+pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent, ahead: Option<(u32, Option<i32>)>) {
     if slot.outboard {
         return; // r36:external (ADR 0094): the synth is not in the computer
     }
@@ -1125,6 +1166,9 @@ pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
     } else if ev.is_on() {
         if let Some(a) = ev.art {
             slot.note_art(ev.pitch, ev.note.0, a); // r42:strings-rec (ADR 0158)
+        }
+        if let Some((len, next)) = ahead {
+            slot.note_len(ev.pitch, ev.note.0, len, next); // r42 arcus-classical (ADR 0166)
         }
         slot.note_on_seq(ev.pitch, ev.velocity, ev.note.0, ev.ordinal);
     } else {

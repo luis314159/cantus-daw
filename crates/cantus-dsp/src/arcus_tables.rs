@@ -173,6 +173,14 @@ pub struct InstrumentSpec {
     /// its first harmonics level with its fundamental (120 Hz here), the Karoryfer cello's A3
     /// a strong fundamental (none: Fides's cello body alone).
     pub radiation_hz: f32,
+    /// r42 arcus-classical (model 2) — the body's air mode (A0, the f-holes' Helmholtz
+    /// resonance), Hz; 0: none. Below it a box with a port radiates as a vented enclosure does
+    /// (Thiele–Small: the port's volume velocity cancels the plates' — a fourth-order
+    /// high-pass), so the violin's G string's fundamentals are heard weak against their
+    /// partials (the Iowa, TinySOL and VSCO violins: 9–18 dB under the strongest partial on
+    /// G3–C♯4; the Paganini recording's A3 16 dB under Arcus's). Replaces `radiation_hz`'s
+    /// second-order corner with a fourth-order Butterworth here.
+    pub air_hz: f32,
     /// The register's balance: dB per semitone added to the output around `balance_key`, so
     /// a held mf note is about as loud low as high. Measured (`tests_gate2::probe_levels`, a
     /// held note every three semitones at velocity 0.6, integrated LUFS): the cello fell
@@ -317,6 +325,7 @@ pub const CELLO: InstrumentSpec = InstrumentSpec {
     // passed (most of the first second's power, decaying with the string's loss): no box
     // radiates it, so the measured body's radiation ends in a high-pass under the strings.
     radiation_hz: RADIATION_SHARE * 65.406, // r42:arcus-p5: C2
+    air_hz: 0.0,                            // r42 arcus-classical
     balance_db_st: 0.47,
     balance_key: 57.0,
     matched: CELLO_MATCH,
@@ -496,6 +505,7 @@ pub const BASS: InstrumentSpec = InstrumentSpec {
     trem_db: 5.0,    // r42:arcus-p5
     // Pass 2: the measured body carries the radiation; pass 4: its DC taken out (the cello's).
     radiation_hz: RADIATION_SHARE * 41.203, // r42:arcus-p5: E1
+    air_hz: 0.0,                            // r42 arcus-classical
     balance_db_st: 0.16,
     balance_key: 47.5,
     matched: BASS_MATCH,

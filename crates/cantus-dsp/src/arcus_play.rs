@@ -35,7 +35,8 @@ impl Arcus {
             body,
             upper_body: upper::body::UpperBody::new(sample_rate), // r42:arcus-upper
             rad_c: [0.0; 5],
-            rad: [[0.0; 4]; 2],
+            rad: [[0.0; 4]; 4],
+            rad_c2: [0.0; 5],
             sym: sym::Sympathy::new(sample_rate), // r42 fiddle
             eq: eq::MatchEq::default(),
             out,
@@ -82,7 +83,17 @@ impl Arcus {
         self.body.set(&self.s.body());
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
         self.out.set(&self.s.output());
-        self.rad_c = radiation(self.s.instrument.spec().radiation_hz, self.sr);
+        // r42 arcus-classical: model 2's air mode, a vented box's fourth-order roll-off
+        // (`InstrumentSpec::air_hz`; the tools' `shape::Knobs::air_k` × it).
+        let spec = self.s.instrument.spec();
+        let air = spec.air_hz * self.s.shape_try.unwrap_or(shape::KNOBS).air_k;
+        if self.s.model >= 2 && air > 0.0 {
+            self.rad_c = radiation_q(air, BW4_Q.0, self.sr);
+            self.rad_c2 = radiation_q(air, BW4_Q.1, self.sr);
+        } else {
+            self.rad_c = radiation(spec.radiation_hz, self.sr);
+            self.rad_c2 = [0.0; 5];
+        }
         self.sym_tune(); // r42 fiddle
     }
 
@@ -137,6 +148,18 @@ impl Arcus {
 
     /// r42 arcus-expr — the next note's whole way of playing (ADR 0158, ADR 0162).
     pub fn note_how(&mut self, id: u64, how: NoteHow) {
+        self.pending = Some((id, how));
+    }
+
+    /// r42 arcus-classical — the next note's length and the next note's distance from its end,
+    /// frames (the playback's look-ahead, ADR 0166), after its [`Self::note_how`] if any.
+    pub fn note_len(&mut self, id: u64, len: u32, next: Option<i32>) {
+        let mut how = match self.pending {
+            Some((pid, how)) if pid == id => how,
+            _ => NoteHow::default(),
+        };
+        how.len = Some(len);
+        how.next = next;
         self.pending = Some((id, how));
     }
 
@@ -548,7 +571,7 @@ impl Arcus {
         self.alloc.clear();
         self.body.reset();
         self.upper_body.reset(); // r42:arcus-upper
-        self.rad = [[0.0; 4]; 2];
+        self.rad = [[0.0; 4]; 4];
         self.sym.reset(); // r42 fiddle
         self.eq.reset();
         self.out.reset();
@@ -590,12 +613,24 @@ impl Arcus {
 /// so what the bow pushes on the bridge slower than the strings sound — the static push
 /// of a held bow, its reversal at a tremolo's every stroke and a bow change — is not heard.
 pub(super) fn radiation(hz: f32, sr: f32) -> [f32; 5] {
+    radiation_q(hz, std::f32::consts::FRAC_1_SQRT_2, sr)
+}
+
+/// r42 arcus-classical — a fourth-order Butterworth's two sections' Q.
+pub(super) const BW4_Q: (f32, f32) = (0.541_196_1, 1.306_563);
+
+/// r42 arcus-classical — [`radiation`] at a section's own `q` (at 1/√2 the same bits).
+pub(super) fn radiation_q(hz: f32, q: f32, sr: f32) -> [f32; 5] {
     if hz <= 0.0 {
         return [0.0; 5];
     }
     let w = std::f64::consts::TAU * hz as f64 / sr as f64;
     let (sn, cs) = math::sin_cos(w);
-    let alpha = sn / std::f64::consts::SQRT_2;
+    let alpha = if q == std::f32::consts::FRAC_1_SQRT_2 {
+        sn / std::f64::consts::SQRT_2
+    } else {
+        sn / (2.0 * q as f64)
+    };
     let a0 = 1.0 + alpha;
     let b0 = 0.5 * (1.0 + cs) / a0;
     [

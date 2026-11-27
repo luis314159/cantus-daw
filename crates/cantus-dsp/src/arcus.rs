@@ -175,6 +175,11 @@ pub struct NoteHow {
     pub part: Option<bow::Part>,
     /// The string, 0 the lowest (honoured where it reaches the note).
     pub string: Option<u8>,
+    /// r42 arcus-classical — the look-ahead on playback (ADR 0166): the note's length in
+    /// frames, and how many frames after its end the next note starts (negative: before it
+    /// ends; `None`: no next note in sight). `None` for a live note.
+    pub len: Option<u32>,
+    pub next: Option<i32>,
 }
 
 /// How the bow's direction is chosen, in `bow.dir`'s order.
@@ -551,7 +556,10 @@ pub struct Arcus {
     /// coefficients `b₀ b₁ b₂ a₁ a₂`; none when `b₀` is 0) and each side's state
     /// `(x₁, x₂, y₁, y₂)`.
     rad_c: [f32; 5],
-    rad: [[f32; 4]; 2],
+    /// r42 arcus-classical — the air mode's second section (`InstrumentSpec::air_hz`: the
+    /// first is then `rad_c` at its own Q), none when `b₀` is 0; the states `rad[2..4]`.
+    rad_c2: [f32; 5],
+    rad: [[f32; 4]; 4],
     /// r42 fiddle — the open strings in sympathy (`sym`; never live at 0).
     sym: sym::Sympathy,
     /// Model 2's correction on the output (`eq`).

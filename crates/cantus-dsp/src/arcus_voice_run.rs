@@ -241,6 +241,7 @@ impl Voice {
             key,
             id,
         );
+        self.expect(sh, how); // r42 arcus-classical: the look-ahead (ADR 0166)
         self.taper_s = if shaped {
             knobs.taper_k * 0.001 * s.bow_release_ms.max(5.0)
         } else {
@@ -454,6 +455,17 @@ impl Voice {
     /// again. `tech`: the new note's way of bowing when its own articulation slurs it (a
     /// sustain into a tremolo, a tremolo into a sustain — ADR 0158), `None` to keep the
     /// voice's.
+    /// r42 arcus-classical — the note's look-ahead (`NoteHow::len`, `next`, frames at the host's
+    /// rate) told to its stroke's shape in seconds (`shape::Shape::expect`).
+    fn expect(&mut self, sh: &Shared, how: &NoteHow) {
+        if let Some(len) = how.len {
+            // (`sh` is at the voice's own rate: its oversampling's factor times the host's)
+            let host = sh.sr / self.rate.os.max(1) as f32;
+            let next = how.next.map(|g| g as f32 / host);
+            self.shape.expect(len as f32 / host, next);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)] // r42 arcus-expr: the note's how, the passage's speed
     pub fn glide_to(
         &mut self,
@@ -552,6 +564,7 @@ impl Voice {
             key,
             id,
         );
+        self.expect(sh, how); // r42 arcus-classical: the look-ahead (ADR 0166)
         if !shaped {
             self.taper_s = 0.0;
         } else if self.taper_s == 0.0 {

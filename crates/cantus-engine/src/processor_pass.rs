@@ -384,7 +384,12 @@ impl Processor {
                 // Frozen or resting, the instrument is not played (review 1: a note due at
                 // the loop's end went into it and its note-off never came).
                 if s.frozen.is_none() && !s.rest && !s.notes_only {
-                    fire(&mut s, ev);
+                    let ahead = if ev.is_on() && s.instrument == SlotInstrument::Native {
+                        look_ahead(&t.events, s.next_event, &self.transport)
+                    } else {
+                        None
+                    };
+                    fire(&mut s, ev, ahead);
                 }
                 s.next_event += 1;
                 if self.listened[slot] {
