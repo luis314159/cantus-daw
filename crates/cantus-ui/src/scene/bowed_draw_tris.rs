@@ -267,6 +267,21 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
             // light flecks in the Drawn picture).
             let bias = if matches!(role, Role::Shell(_)) {
                 SHELL_BIAS
+            } else if *role == Role::Velvet && !inside {
+                // r42:arcus-polish6 — the velvet a little behind the skin it meets at her
+                // neckline: sorted by its middles, a large dress triangle's corner (its seam's
+                // round end) lay over the skin past the neckline as a grey dot on her neck
+                // (the specks gate's (192, 277), Drawn only).
+                -super::figure::tune::tune("velvet_bias", VELVET_BIAS)
+            } else if *role == Role::Shirt
+                && !inside
+                && keep_out
+                && (marked(i0) || marked(i1) || marked(i2))
+            {
+                // r42:arcus-polish6 — the band in front of the instrument's cells it lies over
+                // (the top's edge, the ribs: Photographic draws it over them), and kept out of
+                // the chin rest's faces it passes under.
+                super::figure::tune::tune("drawn_beside_near", BESIDE_NEAR)
             } else if *role == Role::Shirt && !inside && !keep_out && beside([i0, i1, i2]) {
                 // r42:arcus-polish5 — the collar's band where it passes under a held
                 // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
@@ -372,6 +387,9 @@ fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]
 /// r42:arcus-polish4 — how much nearer the hair's shell sorts than its own depth (cm).
 const SHELL_BIAS: f32 = 0.6;
 
+/// r42:arcus-polish6 — how much farther her dress's velvet sorts than its own depth (cm).
+const VELVET_BIAS: f32 = 0.4;
+
 /// r42:arcus-polish5 — how much farther the collar's band over a held instrument's outline
 /// sorts (cm), in `drawn_beside_mode` 1.
 const BESIDE_BIAS: f32 = 1.5;
@@ -380,6 +398,10 @@ const BESIDE_BIAS: f32 = 1.5;
 /// instrument's outline: 2, sorted by its own middles and kept out of the instrument's faces
 /// on screen (`draw`).
 const BESIDE_MODE: f32 = 2.0;
+
+/// r42:arcus-polish6 — how much nearer (cm) the band over a held instrument sorts in mode 2:
+/// in front of the top's and the ribs' cells there, behind the tie's knot.
+const BESIDE_NEAR: f32 = 2.5;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.

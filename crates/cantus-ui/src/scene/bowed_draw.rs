@@ -471,18 +471,19 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // A figure's fine cells overlap a little more, so no seam grid shows on its
             // dark hair and cloth. // r42:arcus-upper
             let seam = if figure_role(*role) { 1.1 } else { 0.45 }; // r42:arcus-upper
-            if !figure_role(*role) {
-                cover.push((super::geo::bbox(&sp), sp.clone()));
+            if *role == Role::Ebony {
+                let g = grown(&sp, COVER_GROW);
+                cover.push((super::geo::bbox(&g), g));
             }
             c.p.poly(sp, paint, 1.0, seam);
         }
     }
     for (role, poly) in &m.polys {
-        if poly.pts.len() < 3 || figure_role(*role) {
+        if poly.pts.len() < 3 || *role != Role::Ebony {
             continue;
         }
         if cam.facing(super::geo::centre(&poly.pts), poly.n) {
-            let sp = c.sps(&poly.pts);
+            let sp = grown(&c.sps(&poly.pts), COVER_GROW);
             cover.push((super::geo::bbox(&sp), sp));
         }
     }
@@ -698,8 +699,31 @@ fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
 }
 
 /// r42:arcus-polish6 — an instrument's face on screen and its box (min x, min y, max x,
-/// max y).
+/// max y): the chin rest's (its ebony: the cup, its lip, its foot; the tailpiece beside it),
+/// which the collar's band passes under.
 pub type Cover = ((f32, f32, f32, f32), Vec<Pos2>);
+
+/// r42:arcus-polish6 — how far (points) a chin rest's face is grown for the band's keep-out:
+/// its cells' own seams close the hairline gaps between them, and the band showed through
+/// them as threads.
+const COVER_GROW: f32 = 0.6;
+
+/// `pts` moved out from their middle by `d` (points).
+fn grown(pts: &[Pos2], d: f32) -> Vec<Pos2> {
+    let n = pts.len().max(1) as f32;
+    let c = pts.iter().fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2()) / n;
+    pts.iter()
+        .map(|p| {
+            let v = p.to_vec2() - c;
+            let l = v.length();
+            if l < 1e-4 {
+                *p
+            } else {
+                (c + v * ((l + d) / l)).to_pos2()
+            }
+        })
+        .collect()
+}
 
 /// r42:arcus-upper — a surface of the figure that holds the instrument (not the
 /// instrument's, nor the room's).

@@ -43,7 +43,9 @@ const ROSIN: f32 = 0.2;
 
 /// r42:arcus-polish4 — his loose tips' albedo over his dark hair's (lighter: a lone strand at
 /// the outline catches the back lights over its whole width).
-const TIP_ALBEDO: f32 = 2.4;
+/// r42:arcus-polish6 — 1.6 (2.4 before): with the tips thinner, the ones lying on his crown
+/// read as faint strands, not bright scratches; the outline stays broken.
+const TIP_ALBEDO: f32 = 1.6;
 
 /// The photographic material of a role (r42:arcus-polish3: under the concert light `cc`, a
 /// violin's or a viola's varnish red-amber and glossier, as the photographs' are under the

@@ -1598,11 +1598,21 @@ pub fn arm(
         sc.vout.resize(am.verts.len(), egui::Vec2::ZERO);
         sc.eout.clear();
         sc.eout.resize(am.edges.len(), egui::Vec2::ZERO);
+        // r42:arcus-polish6 — an edge is the outline only where the arm's surface really ends
+        // or turns away there: between a triangle this pass draws and one the other pass draws
+        // (behind the instrument or the neck, and in front) it is the arm's middle — its strip
+        // there was a thin light line over her dress under the neckline, in every picture
+        // (`strip_pass_edges` 1 draws them as before, while studied).
+        let pass_edges = crate::scene::figure::tune::tune("strip_pass_edges", 0.0) > 0.5;
+        let open = |f0: bool, f1: bool, t0: u32, t1: u32| {
+            let facing = |t: u32| t != u32::MAX && sc.cls[t as usize] & CLS_FACING != 0;
+            f0 != f1 && (pass_edges || !(facing(t0) && facing(t1)))
+        };
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
             let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
-            if am.seam[e] || !(f0 != f1 || seam) {
+            if am.seam[e] || !(open(f0, f1, t0, t1) || seam) {
                 continue;
             }
             let o = outline_out(am, sc, e);
@@ -1627,7 +1637,7 @@ pub fn arm(
             // shirt's cuff under a sleeve): the cloth's edge feathered over what is next to it,
             // so the cuff reads as a clean edge (triangles meet unsmoothed: a staircase).
             let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
-            if f0 != f1 || seam {
+            if open(f0, f1, t0, t1) || seam {
                 let mid = (sc.pts[a as usize] + sc.pts[bb as usize]) * 0.5;
                 // (r42:arcus-hand: a shirt's edge sorted with its cuff, behind the sleeve and
                 // the wrist — drawn at its own depth it laid white threads over his wrist.)

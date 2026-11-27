@@ -502,6 +502,12 @@ const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
 /// r42:arcus-polish6 — a patch counts only when at least this share of the pixels round it
 /// (the hand's and the bow's left out) are dark cloth, every channel under `SLEEVE_DARK`.
 const SLEEVE_RING: f32 = 0.6;
+/// r42:arcus-polish6 — an island counts from this size (px at 100 %): her V 7 neckline's point
+/// seen past the bow forearm at the frog and at 0.2 is a sliver of 100–190 (it reads as the
+/// neckline, the coordinator on sheet-v); the old V 15's diamond 150–460 and more. And a patch
+/// under this many px (at 100 %) across is a lit edge line, not skin.
+const SLEEVE_ISLAND: f32 = 250.0;
+const SLEEVE_THIN: f32 = 4.0;
 const SLEEVE_DARK: u8 = 70;
 
 #[test]
@@ -671,6 +677,21 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                     }
                 }
                 let in_cloth = |id: usize| ring[id].1 as f32 >= ring[id].0 as f32 * SLEEVE_RING;
+                // Each patch's box: a lit edge line of the instrument is a strip a few pixels
+                // across, never an island of skin.
+                let mut bx = vec![(usize::MAX, usize::MAX, 0usize, 0usize); sizes.len()];
+                for (k, &id) in part.iter().enumerate() {
+                    if id != u32::MAX {
+                        let (x, y) = (k % w, k / w);
+                        let b = &mut bx[id as usize];
+                        *b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+                    }
+                }
+                let thick = |id: usize| {
+                    let b = bx[id];
+                    (b.2 - b.0 + 1).min(b.3 - b.1 + 1) as f32 >= SLEEVE_THIN * SLEEVE_PPP
+                };
+                let floor = (SLEEVE_ISLAND * SLEEVE_PPP * SLEEVE_PPP) as usize;
                 // The chest region: the largest patch.
                 let chest = (0..sizes.len()).max_by_key(|&i| sizes[i]);
                 for y in 0..h {
@@ -686,6 +707,8 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                             && part[k] != u32::MAX
                             && Some(part[k] as usize) != chest
                             && in_cloth(part[k] as usize)
+                            && thick(part[k] as usize)
+                            && sizes[part[k] as usize] >= floor
                         {
                             under_n += 1;
                             under_box = (
