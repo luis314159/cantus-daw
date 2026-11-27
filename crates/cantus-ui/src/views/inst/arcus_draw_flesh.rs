@@ -1808,8 +1808,8 @@ pub fn arm(
                         // points: every outline strip within 2 points of there printed.)
                         if let Some(at) = strip_probe() {
                             let d = pb - pa;
-                            let t = ((at - pa).dot(d) / d.length_sq().max(1e-6)).clamp(0.0, 1.0);
-                            if (pa + d * t - at).length() < 2.0 {
+                            let u = ((at - pa).dot(d) / d.length_sq().max(1e-6)).clamp(0.0, 1.0);
+                            if (pa + d * u - at).length() < 2.0 {
                                 let cls = |t: u32| {
                                     (t != u32::MAX).then(|| (sc.cls[t as usize], sc.front[t as usize]))
                                 };

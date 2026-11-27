@@ -502,11 +502,11 @@ const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
 /// r42:arcus-polish6 — a patch counts only when at least this share of the pixels round it
 /// (the hand's and the bow's left out) are dark cloth, every channel under `SLEEVE_DARK`.
 const SLEEVE_RING: f32 = 0.6;
-/// r42:arcus-polish6 — an island counts from this size (px at 100 %): her V 7 neckline's point
-/// seen past the bow forearm at the frog and at 0.2 is a sliver of 100–190 (it reads as the
-/// neckline, the coordinator on sheet-v); the old V 15's diamond 150–460 and more. And a patch
-/// under this many px (at 100 %) across is a lit edge line, not skin.
-const SLEEVE_ISLAND: f32 = 250.0;
+/// r42:arcus-polish6 — an island counts from this size (px at 100 %, the whole patch): her V 7
+/// neckline's point seen past the bow forearm at the frog and at 0.2 is a sliver of 119–410
+/// (it reads as the neckline, the coordinator on sheet-v); the old V 15's diamond 638–2121.
+/// And a patch under `SLEEVE_THIN` px (at 100 %) across is a lit edge line, not skin.
+const SLEEVE_ISLAND: f32 = 500.0;
 const SLEEVE_THIN: f32 = 4.0;
 const SLEEVE_DARK: u8 = 70;
 
