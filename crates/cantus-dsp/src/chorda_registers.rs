@@ -222,6 +222,18 @@ impl Registers {
         self
     }
 
+    /// Round 42 (`chorda-presets`): the bass formant moved to `formant` (Hz, dB, Q; 0 dB: off),
+    /// its state kept while it stays on. Allocates nothing.
+    pub fn set_formant(&mut self, fs: f64, formant: &[f64; 3]) {
+        let z = self.formant.z;
+        self.formant = Peak::with_q(fs, formant[0], formant[1], formant[2]);
+        self.formant_live = formant[1] != 0.0;
+        if self.formant_live {
+            self.formant.z = z;
+            self.any = true;
+        }
+    }
+
     /// Whether any register is voiced (otherwise the engine sums the keys directly).
     pub fn active(&self) -> bool {
         self.any

@@ -668,8 +668,8 @@ pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
     let mut hardness = 0.0;
     // The hammer's slowest strike against its fastest: 15.7 (24 dB) at 1.
     let span = cantus_dsp::math::ln(5.5f64 / 0.35);
-    for (info, v) in PARAMS.iter().zip(values) {
-        let v = *v as f64;
+    for (info, raw) in PARAMS.iter().zip(values) {
+        let v = *raw as f64;
         match info.key {
             "hardness" => hardness = v,
             "hysteresis" => s.voice.felt.eps = v,
@@ -697,10 +697,45 @@ pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
             "roomsize" => s.size = v,
             // r42 (`chorda-c17`): Chorda's own colour (0) toward a recorded grand's (1).
             "colour" => s.colour = v,
+            // r42 (`chorda-presets`, ADR 0098's eighth amendment): the voicing by hand. A
+            // value-control at its default plays the voicing's own number (`None`).
+            k if k.starts_with("voicing.") => voicing_from(&mut s.user, k, v, *raw == info.default),
             _ => {}
         }
     }
     (s, hardness)
+}
+
+/// r42 (`chorda-presets`): one voicing control `key` at `v` into `u` (`default`: the control
+/// sits at its default, where a value-control plays the shipped voicing's own number).
+fn voicing_from(u: &mut cantus_dsp::chorda::user::UserVoicing, key: &str, v: f64, default: bool) {
+    let value = |v: f64| (!default).then_some(v);
+    match key {
+        "voicing.felt_bass" => u.felt_bass = v,
+        "voicing.felt_treble" => u.felt_treble = v,
+        "voicing.mass" => u.mass = v,
+        "voicing.decay_bass" => u.decay_bass = v,
+        "voicing.decay_mid" => u.decay_mid = v,
+        "voicing.decay_treble" => u.decay_treble = v,
+        "voicing.hf" => u.hf = v,
+        "voicing.hf_spread" => u.hf_spread = v,
+        "voicing.uneven" => u.uneven = v,
+        "voicing.polar" => u.polar = v,
+        "voicing.formant_hz" => u.formant_hz = value(v),
+        "voicing.formant_db" => u.formant_db = value(v),
+        "voicing.formant_q" => u.formant_q = value(v),
+        "voicing.knock" => u.knock = v,
+        "voicing.knock_tone" => u.knock_tone = v,
+        "voicing.key_return" => u.key_return = v,
+        "voicing.damper" => u.damper = v,
+        "voicing.damper_bass" => u.damper_bass = v,
+        // Shown as the floor's level (−70 dB), held as how far under the strike it lies.
+        "voicing.damped" => u.damped_db = value(-v),
+        "voicing.itd" => u.itd = v,
+        "voicing.top_hz" => u.top_hz = value(v),
+        "voicing.amount" => u.amount = v,
+        _ => {}
+    }
 }
 
 fn source_index(tag: &str) -> Option<u16> {
@@ -1315,6 +1350,46 @@ mod tests {
         assert_eq!(
             k.keys,
             cantus_dsp::chorda::tables::keyboard_for(&reference())
+        );
+    }
+
+    /// r42 (`chorda-presets`): a new Chorda's voicing controls are neutral — the shipped
+    /// voicing to the bit — and each value-control's default is the shipped voicing's number.
+    #[test]
+    fn the_voicing_controls_defaults_are_the_shipped_voicing() {
+        use cantus_dsp::chorda::user::UserVoicing;
+        let spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+        let (s, _) = settings_from(&values_of(&spec));
+        assert_eq!(s.user, UserVoicing::NEUTRAL);
+        let v = Voicing::shipped();
+        let d = |k: &str| f64::from(cantus_core::inst::chorda::param(k).unwrap().default);
+        assert_eq!(
+            v.formant,
+            [
+                d("voicing.formant_hz"),
+                d("voicing.formant_db"),
+                d("voicing.formant_q")
+            ]
+        );
+        assert_eq!(v.damped_db, -d("voicing.damped"));
+        assert_eq!(v.top_hz as f32, cantus_core::inst::chorda::TOP_HZ);
+        // A value-control moved off its default and back is neutral again; a scale moved is
+        // not.
+        let mut spec = spec;
+        spec.set("voicing.top_hz", 9_000.0);
+        spec.set("voicing.knock", 2.0);
+        let (s, _) = settings_from(&values_of(&spec));
+        assert_eq!((s.user.top_hz, s.user.knock), (Some(9_000.0), 2.0));
+        spec.set("voicing.top_hz", cantus_core::inst::chorda::TOP_HZ);
+        spec.set("voicing.knock", 1.0);
+        assert_eq!(
+            settings_from(&values_of(&spec)).0.user,
+            UserVoicing::NEUTRAL
+        );
+        spec.set("voicing.damped", -50.0);
+        assert_eq!(
+            settings_from(&values_of(&spec)).0.user.damped_db,
+            Some(50.0)
         );
     }
 }

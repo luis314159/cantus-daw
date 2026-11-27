@@ -250,7 +250,13 @@ pub fn views_of(kind: InstrumentKind) -> Vec<View> {
     match kind {
         InstrumentKind::Dancer => vec![View::Play, View::Edit],
         InstrumentKind::AcousticDrums => vec![View::Play, View::Mixer, View::Matrix],
-        InstrumentKind::Chorda => vec![View::Play, View::Mixer, View::Edit, View::Matrix],
+        InstrumentKind::Chorda => vec![
+            View::Play,
+            View::Mixer,
+            View::Edit,
+            View::Voicing,
+            View::Matrix,
+        ],
         _ => vec![View::Play, View::Edit, View::Matrix],
     }
 }

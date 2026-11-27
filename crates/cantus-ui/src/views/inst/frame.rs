@@ -194,6 +194,7 @@ fn view_index(v: View) -> usize {
         View::Edit => 1,
         View::Matrix => 2,
         View::Mixer => 0, // r40:chorda-src — only where the kind has a mixer (`MIXER_VIEWS`)
+        View::Voicing => 1, // r42:chorda-presets — Chorda's alone (`CHORDA_VIEWS`)
     }
 }
 
@@ -206,6 +207,23 @@ const MIXER_VIEWS: [Src<'static>; 4] = [
     Src::Key("inst.view.matrix"),
 ];
 const MIXER_ORDER: [View; 4] = [View::Play, View::Mixer, View::Edit, View::Matrix];
+
+// r42:chorda-presets — Chorda's five: Play · Mixer · Edit · Voicing · Matrix (its voicing by
+// hand, ADR 0098's eighth amendment).
+const CHORDA_VIEWS: [Src<'static>; 5] = [
+    Src::Key("inst.view.play"),
+    Src::Key("inst.view.mixer"),
+    Src::Key("inst.view.edit"),
+    Src::Key("inst.view.voicing"),
+    Src::Key("inst.view.matrix"),
+];
+const CHORDA_ORDER: [View; 5] = [
+    View::Play,
+    View::Mixer,
+    View::Edit,
+    View::Voicing,
+    View::Matrix,
+];
 
 // r40:integration — Tympanum's three, as the approved design names them: Kit (the frame's
 // Play) · Mixer · Matrix. It has no Edit view of its own.
@@ -228,6 +246,9 @@ fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
     } else if kind == InstrumentKind::AcousticDrums {
         let i = TYMPANUM_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&TYMPANUM_VIEWS[..], i)
+    } else if kind == InstrumentKind::Chorda {
+        let i = CHORDA_ORDER.iter().position(|x| *x == v).unwrap_or(0);
+        (&CHORDA_VIEWS[..], i)
     } else if has_mixer(kind) {
         let i = MIXER_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&MIXER_VIEWS[..], i)
@@ -240,6 +261,9 @@ fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
 fn view_at(kind: InstrumentKind, i: usize) -> View {
     if kind == InstrumentKind::AcousticDrums {
         return TYMPANUM_ORDER.get(i).copied().unwrap_or(View::Play);
+    }
+    if kind == InstrumentKind::Chorda {
+        return CHORDA_ORDER.get(i).copied().unwrap_or(View::Play);
     }
     if has_mixer(kind) {
         return MIXER_ORDER.get(i).copied().unwrap_or(View::Play);
@@ -545,6 +569,11 @@ fn shell_body(
         View::Mixer if !has_mixer(spec.kind) => View::Play,
         // r40:integration — Tympanum has no Edit view: shown as its Kit.
         View::Edit if spec.kind == InstrumentKind::AcousticDrums => View::Play,
+        // r42:chorda-presets — the voicing view is Chorda's: another kind shows its Edit.
+        View::Voicing if spec.kind != InstrumentKind::Chorda => match spec.kind {
+            InstrumentKind::AcousticDrums => View::Play,
+            _ => View::Edit,
+        },
         v => v,
     };
     // r42 fix4-narrow — below the room a view was laid out for, it scrolls instead of
@@ -572,6 +601,12 @@ fn shell_body(
                 .show(&mut view, |ui| {
                     at_least(ui, s, least.x, |ui| body(app, ui, track, spec, s))
                 });
+        }
+        // r42:chorda-presets — Chorda's voicing by hand: its groups' cards, scrolled.
+        View::Voicing => {
+            egui::ScrollArea::vertical()
+                .id_salt(("inst-voicing", track.0))
+                .show(&mut view, |ui| chorda::voicing(app, ui, track, spec, s));
         }
         View::Matrix => {
             egui::ScrollArea::vertical()
@@ -1238,6 +1273,8 @@ pub fn write_readout(v: f32, unit: &str, b: &mut String) {
         "st" => write!(b, "{v:+.1} st"),
         "ct" => write!(b, "{v:+.0} ct"),
         "%" => write!(b, "{:.0} %", v * 100.0),
+        // r42:chorda-presets — Chorda's knock tone, in octaves.
+        "oct" => write!(b, "{v:+.1} oct"),
         "" if v.abs() >= 100.0 => write!(b, "{v:.0}"),
         "" => write!(b, "{v:.2}"),
         u => write!(b, "{v:.2} {u}"),

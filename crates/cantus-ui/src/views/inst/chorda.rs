@@ -30,6 +30,10 @@ pub mod view;
 // r40:chorda-src — the Play view as the approved design draws it (design-p3, delivery 6).
 #[path = "chorda_play.rs"]
 mod layout;
+// r42:chorda-presets — the Voicing view: the voicing by hand (ADR 0098's eighth amendment).
+#[path = "chorda_voicing.rs"]
+mod voicing_view;
+pub use voicing_view::{voicing, VOICING_H};
 
 use super::organ::parts::{cells, paint_card, Card, Rows};
 use super::FactoryPreset;
@@ -693,6 +697,17 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     preset!("chorda.preset.house", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.house"], "grand" / "white", ["hardness" => 0.6, "tilt" => 3.0, "room" => 0.2, "dynamics" => 0.7, "decay" => 0.7, "gain" => 1.2, "persp" => 0.12, "roomsize" => 0.3]),
     preset!("chorda.preset.reggaeton", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.latin", "preset.style.trap"], "grand" / "white", ["hardness" => 0.4, "tilt" => 2.0, "room" => 0.25, "decay" => 0.75, "width" => 0.7, "gain" => 3.6, "persp" => 0.15, "roomsize" => 0.35]),
     preset!("chorda.preset.ambient", &["preset.tag.keys", "preset.role.pad", "chorda.tag.soft", "preset.style.ambient", "preset.style.film"], "concert" / "white", ["hardness" => -0.6, "sympathy" => 2.0, "decay" => 2.0, "room" => 0.9, "damper" => 0.4, "tilt" => -4.0, "persp" => 0.75, "roomsize" => 1.0, "gain" => 4.9]),
+    // r42 (`chorda-presets`, ADR 0098's eighth amendment): the character presets, each a real
+    // instrument's character reached with the voicing by hand and fitted against recorded
+    // pianos of its kind where a free one exists (`docs/round42/chorda-presets.md`).
+    preset!("chorda.preset.v_dark", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.soft", "preset.style.lofi", "preset.style.ambient"], "upright" / "black", ["hardness" => -0.8, "voicing.felt_treble" => -0.4, "voicing.top_hz" => 4_500.0, "voicing.hf" => 0.6, "voicing.decay_treble" => 0.6, "voicing.knock" => 1.3, "voicing.knock_tone" => -0.7, "voicing.key_return" => 1.5, "noise" => 1.3, "tilt" => -4.0, "persp" => 0.1, "lid" => 0.0, "room" => 0.25, "roomsize" => 0.25, "gain" => 6.0]),
+    preset!("chorda.preset.v_imposing", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["hardness" => 0.2, "voicing.felt_bass" => 0.15, "voicing.mass" => 1.15, "voicing.decay_bass" => 1.25, "voicing.formant_hz" => 520.0, "voicing.formant_db" => 14.0, "voicing.itd" => 1.3, "body" => 1.15, "sympathy" => 1.2, "dynamics" => 1.15, "persp" => 0.55, "width" => 0.85, "room" => 0.45, "roomsize" => 0.75, "gain" => 3.5]),
+    preset!("chorda.preset.v_bright", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.grand", "preset.style.pop"], "grand" / "white", ["hardness" => 0.45, "voicing.felt_treble" => 0.3, "voicing.hf" => 1.3, "voicing.top_hz" => 14_000.0, "voicing.formant_db" => 9.0, "voicing.knock" => 0.8, "tilt" => 2.0, "dynamics" => 0.8, "persp" => 0.15, "room" => 0.2, "roomsize" => 0.3, "gain" => 1.0]),
+    preset!("chorda.preset.v_intimate", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.soft", "preset.style.pop", "preset.style.rnb"], "parlour" / "black", ["hardness" => -0.25, "voicing.knock" => 1.4, "voicing.key_return" => 1.6, "voicing.itd" => 1.6, "voicing.damper" => 0.8, "voicing.top_hz" => 9_500.0, "noise" => 1.4, "persp" => 0.0, "width" => 0.7, "room" => 0.12, "roomsize" => 0.2, "gain" => 1.0]),
+    preset!("chorda.preset.v_upright", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.character", "preset.style.pop"], "upright" / "walnut", ["stiffness" => 1.3, "unison" => 2.0, "hardness" => 0.1, "voicing.decay_bass" => 0.6, "voicing.decay_mid" => 0.75, "voicing.decay_treble" => 0.7, "voicing.uneven" => 1.5, "voicing.formant_hz" => 330.0, "voicing.formant_db" => 8.0, "voicing.top_hz" => 8_000.0, "coupling" => 0.6, "body" => 0.85, "lid" => 0.3, "persp" => 0.15, "room" => 0.25, "roomsize" => 0.3, "gain" => 6.0]),
+    preset!("chorda.preset.v_honky", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.character", "preset.style.rock"], "upright" / "rosewood", ["unison" => 6.0, "stiffness" => 1.25, "hardness" => 0.45, "voicing.uneven" => 2.5, "voicing.polar" => 2.0, "voicing.decay_mid" => 0.7, "voicing.decay_treble" => 0.6, "voicing.knock" => 1.8, "voicing.top_hz" => 7_000.0, "noise" => 1.4, "tilt" => 2.0, "body" => 0.8, "lid" => 0.4, "persp" => 0.25, "room" => 0.2, "roomsize" => 0.3, "gain" => 6.0]),
+    preset!("chorda.preset.v_jazz", &["preset.tag.keys", "preset.role.keys", "chorda.tag.voicing", "chorda.tag.grand", "preset.style.jazz"], "grand" / "walnut", ["hardness" => 0.05, "voicing.felt_treble" => -0.15, "voicing.decay_treble" => 0.85, "voicing.formant_db" => 13.0, "voicing.knock" => 1.2, "voicing.top_hz" => 9_000.0, "persp" => 0.2, "lid" => 0.6, "width" => 0.65, "room" => 0.3, "roomsize" => 0.35, "gain" => 5.0]),
+    preset!("chorda.preset.v_cinematic", &["preset.tag.keys", "preset.role.pad", "chorda.tag.voicing", "chorda.tag.soft", "preset.style.film", "preset.style.ambient"], "concert" / "black", ["hardness" => -0.6, "voicing.hf" => 0.7, "voicing.top_hz" => 6_000.0, "voicing.decay_treble" => 1.2, "voicing.knock" => 0.7, "decay" => 1.3, "sympathy" => 1.6, "tilt" => -3.0, "persp" => 0.65, "width" => 0.9, "room" => 0.8, "roomsize" => 0.95, "gain" => 8.0]),
     preset!("chorda.preset.theme", &["preset.tag.keys", "preset.role.keys", "chorda.tag.grand", "preset.style.film"], "concert" / "black", ["hardness" => 0.1, "room" => 0.65, "width" => 0.9, "sympathy" => 1.2, "persp" => 0.5, "roomsize" => 0.7, "gain" => 4.2]),
 ];
 

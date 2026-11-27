@@ -91,6 +91,10 @@ pub enum View {
     /// r40:chorda-src — the instrument's own mixer (ADR 0123, 0125): its named outputs, for
     /// the kinds that have them (Chorda; Tympanum's mixer lands here too).
     Mixer,
+    /// r42 (`chorda-presets`, ADR 0098's eighth amendment) — Chorda's advanced voicing: every
+    /// number of its voicing by hand, grouped as a technician thinks of them. Shown as Edit
+    /// by every other kind.
+    Voicing,
 }
 
 /// State of the instrument editors behind this module.

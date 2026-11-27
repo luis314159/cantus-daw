@@ -9371,3 +9371,154 @@ fn nudge_a4(cmd: &mut Command, by: f32) {
         t.a4_hz += f64::from(by);
     }
 }
+
+// r42:chorda-presets — round 42 (ADR 0098's eighth amendment): Chorda's voicing by hand, from a
+// stream of its own among the general generator's commands, so the main test's projects stay
+// the ones they were.
+/// Chorda's voicing controls set (and a character preset applied whole) among the others: undo
+/// all restores the start, redo all the end; each kind applied, the refusal refused.
+#[test]
+fn chordas_voicing_by_hand_undoes_and_redoes_among_the_others() {
+    let origins = [
+        Origin::User,
+        Origin::Script,
+        Origin::Ai,
+        Origin::Mcp,
+        Origin::System,
+    ];
+    let mut voiced = [[0usize; 2]; VOICING_KINDS];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(0x3C6E_F372).wrapping_add(88));
+        let mut vrng = Lcg(seed.wrapping_mul(0x7A3B_19C5).wrapping_add(142));
+        let mut bus = CommandBus::default();
+        let start = bus.project().clone();
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let (k, cmd) = if vrng.below(2) == 0 {
+                let (k, c) = round42_voicing_command(&mut vrng, &mut scratch);
+                (Some(k), c)
+            } else {
+                (None, random_command(&mut rng, &mut scratch))
+            };
+            bus.reserve_ids(scratch.next_id);
+            let ok = bus.execute(cmd, origins[vrng.below(5) as usize]).is_ok();
+            if let Some(k) = k {
+                voiced[k][usize::from(!ok)] += 1;
+            }
+        }
+        let mut end = bus.project().clone();
+        while bus.undo().is_some() {}
+        let mut back = bus.project().clone();
+        back.next_id = start.next_id;
+        assert_eq!(back, start, "seed {seed}: undo all");
+        while bus.redo().is_some() {}
+        let mut again = bus.project().clone();
+        again.next_id = 0;
+        end.next_id = 0;
+        assert_eq!(again, end, "seed {seed}: redo all");
+    }
+    assert!(
+        voiced[..VOICING_KINDS - 1].iter().all(|k| k[0] > 0) && voiced[VOICING_KINDS - 1][1] > 0,
+        "round 42's voicing commands never applied or never refused: {voiced:?}"
+    );
+}
+
+/// Kinds of [`round42_voicing_command`]: 0 a track made a Chorda, 1 a voicing control set
+/// (anywhere in its range, past it clamped), 2 a character's controls set at once (a batch,
+/// one undo step), 3 a control set on an instrument that has none (refused).
+const VOICING_KINDS: usize = 4;
+
+/// A Chorda's voicing on a random track: made a Chorda, one control set, several set as a
+/// character preset sets them; or a voicing key on another instrument (refused).
+fn round42_voicing_command(rng: &mut Lcg, project: &mut Project) -> (usize, Command) {
+    use cantus_core::inst::chorda::PARAMS;
+    let keys: Vec<&str> = PARAMS
+        .iter()
+        .map(|i| i.key)
+        .filter(|k| k.starts_with("voicing."))
+        .collect();
+    let chordas: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.instrument
+                .native()
+                .is_some_and(|n| n.kind == InstrumentKind::Chorda)
+        })
+        .map(|t| t.id)
+        .collect();
+    if chordas.is_empty() || rng.below(10) == 0 {
+        let Some(track) = project.tracks.first().map(|t| t.id) else {
+            let mut t = project.make_track("Piano");
+            t.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda));
+            return (
+                0,
+                Command::InsertTrack {
+                    index: 0,
+                    track: Box::new(t),
+                },
+            );
+        };
+        return (
+            0,
+            Command::SetInstrument {
+                track,
+                spec: Box::new(InstrumentSpec::Native(NativeSpec::new(
+                    InstrumentKind::Chorda,
+                ))),
+            },
+        );
+    }
+    let track = chordas[rng.below(chordas.len() as u64) as usize];
+    let mut set = |rng: &mut Lcg| {
+        let key = keys[rng.below(keys.len() as u64) as usize];
+        let i = cantus_core::inst::chorda::param(key).unwrap();
+        // A little past either end now and then: the spec clamps it.
+        let span = i.max - i.min;
+        Command::SetInstrumentValue {
+            track,
+            key: key.to_string(),
+            value: rng.f32(i.min - 0.1 * span, i.max + 0.1 * span),
+        }
+    };
+    match rng.below(6) {
+        0..=2 => (1, set(rng)),
+        3 | 4 => {
+            let n = 2 + rng.below(6) as usize;
+            let commands = (0..n).map(|_| set(rng)).collect();
+            (
+                2,
+                Command::Batch {
+                    label_key: "cmd.fx_preset".into(),
+                    commands,
+                },
+            )
+        }
+        _ => {
+            let other = project.tracks.iter().find(|t| {
+                t.instrument
+                    .native()
+                    .is_some_and(|n| n.kind != InstrumentKind::Chorda)
+            });
+            match other {
+                Some(t) => (
+                    3,
+                    Command::SetInstrumentValue {
+                        track: t.id,
+                        key: "voicing.knock".into(),
+                        value: 2.0,
+                    },
+                ),
+                // No other native instrument: a key Chorda does not hold (refused too).
+                None => (
+                    3,
+                    Command::SetInstrumentValue {
+                        track,
+                        key: "voicing.no_such".into(),
+                        value: 1.0,
+                    },
+                ),
+            }
+        }
+    }
+}

@@ -89,6 +89,15 @@ impl TopRoll {
         t
     }
 
+    /// Round 42: the low-pass moved to `hz` (0: off), its state kept while it stays on.
+    fn retune(&mut self, fs: f64, hz: f64) {
+        let z = self.z;
+        *self = TopRoll::new(fs, hz);
+        if self.on {
+            self.z = z;
+        }
+    }
+
     #[inline]
     fn tick(&mut self, ch: usize, x: f64) -> f64 {
         let (c, z) = (&self.c, &mut self.z[ch]);
@@ -148,6 +157,9 @@ pub struct ChordaSettings {
     /// Model 2 (round 42, `chorda-c17`): the colour (−1 … 1; 0 Chorda's own voicing, 1 a
     /// recorded grand's middle; [`super::colour`]).
     pub colour: f64,
+    /// Model 2 (round 42, `chorda-presets`): the voicing a player moves by hand over the
+    /// shipped one ([`super::user`]; neutral: candidate 18 to the bit).
+    pub user: super::user::UserVoicing,
 }
 
 impl Default for ChordaSettings {
@@ -231,6 +243,7 @@ impl Default for ChordaSettings {
             lid: super::stage::LID,
             size: super::stage::SIZE,
             colour: 0.0,
+            user: super::user::UserVoicing::NEUTRAL,
         }
     }
 }
@@ -284,7 +297,12 @@ pub struct Chorda {
     bus: [[[f64; CHUNK]; 2]; 3],
     room: Room,
     stage: Stage,
+    /// The voicing a strike takes: [`Self::base`] with the player's controls over it
+    /// (`ChordaSettings::user`; exactly the base while they are neutral).
     voicing: Voicing,
+    /// Round 42 (`chorda-presets`): the technician's voicing — the shipped one unless a
+    /// tool tries another ([`Self::set_voicing`]).
+    base: Voicing,
     /// Model 2 (round 40): the output's top rolled off (`Voicing::top_hz`; off at 0).
     top: TopRoll,
     /// Round 42: the colour stage (model 2), off at a colour of 0.
@@ -488,6 +506,7 @@ impl Chorda {
             room: Room::new(fs, &shipped.room),
             stage: Stage::new(fs),
             voicing: shipped,
+            base: shipped,
             top: TopRoll::new(fs, shipped.top_hz),
             colour: super::colour::Colour::new(fs),
             sym_hp: TopRoll::high_pass(fs, shipped.bass_hp),
@@ -554,6 +573,11 @@ impl Chorda {
                 self.top.z = [[0.0; 2]; 2];
                 self.sym_hp.z = [[0.0; 2]; 2];
             }
+        }
+        if s.user != self.settings.user {
+            // Round 42 (`chorda-presets`): the voicing moved by hand, before anything below
+            // reads it.
+            self.revoice(&s.user);
         }
         self.settings = *s;
         // Model 2's action: its noises and its strikes' variation; model 1 has neither.
@@ -628,6 +652,21 @@ impl Chorda {
             let x = (spread * width * (i as f64 - 43.5) / 43.5).clamp(-1.0, 1.0);
             *p = (0.5 * (1.0 - x), 0.5 * (1.0 + x));
         }
+    }
+
+    /// Round 42 (`chorda-presets`): the player's controls `u` over the base voicing. The
+    /// filters they reach (the bass formant, the top roll-off) take their new coefficients
+    /// with their states kept; everything else is read at the next strike. Allocates nothing:
+    /// the audio thread's.
+    fn revoice(&mut self, u: &super::user::UserVoicing) {
+        let v = u.over(&self.base);
+        if v.formant != self.voicing.formant {
+            self.regs.set_formant(self.fs, &v.formant);
+        }
+        if v.top_hz != self.voicing.top_hz {
+            self.top.retune(self.fs, v.top_hz);
+        }
+        self.voicing = v;
     }
 
     /// The voice settings a strike of key index `i` takes: the key's measured felt, made
@@ -786,6 +825,8 @@ impl Chorda {
     /// Model 2's voicing (ADR 0098): the shipped one unless a tool tries another.
     /// Allocates (the body's responses are synthesised): never on the audio thread.
     pub fn set_voicing(&mut self, v: &Voicing) {
+        self.base = *v;
+        let v = &self.settings.user.over(v);
         self.voicing = *v;
         self.body = Body::new(self.fs, &v.body);
         self.regs = Registers::voiced(self.fs, &v.reg, &v.reg_level, &v.formant)
