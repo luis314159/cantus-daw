@@ -115,6 +115,11 @@ native only. Over a hundred files with their hashes would have put the WebAssemb
 HTML. The browser fetches that file only on these pages: `main.rs` waits for it on a first
 load, and the pages fetch it after a move from another page.
 
+The pages themselves are **HTML strings**, written by the same functions in the pre-renderer
+and the browser (`pages/plugins.rs`), with only the players (with/without, Try it) as Yew
+components. As components the first build measured 260 670 B, and with the notes and the
+cards moved to strings 256 272 B, both over the budget. Decision and numbers: ADR 0167.
+
 **What each page has:**
 
 - **Index:** the formats (CLAP, VST3, "AU · coming"), the zip with all for the visitor's
@@ -122,12 +127,13 @@ load, and the pages fetch it after a move from another page.
   not plug-ins yet (no button), then the install steps, the unsigned steps, the licence and
   the way to the DAW.
 - **An effect's page:** the same head and download card for that effect, with the other
-  systems listed below it. Then its picture in either theme, what it does, a link to its
+  systems listed below it. Then its picture in the page's theme, what it does, a link to its
   effect page, its with/without excerpt and its "Try it" where they exist, the same notes,
   and the previous and the next.
-- **The visitor's system** is chosen from the user agent (`platform.rs`; the pre-render says
-  Windows). Windows, Linux and macOS are buttons with `aria-pressed`. The install and unsigned
-  steps follow the choice.
+- **The visitor's system** is a radio group, Windows, Linux and macOS: native keyboard and
+  screen-reader behaviour. The choice shows that system's card and steps by CSS alone
+  (`:has()`; without it, Windows'), so the static page works before the app runs. The app
+  ticks the visitor's own system from the user agent (`platform.rs`).
 
 **Honesty in the copy:**
 

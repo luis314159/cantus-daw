@@ -30,3 +30,15 @@
 .pl-cmd { display: block; margin-top: 0.6rem; padding: 0.5rem 0.7rem; border-radius: 4px; background: var(--mist); }
 .pl-links a { color: var(--accent-text); font-weight: 600; }
 @media (max-width: 56rem) { .pl-cols { grid-template-columns: 1fr; } .pl-folders dd { grid-template-columns: 1fr; gap: 0.2rem; } }
+/* The system: a radio group whose choice shows its card and steps (no script needed; without
+   :has() the Windows ones stay shown). The app ticks the visitor's own. */
+.pl-for:not(.pl-for-windows) { display: none; }
+.pl-page:has(#pl-sys-linux:checked) .pl-for-windows, .pl-page:has(#pl-sys-mac:checked) .pl-for-windows { display: none; }
+.pl-page:has(#pl-sys-linux:checked) .pl-for-linux, .pl-page:has(#pl-sys-mac:checked) .pl-for-mac { display: block; }
+.pl-sys label { position: relative; font: 600 0.95rem/1 var(--body); padding: 0.65rem 1rem; border-radius: 4px; cursor: pointer; color: var(--ink-3); }
+.pl-sys input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: pointer; }
+.pl-sys label:has(input:checked) { background: var(--night-3); color: var(--strong); }
+:root[data-theme="light"] .pl-sys label:has(input:checked) { background: #fff; box-shadow: 0 1px 2px rgba(23, 32, 42, 0.18); }
+.pl-sys label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pl-get .hash-sum { user-select: all; }
+.pl-hear .up-ab { margin-bottom: 1.6rem; }

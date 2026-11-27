@@ -51,6 +51,7 @@ impl Sys {
     }
 
     /// The visitor's, as far as the browser says (a phone: Windows, the first one listed).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))] // the browser ticks it
     pub fn of(os: Os) -> Sys {
         match os {
             Os::Linux => Sys::Linux,
@@ -270,30 +271,8 @@ pub fn paras(key: &str, l: Lang) -> Vec<String> {
     (0..).map_while(|i| text(key, i, l)).collect()
 }
 
-/// Pieces of the pages drawn as HTML here rather than by the app (round 42: as components they
-/// put the WebAssembly 11 KB over its budget): the install notes per system and the index's
-/// cards. Natively they are made on the spot; the browser reads them from `/plugins.json`, as
-/// one-paragraph texts, and the pages insert them as they are.
-pub fn piece(key: &str, l: Lang) -> String {
-    #[cfg(target_arch = "wasm32")]
-    {
-        text(key, 0, l).unwrap_or_default()
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        match key {
-            "html-grid" => grid_html(l),
-            k => Sys::ALL
-                .iter()
-                .find(|s| k == format!("html-notes-{}", s.key()))
-                .map(|&s| notes_html(s, l))
-                .unwrap_or_default(),
-        }
-    }
-}
-
 impl Sys {
-    /// The system's key in the text's names: `windows`, `linux`, `mac`.
+    /// The system's key in the text's names and the page's ids: `windows`, `linux`, `mac`.
     pub fn key(self) -> &'static str {
         match self {
             Sys::Windows => "windows",
@@ -301,122 +280,6 @@ impl Sys {
             Sys::Mac => "mac",
         }
     }
-}
-
-/// Text for HTML: `&`, `<`, `>` and `"` escaped.
-#[cfg(not(target_arch = "wasm32"))]
-fn esc(t: &str) -> String {
-    t.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-}
-
-/// The icons' line drawing (`icons::line`), as HTML.
-#[cfg(not(target_arch = "wasm32"))]
-fn icon(d: &str) -> String {
-    format!(
-        r#"<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{d}"></path></svg>"#
-    )
-}
-
-/// Installing on `sys`, its unsigned files, the licence and the whole DAW.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn notes_html(sys: Sys, l: Lang) -> String {
-    use std::fmt::Write;
-    let gh = crate::top::GITHUB;
-    let ps = |key: &str| paras(key, l);
-    let steps = ps(&format!("steps-{}", sys.key()));
-    let step = |i: usize| esc(steps.get(i).map(String::as_str).unwrap_or(""));
-    let mut folders = String::new();
-    for (std, you, all) in sys.folders() {
-        let _ = write!(
-            folders,
-            "<div><dt>{std}</dt><dd><span>{}</span><code>{}</code></dd><dd><span>{}</span><code>{}</code></dd></div>",
-            l.t("For you", "Para ti"),
-            esc(you),
-            l.t("For everyone", "Para todos"),
-            esc(all)
-        );
-    }
-    let hosts: String = ps("hosts")
-        .iter()
-        .map(|h| format!("<li>{}</li>", esc(h)))
-        .collect();
-    let unsigned = ps(&format!("unsigned-{}", sys.key()));
-    let mut side = format!(
-        "<h3>{}{}</h3><p>{}</p>",
-        icon("M12 3l10 18H2zM12 10v5M12 18v.01"),
-        l.t("Not code-signed yet", "Aún sin firma de código"),
-        esc(unsigned.first().map(String::as_str).unwrap_or(""))
-    );
-    if sys == Sys::Mac {
-        for f in ["CLAP/Cantus*.clap", "VST3/Cantus*.vst3"] {
-            let _ = write!(
-                side,
-                r#"<code class="pl-cmd">xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/{f}</code>"#
-            );
-        }
-    }
-    for t in unsigned.iter().skip(1) {
-        let _ = write!(side, "<p>{}</p>", esc(t));
-    }
-    let _ = write!(
-        side,
-        "<h3>{}{}</h3>",
-        icon("M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6zM8.5 12l2.5 2.5 4.5-5"),
-        l.t("Licence", "Licencia")
-    );
-    for t in ps("licence") {
-        let _ = write!(side, "<p>{}</p>", esc(&t));
-    }
-    let _ = write!(
-        side,
-        r#"<p class="pl-links"><a href="{gh}/blob/master/LICENSE">GPL-3.0-or-later</a> · <a href="{gh}/blob/master/TRADEMARKS.md">{}</a> · <a href="{gh}/tree/master/crates/cantus-plugins">{}</a></p>"#,
-        l.t("Trademarks", "Marcas"),
-        l.t("Source", "Código")
-    );
-    format!(
-        r#"<div class="wrap"><h2>{} {}</h2><div class="pl-cols"><ol class="pl-steps"><li>{}</li><li>{}<dl class="pl-folders">{folders}</dl></li><li>{}<ul class="pl-hosts">{hosts}</ul></li></ol><div class="pl-side">{side}</div></div><div class="stays-free"><p>{}</p><a class="btn btn-quiet" href="{}">{}</a></div></div>"#,
-        l.t("Install on", "Instalar en"),
-        sys.name(),
-        step(0),
-        step(1),
-        step(2),
-        esc(&ps("daw").concat()),
-        crate::nav::href(l, "/download"),
-        l.t("Get the whole DAW", "Consigue el DAW completo")
-    )
-}
-
-/// The index's cards: every effect's picture, name, kind and one line, each a link to its page.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn grid_html(l: Lang) -> String {
-    use std::fmt::Write;
-    let mut o = String::from(r#"<ul class="unit-grid">"#);
-    for u in crate::units_data::EFFECTS.iter().filter(|u| u.plugin) {
-        let (w, h) = u.thumb_in(l);
-        let _ = write!(
-            o,
-            r#"<li class="uc-li"><a class="unit-card" href="{}"><span class="uc-pic"><img src="/units/{}-thumb{}.webp" width="{w}" height="{h}" loading="lazy" alt=""></span><span class="uc-text"><strong>{}</strong><span class="uc-kind">{}</span><span class="uc-pitch">{}</span><span class="uc-more">CLAP · VST3 · Windows · Linux · macOS</span></span></a></li>"#,
-            crate::nav::href(l, &format!("/plugins/{}", u.file)),
-            u.file,
-            crate::units::pic_lang(l),
-            esc(u.name),
-            esc(l.t(u.kind.0, u.kind.1)),
-            esc(&crate::unit_text::pitch(u, l))
-        );
-    }
-    o.push_str("</ul>");
-    let _ = write!(
-        o,
-        r#"<p class="pl-inst" role="note"><b>{} {} · {}</b> {}</p>"#,
-        crate::units_data::INSTRUMENTS.len(),
-        l.t("instruments", "instrumentos"),
-        l.t("coming", "pronto"),
-        esc(&paras("instruments", l).concat())
-    );
-    o
 }
 
 /// The JSON the browser reads: `{"files":{"<name>":[size,"sha"],…},"text":{"<key>":[["en","es"],…],…}}`.
@@ -439,7 +302,7 @@ pub fn json() -> String {
         .iter()
         .map(|f| format!("{}:[{},{}]", s(f.name), f.size, s(f.sha256)))
         .collect();
-    let mut text: Vec<String> = TEXT
+    let text: Vec<String> = TEXT
         .iter()
         .map(|(key, paras)| {
             let p: Vec<String> = paras
@@ -449,17 +312,6 @@ pub fn json() -> String {
             format!("{}:[{}]", s(key), p.join(","))
         })
         .collect();
-    let keys = ["html-grid".to_string()]
-        .into_iter()
-        .chain(Sys::ALL.iter().map(|s| format!("html-notes-{}", s.key())));
-    for k in keys {
-        text.push(format!(
-            "{}:[[{},{}]]",
-            s(&k),
-            s(&piece(&k, Lang::En)),
-            s(&piece(&k, Lang::Es))
-        ));
-    }
     format!(
         "{{\"files\":{{{}}},\"text\":{{{}}}}}\n",
         files.join(","),
