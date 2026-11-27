@@ -365,6 +365,17 @@ impl Object {
     /// Add a hit: a slot for its bands, its modes into the ringing bank, its stick.
     pub(super) fn hit(&mut self, t: &'static Table, h: &Strike, sr: f32) {
         let (w, offset) = blend(t, h);
+        // The recording's level law across velocity (r42:tympanum-real; 0 for a table
+        // without one): the whole hit, modes, bands and stick alike.
+        // Model 6: a drum's onset through the stick's contact (`onset`; a cymbal plays 6 as 5).
+        let six = t.drum && h.gen >= 6;
+        let p6 = super::onset::params();
+        let offset = offset
+            + if six {
+                super::law::law_db6(t.id, h.vel)
+            } else {
+                super::law::law_db(t.id, h.vel)
+            };
         // Each state's share (two when a hat's stroke falls between two openings).
         let sws = [w[0].1 + w[1].1, w[2].1 + w[3].1];
         let two = sws[0] > 0.0 && sws[1] > 0.0;
@@ -386,6 +397,21 @@ impl Object {
         slot.t = 0;
         slot.seg = 0;
         slot.choking = false;
+        slot.ramp = six;
+        if six {
+            // The bands come in through the head, the lows slower; a snare's wires (its
+            // bands from 1 kHz) only once the shell's air has pushed the bottom head.
+            let snare = t.id % 16 == 5;
+            for b in 0..NB {
+                let c = super::CENTRES[b];
+                slot.rise[b] = p6.rise(c, sr);
+                slot.lag[b] = if snare && c >= 1_000.0 {
+                    p6.wire_lag_ms * 0.001 * sr
+                } else {
+                    0.0
+                };
+            }
+        }
         let tilt = h.tilt.clamp(-1.0, 1.0);
         for b in 0..NB {
             // Each band ± ~0.7 dB this hit, and tilted by where the stick lands.
@@ -438,11 +464,14 @@ impl Object {
         slot.set_segment(0, 0.0, self.decay, sr);
         let gmax = slot.g.iter().fold(0.0f32, |m, g| m.max(*g));
         self.bfloor = self.bfloor.min((gmax * REL_FLOOR).max(BAND_FLOOR));
-        // The hit sounds at once: the bands' gains jump (no wait for the control step).
-        for b in 0..NB {
-            let g = slot.g[b];
-            self.bg[b] = (self.bg[b] * self.bg[b] + g * g).sqrt();
-            self.bd[b] = 0.0;
+        // The hit sounds at once: the bands' gains jump (no wait for the control step). Model
+        // 6's come in from the next control step, by their ramps.
+        if !six {
+            for b in 0..NB {
+                let g = slot.g[b];
+                self.bg[b] = (self.bg[b] * self.bg[b] + g * g).sqrt();
+                self.bd[b] = 0.0;
+            }
         }
         // The modes: each layer's amplitude blended, a random phase, ± ~1.5 dB.
         let level = amp_of(offset);
@@ -454,115 +483,135 @@ impl Object {
             .unwrap_or(0);
         let mut amax = 0.0f32;
         let bank = &mut self.banks[self.cur];
-        // A drum's onset (its main layer's): each mode's phase at the strike, and its
-        // early part — the head's first push, a few milliseconds long. The phases scatter
-        // a little each hit, the more the higher the mode (a strike's highs differ hit to
-        // hit; its low push does not).
-        let lay = w[main].0;
-        let onset = t.drum && lay.ets > 0.0 && lay.ph.len() >= self.n && lay.ea.len() >= self.n;
-        let early_r = if onset {
-            math::exp(-1.0 / (lay.ets * self.decay * sr))
+        if six {
+            amax = super::onset::strike_modes(
+                &super::onset::Six {
+                    t,
+                    w: &w,
+                    main,
+                    level,
+                    tilt,
+                    n: self.n,
+                    th: &self.th,
+                    ratio: self.ratio,
+                    decay: self.decay,
+                    sr,
+                    p: p6,
+                },
+                bank,
+                vary,
+            );
         } else {
-            0.0
-        };
-        for i in 0..self.n {
-            let mut a = 0.0;
-            let mut e = 0.0;
-            for (l, x) in w.iter() {
-                if *x > 0.0 {
-                    a += x * l.amp[i];
-                    if onset && l.ea.len() >= self.n {
-                        e += x * l.ea[i];
-                    }
-                }
-            }
-            if two {
-                // (the states mixed in power, as the bands are)
-                let mut p = 0.0;
-                for (s, sw) in sws.iter().enumerate() {
-                    if *sw > 0.0 {
-                        let (lo, hi) = (w[2 * s], w[2 * s + 1]);
-                        let q = (lo.1 * lo.0.amp[i] + hi.1 * hi.0.amp[i]) / sw;
-                        p += sw * q * q;
-                    }
-                }
-                a = p.sqrt();
-            }
-            // (nothing, or a mode beyond this rate's reach)
-            if (a <= 0.0 && e <= 0.0) || self.th[i] == 0.0 {
-                continue;
-            }
-            let mut a = a * level * amp_of(1.5 * (vary.next() + vary.next()));
-            amax = amax.max(a);
-            if tilt != 0.0 {
-                a *= amp_of(3.0 * tilt * math::log2(t.hz[i] / 250.0));
-            }
-            let (ph, jitter) = if onset {
-                let spread = 0.1 + t.hz[i] * self.ratio * 0.001;
-                let j = spread.min(PI) * (vary.next() + vary.next() + vary.next());
-                (lay.ph[i] + j, j)
+            // A drum's onset (its main layer's): each mode's phase at the strike, and its
+            // early part — the head's first push, a few milliseconds long. The phases scatter
+            // a little each hit, the more the higher the mode (a strike's highs differ hit to
+            // hit; its low push does not).
+            let lay = w[main].0;
+            let onset = t.drum && lay.ets > 0.0 && lay.ph.len() >= self.n && lay.ea.len() >= self.n;
+            let early_r = if onset {
+                math::exp(-1.0 / (lay.ets * self.decay * sr))
             } else {
-                (TAU * vary.unit(), 0.0)
+                0.0
             };
-            let (c, s) = (math::cos(ph), math::sin(ph));
-            bank.re[i] += a * c;
-            bank.im[i] += a * s;
-            bank.live[i / 8] = true;
-            // The T60 between the layers the hit blends, geometrically (a hat between
-            // closed and a quarter open rings between their times, not the main one's).
-            let mut lt = 0.0;
-            let mut ws = 0.0;
-            for (l, x) in w.iter() {
-                if *x > 0.0 {
-                    lt += x * math::ln(l.t60[i].max(0.01));
-                    ws += x;
+            for i in 0..self.n {
+                let mut a = 0.0;
+                let mut e = 0.0;
+                for (l, x) in w.iter() {
+                    if *x > 0.0 {
+                        a += x * l.amp[i];
+                        if onset && l.ea.len() >= self.n {
+                            e += x * l.ea[i];
+                        }
+                    }
                 }
-            }
-            let t60 = if ws > 0.0 {
-                math::exp(lt / ws)
-            } else {
-                w[main].0.t60[i].max(0.01)
-            } * self.decay;
-            bank.r[i] = math::exp(-6.907_755 / (t60 * sr));
-            // The growing part as the layers it comes from have it (by their share of this
-            // mode): a partial only a quarter-open state has keeps that state's bloom when
-            // a nearly closed stroke blends it in, not the closed state's "at once".
-            let (mut rise, mut direct, mut aw) = (0.0f32, 0.0f32, 0.0f32);
-            for (l, x) in w.iter() {
-                let k = x * l.amp[i];
-                if k > 0.0 {
-                    rise += k * l.rise[i];
-                    direct += k * l.direct[i];
-                    aw += k;
+                if two {
+                    // (the states mixed in power, as the bands are)
+                    let mut p = 0.0;
+                    for (s, sw) in sws.iter().enumerate() {
+                        if *sw > 0.0 {
+                            let (lo, hi) = (w[2 * s], w[2 * s + 1]);
+                            let q = (lo.1 * lo.0.amp[i] + hi.1 * hi.0.amp[i]) / sw;
+                            p += sw * q * q;
+                        }
+                    }
+                    a = p.sqrt();
                 }
-            }
-            if aw > 0.0 {
-                rise /= aw;
-                direct /= aw;
-            } else {
-                rise = w[main].0.rise[i];
-                direct = w[main].0.direct[i];
-            }
-            if onset {
-                // The early part, as the growing part's phasor (the ring less it: so
-                // it is added inverted), dying in `ets`.
-                if e > 0.0 {
-                    let e = e * level * amp_of(1.5 * (vary.next() + vary.next()));
-                    let q = lay.ep[i] + jitter;
-                    bank.rf[i] = early_r;
-                    bank.fre[i] -= e * math::cos(q);
-                    bank.fim[i] -= e * math::sin(q);
+                // (nothing, or a mode beyond this rate's reach)
+                if (a <= 0.0 && e <= 0.0) || self.th[i] == 0.0 {
+                    continue;
+                }
+                let mut a = a * level * amp_of(1.5 * (vary.next() + vary.next()));
+                amax = amax.max(a);
+                if tilt != 0.0 {
+                    a *= amp_of(3.0 * tilt * math::log2(t.hz[i] / 250.0));
+                }
+                let (ph, jitter) = if onset {
+                    let spread = 0.1 + t.hz[i] * self.ratio * 0.001;
+                    let j = spread.min(PI) * (vary.next() + vary.next() + vary.next());
+                    (lay.ph[i] + j, j)
+                } else {
+                    (TAU * vary.unit(), 0.0)
+                };
+                let (c, s) = (math::cos(ph), math::sin(ph));
+                bank.re[i] += a * c;
+                bank.im[i] += a * s;
+                bank.live[i / 8] = true;
+                // The T60 between the layers the hit blends, geometrically (a hat between
+                // closed and a quarter open rings between their times, not the main one's).
+                let mut lt = 0.0;
+                let mut ws = 0.0;
+                for (l, x) in w.iter() {
+                    if *x > 0.0 {
+                        lt += x * math::ln(l.t60[i].max(0.01));
+                        ws += x;
+                    }
+                }
+                let t60 = if ws > 0.0 {
+                    math::exp(lt / ws)
+                } else {
+                    w[main].0.t60[i].max(0.01)
+                } * self.decay;
+                bank.r[i] = math::exp(-6.907_755 / (t60 * sr));
+                // The growing part as the layers it comes from have it (by their share of this
+                // mode): a partial only a quarter-open state has keeps that state's bloom when
+                // a nearly closed stroke blends it in, not the closed state's "at once".
+                let (mut rise, mut direct, mut aw) = (0.0f32, 0.0f32, 0.0f32);
+                for (l, x) in w.iter() {
+                    let k = x * l.amp[i];
+                    if k > 0.0 {
+                        rise += k * l.rise[i];
+                        direct += k * l.direct[i];
+                        aw += k;
+                    }
+                }
+                if aw > 0.0 {
+                    rise /= aw;
+                    direct /= aw;
+                } else {
+                    rise = w[main].0.rise[i];
+                    direct = w[main].0.direct[i];
+                }
+                if onset {
+                    // The early part, as the growing part's phasor (the ring less it: so
+                    // it is added inverted), dying in `ets`.
+                    if e > 0.0 {
+                        let e = e * level * amp_of(1.5 * (vary.next() + vary.next()));
+                        let q = lay.ep[i] + jitter;
+                        bank.rf[i] = early_r;
+                        bank.fre[i] -= e * math::cos(q);
+                        bank.fim[i] -= e * math::sin(q);
+                        bank.flive[i / 8] = true;
+                    }
+                } else if rise > 0.0 {
+                    let d = direct.clamp(0.0, 1.0);
+                    bank.rf[i] = bank.r[i] * math::exp(-1.0 / (rise * self.decay * sr));
+                    bank.fre[i] += a * (1.0 - d) * c;
+                    bank.fim[i] += a * (1.0 - d) * s;
                     bank.flive[i / 8] = true;
                 }
-            } else if rise > 0.0 {
-                let d = direct.clamp(0.0, 1.0);
-                bank.rf[i] = bank.r[i] * math::exp(-1.0 / (rise * self.decay * sr));
-                bank.fre[i] += a * (1.0 - d) * c;
-                bank.fim[i] += a * (1.0 - d) * s;
-                bank.flive[i / 8] = true;
             }
+            bank.index(self.n);
         }
-        bank.index(self.n);
         self.mfloor = self.mfloor.min((amax * REL_FLOOR).max(FLOOR));
         // The stick: a burst shorter the harder, and its knock.
         let mut st = [0.0f32; 2];
@@ -570,7 +619,14 @@ impl Object {
             st[0] += x * l.stick[0];
             st[1] += x * l.stick[1];
         }
-        self.stick = [st[0] * level * h.click.max(0.0), st[1] * level];
+        self.stick = [
+            st[0] * level * h.click.max(0.0) * super::law::burst(t.id),
+            st[1] * level,
+        ];
+        if six {
+            self.stick[0] *= p6.burst;
+            self.stick[1] *= p6.knock;
+        }
         // A drum: the hit pushes the head sharp (its glide, the harder the more; a ringing
         // head is pushed again), and is a few cents its own (±3).
         self.drum = t.drum;
@@ -591,6 +647,25 @@ impl Object {
         self.burst_s = Noise::from_seed(h.seed ^ 0x2F6B_4A1D_93C5_E871);
         let v = h.vel.clamp(1.0, 127.0) / 127.0;
         self.stick_len = ((0.0004 * (1.4 - 0.6 * v) * sr) as u32).max(2);
+        self.six = six;
+        if t.hat && h.gen >= 6 {
+            // Model 6's hat: the stick's click the same every stroke — a soft closed hat is
+            // little else (the jazz one's 40 layer: its burst, bands at −75 dB), and 0.5 ms of
+            // noise drawn anew set its level and colour anew each stroke (6.1 dB).
+            let k = 0xC11C_4A75_0000_0000u64 ^ t.id as u64;
+            self.vary = Noise::from_seed(k);
+            self.burst_s = Noise::from_seed(k ^ 0x2F6B_4A1D_93C5_E871);
+        }
+        if six {
+            // The contact (a kick's felt beater the longer), and the knock as its push.
+            self.contact_len = p6.contact(h.vel, t.id % 16 == 4, sr);
+            self.contact_n = 0;
+            self.stick_end = (self.contact_len + (0.001 * sr) as u32).max(self.stick_len);
+        } else {
+            self.contact_len = 0;
+            self.contact_n = 0;
+            self.stick_end = (KNOCK_S * sr) as u32;
+        }
         self.band_range();
         self.active = true;
     }
@@ -683,7 +758,7 @@ impl Object {
             if !self.drum {
                 acs += ms;
             }
-            if self.stick_t < knock_len {
+            if self.stick_t < self.stick_end {
                 let t = self.stick_t as f32;
                 let z = self.vary.next() * SQRT3;
                 if self.stick_t < self.stick_len {
@@ -696,7 +771,14 @@ impl Object {
                         acs += s * self.burst_s.next() * SQRT3;
                     }
                 }
-                let x = math::sin(PI * t / knock_len as f32) * z;
+                let x = if !self.six {
+                    math::sin(PI * t / knock_len as f32) * z
+                } else if self.stick_t < self.contact_len {
+                    // Model 6: the head's push, the contact's own half-sine.
+                    math::sin(PI * t / self.contact_len as f32)
+                } else {
+                    0.0
+                };
                 self.knock[0] = (1.0 - ka) * x + ka * self.knock[0];
                 self.knock[1] = (1.0 - ka) * self.knock[0] + ka * self.knock[1];
                 acc += self.stick[1] * self.knock[1];
@@ -777,13 +859,27 @@ impl Object {
     pub(super) fn modes(&mut self) -> (f32, f32) {
         let mut va = [0.0f32; 8];
         let mut vq = [0.0f32; 8];
+        // Model 6: while the stick is on the head, the part of its modes not yet pushed in
+        // shrinks by the contact's step (`onset::contact_step`), to nothing as it leaves.
+        let contact = if self.contact_n < self.contact_len {
+            let d = super::onset::contact_step(self.contact_n, self.contact_len);
+            self.contact_n += 1;
+            Some(d)
+        } else {
+            None
+        };
         for k in 0..2 {
             let (choked, d) = (self.bank_choke[k], self.choke);
             let b = &mut self.banks[k];
             let (c, s) = (&self.c, &self.s);
             // Only the blocks that sound (`Modes::index`: the lists kept with the flags).
             let (lj, fj) = (&b.lj[..b.nl], &b.fj[..b.nf]);
-            if choked {
+            if let (Some(dc), false, true) = (contact, choked, k == self.cur) {
+                run::<false, false>(&mut b.re, &mut b.im, &b.r, c, s, lj, d, &mut va, &mut vq);
+                run::<false, true>(&mut b.fre, &mut b.fim, &b.rf, c, s, fj, d, &mut va, &mut vq);
+                let cj = &b.cj[..b.nc];
+                run::<true, true>(&mut b.cre, &mut b.cim, &b.r, c, s, cj, dc, &mut va, &mut vq);
+            } else if choked {
                 run::<true, false>(&mut b.re, &mut b.im, &b.r, c, s, lj, d, &mut va, &mut vq);
                 run::<true, true>(&mut b.fre, &mut b.fim, &b.rf, c, s, fj, d, &mut va, &mut vq);
             } else {
@@ -837,7 +933,13 @@ impl Object {
             let mut p = 0.0;
             for s in &self.slots {
                 if s.on {
-                    p += s.g[b] * s.g[b];
+                    // (model 6: a band still coming in, by its ramp)
+                    let g = if s.ramp {
+                        s.g[b] * super::onset::ramp(s.t as f32, s.lag[b], s.rise[b])
+                    } else {
+                        s.g[b]
+                    };
+                    p += g * g;
                 }
             }
             self.bd[b] = (p.sqrt() - self.bg[b]) / CTRL as f32;
@@ -853,6 +955,12 @@ impl Object {
             for q in 0..b.nf {
                 let j = b.fj[q] as usize * 8;
                 b.flive[j / 8] = settle(&mut b.fre[j..j + 8], &mut b.fim[j..j + 8], self.mfloor);
+            }
+            if b.nc > 0 && self.contact_n >= self.contact_len {
+                // (model 6: the stick has left — what it had to push in is all in)
+                b.cre = [0.0; super::MAX_MODES];
+                b.cim = [0.0; super::MAX_MODES];
+                b.clive = [false; super::MAX_MODES / 8];
             }
             b.index(self.n);
             let alive = b.nl + b.nf > 0;
@@ -871,7 +979,7 @@ impl Object {
                 *z = 0.0;
             }
         }
-        any |= self.stick_t < (KNOCK_S * sr) as u32;
+        any |= self.stick_t < self.stick_end;
         any |= self.bg.iter().any(|g| *g > self.bfloor);
         self.active = any;
     }

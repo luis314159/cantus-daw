@@ -482,3 +482,160 @@ The owner: *"Add Tympanum at once"* — with his blind listening of it kept in t
 Its sound is not called done: the owner's blind listening kit (each modelled kit against the
 recorded kit it was measured from, piece by piece and in a groove; ABX, preference and
 "recording or synthesis?") and his verdict come first (`docs/BACKLOG-excellence.md`).
+
+## Sixth amendment (round 42, `tympanum-real`) — measured against real kits of many genres; the level law
+
+The owner (2026-11-26): *"a Tympanum le falta mucho"* — download professional recordings free
+of copyright, transcribe what is not separated, measure where and how hard each drum is struck,
+and iterate against several kinds of kits and genres. `docs/round42/tympanum-real.md` has the
+library, the method and every number; `tools/tympanum-real/` the tools.
+
+**The library** (catalogued in `tools/sound-refs/catalog.toml`: `drums-dg`, `drums-packs`,
+`drums-freesound`, `drums-gmd`, beside the `tympanum` set): DRSKit, The Aasimonster (DrumGizmo,
+CC BY 4.0), Big Rusty, Unruly (sticks and brushes), Gogodze Phu II, Virtuosity, Frankensnare,
+Swirly, VSCO 2 percussion (CC0), real playing from Freesound (CC0/CC BY), and the Groove MIDI
+Dataset's 1 150 human performances (CC BY 4.0) to drive every kit with the same notes. Every
+recorded kit plays through Tympanum's own loader and the engine's render, so recorded and
+modelled kits share one path.
+
+**Decision 1 — model 5's level law** (`pulsus_measured_law.rs`, `DSP_VERSION` 19). A hit between
+two of a table's four velocity layers blends them, and measured through Pulsus the blend's level
+did not follow any recording: the studio kick at velocity 56 louder than at 80, its 100 → 127
+step +0.7 dB, the 12″ tom 2.8 dB down from 80 to 96, the jazz ride 5.7 dB quieter at 127 than at
+104. Real drummers play mostly there — in the Groove MIDI Dataset the median snare stroke is
+velocity 45 and 41 % of snare strokes are ghost notes — so each table now adds, per velocity, the
+level that brings its first 80 ms to a law: the studio kit's tables to DRSKit's own (as Tympanum's
+recorded path plays it), the jazz kit's to its own made monotone and rising at least 0.1 dB a velocity unit (Virtuosity's 60-dB span from
+16 to 127 is that library's curve, which the jazz kit already follows). The hardest hit keeps its
+calibrated level; each velocity keeps its colour (only the level moves). `tools/tympanum-real/
+law.py` regenerates the table from the `level_law_dump` test whenever the blob changes. The cause
+— the blend takes its onset phases from the main layer while it mixes the layers' amplitudes — is
+left for model 6.
+
+**Decision 2 — the jazz rack toms' burst** (`BURST`): table 22 alone carried a stick burst, and it
+made the toms' first 3 ms swing 0.4–10 kHz from take to take; it is scaled to 0 (the knock stays).
+
+**Measured and left as they are:** the jazz closed hat's 6.1-dB take-to-take change (its close partials beating under the phase draw: a table refit; scaling its level draw moved nothing); the closed hat's length (with the pedal closed, as a song
+without CC4 plays it, 241 ms at 8 kHz against the recordings' 193–224); brightness rising with
+level holds for kick, toms and cymbals but not for a snare (four of seven recorded snares are
+brighter soft — the wires dominate a ghost note).
+
+**Consequences.** The weighted measures outside the recorded kits' range: studio 23.2 → 13.7,
+jazz 38.1 → 25.7; no velocity step falls. Pulsus never plays model 5: no Pulsus
+song changes and no golden hash holds Tympanum. Open (the doc's list): the grooves' crest 2–10 dB
+above the recordings', the 1 kHz band, the jazz closed hat's take-to-take variation, brushes,
+per-genre kits measured off Aasimonster / Gogodze / Big Rusty, strike position measured with the
+wires off.
+
+**What the tests hold:** `the_level_law_interpolates_and_a_table_without_one_adds_nothing`,
+`every_table_grows_with_velocity_at_every_step` (no step falls by more than a hit's own
+variation, at least 12 dB from 16 to 127), `a_table_without_its_burst_and_every_other_with_its_own`
+(cantus-dsp); block-size independence and rest as before (the law is a gain at the strike);
+`every_modelled_piece_grows_with_the_velocity_through_the_app` (cantus-ui `tympanum_e2e`, through
+`CantusApp::assemble`).
+
+## Seventh amendment (round 42, `tympanum-real`): model 6, a drum's onset; realistic generated kits next
+
+**Context.** Measured against eight recorded kits (sixth amendment), model 5's drums started
+every mode at full amplitude at the strike. On top came an early part fitted to the first 80
+ms, a 2-ms noise knock, and bands that jumped to their first breakpoint. The grooves stood
+2–10 dB over the recordings' crest, and the jazz rimshot's knock at 7× made the loudest peaks.
+A hit between two velocity layers took the main layer's phases with both layers' amplitudes,
+and its ring and early part each drew their own level. For some seeds they cancelled: the
+studio kick at 96 came out 3.3 dB under its 80.
+
+**Decision 1: Pulsus's measured model 6, Tympanum's `model` 2** (`pulsus_measured_onset.rs`;
+`Pulsus::measured_gen`; schema **86**). Each change below plays only for a drum (a table with
+`drum`):
+
+- **The contact.** Every mode is pushed in through a half-sine contact force: 0.8 ms at full
+  force, 1.8 ms soft, twice as long for the kick's felt beater. A third phasor per mode holds
+  what the stick has not pushed in yet, and it shrinks by `(1 − F(n+1)) / (1 − F(n))` to exactly
+  nothing.
+- **One level draw per mode.** The ring and its measured early part share one draw, and the
+  hit's modal power is brought back to the blend's. Every drum now grows at every velocity
+  step for every seed.
+- **The bands come in through the head**: a raised-cosine rise, 6 ms at 100 Hz and 2 ms at
+  8 kHz. A snare's wires (its bands from 1 kHz) lag 1.5 ms through the shell's air.
+- **The knock is the head's push**: the contact's own half-sine at 0.3 of model 5's, not noise.
+- **A re-strike on a moving head** adds the stick's push to the ring. Where the sum would
+  leave a mode weaker than the stroke alone, the contact pushes harder.
+- **`LAW6`** (`law6.py`, from `level_law_dump`'s two runs) brings each drum's first 80 ms to
+  model 5's law and calibrated level.
+- **A hat's stick** (its click and knock) is the same noise every stroke under model 6. The
+  soft jazz closed hat is little but its click: its 40 layer's bands sit at −75 dB, so the
+  click's drawn noise set its level anew each stroke.
+- A crash plays model 6 as model 5, to the bit.
+
+The drums physics survey (`research/instruments-next/drums-physics-survey.md`,
+`r42/drums-research` 499435d9c) found the measured stick contact on a snare or tom to be
+3–8 ms (Wagner 2006; Dahl 2011): model 6's half-sine is 3–5× too short. The modelled family's
+next onset is a Hunt–Crossley stick on the modal head with the energy-driven glide and
+per-mode air loading (the doc's §8). The constants are fitted against the recorded snares' and
+toms' per-band peak timing
+(`onset.py`, `onset_fit.py`). A `tune` cargo feature (development only, never in a
+distributed build) reads them from `CANTUS_M6`.
+
+**Old songs.** Every Tympanum stored `model` 1 since round 40 (ADR 0059's stored versions).
+Model 1 plays Pulsus's model 5, bit-identical to the round's previous binary (the studio kit's
+drum hits compared byte for byte). Schema 86's migration writes `model` 1 wherever a file
+lacks it, and `unversioned_firsts` gives presets and DAWproject states the same. A new
+instance stores `MODEL` = 2.
+
+**Consequences, measured.**
+- Weighted outside-range: studio 13.7 → 12.8, jazz 25.7 → 24.1.
+- Groove crest, studio: rock 27.7 → 22.8 dB (now inside 19.1–23.8); hip-hop, pop and soul also
+  inside.
+- Funk and gospel stay 1.5–2 dB over.
+- First-10-ms crest over the jazz drums: +2.8 → +1.7 dB over the recorded median.
+- The studio snare's lows still peak early (3.5 ms against 9.7): the push puts them there.
+
+**The owner's verdict decides the rest.** On model 6's rock he said *"suena horroroso"*. On
+everything modelled: *"todo era un desastre, no se parece nada a algo real"*. The
+element-by-element analysis (`elements.py`) names measurable causes in the tables:
+
+- the studio kick has no highs after its attack (12–39 dB under);
+- hats, crash and toms carry 6–12 dB of extra lows at 100–200 Hz;
+- the ride's bell lacks its 1 kHz note;
+- the studio snare is hollow at 500–800 Hz, with a 200 Hz ring that lasts too long.
+
+Wires, the cymbals' wash and the hats' rub are chaotic noises a model matches only on average.
+
+**Decision 2, as the owner corrected it: Tympanum stays a generated drummer.** He said: *"La idea
+es que Tympanum sean sonidos generados (aunque permita sonidos grabados)"*.
+
+- **The flagship kits are the modelled ones**, made realistic by physics. The method follows
+  the drums physics survey; the measure is the element-by-element analysis
+  (`docs/round42/tympanum-real.md` §8). Its parts:
+  - the table refits the analysis names;
+  - a Hunt–Crossley stick and beater at the measured 3–8 ms, with the stick's ring and
+    secondary contacts;
+  - the kick's coupled heads;
+  - a stochastic wire collision driven by the snare-side head;
+  - per-mode air loading and the energy-driven glide;
+  - Bessel strike position;
+  - a real-time cascade approximation for the cymbals, and the hat as two plates;
+  - variation from physical causes, measured from the recordings' take statistics.
+- **Rimshots, cross-stick, rolls and brush sweeps stay sampled.**
+- **The recorded kits remain** a supported second family and the references. The loader's
+  spectral layer morph and measured variation layer serve both families.
+- **The proof:** a blind ABX per modelled piece against the recorded kits of its kind, and the
+  element analysis inside the recorded spread.
+- **Model 6** is the modelled family's current voice, until round 43's contact model.
+
+**What the tests hold** (cantus-dsp `pulsus_measured_onset_tests.rs`):
+- a crash plays model 6 as model 5, to the bit;
+- a soft closed hat's lows hold from stroke to stroke;
+- the same bits in blocks of 1, 37, 64, 256, 333 and 512, and rest;
+- a model 6 drum's first 10 ms crest under model 5's;
+- every model 6 drum grows with velocity at every step, for each seed alone;
+- a drum struck while it rings never loses level on average over when the stick lands.
+
+Elsewhere:
+- cantus-project `schema_86_keeps_each_tympanums_model` (fixture `v86.cantus`);
+- cantus-ui `tympanum_e2e`:
+  - `every_modelled_piece_grows_with_the_velocity_through_the_app`: the drums 1 s apart
+    (the hat 4 s, the cymbals 12 s: their re-strike blooms by design), three seeds, through
+    `CantusApp::assemble`;
+  - `a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own`: model 2's snare and
+    kick play model 6, not model 5, and the crash plays the same bits.

@@ -46,8 +46,11 @@ pub const ICON: TrackIcon = TrackIcon::Drums;
 /// its sound waits for his blind listening (`docs/BACKLOG-excellence.md`).
 pub const READY: bool = true;
 
-/// The model a new instance plays (stored with every instance, ADR 0059).
-pub const MODEL: f32 = 1.0;
+/// The model a new instance plays (stored with every instance, ADR 0059). Round 42
+/// (`tympanum-real`, ADR 0124's seventh amendment): 2 — the measured drums' onset through the
+/// stick's contact (Pulsus's measured model 6); 1 plays model 5, as every song made before
+/// does (each stored `model` = 1; schema 86's migration writes it where it was missing).
+pub const MODEL: f32 = 2.0;
 
 /// The text key naming the kit (a [`KitRef`] in its text form).
 pub const KIT_KEY: &str = "kit";
@@ -72,7 +75,7 @@ pub const SET_KEYS: [&str; 8] = [
 ];
 
 pub const PARAMS: &[InstParamInfo] = &[
-    p("model", "tympanum.model", 1.0, 1.0, MODEL, "", false, true),
+    p("model", "tympanum.model", 1.0, 2.0, MODEL, "", false, true),
     p("seed", "tympanum.seed", 0.0, 65535.0, 0.0, "", false, true),
     p(
         "gain",

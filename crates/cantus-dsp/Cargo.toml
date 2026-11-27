@@ -14,3 +14,8 @@ libm.workspace = true
 
 [dev-dependencies]
 hound.workspace = true
+
+[features]
+# Development only, never in a distributed build: model 6's onset constants read from
+# `CANTUS_M6` (pulsus_measured_onset.rs), for the fitting cycles.
+tune = []

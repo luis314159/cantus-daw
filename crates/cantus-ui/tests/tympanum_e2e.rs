@@ -584,3 +584,105 @@ fn the_jazz_kit_plays_its_own_measured_voices() {
     let s = offline(&mut app, &jazz("model:studio"), frames, 512);
     assert!(a != s, "its own voices, not the studio kit's");
 }
+
+/// The modelled kits' level law (r42:tympanum-real, `DSP_VERSION` 19), through the boot path
+/// and the real engine: every piece of the studio and jazz kits grows with the velocity at
+/// every step a drummer plays, for every seed — the drums a second apart, each struck while its
+/// last hit rings: model 6 (a new Tympanum's `model` 2) never lets one hit's own draw cancel its
+/// level (model 5's blend did: the studio kick at 96 3.3 dB under its 80 for one seed). The
+/// hat 4 s apart and the cymbals 12 s: a cymbal struck while it rings blooms as a harder hit by
+/// design (ADR 0124's second amendment) — a ride rings for 7–10 s, and its 112 a few seconds after
+/// its 96 already plays as its 127.
+#[test]
+fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
+    const VELS: [u8; 9] = [16, 32, 48, 56, 64, 80, 96, 112, 127];
+    for kit in ["model:studio", "model:jazz"] {
+        for key in [36u8, 38, 45, 41, 42, 49, 51] {
+            let beats = match key {
+                49 | 51 => 12,
+                42 => 4,
+                _ => 1,
+            };
+            for seed in [0.0f32, 1.0, 2.0] {
+                let mut p = Project::new("Law");
+                p.tempo_bpm = 60.0;
+                let mut t = p.make_track("Drums");
+                let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+                spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
+                spec.set("seed", seed);
+                t.instrument = InstrumentSpec::Native(spec);
+                // a drum's hit every second (a beat at 60 BPM): each struck while it rings
+                let n = VELS.len() as i64;
+                let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(beats * n + 1));
+                for (i, v) in VELS.iter().enumerate() {
+                    let at = Ticks::beats(beats * i as i64);
+                    c.notes.push(p.make_note(at, Ticks(PPQ / 8), key, *v));
+                }
+                t.clips.push(c);
+                p.tracks.push(t);
+                let (mut app, _proc) = boot(p.clone());
+                let step = beats as usize * 96_000;
+                let x = offline(
+                    &mut app,
+                    &p,
+                    (beats as usize * VELS.len() + 1) * 48_000,
+                    512,
+                );
+                let lv: Vec<f32> = (0..VELS.len())
+                    .map(|i| {
+                        let w = &x[i * step..i * step + 2 * 3_840];
+                        let e = w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32;
+                        10.0 * cantus_dsp::math::log10(e.max(1e-20))
+                    })
+                    .collect();
+                for (j, w) in lv.windows(2).enumerate() {
+                    assert!(
+                        w[1] > w[0] - 1.0,
+                        "{kit} key {key} seed {seed}: velocity {} → {} falls ({lv:?})",
+                        VELS[j],
+                        VELS[j + 1]
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// Model 6 through the app (r42:tympanum-real, ADR 0124's seventh amendment; schema 86): a
+/// new Tympanum stores `model` 2 and its drums play model 6, so its snare and kick are not
+/// what a song made before (`model` 1, model 5) plays; its crash plays the same bits under
+/// either model. (Model 6's onset is held at the voice, over every drum and seed:
+/// cantus-dsp `a_model_6_drum_comes_in_through_the_contact`.)
+#[test]
+fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
+    let render_with = |model: Option<f32>, key: u8| {
+        let mut p = Project::new("Onset");
+        p.tempo_bpm = 60.0;
+        let mut t = p.make_track("Drums");
+        let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+        assert_eq!(spec.get("model"), 2.0, "a new instance stores model 2");
+        spec.set_text(KIT_KEY, Some("model:studio".to_string()))
+            .unwrap();
+        if let Some(m) = model {
+            spec.set("model", m);
+        }
+        t.instrument = InstrumentSpec::Native(spec);
+        let mut c = p.make_clip("Hit", Ticks::ZERO, Ticks::beats(2));
+        c.notes
+            .push(p.make_note(Ticks::ZERO, Ticks(PPQ / 8), key, 110));
+        t.clips.push(c);
+        p.tracks.push(t);
+        let (mut app, _proc) = boot(p.clone());
+        offline(&mut app, &p, 48_000, 512)
+    };
+    for key in [38u8, 36] {
+        let (old, new) = (render_with(Some(1.0), key), render_with(None, key));
+        assert!(peak(&new) > 1e-3 && peak(&old) > 1e-3);
+        assert!(old != new, "key {key}: model 2 plays model 6, not model 5");
+    }
+    same(
+        &render_with(Some(1.0), 49),
+        &render_with(None, 49),
+        "the crash",
+    );
+}

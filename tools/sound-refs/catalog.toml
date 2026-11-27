@@ -947,3 +947,267 @@ zip by hand (GitHub serves it to scripts, but it is not pinned to a commit, so r
     (check it starts with PK; behind the proxy it may be an HTML page for ~10 minutes: wait, again)
     unzip it there, then: python -I tools/sound-refs/fetch.py record mdb-drums
 """
+
+# ============================================================ the drums library (round 42, tympanum-real)
+# Tympanum measured against real kits of several genres (docs/round42/tympanum-real.md). Each
+# set's [[set.kits]] says, per kit: licence and credit; the kit (maker, shells, heads, wires,
+# cymbals); the room and mics; the genre; the velocity layers; whether it is multitrack (each
+# mic its own channel); whether it is real playing (a performance) or one hit at a time. Facts
+# are the sources' own words (UNKNOWN where they say nothing). DRSKit and Virtuosity Drums are
+# in the `tympanum` set above (the hybrid's references); the content root that plays them all
+# through Tympanum's loader is made by tools/tympanum-real/content_root.py.
+# Not taken, on licence: Salamander Drumkit and the AVL kits (CC BY-SA), MDB Drums, ENST,
+# IDMT-SMT-Drums, RBMA, MUSDB, MedleyDB, Cambridge-MT (NC, ND or proprietary), ADTOF (NC-SA),
+# madmom's and LarsNet's models (NC). Datasets whose audio is not a miked kit (E-GMD: a TD-17
+# module; StemGMD and the WaivOps sets: rendered from sample libraries) are not measured; the
+# Groove MIDI Dataset's MIDI (human performances) drives the kits instead.
+
+[[set]]
+id = "drums-dg"
+dir = "drums/dg"
+title = "DrumGizmo's other multi-mic kits: The Aasimonster (death metal), MuldjordKit (metal/rock), ShittyKit (a cheap kit, unprocessed)"
+urls = ["https://drumgizmo.org/wiki/doku.php?id=kits", "https://drumgizmo.org/wiki/doku.php?id=kits:the_aasimonster", "https://drumgizmo.org/wiki/doku.php?id=kits:muldjordkit", "https://drumgizmo.org/wiki/doku.php?id=kits:shittykit"]
+version = "aasimonster2_1.zip, MuldjordKit3.zip, ShittyKit1_2.zip (as served 2026-11-26)"
+licence = "CC-BY-4.0"
+terms = "CC BY 4.0 on each kit's page; credit the kit wherever performer credits appear"
+use = "ship-credit"
+tools = ["crates/cantus-ui/examples/tympanum_real (through content_root.py's receipts)", "tools/tympanum-real"]
+note = "drumgizmo.org's chain is refused by Python's own store ('certificate has expired') and verified by curl (Schannel, the system's store): fetch.py reads these zips through curl, never -k"
+ignore = ["*/cantus-pack.json", "*.part"]
+[set.origins.aasimonster]
+kind = "zip"
+url = "https://drumgizmo.org/kits/Aasimonster/aasimonster2_1.zip"
+match = ["aasimonster/*"]
+[set.origins.muldjordkit]
+kind = "zip"
+url = "https://drumgizmo.org/kits/MuldjordKit/MuldjordKit3.zip"
+match = ["muldjordkit/*"]
+[set.origins.shittykit]
+kind = "zip"
+url = "https://drumgizmo.org/kits/ShittyKit/ShittyKit1_2.zip"
+match = ["shittykit/*"]
+[[set.kits]]
+name = "The Aasimonster 2.1"
+licence = "CC-BY-4.0"
+credit = "The Aasimonster, DrumGizmo (drumgizmo.org): the kit DIE (Danish death metal) used on Rise of the Rotten; 2.0 conversion by Chaot4"
+kit = "2 kicks, 3 rack toms, 1 floor tom, snare (sizes UNKNOWN); 2 x 16in crash, 18in china, Stagg 8in and 10in chinas, a zilbel, ride, hi-hat"
+room = "UNKNOWN; the page advises a strong low cut on the ambience and overheads (an offset gives double hits)"
+mics = "16 channels: SM57 x2 snare top/bottom, AKG C518M x4 toms, D112 x2 kicks, Rode NT5 overheads, condensers on hat and ride, 2 ambience, a DDrum trigger and an Alesis DM5"
+genre = "metal (death metal)"
+layers = "UNKNOWN on the page (DrumGizmo power levels: counted by tools/tympanum-real/library.py)"
+multitrack = true
+real_playing = false
+[[set.kits]]
+name = "MuldjordKit 3"
+licence = "CC-BY-4.0"
+credit = "MuldjordKit: Lars Muldjord, played and recorded 2010; 'Drum samples provided by DrumGizmo.org'"
+kit = "Tama Superstar: 2 kicks, 3 rack toms, 1 floor tom, snare; hi-hat, 2 crashes, 2 rides, a china"
+room = "UNKNOWN"
+mics = "16 channels: SM57 snare top/bottom, ride L/R and hat; AKG C516 ML toms; AKG D112 kicks L/R; Rode NT5 overheads; t.bone RB500 ambience; a DDrum trigger"
+genre = "metal, rock"
+layers = "UNKNOWN on the page (counted by library.py)"
+multitrack = true
+real_playing = false
+note = "the page's known faults: the open-hat sample is empty, the ride's has double hits"
+[[set.kits]]
+name = "ShittyKit 1.2"
+licence = "CC-BY-4.0"
+credit = "ShittyKit by Sardonicus, DrumGizmo (drumgizmo.org)"
+kit = "a fifth-hand Stagg GIA: 18in kick, 14x5 snare, 12in tom, 14in floor tom; cast-iron cymbals"
+room = "UNKNOWN; a mid/side room pair"
+mics = "8 channels: Beta 52A kick, i5 snare, D2 x2 toms, MK105 pair overheads, EM800 + RB500 mid/side room"
+genre = "lo-fi, garage (a cheap kit, unprocessed but for the close mics' time alignment)"
+layers = "DrumGizmo's old fixed velocity groups (counted by library.py)"
+multitrack = true
+real_playing = false
+
+[[set]]
+id = "drums-packs"
+dir = "drums/content"
+title = "Cantus's own CC0 drum packs as the app installs them, given receipts that Tympanum's loader plays: Big Rusty, Gogodze Phu II, Unruly (sticks, brushes), Frankensnare, Virtuosity (full kit); and the DrumGizmo kits' receipts"
+urls = ["https://sfzinstruments.github.io/drums", "https://shop.karoryfer.com/pages/free-big-rusty-drums", "https://shop.karoryfer.com/pages/free-unruly-drums", "https://shop.karoryfer.com/pages/free-gogodze-phu-vol-ii", "https://shop.karoryfer.com/pages/free-frankensnare", "https://github.com/sgossner/VSCO-2-CE"]
+version = "the manifest's (crates/cantus-content/manifest/content.json)"
+licence = "CC0-1.0"
+terms = "each pack's own LICENSE (CC0 1.0); the manifest names the credits"
+use = "ship"
+tools = ["tools/tympanum-real/content_root.py (the receipts: each pack's own plus the programs Tympanum plays)", "crates/cantus-ui/examples/tympanum_real"]
+packs = ["big-rusty-drums", "gogodze-phu-vol-ii", "unruly-drums", "frankensnare", "swirly-drums-dry", "vsco2-percussion", "virtuosity-drums"]
+content = "."
+install = "python -I tools/sound-refs/fetch.py fetch drums-packs --packs --cargo && python -I tools/tympanum-real/content_root.py"
+ignore = ["dg-*/*", "drskit-tympanum/*", "tympanum-hybrid-*/*", "*/cantus-pack.json", ".staging/*", ".downloads/*"]
+[set.origins.pack]
+kind = "pack"
+match = ["*"]
+[[set.kits]]
+name = "Big Rusty Drums 1.100"
+licence = "CC0-1.0"
+credit = "Big Rusty Drums, Karoryfer Samples: drums made by Zygmunt Szpaderski in a one-man workshop in Poland"
+kit = "24x18 kick (damped and undamped); 14x8 wooden snare; toms 22x16 (an Estonian RMIF kick used as a tom), 18x16, 15x15, 14x14; 13in RMIF concert tom; 14in Sabian HHX Evolution hats, 22in Big & Ugly King ride, 17in AAX V-Crash, 18in HHX Evolution china, 19in sizzle ride, 17in sizzle crash, a stack (21in Trowa ride, 16in Trowa crash, half a 14in Polmuz hat)"
+room = "UNKNOWN"
+mics = "close, overhead per piece (the programs' CC 'close' and 'oh' controls); models UNKNOWN"
+genre = "rock (an oversized 1980s Polish kit, 'nice and rough'); brushes and mallets too"
+layers = "UNKNOWN on the page (counted by library.py)"
+multitrack = true
+real_playing = false
+articulations = "sticks, brushes, mallets; snare center, edge, rimshot, sidestick, rim clicks, brush dig/stir/flutter; hat in 6 openness steps, chick, splash; cymbal bow, bell, edge, choke"
+[[set.kits]]
+name = "Unruly Drums 1.100"
+licence = "CC0-1.0"
+credit = "Unruly Drums, Karoryfer Samples"
+kit = "20in marching bass drum as kick (micro snare wires under its resonant head); a 22in snare built for sampling, a 14in snare, a 13in snare made from a tom; every drum has wires (each also sampled wires off); 14in hats, 16in crash, 20in ride"
+room = "UNKNOWN"
+mics = "close and overhead (the programs' controls); models UNKNOWN"
+genre = "indie pop, organic hip-hop; sticks and brushes"
+layers = "UNKNOWN (counted by library.py)"
+multitrack = true
+real_playing = false
+[[set.kits]]
+name = "Gogodze Phu Vol. II"
+licence = "CC0-1.0"
+credit = "Gogodze Phu Vol. II, Karoryfer Lecolds (2018 KVR Developer Challenge)"
+kit = "kick, snare, three deadened toms, a hi-hat in 5 openness steps (sizes UNKNOWN); 'vaguely trying to sound like the drums on Kim Jung Mi's Now (1973)'"
+room = "one mic aimed at a wall with large windows"
+mics = "7 mics on every piece (a Shure SM-55 in front, overhead, kick, snare, side, retro, window); Glyn Johns set-ups"
+genre = "1970s funk/soul, lo-fi (deadened toms)"
+layers = "UNKNOWN (counted by library.py)"
+multitrack = true
+real_playing = false
+[[set.kits]]
+name = "Frankensnare 2.100"
+licence = "CC0-1.0"
+credit = "Frankensnare, Karoryfer Samples"
+kit = "snares 10x6 ash, 12x5 steel, 14x5 maple, 14x6.5 maple, 14x8 aluminium, 14x8 birch, 13x9 birch, 14x5 mystery wood, 16x7 sapele, 20x6 poplar, 20x12 alder, 22x5 mahogany; a prepared 18x16 tom and 22x14 kick; sympathetic recordings (a kick buzzing six snares)"
+room = "UNKNOWN"
+mics = "UNKNOWN"
+genre = "snares of every size: sticks, brushes, rimshots, muted, prepared"
+layers = "UNKNOWN (counted by library.py)"
+multitrack = false
+real_playing = false
+[[set.kits]]
+name = "Swirly Drums (dry)"
+licence = "CC0-1.0"
+credit = "Swirly Drums, Karoryfer Samples"
+kit = "20in marching kick, cajon kick, toms 16, 13, 12, 10, 8in; crash, ride, splash, china, broken crash, cracked splash; brushed darbouka, djembe, bongos, cowbell"
+room = "UNKNOWN (the dry copy only)"
+mics = "UNKNOWN (summed files)"
+genre = "brushes (punk and indie drummers playing brushes), percussion"
+layers = "UNKNOWN (counted by library.py)"
+multitrack = false
+real_playing = false
+note = "no SFZ program in the pack (Cantus installs its samples only): measured from its files by name"
+[[set.kits]]
+name = "VSCO 2 CE percussion"
+licence = "CC0-1.0"
+credit = "VSCO 2 Community Edition, Versilian Studios (recorded by Sam Gossner and Simon Dalzell)"
+kit = "5 timpani, a concert snare, crash, suspended cymbal, gong; the bass drum only as rubs"
+room = "UNKNOWN"
+mics = "summed stereo files"
+genre = "orchestral"
+layers = "timpani v1/v3/v4, snare 4-5, cymbals pp/mp/mf/ff; 2 round robins on most hits"
+multitrack = false
+real_playing = false
+note = "measured only if Tympanum takes orchestral pieces (it has no timpani): catalogued for that"
+
+[[set]]
+id = "drums-freesound"
+dir = "drums/freesound"
+title = "Freesound CC0 and CC BY acoustic drums: real playing (unfa's 15-minute jam; RutgerMuller's funk grooves, rides and doom improvisation), brushes (Srirachasocks), a jazz-bar kit at many velocities with sticks and brushes (soneproject), a metal kit (Matias.Reccius), snares close and with overheads (sandyrb, CC BY 4.0)"
+urls = ["https://freesound.org/s/184590/", "https://freesound.org/s/843460/", "https://freesound.org/people/RutgerMuller/packs/3283/", "https://freesound.org/people/soneproject/packs/25895/", "https://freesound.org/people/Matias.Reccius/packs/2863/", "https://freesound.org/people/sandyrb/packs/5202/"]
+version = "as served 2026-11-26"
+licence = "custom (per sound: CC0-1.0 or CC-BY-4.0/3.0, read from each sound's own page)"
+terms = "each sound's licence in manifest.json (tools/tympanum-real/freesound.py keeps only CC0 and CC BY, a pack's other sounds skipped); unfa asks that his sounds not train generative models (measuring is not that)"
+use = "measure (the HQ previews are 128 kb/s MP3; the originals, behind a login, may ship with their credit)"
+tools = ["tools/tympanum-real/freesound.py (fetch)", "tools/tympanum-real/transcribe.py (the real playing to MIDI)"]
+[set.origins.preview]
+kind = "url"
+base = "https://cdn.freesound.org/previews/"
+match = ["*.mp3"]
+[set.origins.manifest]
+kind = "meta"
+match = ["manifest.json"]
+[[set.kits]]
+name = "unfa, Drum Jam 2013-04-08 (Freesound 184590)"
+licence = "CC0-1.0"
+credit = "unfa (freesound.org/people/unfa)"
+kit = "kick, snare, hi-hat, 3 toms, a broken crash, ride"
+room = "a room, a Zoom H2 (XY) about 1 m away, unprocessed"
+mics = "one stereo XY pair"
+genre = "rock, free improvisation (no click)"
+layers = "real playing"
+multitrack = false
+real_playing = true
+[[set.kits]]
+name = "RutgerMuller, Acoustic Drumkit - Loops, Hits, Experiments (pack 3283)"
+licence = "CC0-1.0 (each sound's page)"
+credit = "RutgerMuller (freesound.org)"
+kit = "a kit with a UFIP Ritmo 18in ride and a Zildjian Avedis 18in ride, a piccolo snare"
+room = "UNKNOWN"
+mics = "a Samson C01, 44.1 kHz / 16-bit"
+genre = "funk grooves, doom metal improvisation, fills"
+layers = "real playing and single hits"
+multitrack = false
+real_playing = true
+[[set.kits]]
+name = "Srirachasocks, Brushes on Drum Kit Sample Set (Freesound 843460)"
+licence = "CC0-1.0"
+credit = "Srirachasocks (freesound.org)"
+kit = "kick, snare, 3 toms, 3 cymbals and hi-hat, brushed"
+room = "a basement; Zoom H6E"
+mics = "one stereo recorder"
+genre = "jazz brushes"
+layers = "several hits per piece"
+multitrack = false
+real_playing = false
+[[set.kits]]
+name = "soneproject, acoustic-drumkit-1 (pack 25895)"
+licence = "CC0-1.0 (each sound's page)"
+credit = "soneproject (freesound.org)"
+kit = "a full kit with sticks and brushes"
+room = "a small jazz bar; Zoom H1"
+mics = "one stereo recorder"
+genre = "jazz"
+layers = "several velocities per piece"
+multitrack = false
+real_playing = false
+[[set.kits]]
+name = "Matias.Reccius, X-Act heavy metal drum kit (pack 2863)"
+licence = "CC0-1.0 (each sound's page)"
+credit = "Matias.Reccius (freesound.org)"
+kit = "Tama Rockstar kick, Tama Artwood snare, Sabian AAX and Signature crashes, Octagon splash and china, Zildjian Quick Beat 14in hats"
+room = "UNKNOWN"
+mics = "an AT3040, 44.1 kHz / 16-bit"
+genre = "metal"
+layers = "a few hits per piece"
+multitrack = false
+real_playing = false
+[[set.kits]]
+name = "sandyrb, Real Snares with Overheads (pack 5202)"
+licence = "CC-BY-4.0 (each sound's page)"
+credit = "Sound by sandyrb, freesound.org, CC BY 4.0"
+kit = "several snares, each close-miked only and close plus overheads"
+room = "UNKNOWN"
+mics = "Josephson e22S, SM57, MD421, M201, ATM-250; 44.1 kHz / 16-bit"
+genre = "rock, pop (studio snares)"
+layers = "several hits per snare"
+multitrack = false
+real_playing = false
+
+[[set]]
+id = "drums-gmd"
+dir = "drums/gmd"
+title = "The Groove MIDI Dataset's MIDI (Magenta, 2019): 13.6 hours of ten drummers on a Roland TD-11, rock, funk, jazz, Latin, Afro-Cuban, hip-hop, gospel, pop … with the hat pedal's CC4"
+urls = ["https://magenta.tensorflow.org/datasets/groove"]
+doi = "Gillick, Roberts, Engel, Eck, Bamman: Learning to Groove with Inverse Sequence Transformations, ICML 2019"
+version = "groove-v1.0.0-midionly.zip"
+licence = "CC-BY-4.0"
+terms = "'made available by Google LLC under a Creative Commons Attribution 4.0 International (CC BY 4.0) License'"
+use = "ship-credit (MIDI only: human performances that play every kit; its audio is the e-kit module's and is not taken)"
+tools = ["tools/tympanum-real/midi.py (a performance to the notes a kit plays)", "tools/tympanum-real/grooves.py"]
+[set.origins.zip]
+kind = "url"
+url = "https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0-midionly.zip"
+match = ["groove-v1.0.0-midionly.zip"]
+[set.origins.unpacked]
+kind = "zip"
+local = "groove-v1.0.0-midionly.zip"
+match = ["groove/*"]

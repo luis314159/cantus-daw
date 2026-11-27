@@ -495,6 +495,9 @@ pub struct Pulsus {
     hat_invert: bool,
     /// The foot's chick when the pedal closes a ringing hat (Tympanum's `hat.chick`).
     pub chick: bool,
+    /// Which model a measured piece plays (Tympanum's `model`): 5, or 6 — a drum's onset
+    /// through the stick's contact (ADR 0124's seventh amendment).
+    pub measured_gen: u8,
     pads: [PadSettings; MAX_PADS],
     pitches: [u8; MAX_PADS],
     /// One per pad; `None` for a pad that is not a sample or whose file is not loaded.
@@ -530,6 +533,7 @@ impl Pulsus {
             hat_cc: 4,
             hat_invert: false,
             chick: true,
+            measured_gen: 5,
             pads: [PadSettings::kick(); MAX_PADS],
             pitches: [0; MAX_PADS],
             samples: vec![None; MAX_PADS],
@@ -749,6 +753,7 @@ impl Pulsus {
                     gain: s.gain,
                     click: s.click,
                     tilt: s.position,
+                    gen: self.measured_gen,
                 });
             }
             return;
@@ -936,6 +941,7 @@ impl Pulsus {
                     gain: s.gain,
                     click: s.click,
                     tilt: s.position,
+                    gen: self.measured_gen,
                 });
             }
             return;
