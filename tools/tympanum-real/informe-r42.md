@@ -186,12 +186,24 @@ Varias de estas cosas se pueden corregir en las tablas. Pero la bordonera, el la
 platos y el roce de los charles son ruidos caóticos que una muestra trae tal cual y que el
 modelo solo imita en promedio.
 
-**Por eso cambia el plan.** Las baterías principales de Tympanum pasan a ser **muestreadas**,
-desde las mejores grabadas libres: DRSKit, Virtuosity, Gogodze, Big Rusty, Unruly, MuldjordKit.
-Tendrán todas sus capas, round robin sin repetir, sus micrófonos y su fuga entre micrófonos, y
-un cruce entre capas que no se anula. El modelo queda para lo que hace mejor que una muestra:
-afinar, apagar, variar sin fin, la bordonera simpática, la posición del golpe y la sala. Las
-baterías modeladas quedan como una familia aparte, con su nombre. Es el plan de la ronda 43.
+**El plan, como lo pediste: Tympanum sigue siendo una batería generada**, aunque acepte
+baterías grabadas. Las baterías principales serán las modeladas, hechas realistas con la física
+pieza a pieza, y medidas contra las grabadas con el análisis por elementos. Lo que viene:
+
+- reajustar las tablas (los agudos del bombo; el hueco y el «boing» de la caja; los graves de
+  charles, crash y toms; la nota de la campana);
+- un palo y una maza de contacto real, de 3–8 ms, con su propio resonar;
+- los dos parches del bombo acoplados por el aire;
+- la bordonera como un choque de muelles contra el parche de abajo;
+- la afinación que cae con la energía del golpe;
+- en los platos, una aproximación en tiempo real de la cascada de energía hacia los agudos;
+- el charles como dos platos;
+- la variación de causas físicas: dónde y cómo cae el palo.
+
+Los golpes de aro, el palo cruzado, los redobles y el barrido de escobillas se quedan
+grabados. Las baterías grabadas siguen siendo la referencia y una segunda familia. Cada pieza
+modelada se probará a ciegas (ABX) contra las grabadas de su tipo. Es el plan de las rondas 43
+y 44.
 
 ## 5. Lo que falta (en orden de lo que más se oye)
 
