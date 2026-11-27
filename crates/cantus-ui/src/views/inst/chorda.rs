@@ -609,21 +609,21 @@ pub fn demo_feed(app: &mut CantusApp) {
 // ---- factory presets --------------------------------------------------------------------
 
 /// A preset's text: four macros on every preset (1 hardness, 2 sympathy, 3 the body, 4 the
-/// decay) and its look (ADR 0104: the piano the scene shows, which must fit the preset's
+/// decay; their names locale keys, shown in the window's language — r42 integration) and its look (ADR 0104: the piano the scene shows, which must fit the preset's
 /// sound — `chorda_look::fits`). r37:scene
 macro_rules! text_with_look {
     ($body:literal, $finish:literal) => {
         &[
-            ("macro1.name", "Hardness"),
+            ("macro1.name", "chorda.macro.hardness"),
             ("mod1.src", "macro1"),
             ("mod1.dst", "hardness"),
-            ("macro2.name", "Resonance"),
+            ("macro2.name", "chorda.macro.resonance"),
             ("mod2.src", "macro2"),
             ("mod2.dst", "sympathy"),
-            ("macro3.name", "Body"),
+            ("macro3.name", "chorda.macro.body"),
             ("mod3.src", "macro3"),
             ("mod3.dst", "body"),
-            ("macro4.name", "Decay"),
+            ("macro4.name", "chorda.macro.decay"),
             ("mod4.src", "macro4"),
             ("mod4.dst", "decay"),
             ("look.body", $body),

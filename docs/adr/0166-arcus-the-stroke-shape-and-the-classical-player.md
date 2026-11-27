@@ -1,7 +1,7 @@
 # ADR 0166 — Arcus's stroke shape and the classical player
 
-**Status:** Proposed (round 42, the `arcus-classical` builder; the number is provisional, the
-integrator's to confirm — 0165 may be taken) · **Date:** 2026-11-26 · **Builds on:** ADR 0157
+**Status:** Proposed (round 42, the `arcus-classical` builder; the number confirmed at the
+integration, 0165 left unused) · **Date:** 2026-11-26 · **Builds on:** ADR 0157
 (Arcus), ADR 0160 (the sound lab), ADR 0162 (the player), ADR 0164 (the fiddle) ·
 **`DSP_VERSION`:** 20 · **Schema:** 87 (pass 2: `player.fiddle`; 86 is Tympanum's model 6)
 

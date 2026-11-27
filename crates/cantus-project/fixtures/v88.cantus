@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 88,
   "app_version": "fixture",
-  "saved_at": 1795747209,
+  "saved_at": 1795763914,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3434,7 +3434,7 @@
           "params": {
             "b1.3.db": -6.0,
             "m2.az": 10.0,
-            "model": 1.0,
+            "model": 2.0,
             "p1.tune": 2.0
           },
           "text": {
@@ -3472,7 +3472,7 @@
           "type": "Native",
           "kind": "AcousticDrums",
           "params": {
-            "model": 1.0
+            "model": 2.0
           },
           "text": {
             "kit": "model:jazz",
@@ -3530,11 +3530,22 @@
           "type": "Native",
           "kind": "BowedString",
           "params": {
+            "body.bridge": 1.0,
+            "body.mic": 1.0,
+            "bow.bite": 0.7,
+            "bow.grit": 1.0,
+            "bow.pair": 1.0,
+            "bow.tilt": 0.6,
+            "dstop.just": 0.6,
             "mod1.amt": 0.4,
             "mod2.amt": 0.5,
             "mod3.amt": -0.4,
             "mod4.amt": 0.5,
-            "model": 2.0
+            "model": 2.0,
+            "player.fiddle": 0.8,
+            "steel": 1.0,
+            "sym": 1.2,
+            "tuning.strings": 1.0
           },
           "text": {
             "macro1.name": "arcus.macro.expression",
@@ -3846,7 +3857,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "6cee5d63c55ee1e1199008dba83e3438d618f2be666eaa3aa00b12d2dfac04af"
+          "content": "cc4f5cf4d0613239c37b5e365146e9c9f2a0ed9632a3d0b097183849e8a04cc0"
         }
       },
       {
@@ -7707,5 +7718,5 @@
     },
     "next_id": 155
   },
-  "integrity": "18b2d0d99811ef52e9da8559cd6a6afb901d54496fcac0dc9011faeb802a0172"
+  "integrity": "e367bdba5298063feae41b6b554c39179421dfc64dec353fc375cfd3cf6028a2"
 }

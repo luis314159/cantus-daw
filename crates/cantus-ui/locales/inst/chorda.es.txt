@@ -191,3 +191,9 @@ chorda.v.line.board = Formante grave {hz} Hz · {db} dB · Q {q}
 chorda.v.line.action = Retención de apagadores · A0 {a0} · C4 {c4} · suelo −{floor} dB
 chorda.v.line.mics = Diferencia de llegada · A0 {a0} ms · C8 {c8} ms
 chorda.v.line.tone = Corte de agudos {hz} · inclinación {tilt} dB
+
+# r42 integration: the factory presets' four macros, stored as keys (frame::macro_name shows them in the window's language)
+chorda.macro.hardness = Dureza
+chorda.macro.resonance = Resonancia
+chorda.macro.body = Cuerpo
+chorda.macro.decay = Caída

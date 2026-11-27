@@ -191,3 +191,9 @@ chorda.v.line.board = Bass formant {hz} Hz · {db} dB · Q {q}
 chorda.v.line.action = Damper hold · A0 {a0} · C4 {c4} · floor −{floor} dB
 chorda.v.line.mics = Arrival difference · A0 {a0} ms · C8 {c8} ms
 chorda.v.line.tone = Top roll-off {hz} · tilt {tilt} dB
+
+# r42 integration: the factory presets' four macros, stored as keys (frame::macro_name shows them in the window's language)
+chorda.macro.hardness = Hardness
+chorda.macro.resonance = Resonance
+chorda.macro.body = Body
+chorda.macro.decay = Decay

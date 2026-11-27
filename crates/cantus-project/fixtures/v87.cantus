@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 87,
   "app_version": "fixture",
-  "saved_at": 1795748676,
+  "saved_at": 1795763913,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -3431,7 +3431,7 @@
           "params": {
             "b1.3.db": -6.0,
             "m2.az": 10.0,
-            "model": 1.0,
+            "model": 2.0,
             "p1.tune": 2.0
           },
           "text": {
@@ -3469,7 +3469,7 @@
           "type": "Native",
           "kind": "AcousticDrums",
           "params": {
-            "model": 1.0
+            "model": 2.0
           },
           "text": {
             "kit": "model:jazz",
@@ -3854,7 +3854,7 @@
         ],
         "recall_safe": true,
         "frozen": {
-          "content": "d48a5110a4b2b0e016f497cf1f60dbdc11cd72e155aa590ae7bb0c286064340b"
+          "content": "5ac7607c5b45fa4bfae65e945ce408eae2b57bf5c89cf0561c766b938917f655"
         }
       },
       {
@@ -7715,5 +7715,5 @@
     },
     "next_id": 155
   },
-  "integrity": "c4a05ab2636a45212b022ce74ed23cf0f5a7a4342ec14b65db881fefe201d2a4"
+  "integrity": "86b72f099f5b5e0c45afcc331d99e515c5224be494eb9bcd3cf42c5f9d7f6b93"
 }
