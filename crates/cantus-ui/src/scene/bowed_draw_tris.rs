@@ -7,7 +7,7 @@
 
 use super::bowed::Bowed;
 use super::bowed_mesh::{Mesh, Role};
-use super::display::{Paint, Part};
+use super::display::{Layer, Paint, Part};
 use super::prims::Ctx;
 use crate::kit::skin::scene::{hold as hp, Mat, C3};
 
@@ -155,6 +155,36 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
         );
         (x >= 0.0 && y >= 0.0 && !c.mirror).then(|| egui::pos2(x, y))
     };
+    // r42:arcus-polish6 — mode 2: the collar's band over a held instrument is a layer of its
+    // own, drawn after every op of the picture (`Layer::Front`), kept out of the chin rest's
+    // faces (`cover`) and of the figure's own skin, tie and hair nearer than it — sorted
+    // among the instrument's cells by their middles it lost to the top's grain lines and the
+    // ribs' cells (stripes, shards), as the Photographic picture never does. Its place on
+    // screen first, so only the figure's triangles near it are kept for the keep-out.
+    let region = keep_out.then(|| {
+        let mut r = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        for (role, t) in &m.tris {
+            if *role != Role::Shirt || t.uv.len() != t.pts.len() {
+                continue;
+            }
+            for (p, uv) in t.pts.iter().zip(&t.uv) {
+                if uv[0] == super::bowed_human::BESIDE_BODY {
+                    let s = cam.p(*p);
+                    r = (r.0.min(s.x), r.1.min(s.y), r.2.max(s.x), r.3.max(s.y));
+                }
+            }
+        }
+        (r.0 - 4.0, r.1 - 4.0, r.2 + 4.0, r.3 + 4.0)
+    });
+    let near_region = |bx: (f32, f32, f32, f32)| {
+        region.is_some_and(|r| bx.0 <= r.2 && r.0 <= bx.2 && bx.1 <= r.3 && r.1 <= bx.3)
+    };
+    let overlap = |a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)| {
+        a.0 <= b.2 + 1.0 && b.0 <= a.2 + 1.0 && a.1 <= b.3 + 1.0 && b.1 <= a.3 + 1.0
+    };
+    type Face = ((f32, f32, f32, f32), Vec<egui::Pos2>, f32);
+    let mut band: Vec<(Vec<egui::Pos2>, Paint, f32)> = Vec::new();
+    let mut nearer: Vec<Face> = Vec::new();
     for (role, t) in &m.tris {
         let marked = |i: usize| {
             t.uv.get(i)
@@ -273,15 +303,6 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
                 // round end) lay over the skin past the neckline as a grey dot on her neck
                 // (the specks gate's (192, 277), Drawn only).
                 -super::figure::tune::tune("velvet_bias", VELVET_BIAS)
-            } else if *role == Role::Shirt
-                && !inside
-                && keep_out
-                && (marked(i0) || marked(i1) || marked(i2))
-            {
-                // r42:arcus-polish6 — the band in front of the instrument's cells it lies over
-                // (the top's edge, the ribs: Photographic draws it over them), and kept out of
-                // the chin rest's faces it passes under.
-                super::figure::tune::tune("drawn_beside_near", BESIDE_NEAR)
             } else if *role == Role::Shirt && !inside && !keep_out && beside([i0, i1, i2]) {
                 // r42:arcus-polish5 — the collar's band where it passes under a held
                 // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
@@ -305,28 +326,29 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
                     );
                 }
             }
-            // Overlapping a little more than a pixel: no seam grid on a light theme.
-            let out: Vec<Vec<egui::Pos2>> =
-                if keep_out && *role == Role::Shirt && (marked(i0) || marked(i1) || marked(i2)) {
-                    let bx = super::geo::bbox(&sp);
-                    cover
-                        .iter()
-                        .filter(|(b, _)| {
-                            b.0 <= bx.2 + 1.0
-                                && bx.0 <= b.2 + 1.0
-                                && b.1 <= bx.3 + 1.0
-                                && bx.1 <= b.3 + 1.0
-                        })
-                        .map(|(_, o)| o.clone())
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-            if out.is_empty() {
-                c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
-            } else {
-                c.p.poly_out(sp.clone(), gradient(&sp, &cols), 1.0, 1.0, out);
+            if keep_out
+                && !inside
+                && !c.mirror
+                && *role == Role::Shirt
+                && (marked(i0) || marked(i1) || marked(i2))
+            {
+                band.push((sp.clone(), gradient(&sp, &cols), cam.depth(ctr)));
+                continue;
             }
+            if keep_out
+                && !inside
+                && matches!(
+                    role,
+                    Role::Skin(_) | Role::Tie | Role::Hair | Role::HairFair | Role::Shell(_)
+                )
+            {
+                let bx = super::geo::bbox(&sp);
+                if near_region(bx) {
+                    nearer.push((bx, sp.clone(), cam.depth(ctr)));
+                }
+            }
+            // Overlapping a little more than a pixel: no seam grid on a light theme.
+            c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
             // (Not over the hair's edge band, where it blends into its roots: light strands
             // there read as white dashes along the hairline.)
             let edge = [i0, i1, i2].iter().any(|&i| t.detail[i][1] < 0.45);
@@ -337,6 +359,29 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
             }
         }
     }
+    // r42:arcus-polish6 — the band's own layer (above).
+    for (sp, paint, depth) in band {
+        let bx = super::geo::bbox(&sp);
+        let out: Vec<Vec<egui::Pos2>> = cover
+            .iter()
+            .filter(|(b, _)| overlap(*b, bx))
+            .map(|(_, o)| o.clone())
+            .chain(
+                nearer
+                    .iter()
+                    .filter(|(b, _, d)| *d < depth - BAND_NEARER && overlap(*b, bx))
+                    .map(|(_, o, _)| o.clone()),
+            )
+            .collect();
+        c.p.at(depth, Part::Bowed);
+        c.p.on(Layer::Front);
+        if out.is_empty() {
+            c.p.poly(sp, paint, 1.0, 1.0);
+        } else {
+            c.p.poly_out(sp, paint, 1.0, 1.0, out);
+        }
+    }
+    c.p.on(Layer::Objects);
 }
 
 /// r42:arcus-polish2 — her hair's drawn strands (the owner: "a few drawn strand lines,
@@ -399,9 +444,9 @@ const BESIDE_BIAS: f32 = 1.5;
 /// on screen (`draw`).
 const BESIDE_MODE: f32 = 2.0;
 
-/// r42:arcus-polish6 — how much nearer (cm) the band over a held instrument sorts in mode 2:
-/// in front of the top's and the ribs' cells there, behind the tie's knot.
-const BESIDE_NEAR: f32 = 2.5;
+/// r42:arcus-polish6 — the band's layer: a triangle of the figure nearer than a band
+/// triangle by this much (cm) keeps the band out of it.
+const BAND_NEARER: f32 = 0.3;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.
