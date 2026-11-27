@@ -513,9 +513,6 @@ impl Object {
             } else {
                 0.0
             };
-            // Model 6's hats: each split pair's halves drawn together (on the stack).
-            let lock = h.gen >= 6 && t.hat && t.lock.len() >= self.n;
-            let mut drawn = [f32::NAN; super::MAX_MODES];
             for i in 0..self.n {
                 let mut a = 0.0;
                 let mut e = 0.0;
@@ -553,20 +550,7 @@ impl Object {
                     let j = spread.min(PI) * (vary.next() + vary.next() + vary.next());
                     (lay.ph[i] + j, j)
                 } else {
-                    let d = TAU * vary.unit();
-                    if lock {
-                        // Model 6: a hat's close partial takes its pair's draw (`data::locks`).
-                        let j = t.lock[i] as usize;
-                        let p = if j != i && drawn[j].is_finite() {
-                            drawn[j]
-                        } else {
-                            d
-                        };
-                        drawn[i] = p;
-                        (p, 0.0)
-                    } else {
-                        (d, 0.0)
-                    }
+                    (TAU * vary.unit(), 0.0)
                 };
                 let (c, s) = (math::cos(ph), math::sin(ph));
                 bank.re[i] += a * c;
@@ -664,6 +648,7 @@ impl Object {
         let v = h.vel.clamp(1.0, 127.0) / 127.0;
         self.stick_len = ((0.0004 * (1.4 - 0.6 * v) * sr) as u32).max(2);
         self.six = six;
+        self.hat_push = t.hat && h.gen >= 6;
         if six {
             // The contact (a kick's felt beater the longer), and the knock as its push.
             self.contact_len = p6.contact(h.vel, t.id % 16 == 4, sr);
@@ -779,7 +764,11 @@ impl Object {
                         acs += s * self.burst_s.next() * SQRT3;
                     }
                 }
-                let x = if !self.six {
+                let x = if self.hat_push {
+                    // Model 6's hat: the stick's push, the same each stroke — drawn noise
+                    // 2 ms long gave the closed hat's lows a different level every stroke.
+                    math::sin(PI * t / knock_len as f32)
+                } else if !self.six {
                     math::sin(PI * t / knock_len as f32) * z
                 } else if self.stick_t < self.contact_len {
                     // Model 6: the head's push, the contact's own half-sine.

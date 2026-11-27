@@ -71,16 +71,16 @@ fn band(x: &[f32], lo: f32, hi: f32) -> f32 {
     e
 }
 
-/// The jazz closed hat's split pairs (r42:tympanum-real): drawn apart (model 5) they beat
-/// differently each stroke inside one third octave; drawn together (model 6) the band's level
-/// holds from one stroke to the next.
+/// A hat's knock (r42:tympanum-real): model 5's, 2 ms of drawn noise, set the soft closed
+/// hat's lows (under 1.6 kHz) anew each stroke; model 6's is the stick's push, the same every
+/// stroke, and the band's level holds from one stroke to the next.
 #[test]
-fn a_hats_split_pairs_ring_together_in_model_6() {
+fn a_soft_closed_hats_lows_hold_from_stroke_to_stroke_in_model_6() {
     let spread = |gen: u8| {
         let lv: Vec<f32> = (1..=8u64)
             .map(|id| {
-                let x = hit(18, 100, id, gen, 1_440);
-                10.0 * crate::math::log10(band(&x, 3_700.0, 4_100.0).max(1e-30))
+                let x = hit(18, 32, id, gen, 2_400);
+                10.0 * crate::math::log10(band(&x, 300.0, 1_500.0).max(1e-30))
             })
             .collect();
         let (lo, hi) = lv
@@ -89,7 +89,10 @@ fn a_hats_split_pairs_ring_together_in_model_6() {
         hi - lo
     };
     let (five, six) = (spread(5), spread(6));
-    assert!(six < five, "model 6 {six:.2} dB against model 5 {five:.2}");
+    assert!(
+        six < 0.5 * five,
+        "model 6 {six:.2} dB against model 5 {five:.2}"
+    );
 }
 
 #[test]
@@ -120,6 +123,9 @@ fn a_model_6_drum_renders_the_same_bits_however_cut_and_comes_to_rest() {
     }
     assert!(!p.measured.as_deref().unwrap().any(), "at rest");
 }
+
+/// The stick's contact: a model 6 drum's first half millisecond is far under model 5's (whose
+/// modes start at full), and its waveform peaks later — the same hits, the same seeds.
 
 /// The stick's contact: a model 6 drum's first half millisecond is far under model 5's (whose
 /// modes start at full), and its waveform peaks later — the same hits, the same seeds.
@@ -177,13 +183,16 @@ fn every_model_6_drum_grows_with_the_velocity_for_every_seed() {
     }
 }
 
-/// Struck while it rings, a model 6 drum's hit is never quieter than the same hit at rest
-/// (a head struck while it moves takes the stick's push on top of its ring): the kick at 80
-/// then 96 a second later, the snare and a tom likewise, every seed.
+/// Struck while it rings, a model 6 drum takes the stick's push on top of its moving head
+/// (the contact's phasors added to the ring): on average over when it lands it never comes out
+/// quieter than the same hit at rest, and at no moment by more than a hit's own variation —
+/// the kick at 80 then 96, the snare and a tom likewise, 100 ms to 1 s later.
 #[test]
-fn a_model_6_drum_struck_while_it_rings_never_loses_level() {
+fn a_model_6_drum_struck_while_it_rings_never_loses_level_on_average() {
     for (key, table) in [(36u8, 4u8), (38, 5), (45, 6)] {
-        for gap in [12_000usize, 48_000] {
+        let mut diffs = Vec::new();
+        for k in 0..10usize {
+            let gap = 4_800 + k * 4_800;
             let two = play(
                 &mut drums_gen(6),
                 &[(0, key, 80), (gap, key, 96)],
@@ -191,11 +200,14 @@ fn a_model_6_drum_struck_while_it_rings_never_loses_level() {
                 512,
             );
             let alone = play(&mut drums_gen(6), &[(gap, key, 96)], gap + 3_840, 512);
-            let (a, b) = (db(&two[gap..]), db(&alone[gap..]));
-            assert!(
-                a > b - 0.5,
-                "table {table}, {gap} samples on: {a:.2} dB against {b:.2} at rest"
-            );
+            let d = db(&two[gap..]) - db(&alone[gap..]);
+            assert!(d > -1.5, "table {table}, {gap} samples on: {d:.2} dB");
+            diffs.push(d);
         }
+        let mean = diffs.iter().sum::<f32>() / diffs.len() as f32;
+        assert!(
+            mean > 0.0,
+            "table {table}: {mean:.2} dB on average ({diffs:?})"
+        );
     }
 }

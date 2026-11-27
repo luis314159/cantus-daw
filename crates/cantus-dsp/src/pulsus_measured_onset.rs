@@ -26,10 +26,10 @@
 //!   noise), at [`Onset6::knock`] of model 5's.
 //!
 //! The cymbals are not drums: model 6 plays them as model 5 does, to the bit — but for a
-//! hat's **split pairs** (two partials within 1 %, `data::locks`), whose halves one stroke
-//! sets ringing together: model 6 draws their phases together, so they no longer beat
-//! differently from one stroke to the next (the jazz closed hat's 6.1-dB take-to-take
-//! change).
+//! **hat's knock**, which is the stick's push the same every stroke: model 5's was 2 ms of
+//! drawn noise, too short to be the same twice, and under the soft closed hat's thin lows
+//! it set their level anew each stroke (the jazz closed hat's 6.1-dB take-to-take change,
+//! 7 dB a third octave at 250 Hz – 1.6 kHz at velocity 32).
 
 /// Model 6's onset constants (fitted against the recorded kits' per-band peak timing:
 /// `tools/tympanum-real/onset.py`).
