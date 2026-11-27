@@ -20,3 +20,4 @@ Rehearsal commit: {the cantus-daw commit it ran on, in full}
 - [ ] L7 The last failed run's failures were all fixed in one commit before this rehearsal.
 - [ ] L8 One session watches the release run, at most once every five minutes.
 - [ ] L9 The rehearsal's two signature steps are green (the program's publisher is the signing's; the installer passes the program's own check), the previous release's in-app update on Windows was done and recorded, and this release's is in docs/beta-checklist.md for right after it is out.
+- [ ] L10 Every effect's plug-in zips and the zip with all are in the rehearsal's artifacts for each system, in its SHA256SUMS.txt; one, unpacked, loads in a host; the Mac's plug-in step fits its job's time.

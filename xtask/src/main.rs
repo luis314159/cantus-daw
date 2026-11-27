@@ -5,6 +5,8 @@
 //! cargo run -p xtask -- bundle porta terminus   # only those
 //! cargo run -p xtask -- bundle --v3             # the x86-64-v3 flavour, into target/bundled-x86-64-v3/
 //! cargo run -p xtask -- bundle --no-build       # only lay out what is already built
+//! cargo run -p xtask -- bundle --target <triple> # for another target, into target/bundled-<triple>/
+//! cargo run -p xtask -- plugin-zips <out>       # each effect's plug-ins on their own, zipped (plugin_zips.rs)
 //! cargo run -p xtask -- package                 # the Windows release files (package.rs)
 //! cargo run -p xtask -- package --v4            # with the x86-64-v4 (AVX-512) program too
 //! cargo run -p xtask -- null-hashes             # v2 and v3 render the same bits (null_hashes.rs)
@@ -46,6 +48,9 @@ mod package;
 #[cfg(test)]
 mod package_tests;
 mod perf;
+mod plugin_zips;
+#[cfg(test)]
+mod plugin_zips_tests;
 mod sign;
 
 use cantus_plugins::desc::{self, Descriptor};
@@ -117,8 +122,12 @@ pub(crate) fn target_dir() -> PathBuf {
 }
 
 /// The library cargo writes for the `plugin` profile.
-fn built_library(target: &Path) -> PathBuf {
-    let dir = target.join("plugin");
+/// With `triple` (`bundle --target`), the library cargo writes for that target.
+fn built_library(target: &Path, triple: Option<&str>) -> PathBuf {
+    let dir = match triple {
+        Some(t) => target.join(t).join("plugin"),
+        None => target.join("plugin"),
+    };
     if cfg!(windows) {
         dir.join("cantus_plugins.dll")
     } else if cfg!(target_os = "macos") {
@@ -214,9 +223,25 @@ fn lay_out(d: &Descriptor, library: &Path, out: &Path) {
 pub(crate) fn bundle(args: &[String]) {
     let v3 = args.iter().any(|a| a == "--v3");
     let build = !args.iter().any(|a| a == "--no-build");
+    // `--target <triple>` (round 42): the Mac's plug-ins are built for both architectures and
+    // joined (`plugin_zips.rs`); the triple is the option's value, not a plug-in's name.
+    let triple = args
+        .iter()
+        .position(|a| a == "--target")
+        .map(|i| match args.get(i + 1) {
+            Some(t) if !t.starts_with("--") => t.clone(),
+            _ => {
+                eprintln!("usage: xtask bundle --target <triple>");
+                std::process::exit(2)
+            }
+        });
+    if v3 && triple.is_some() {
+        eprintln!("--v3 and --target do not go together");
+        std::process::exit(2);
+    }
     let wanted: Vec<&str> = args
         .iter()
-        .filter(|a| !a.starts_with("--"))
+        .filter(|a| !a.starts_with("--") && Some(*a) != triple.as_ref())
         .map(String::as_str)
         .collect();
     let plugins: Vec<&Descriptor> = desc::ALL
@@ -240,7 +265,11 @@ pub(crate) fn bundle(args: &[String]) {
     } else {
         target_dir()
     };
-    let out = target_dir().join(if v3 { "bundled-x86-64-v3" } else { "bundled" });
+    let out = target_dir().join(match (&triple, v3) {
+        (Some(t), _) => format!("bundled-{t}"),
+        (None, true) => "bundled-x86-64-v3".to_string(),
+        (None, false) => "bundled".to_string(),
+    });
     std::fs::create_dir_all(&out).unwrap();
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     for d in plugins {
@@ -258,6 +287,16 @@ pub(crate) fn bundle(args: &[String]) {
                 ])
                 .args(["--no-default-features", "--features", feature(d)])
                 .env("CARGO_TARGET_DIR", &target);
+            if let Some(t) = &triple {
+                cmd.args(["--target", t]);
+                // The oldest macOS the program runs on (build-dmg.sh, Info.plist) holds for
+                // its plug-ins too.
+                if t.ends_with("-apple-darwin")
+                    && std::env::var_os("MACOSX_DEPLOYMENT_TARGET").is_none()
+                {
+                    cmd.env("MACOSX_DEPLOYMENT_TARGET", "11.0");
+                }
+            }
             if v3 {
                 let flags = std::env::var("RUSTFLAGS").unwrap_or_default();
                 cmd.env(
@@ -267,7 +306,7 @@ pub(crate) fn bundle(args: &[String]) {
             }
             run(&mut cmd);
         }
-        let library = built_library(&target);
+        let library = built_library(&target, triple.as_deref());
         if !library.exists() {
             eprintln!("{} is not built", library.display());
             std::process::exit(1);
@@ -281,6 +320,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("bundle") => bundle(&args[1..]),
+        Some("plugin-zips") => plugin_zips::command(&args[1..]),
         Some("package") => package::package(&args[1..]),
         Some("asio-sdk") => asio_sdk::command(),
         Some("sign-file") => package::sign_file(&args[1..]),
@@ -301,7 +341,8 @@ fn main() {
         }
         Some("null-hashes") => null_hashes::null_hashes(&args[1..]),
         _ => {
-            eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3] [--no-build]");
+            eprintln!("usage: cargo run -p xtask -- bundle [names…] [--v3 | --target <triple>] [--no-build]");
+            eprintln!("       cargo run -p xtask -- plugin-zips <out-dir> [--from <dir>] [--no-build] [--sums]");
             eprintln!("       cargo run -p xtask -- package [--no-build] [--no-installer] [--sign|--sign-test] [--v4]");
             eprintln!("       cargo run -p xtask -- null-hashes [--levels v2,v3,v4] [--baseline] [--no-build] [--whole]");
             eprintln!("       cargo run -p xtask -- asio-sdk");
