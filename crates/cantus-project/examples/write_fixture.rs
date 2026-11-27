@@ -2213,6 +2213,18 @@ fn main() {
             n.set("voicing.top_hz", 8_000.0);
         }
     }
+    // r42 integration — Schema 89 (ADR 0124): a new Tympanum plays model 1 again; the plain
+    // one is a new kit's (model 1), the hybrid keeps model 2, chosen (experimental).
+    if upto >= 89 {
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Tympanum")
+            .and_then(|t| t.instrument.native_mut())
+        {
+            n.set("model", 1.0);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

@@ -637,5 +637,18 @@ Elsewhere:
   - `every_modelled_piece_grows_with_the_velocity_through_the_app`: the drums 1 s apart
     (the hat 4 s, the cymbals 12 s: their re-strike blooms by design), three seeds, through
     `CantusApp::assemble`;
-  - `a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own`: model 2's snare and
-    kick play model 6, not model 5, and the crash plays the same bits.
+  - `a_new_tympanum_plays_model_5_and_model_6_only_by_choice` (named for the integration's
+    change below): model 2's snare and kick play model 6, not model 5, a new kit plays model
+    1's bits, and the crash plays the same bits either way.
+
+**At the integration (before beta.18): model 6 by choice, marked experimental.** The owner
+heard model 6 and called it *"un desastre"*, its rock *"horroroso"*: a new Tympanum plays
+model 5 again (`tympanum::MODEL` = 1, the released sound), and model 6 is the kits list's
+*Model 6 (experimental)* switch (`model` 1 ↔ 2) until round 43 makes the modelled kits real.
+Schema **89** writes `model` 2 into a v86–v88 Tympanum that names none — it played model 2,
+the default then (a preset that cleared the key, or a hand) — so every saved song plays as it
+was saved; a song from before 86 holds 1 (86's migration). Held by
+`schema_89_keeps_what_a_tympanum_with_no_model_played` (cantus-project), the test above and
+`the_experimental_model_is_a_switch_a_new_kit_starts_without` (the switch through the app, one
+undo step); `every_modelled_piece_grows_with_the_velocity_through_the_app` now names `model` 2
+(model 5's blend still lets one seed's studio kick at 96 fall 3.3 dB under its 80).

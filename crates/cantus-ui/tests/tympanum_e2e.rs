@@ -588,7 +588,8 @@ fn the_jazz_kit_plays_its_own_measured_voices() {
 /// The modelled kits' level law (r42:tympanum-real, `DSP_VERSION` 19), through the boot path
 /// and the real engine: every piece of the studio and jazz kits grows with the velocity at
 /// every step a drummer plays, for every seed — the drums a second apart, each struck while its
-/// last hit rings: model 6 (a new Tympanum's `model` 2) never lets one hit's own draw cancel its
+/// last hit rings: model 6 (`model` 2, chosen — r42 integration: a new Tympanum plays model 5,
+/// `model` 1, whose blend this law is not held to) never lets one hit's own draw cancel its
 /// level (model 5's blend did: the studio kick at 96 3.3 dB under its 80 for one seed). The
 /// hat 4 s apart and the cymbals 12 s: a cymbal struck while it rings blooms as a harder hit by
 /// design (ADR 0124's second amendment) — a ride rings for 7–10 s, and its 112 a few seconds after
@@ -610,6 +611,7 @@ fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
                 let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
                 spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
                 spec.set("seed", seed);
+                spec.set("model", 2.0);
                 t.instrument = InstrumentSpec::Native(spec);
                 // a drum's hit every second (a beat at 60 BPM): each struck while it rings
                 let n = VELS.len() as i64;
@@ -648,19 +650,21 @@ fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
     }
 }
 
-/// Model 6 through the app (r42:tympanum-real, ADR 0124's seventh amendment; schema 86): a
-/// new Tympanum stores `model` 2 and its drums play model 6, so its snare and kick are not
-/// what a song made before (`model` 1, model 5) plays; its crash plays the same bits under
-/// either model. (Model 6's onset is held at the voice, over every drum and seed:
-/// cantus-dsp `a_model_6_drum_comes_in_through_the_contact`.)
+/// Model 6 through the app (r42:tympanum-real, ADR 0124's seventh amendment): chosen —
+/// `model` 2, the switch marked experimental — a Tympanum's drums play model 6, so its snare
+/// and kick are not what a new one plays; its crash plays the same bits under either model.
+/// r42 integration (schema 89): a new Tympanum stores `model` 1 and plays model 5, the
+/// released sound, as every song made before does — the owner heard model 6 before beta.18.
+/// (Model 6's onset is held at the voice, over every drum and seed: cantus-dsp
+/// `a_model_6_drum_comes_in_through_the_contact`.)
 #[test]
-fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
+fn a_new_tympanum_plays_model_5_and_model_6_only_by_choice() {
     let render_with = |model: Option<f32>, key: u8| {
         let mut p = Project::new("Onset");
         p.tempo_bpm = 60.0;
         let mut t = p.make_track("Drums");
         let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
-        assert_eq!(spec.get("model"), 2.0, "a new instance stores model 2");
+        assert_eq!(spec.get("model"), 1.0, "a new instance stores model 1");
         spec.set_text(KIT_KEY, Some("model:studio".to_string()))
             .unwrap();
         if let Some(m) = model {
@@ -676,12 +680,20 @@ fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
         offline(&mut app, &p, 48_000, 512)
     };
     for key in [38u8, 36] {
-        let (old, new) = (render_with(Some(1.0), key), render_with(None, key));
-        assert!(peak(&new) > 1e-3 && peak(&old) > 1e-3);
-        assert!(old != new, "key {key}: model 2 plays model 6, not model 5");
+        let (fresh, six) = (render_with(None, key), render_with(Some(2.0), key));
+        assert!(peak(&fresh) > 1e-3 && peak(&six) > 1e-3);
+        assert!(
+            fresh != six,
+            "key {key}: model 2 plays model 6, not model 5"
+        );
+        same(
+            &fresh,
+            &render_with(Some(1.0), key),
+            "a new kit plays model 1's bits",
+        );
     }
     same(
-        &render_with(Some(1.0), 49),
+        &render_with(Some(2.0), 49),
         &render_with(None, 49),
         "the crash",
     );

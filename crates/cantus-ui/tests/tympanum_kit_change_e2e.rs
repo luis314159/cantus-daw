@@ -34,16 +34,24 @@ fn copy_dir(from: &Path, to: &Path) {
     }
 }
 
+/// The settings every test starts from. (r42 integration: written again for each rig — an
+/// earlier test's app saves its own settings into the shared data folder, without the audio
+/// setup done, and the next test's first-run audio dialog lay over the Mixer view's routes:
+/// the click on *Each mic to its own strip* landed on the dialog.)
+fn fresh_settings(dir: &Path) {
+    std::fs::write(
+        dir.join("settings.json"),
+        r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false}"#,
+    )
+    .unwrap();
+}
+
 fn data() -> &'static Path {
     static DIR: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
     DIR.get_or_init(|| {
         let d = tempfile::tempdir().unwrap();
         std::env::set_var("CANTUS_DATA_DIR", d.path());
-        std::fs::write(
-            d.path().join("settings.json"),
-            r#"{"audio_setup":{"setup_done":true},"start_page_at_start":false}"#,
-        )
-        .unwrap();
+        fresh_settings(d.path());
         let pack = d.path().join("Content").join("gogodze-phu-vol-ii");
         copy_dir(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/sfz/gogodze_phu_vol_ii"),
@@ -80,6 +88,7 @@ static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
 impl Rig {
     fn new(project: Project, locale: cantus_ui::i18n::Locale) -> Rig {
         let serial = SERIAL.lock().unwrap_or_else(|e| e.into_inner());
+        fresh_settings(data());
         cantus_ui::i18n::set_thread_locale(locale);
         let files = Files::read(data(), Some(locale));
         let ctx = egui::Context::default();

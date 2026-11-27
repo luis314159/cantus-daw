@@ -46,11 +46,14 @@ pub const ICON: TrackIcon = TrackIcon::Drums;
 /// its sound waits for his blind listening (`docs/BACKLOG-excellence.md`).
 pub const READY: bool = true;
 
-/// The model a new instance plays (stored with every instance, ADR 0059). Round 42
-/// (`tympanum-real`, ADR 0124's seventh amendment): 2 — the measured drums' onset through the
-/// stick's contact (Pulsus's measured model 6); 1 plays model 5, as every song made before
-/// does (each stored `model` = 1; schema 86's migration writes it where it was missing).
-pub const MODEL: f32 = 2.0;
+/// The model a new instance plays (stored with every instance, ADR 0059): 1, Pulsus's
+/// measured model 5, the released sound. 2 — the measured drums' onset through the stick's
+/// contact (model 6, round 42's `tympanum-real`, ADR 0124's seventh amendment) — is a choice,
+/// marked experimental: the owner heard it before beta.18 and it is no new kit's sound until
+/// round 43 makes the modelled kits real. (Schema 86 wrote 1 where an older song left it
+/// out; schema 89 writes 2 where a song saved under 86–88, when 2 was a new kit's, left it
+/// out.)
+pub const MODEL: f32 = 1.0;
 
 /// The text key naming the kit (a [`KitRef`] in its text form).
 pub const KIT_KEY: &str = "kit";

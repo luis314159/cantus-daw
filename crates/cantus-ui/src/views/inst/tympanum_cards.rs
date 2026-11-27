@@ -284,10 +284,41 @@ pub fn switch_row(
     fallback_on: bool,
     tip: &'static str,
 ) {
+    switch_between(
+        app,
+        ui,
+        track,
+        spec,
+        s,
+        r,
+        key,
+        label,
+        fallback_on,
+        tip,
+        (0.0, 1.0),
+    );
+}
+
+/// [`switch_row`] between two values of `key`, `(off, on)`: on from their middle up (r42
+/// integration: the model's switch, 1 off and 2 on).
+#[allow(clippy::too_many_arguments)]
+pub fn switch_between(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    track: TrackId,
+    spec: &NativeSpec,
+    s: &Style,
+    r: Rect,
+    key: &str,
+    label: &str,
+    fallback_on: bool,
+    tip: &'static str,
+    (off, on_at): (f32, f32),
+) {
     let p = Pal::of(s);
     let bound = spec.kind.param(key).is_some();
     let on = if bound {
-        spec.get(key) >= 0.5
+        spec.get(key) >= (off + on_at) * 0.5
     } else {
         fallback_on
     };
@@ -302,7 +333,7 @@ pub fn switch_row(
     );
     let learning = bound && crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     if bound && !learning && resp.clicked() {
-        app.set_inst_value(track, key, if on { 0.0 } else { 1.0 }, false);
+        app.set_inst_value(track, key, if on { off } else { on_at }, false);
     }
     let resp = iu::hint(resp, || t(tip));
     with_brush(ui.painter(), |b| {

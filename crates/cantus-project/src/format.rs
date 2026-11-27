@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 88; // r42: 88 Chorda's voicing by hand (`voicing.*`, ADR 0098's eighth amendment, chorda-presets), 87 Arcus's fiddler as its own switch (`player.fiddle`, ADR 0166, arcus-classical), 86 Tympanum's model 2, the drums' onset (ADR 0124's seventh amendment, tympanum-real), 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 89; // r42: 89 a new Tympanum plays model 1 again, model 2 experimental (the integration, ADR 0124), 88 Chorda's voicing by hand (`voicing.*`, ADR 0098's eighth amendment, chorda-presets), 87 Arcus's fiddler as its own switch (`player.fiddle`, ADR 0166, arcus-classical), 86 Tympanum's model 2, the drums' onset (ADR 0124's seventh amendment, tympanum-real), 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -361,6 +361,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_85_to_86, // r42:tympanum-real — Tympanum's model 2 (ADR 0124, seventh amendment)
     migrate_86_to_87, // r42 arcus-classical — Arcus's fiddler as its own switch (ADR 0166)
     migrate_87_to_88, // r42:chorda-presets — Chorda's voicing by hand (ADR 0098, eighth amendment)
+    migrate_88_to_89, // r42 integration — a new Tympanum plays model 1 again (ADR 0124)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1323,9 +1324,10 @@ fn migrate_84_to_85(_value: &mut Value) -> Result<(), String> {
 }
 
 /// Schema 86 (round 42, ADR 0124's seventh amendment): Tympanum's model 2 — a measured
-/// drum's onset through the stick's contact (Pulsus's measured model 6). A new instance stores
-/// `model` = 2; a song made before plays model 1 (model 5's onset), the `model` its build
-/// stored with every instance, written here into any Tympanum that lacks it. An older build
+/// drum's onset through the stick's contact (Pulsus's measured model 6). A new instance stored
+/// `model` = 2 under 86–88 (model 1 again from 89); a song made before plays model 1 (model
+/// 5's onset), the `model` its build stored with every instance, written here into any
+/// Tympanum that lacks it. An older build
 /// must refuse a v86 file: it would play a model 2 song with model 1. // r42:tympanum-real
 fn migrate_85_to_86(value: &mut Value) -> Result<(), String> {
     write_native_default(value, "AcousticDrums", "model", 1.0)
@@ -1369,6 +1371,17 @@ fn migrate_86_to_87(value: &mut Value) -> Result<(), String> {
 // r42:chorda-presets
 fn migrate_87_to_88(_value: &mut Value) -> Result<(), String> {
     Ok(())
+}
+
+/// Schema 89 (round 42's integration, ADR 0124's seventh amendment as closed): a new
+/// Tympanum plays model 1 again (model 5, the released sound); model 2 (model 6, the drums'
+/// onset) is a choice marked experimental — the owner heard it before beta.18. Under 86–88
+/// a Tympanum with no `model` (a preset that cleared it, a file written by hand) played model
+/// 2, the default then: written here, so it plays as it was saved. Songs from before 86 hold
+/// `model` 1 (86's migration), and keep it. An older build must refuse a v89 file: it would
+/// play a Tympanum saved with no `model` as model 2.
+fn migrate_88_to_89(value: &mut Value) -> Result<(), String> {
+    write_native_default(value, "AcousticDrums", "model", 2.0)
 }
 
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
@@ -1921,8 +1934,9 @@ mod tests {
         assert_eq!(chorda("v85.cantus").1, 0.6);
         assert_eq!(chorda("v86.cantus").1, 0.6);
         assert_eq!(chorda("v87.cantus").1, 0.6);
-        // r42:chorda-presets — nor 87 (88).
-        assert_eq!(chorda("v88.cantus"), (true, 0.6));
+        // r42:chorda-presets — nor 87 (88); r42 integration — nor 88 (89).
+        assert_eq!(chorda("v88.cantus").1, 0.6);
+        assert_eq!(chorda("v89.cantus"), (true, 0.6));
         assert_eq!(chorda("v83.cantus").1, 0.0);
     }
 
@@ -1951,8 +1965,9 @@ mod tests {
                 .expect("the Arcus track");
             (report.integrity_verified, spec)
         };
-        // (r42 arcus-classical, chorda-presets: the newest, 88, keeps them, its integrity verified)
-        let (ok, s) = arcus("v88.cantus");
+        // (r42 arcus-classical, chorda-presets, the integration: the newest, 89, keeps them,
+        // its integrity verified)
+        let (ok, s) = arcus("v89.cantus");
         assert!(ok);
         let keys = [
             "bow.pair",
@@ -1969,7 +1984,7 @@ mod tests {
         let got: Vec<f32> = keys.iter().map(|k| s.get(k)).collect();
         assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 0.7, 1.2, 1.0, 1.0, 1.0, 1.0]);
         // r42:tympanum-real — the older files (85, 86) are migrated and keep them all the same.
-        for f in ["v85.cantus", "v86.cantus", "v87.cantus"] {
+        for f in ["v85.cantus", "v86.cantus", "v87.cantus", "v88.cantus"] {
             let (_, m) = arcus(f);
             let them: Vec<f32> = keys.iter().map(|k| m.get(k)).collect();
             assert_eq!(them, got, "{f}");
@@ -2034,8 +2049,12 @@ mod tests {
             (report.integrity_verified, got)
         };
         let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
-        let (ok, new) = models(&read("v88.cantus"));
+        // (r42 integration, schema 89: the newest fixture's plain Tympanum is a new kit's,
+        // model 1 again, its hybrid one model 2 by choice.)
+        let (ok, newest) = models(&read("v89.cantus"));
         assert!(ok);
+        assert_eq!(newest, vec![1.0, 2.0], "the plain and the hybrid Tympanum");
+        let (_, new) = models(&read("v88.cantus"));
         assert_eq!(new, vec![2.0, 2.0], "the plain and the hybrid Tympanum");
         // (r42 arcus-classical, chorda-presets: 86 and 87 no longer the newest, model 2 kept)
         assert_eq!(models(&read("v86.cantus")).1, new);
@@ -2053,6 +2072,44 @@ mod tests {
         assert_ne!(cut, text);
         let (_, cut) = models(&cut);
         assert!(cut.iter().all(|m| *m == 1.0), "{cut:?}");
+    }
+
+    /// r42 integration — Schema 89 (ADR 0124): a new Tympanum plays model 1 again; a v86–v88
+    /// Tympanum that names no `model` (a preset cleared it, or a hand) played model 2, the
+    /// default then, and still does; one that names it keeps it either way; an older song's
+    /// (86's migration wrote 1) keeps 1.
+    #[test]
+    fn schema_89_keeps_what_a_tympanum_with_no_model_played() {
+        use cantus_core::InstrumentSpec;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let models = |text: &str| -> Vec<f32> {
+            parse(text, true)
+                .unwrap()
+                .file
+                .project
+                .tracks
+                .iter()
+                .filter_map(|t| match &t.instrument {
+                    InstrumentSpec::Native(s)
+                        if s.kind == cantus_core::InstrumentKind::AcousticDrums =>
+                    {
+                        Some(s.get("model"))
+                    }
+                    _ => None,
+                })
+                .collect()
+        };
+        let fresh = cantus_core::inst::NativeSpec::new(cantus_core::InstrumentKind::AcousticDrums);
+        assert_eq!(fresh.get("model"), 1.0, "a new Tympanum plays model 1");
+        for f in ["v86.cantus", "v87.cantus", "v88.cantus"] {
+            let text = std::fs::read_to_string(dir.join(f)).unwrap();
+            let cut = text.replace("\"model\": 2.0,", "");
+            assert_ne!(cut, text, "{f}");
+            assert_eq!(models(&cut), vec![2.0, 2.0], "{f} with no `model`");
+        }
+        let text = std::fs::read_to_string(dir.join("v85.cantus")).unwrap();
+        let cut = text.replacen("\"model\": 1.0,", "", 1);
+        assert!(models(&cut).iter().all(|m| *m == 1.0));
     }
 
     /// r42:chorda-presets — Schema 88 (ADR 0098's eighth amendment): the fixture's Chorda keeps
@@ -2074,8 +2131,9 @@ mod tests {
             let n = t.instrument.native().expect("a native Chorda").clone();
             (report.integrity_verified, n)
         };
-        let (verified, n) = chorda("v88.cantus");
+        let (verified, n) = chorda("v89.cantus");
         assert!(verified);
+        assert_eq!(chorda("v88.cantus").1.get("voicing.felt_bass"), -0.35);
         assert_eq!(n.get("voicing.felt_bass"), -0.35);
         assert_eq!(n.get("voicing.formant_hz"), 480.0);
         assert_eq!(n.get("voicing.top_hz"), 8_000.0);

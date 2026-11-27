@@ -433,3 +433,30 @@ fn a_members_full_name_carries_its_instruments() {
         p.strips[0].name
     );
 }
+
+/// r42 integration — model 6 by choice (ADR 0124, schema 89): a new Tympanum plays model 1
+/// (model 5, the released sound); the kits list's *Model 6 (experimental)* switch sets
+/// `model` 2 in one undo step and back to 1, and the engine plays what it says.
+#[test]
+fn the_experimental_model_is_a_switch_a_new_kit_starts_without() {
+    let (p, drums) = kit_song();
+    let mut r = Rig::new(p);
+    r.app.open_inst_editor(drums);
+    r.app.inst.view = cantus_ui::views::inst::View::Play;
+    r.idle(4);
+    let model = |r: &Rig| r.app.native_of(drums).unwrap().get("model");
+    assert_eq!(model(&r), 1.0, "a new kit plays model 1");
+    let sw = tympanum::kits::model_switch_rect(&r.ctx, drums).expect("the switch is drawn");
+    let pic = tympanum::stage::picture_rect(&r.ctx, drums).expect("the picture");
+    assert!(
+        !sw.intersects(pic),
+        "the switch {sw:?} lies beside the picture {pic:?}"
+    );
+    r.click(sw.center());
+    assert_eq!(model(&r), 2.0, "the switch chooses model 2");
+    r.app.undo();
+    assert_eq!(model(&r), 1.0, "one undo step takes it back");
+    r.click(sw.center());
+    r.click(sw.center());
+    assert_eq!(model(&r), 1.0, "and off again");
+}

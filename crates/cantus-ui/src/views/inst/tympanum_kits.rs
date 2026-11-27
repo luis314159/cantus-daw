@@ -238,10 +238,32 @@ pub fn list(
             ink,
         );
     });
-    // The list, scrolling between the filter and the foot.
+    // r42 integration — model 6 (the drums' onset) only by choice, marked experimental, over
+    // the foot: the owner heard it before beta.18, and a new kit plays model 5 until round 43
+    // makes the modelled kits real.
+    let mr6 = Rect::from_min_max(
+        pos2(r.left() + pad, foot.top() - s.s(36.0)),
+        pos2(r.right() - pad, foot.top() - s.s(10.0)),
+    );
+    super::cards::switch_between(
+        app,
+        ui,
+        track,
+        spec,
+        s,
+        mr6,
+        "model",
+        &t("tympanum.model_6"),
+        false,
+        "tympanum.model_6_tip",
+        (1.0, 2.0),
+    );
+    ui.ctx()
+        .data_mut(|d| d.insert_temp(model_switch_id(track), mr6));
+    // The list, scrolling between the filter and the model's switch.
     let area = Rect::from_min_max(
         pos2(r.left() + s.s(4.0), fr.bottom() + s.s(8.0)),
-        pos2(r.right() - s.s(4.0), foot.top() - s.s(8.0)),
+        pos2(r.right() - s.s(4.0), mr6.top() - s.s(6.0)),
     );
     let current = KitRef::of(spec);
     let _ = def;
@@ -766,4 +788,14 @@ pub fn install_kit_path(app: &mut CantusApp, track: TrackId, path: &std::path::P
             }
         }
     }
+}
+
+fn model_switch_id(track: TrackId) -> egui::Id {
+    egui::Id::new(("tymp-model-switch", track.0))
+}
+
+/// r42 integration — where the kits list drew the *Model 6 (experimental)* switch for
+/// `track`, for the tests.
+pub fn model_switch_rect(ctx: &egui::Context, track: TrackId) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Rect>(model_switch_id(track)))
 }

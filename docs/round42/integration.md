@@ -75,6 +75,7 @@ order; each step was confirmed at its merge.
 | 86 | Tympanum's model 2 (model 6's onset) | tympanum-real | arcus-classical, merged first, carried a placeholder step here; tympanum-real brought the real migration |
 | 87 | `player.fiddle` | arcus-classical | a schema 85–86 Arcus with steel strings migrates to its steel |
 | 88 | Chorda's voicing by hand | chorda-presets | 85–87 had been held empty on its branch |
+| 89 | a new Tympanum plays model 1 again; model 2 by choice, marked experimental | the integration | a v86–v88 Tympanum that names no `model` played model 2, the default then: written in; `v89` holds the plain kit at 1 and the hybrid at 2 |
 
 `804245a84` wrote the fixtures again with the merged model: `v88.cantus` holds Arcus's Bite and
 `player.fiddle`, Tympanum's model 2 and Chorda's voicing; `v86` and `v87` (never shipped) were
