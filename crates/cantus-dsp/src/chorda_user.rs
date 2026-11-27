@@ -70,6 +70,10 @@ impl Default for UserVoicing {
 /// The knock's band never passes this (Hz), however far its tone is raised.
 const KNOCK_TOP: f64 = 16_000.0;
 
+/// The unison's loss scatter never passes this, however uneven: each string's loss is moved
+/// by up to this share of itself, and at 1 or past it a string's loss filter turns over.
+pub const UNI_LOSS_MAX: f64 = 0.9;
+
 impl UserVoicing {
     /// Every control at its default: the voicing as the technician left it.
     pub const NEUTRAL: UserVoicing = UserVoicing {
@@ -140,10 +144,12 @@ impl UserVoicing {
         if u.uneven != 1.0 {
             let k = u.uneven.max(0.0);
             v.uni_weight = (v.uni_weight * k).min(1.0);
-            v.uni_weight_low *= k;
-            v.uni_weight_bass *= k;
+            v.uni_weight_low = (v.uni_weight_low * k).min(1.0);
+            v.uni_weight_bass = (v.uni_weight_bass * k).min(1.0);
             v.uni_skew *= k;
-            v.uni_loss *= k;
+            // A string's loss scattered by a share of itself: past 1 its loss filter's
+            // coefficient would change sign (a ringing that grows: `UNI_LOSS_MAX`).
+            v.uni_loss = (v.uni_loss * k).min(UNI_LOSS_MAX);
         }
         if u.polar != 1.0 {
             v.polar *= u.polar.max(0.0);

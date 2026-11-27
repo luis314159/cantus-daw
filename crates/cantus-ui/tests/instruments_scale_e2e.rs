@@ -58,7 +58,7 @@ fn whole(kind: InstrumentKind, view: View) -> Vec2 {
         // Every part with its picture: taller than the window, it scrolls there.
         (InstrumentKind::Chorda, View::Edit) => Vec2::new(0.0, 1250.0),
         // r42:chorda-presets — every group of the voicing, with its picture.
-        (InstrumentKind::Chorda, View::Voicing) => Vec2::new(0.0, inst::chorda::VOICING_H),
+        (InstrumentKind::Chorda, View::Voicing) => Vec2::new(0.0, inst::chorda::VOICING_H + 200.0),
         // Its source list whole, unscrolled (at the shell's height it scrolls).
         (InstrumentKind::Chorda, View::Play) => Vec2::new(0.0, 800.0),
         _ => Vec2::ZERO,

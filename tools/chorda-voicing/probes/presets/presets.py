@@ -8,6 +8,9 @@ import os
 import re
 import sys
 
+# One argument a line, LF only (bash's mapfile keeps a CR).
+sys.stdout.reconfigure(newline=chr(10))
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE))))
 EDITOR = os.path.join(REPO, 'crates', 'cantus-ui', 'src', 'views', 'inst', 'chorda.rs')
@@ -24,7 +27,7 @@ KIND = {
     'v_dark': [],
     'v_imposing': ['salamander', 'bk_stage'],
     'v_bright': ['salamander'],
-    'v_intimate': ['bk_bar'],
+    'v_intimate': ['bk_bar', 'kw'],
     'v_upright': ['kw'],
     'v_honky': ['fb'],
     'v_jazz': ['bk_bar'],
@@ -50,6 +53,18 @@ def main(argv):
         return
     want = argv[1:] or list(p) + list(REFS)
     for w in want:
+        # `name+key=v,key=v`: a trial — the preset with those values over it (a later key wins).
+        over = ''
+        if '+' in w:
+            w, over = w.split('+', 1)
+        if w in p:
+            vals = dict(p[w])
+            for kv in filter(None, over.split(',')):
+                k, v = kv.split('=')
+                vals[k] = float(v)
+            tag = w + ('_t' if over else '')
+            print(f'{tag}=2:' + ','.join(f'{a}={b:g}' for a, b in vals.items()))
+            continue
         if w in p:
             # The whole preset, gain included: what the browser applies.
             print(f'{w}=2:' + ','.join(f'{a}={b:g}' for a, b in p[w]))

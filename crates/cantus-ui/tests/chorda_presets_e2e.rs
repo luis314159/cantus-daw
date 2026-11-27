@@ -94,7 +94,13 @@ fn a_character_preset_and_a_voicing_knob_dragged_reach_the_engine_and_undo_to_th
     }
     // A phrase over the keyboard: a bass note, a middle chord, a top run.
     let mut clip = app.bus.new_clip("Keys", Ticks::ZERO, Ticks::beats(8));
-    for (beat, key, vel) in [(0, 36, 90), (0, 60, 70), (0, 64, 70), (1, 84, 80), (2, 96, 85)] {
+    for (beat, key, vel) in [
+        (0, 36, 90),
+        (0, 60, 70),
+        (0, 64, 70),
+        (1, 84, 80),
+        (2, 96, 85),
+    ] {
         clip.notes.push(
             app.bus
                 .new_note(Ticks::beats(beat), Ticks::beats(2), key, vel),
@@ -132,9 +138,15 @@ fn a_character_preset_and_a_voicing_knob_dragged_reach_the_engine_and_undo_to_th
     app.fx.pos = Some(egui::pos2(0.0, 0.0));
     cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&ctx, 1.0);
     let size = cantus_ui::kit::shell::INSTRUMENT;
-    shoot_events(&ctx, size, 1.0, 6, None, |_, _| Vec::new(), |ui| {
-        inst::window_in(&mut app, ui)
-    });
+    shoot_events(
+        &ctx,
+        size,
+        1.0,
+        6,
+        None,
+        |_, _| Vec::new(),
+        |ui| inst::window_in(&mut app, ui),
+    );
     let at = app
         .inst
         .chorda
@@ -174,10 +186,16 @@ fn a_character_preset_and_a_voicing_knob_dragged_reach_the_engine_and_undo_to_th
         |ui| inst::window_in(&mut app, ui),
     );
     let after = spec(&app, track).get("voicing.top_hz");
-    assert!(after > before, "the drag left the roll-off at {before} ({after})");
+    assert!(
+        after > before,
+        "the drag left the roll-off at {before} ({after})"
+    );
     let moved = rendered(&app);
     assert!(moved != preset, "the knob moved no sample");
-    assert!(top_share(&moved) > top_share(&preset), "a higher roll-off is not brighter");
+    assert!(
+        top_share(&moved) > top_share(&preset),
+        "a higher roll-off is not brighter"
+    );
 
     // One undo takes the drag back, to the bit; another the preset.
     app.undo();
@@ -188,54 +206,61 @@ fn a_character_preset_and_a_voicing_knob_dragged_reach_the_engine_and_undo_to_th
 }
 
 /// The Voicing view for the owner's eyes: Dark Felt loaded (its lines off the dashed voicing),
-/// whole, in Slate Lapis (night) and its paper, in English and Spanish, into `CHORDA_SHOTS`
-/// (`cargo test -p cantus-ui --test chorda_presets_e2e -- --ignored shoot`).
+/// in one theme and language a run (`CHORDA_SHOT` = `<lapis|paper>-<en|es>`, `CHORDA_SHOT_SIZE`; the kit's caches are
+/// the process's), at the editor's own size and whole (the macros' bands under it), into
+/// `CHORDA_SHOTS` (`cargo test -p cantus-ui --test chorda_presets_e2e -- --ignored shoot`).
 #[test]
 #[ignore]
 fn shoot_the_voicing_view() {
     use cantus_ui::{views, welcome_project};
-    let dir = std::path::PathBuf::from(std::env::var("CHORDA_SHOTS").unwrap_or_else(|_| "shots".into()));
+    let dir =
+        std::path::PathBuf::from(std::env::var("CHORDA_SHOTS").unwrap_or_else(|_| "shots".into()));
     std::fs::create_dir_all(&dir).unwrap();
-    for (theme, tname) in [
-        (cantus_ui::theme::slate_lapis_night(), "lapis"),
-        (cantus_ui::theme::slate_lapis_paper(), "paper"),
+    let which = std::env::var("CHORDA_SHOT").unwrap_or_else(|_| "lapis-en".into());
+    let theme = if which.starts_with("paper") {
+        cantus_ui::theme::slate_lapis_paper()
+    } else {
+        cantus_ui::theme::slate_lapis_night()
+    };
+    cantus_ui::i18n::set_locale(if which.ends_with("es") {
+        cantus_ui::i18n::Locale::Es
+    } else {
+        cantus_ui::i18n::Locale::En
+    });
+    for (size, what) in [
+        (cantus_ui::kit::shell::INSTRUMENT, "window"),
+        (
+            inst::size_for(egui::vec2(0.0, inst::chorda::VOICING_H + 200.0)),
+            "whole",
+        ),
     ] {
-        for (locale, lname) in [
-            (cantus_ui::i18n::Locale::En, "en"),
-            (cantus_ui::i18n::Locale::Es, "es"),
-        ] {
-            cantus_ui::i18n::set_locale(locale);
-            let ctx = egui::Context::default();
-            cantus_ui::design::install_fonts(&ctx);
-            cantus_ui::design::install_style(&ctx);
-            cantus_ui::theme::apply(&theme, &ctx);
-            let mut app =
-                CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
-            app.demo_editor("chorda");
-            views::inst::demo_feed(&mut app, InstrumentKind::Chorda);
-            let track = app.inst.open.expect("Chorda's editor open");
-            let dark = inst::chorda::FACTORY_PRESETS
-                .iter()
-                .find(|p| p.label_key == "chorda.preset.v_dark")
-                .unwrap();
-            app.apply_inst_spec(
-                track,
-                &inst::preset_spec(InstrumentKind::Chorda, dark),
-                "cmd.fx_preset",
-            );
-            app.inst.view = View::Voicing;
-            app.fx.pos = Some(egui::pos2(0.0, 0.0));
-            cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&ctx, 1.0);
-            for (size, what) in [
-                (cantus_ui::kit::shell::INSTRUMENT, "window"),
-                (inst::size_for(egui::vec2(0.0, inst::chorda::VOICING_H)), "whole"),
-            ] {
-                let out = dir.join(format!("voicing-{tname}-{lname}-{what}.png"));
-                cantus_ui::raster::shoot(&ctx, size, 1.0, 8, Some(&out), |ui| {
-                    views::inst::window_in_sized(&mut app, ui, size)
-                });
-            }
+        // One shot a process (`CHORDA_SHOT_SIZE` = `window` or `whole`).
+        if std::env::var("CHORDA_SHOT_SIZE").unwrap_or_else(|_| "window".into()) != what {
+            continue;
         }
+        let ctx = egui::Context::default();
+        cantus_ui::design::install_fonts(&ctx);
+        cantus_ui::design::install_style(&ctx);
+        cantus_ui::theme::apply(&theme, &ctx);
+        let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+        app.demo_editor("chorda");
+        views::inst::demo_feed(&mut app, InstrumentKind::Chorda);
+        let track = app.inst.open.expect("Chorda's editor open");
+        let dark = inst::chorda::FACTORY_PRESETS
+            .iter()
+            .find(|p| p.label_key == "chorda.preset.v_dark")
+            .unwrap();
+        app.apply_inst_spec(
+            track,
+            &inst::preset_spec(InstrumentKind::Chorda, dark),
+            "cmd.fx_preset",
+        );
+        app.inst.view = View::Voicing;
+        app.fx.pos = Some(egui::pos2(0.0, 0.0));
+        cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&ctx, 1.0);
+        let out = dir.join(format!("voicing-{which}-{what}.png"));
+        cantus_ui::raster::shoot(&ctx, size, 1.0, 8, Some(&out), |ui| {
+            views::inst::window_in_sized(&mut app, ui, size)
+        });
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }

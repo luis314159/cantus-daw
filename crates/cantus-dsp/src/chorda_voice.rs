@@ -524,6 +524,12 @@ struct Retune {
 }
 
 impl Voice {
+    /// The settings its last strike took (a test's look inside: round 42's voicing by hand).
+    #[cfg(test)]
+    pub(crate) fn struck_with(&self) -> &VoiceSettings {
+        &self.settings
+    }
+
     /// Its strings (a test's look inside).
     #[cfg(test)]
     pub(crate) fn strings(&self) -> &KeyStrings {

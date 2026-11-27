@@ -68,6 +68,48 @@ fn it_plays_finite_and_in_headroom() {
     assert!(peak > 0.01 && peak < 1.0, "peak {peak}");
 }
 
+/// r42 (`chorda-presets`): every voicing control at either end of its range, and all of them at
+/// once at each end, plays finite and under full scale — a bass note, a chord, the top, the
+/// pedal and releases.
+#[test]
+fn every_voicing_control_at_either_end_plays_finite() {
+    let notes = [
+        (0.0, 3.0, 24, 110),
+        (0.0, 2.0, 48, 90),
+        (0.0, 2.0, 55, 80),
+        (0.5, 1.0, 64, 127),
+        (1.0, 1.0, 96, 100),
+        (1.5, 0.5, 108, 120),
+    ];
+    let keys: Vec<_> = cantus_core::inst::chorda::PARAMS
+        .iter()
+        .filter(|i| i.key.starts_with("voicing."))
+        .collect();
+    let check = |values: &[(&str, f32)], what: &str| {
+        let out = render_of(&piano_project(values, &notes), 1.5);
+        assert!(out.iter().all(|x| x.is_finite()), "{what}: not finite");
+        let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!(peak < 1.0, "{what}: peak {peak}");
+    };
+    for i in &keys {
+        check(&[(i.key, i.min)], &format!("{} at {}", i.key, i.min));
+        check(&[(i.key, i.max)], &format!("{} at {}", i.key, i.max));
+    }
+    let lo: Vec<(&str, f32)> = keys.iter().map(|i| (i.key, i.min)).collect();
+    let hi: Vec<(&str, f32)> = keys.iter().map(|i| (i.key, i.max)).collect();
+    check(&lo, "all at their least");
+    check(&hi, "all at their most");
+    // With the unison and the action pushed too (the honky-tonk's corner).
+    let mut wild = hi.clone();
+    wild.extend([
+        ("unison", 8.0),
+        ("hardness", 1.0),
+        ("dynamics", 0.5),
+        ("noise", 2.0),
+    ]);
+    check(&wild, "all at their most, the unison wide");
+}
+
 #[test]
 fn every_parameter_at_its_default_changes_no_sample() {
     let reference = render_of(&piano_project(&[], &PHRASE), 0.5);

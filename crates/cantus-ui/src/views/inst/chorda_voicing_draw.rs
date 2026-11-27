@@ -9,11 +9,11 @@
 //! - **Microphones**: each key's arrival-time difference between the pair (ms).
 //! - **Tone**: the top roll-off's response, 1 … 20 kHz.
 
-use crate::views::inst::organ::parts::label;
 use crate::i18n::tf;
 use crate::kit::light;
 use crate::kit::text::Role;
 use crate::kit::{Brush, Style};
+use crate::views::inst::organ::parts::label;
 use cantus_dsp::chorda::voicing::Voicing;
 use cantus_dsp::math;
 use egui::{Pos2, Rect, Vec2};
@@ -223,7 +223,7 @@ pub fn paint(b: &mut Brush, d: Rect, s: &Style, what: Picture, p: &Pair) {
                 &[
                     ("a0", &k(21)),
                     ("c4", &k(60)),
-                    ("floor", &format!("{:.0}", -p.set.damped_db)),
+                    ("floor", &format!("{:.0}", p.set.damped_db)),
                 ],
             )
         }
