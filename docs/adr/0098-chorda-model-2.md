@@ -655,7 +655,9 @@ technician's number:
 3. **Not exposed**: the keyboard's design (`bass_b`, `treble_b`, the octaves, `tune`): a design
    is made off the audio thread and the tuning passes rest on it (`stretch` and `stiffness` are
    the player's there); the body's responses (`Body::new` allocates); the per-key tables.
-4. **The Voicing view** (Chorda's editor: Play · Mixer · Edit · Voicing · Matrix) shows the six
+4. **The advanced voicing** is the second page of Chorda's Edit view (a switch at the top of
+   both pages, *Parts · Advanced voicing*; a fifth header segment cut the instrument's name in
+   Spanish at the narrowest window). It shows the six
    groups as cards, each with its picture drawn from the voicing itself — the technician's
    number dashed, the one set over it (the felt and the sustain across the keyboard, the
    formant's and the roll-off's responses, the dampers' hold, each key's arrival time).

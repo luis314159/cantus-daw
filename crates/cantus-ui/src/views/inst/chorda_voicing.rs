@@ -18,7 +18,7 @@ use crate::app::CantusApp;
 use crate::i18n::t;
 use crate::kit::cell;
 use crate::kit::knob::KnobSize;
-use crate::kit::text::Role;
+use crate::kit::text::{Role, Src};
 use crate::kit::{with_brush, Function, Style};
 use cantus_core::inst::chorda::VOICING_GROUPS;
 use cantus_core::{NativeSpec, TrackId};
@@ -32,6 +32,33 @@ const DISPLAY: f32 = 74.0;
 const BODY: f32 = 86.0;
 /// The note at the view's top: one line of body text.
 const NOTE: f32 = 22.0;
+/// The switch between Edit's two pages (its parts, the voicing), at 100 %: its height and the
+/// gap under it.
+pub const SWITCH_H: f32 = 24.0 + 4.0;
+const SWITCH_W: f32 = 360.0;
+
+/// Edit's two pages, Chorda's parts and its advanced voicing: the switch at the top of both,
+/// on its own row (`voicing`: the voicing's page is shown). Moves the editor's view.
+pub fn switch(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, voicing: bool) {
+    let labels = [Src::Key("chorda.v.tab_parts"), Src::Key("chorda.v.title")];
+    let mut sel = usize::from(voicing);
+    let (row, _) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), s.s(SWITCH_H)),
+        Sense::hover(),
+    );
+    let r = Rect::from_min_size(row.min, Vec2::new(row.width(), s.d(24.0)));
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(r));
+    let w = (SWITCH_W * s.k).min(r.width()) / s.k;
+    if crate::kit::widgets::segmented(&mut child, &mut sel, &labels, &t("chorda.v.switch"), w)
+        .changed()
+    {
+        app.inst.view = if sel == 1 {
+            crate::views::inst::View::Voicing
+        } else {
+            crate::views::inst::View::Edit
+        };
+    }
+}
 
 /// Each group's hue and picture, in [`VOICING_GROUPS`]' order.
 const LOOK: [(Function, Picture); 6] = [
@@ -53,8 +80,10 @@ const ROWS: [&[(usize, f32)]; 4] = [
 
 /// The view's height at 100 % in the editor's own width (every row's cards side by side): what
 /// the tests read it whole in.
-pub const VOICING_H: f32 =
-    (24.0 + 8.0 + NOTE + 8.0) + 4.0 * (24.0 + 1.0 + DISPLAY + 8.0 + BODY + 8.0) + 4.0 * 4.0;
+pub const VOICING_H: f32 = SWITCH_H
+    + (24.0 + 8.0 + NOTE + 8.0)
+    + 4.0 * (24.0 + 1.0 + DISPLAY + 8.0 + BODY + 8.0)
+    + 4.0 * 4.0;
 
 /// Whether `n` cells fit side by side at their own size (the editor's M, whose labels and
 /// values hold whole) in a card `w` wide: else the row stacks its cards.
@@ -72,6 +101,7 @@ pub fn voicing(
     spec: &NativeSpec,
     s: &Style,
 ) {
+    switch(app, ui, s, true);
     let (vs, hardness) = settings_from(&values_of(spec));
     let base = Voicing::default();
     let pair = Pair {

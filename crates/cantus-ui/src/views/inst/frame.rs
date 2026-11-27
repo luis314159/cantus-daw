@@ -194,7 +194,7 @@ fn view_index(v: View) -> usize {
         View::Edit => 1,
         View::Matrix => 2,
         View::Mixer => 0, // r40:chorda-src — only where the kind has a mixer (`MIXER_VIEWS`)
-        View::Voicing => 1, // r42:chorda-presets — Chorda's alone (`CHORDA_VIEWS`)
+        View::Voicing => 1, // r42:chorda-presets — Edit's second page (Chorda's)
     }
 }
 
@@ -207,23 +207,6 @@ const MIXER_VIEWS: [Src<'static>; 4] = [
     Src::Key("inst.view.matrix"),
 ];
 const MIXER_ORDER: [View; 4] = [View::Play, View::Mixer, View::Edit, View::Matrix];
-
-// r42:chorda-presets — Chorda's five: Play · Mixer · Edit · Voicing · Matrix (its voicing by
-// hand, ADR 0098's eighth amendment).
-const CHORDA_VIEWS: [Src<'static>; 5] = [
-    Src::Key("inst.view.play"),
-    Src::Key("inst.view.mixer"),
-    Src::Key("inst.view.edit"),
-    Src::Key("inst.view.voicing"),
-    Src::Key("inst.view.matrix"),
-];
-const CHORDA_ORDER: [View; 5] = [
-    View::Play,
-    View::Mixer,
-    View::Edit,
-    View::Voicing,
-    View::Matrix,
-];
 
 // r40:integration — Tympanum's three, as the approved design names them: Kit (the frame's
 // Play) · Mixer · Matrix. It has no Edit view of its own.
@@ -246,10 +229,10 @@ fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
     } else if kind == InstrumentKind::AcousticDrums {
         let i = TYMPANUM_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&TYMPANUM_VIEWS[..], i)
-    } else if kind == InstrumentKind::Chorda {
-        let i = CHORDA_ORDER.iter().position(|x| *x == v).unwrap_or(0);
-        (&CHORDA_VIEWS[..], i)
     } else if has_mixer(kind) {
+        // r42:chorda-presets — Chorda's voicing is a page of its Edit (the switch at the
+        // view's top): the header keeps four, Edit lit for both.
+        let v = if v == View::Voicing { View::Edit } else { v };
         let i = MIXER_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&MIXER_VIEWS[..], i)
     } else {
@@ -261,9 +244,6 @@ fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
 fn view_at(kind: InstrumentKind, i: usize) -> View {
     if kind == InstrumentKind::AcousticDrums {
         return TYMPANUM_ORDER.get(i).copied().unwrap_or(View::Play);
-    }
-    if kind == InstrumentKind::Chorda {
-        return CHORDA_ORDER.get(i).copied().unwrap_or(View::Play);
     }
     if has_mixer(kind) {
         return MIXER_ORDER.get(i).copied().unwrap_or(View::Play);

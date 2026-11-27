@@ -92,7 +92,8 @@ pub enum View {
     /// the kinds that have them (Chorda; Tympanum's mixer lands here too).
     Mixer,
     /// r42 (`chorda-presets`, ADR 0098's eighth amendment) — Chorda's advanced voicing: every
-    /// number of its voicing by hand, grouped as a technician thinks of them. Shown as Edit
+    /// number of its voicing by hand, grouped as a technician thinks of them; the second page
+    /// of its Edit view (a switch at the top of both: the header lights Edit). Shown as Edit
     /// by every other kind.
     Voicing,
 }

@@ -256,7 +256,7 @@ pub fn views_of(kind: InstrumentKind) -> Vec<View> {
             View::Edit,
             View::Voicing,
             View::Matrix,
-        ],
+        ], // r42:chorda-presets — Voicing: the Edit view's second page
         _ => vec![View::Play, View::Edit, View::Matrix],
     }
 }

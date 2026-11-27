@@ -120,7 +120,8 @@ chorda.colour = Color (modelo 2)
 chorda.colour.short = Color
 chorda.preset.recorded = Color de gran cola grabado
 # La entonación a mano (ronda 42, chorda-presets, octava enmienda de la ADR 0098): la vista Entonación
-inst.view.voicing = Timbre
+chorda.v.tab_parts = Partes
+chorda.v.switch = Las páginas de la vista Editar: las partes de Chorda, o cada número de su entonación a mano
 chorda.v.title = Entonación avanzada
 chorda.v.note = Con cada control en su valor por defecto, Chorda suena como viene entonado (las líneas discontinuas). Doble clic en un control para devolverlo.
 chorda.v.hammers = Macillos

@@ -11,8 +11,12 @@ mano"*.
 ## 1. The voicing by hand (Part A)
 
 `cantus_dsp::chorda::user::UserVoicing` over the shipped `Voicing`; parameters `voicing.*`
-(`cantus_core::inst::chorda`), grouped by `VOICING_GROUPS`; the **Voicing** view in Chorda's
-editor (Play · Mixer · Edit · Voicing · Matrix).
+(`cantus_core::inst::chorda`), grouped by `VOICING_GROUPS`; the **advanced voicing**, the second
+page of Chorda's Edit view (`View::Voicing`; the switch *Parts · Advanced voicing* at the top of
+both; a fifth header segment cut the instrument's name in Spanish at the narrowest window). Six
+cards, each with its picture from the voicing itself (the technician's number dashed, the one set
+over it); a row whose cards' cells would shrink stacks them. Screenshots:
+`F:\projects\cantus-work\listen\chorda-presets\capturas\` (Slate Lapis and its paper, En and Es).
 
 | Group | New controls | Range (default) | Chorda's own, shown with them |
 |---|---|---|---|
@@ -43,7 +47,7 @@ Each still a real instrument: nothing over the model, only its voicing and Chord
 |---|---|---|---|
 | Dark Felt | upright, black | soft felt (−80 %, the treble −40 %), the top rolled off at 4.5 kHz, overtones and treble shorter, the knock lower and louder, the key's return, mics over the hammers, lid shut | no free felt piano exists (CC0/CC BY): the shipped Chorda |
 | Imposing Concert | concert, black | harder hammers, more mass, longer bass, a stronger, lower formant (520 Hz +14 dB), a wider pair, uneven unisons, a large room | the Salamander (Yamaha C5) and the bitKlavier Stage Lid ORTF (Steinway D) |
-| Bright Pop | grand, white | hard treble felt, overtones longer, the top open (16 kHz), the low formant (120 Hz), compressed dynamics, close mics | the Salamander (close pair) |
+| Bright Pop | grand, white | hard treble felt, overtones longer, the top open (16 kHz), the low formant (150 Hz), compressed dynamics, close mics | the Salamander (close pair) |
 | Intimate Close | parlour, black | the action heard (knock, key return), a wide close pair, a soft top (5 kHz), a small room | the bitKlavier Piano Bar and the Upright Piano KW |
 | Upright Parlour | upright, walnut | soft felt (−70 %, the treble −80 %), short stiff strings (stiffness 130 %), short middle and treble, open unisons (6 ct, uneven), no bass weight (the formant −12 dB at 150 Hz), the case over the top (2 kHz) | the Upright Piano KW (Kawai upright, at the pianist's head) |
 | Vintage Honky-Tonk | upright, rosewood | the widest unisons (8 ct, uneven, a strong second polarisation), hard hammers, compressed dynamics, a short treble, a thin bass, a loud action, bright | the Old Piano FB (Francis Bacon player piano) |

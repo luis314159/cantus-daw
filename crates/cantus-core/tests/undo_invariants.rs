@@ -9470,7 +9470,7 @@ fn round42_voicing_command(rng: &mut Lcg, project: &mut Project) -> (usize, Comm
         );
     }
     let track = chordas[rng.below(chordas.len() as u64) as usize];
-    let mut set = |rng: &mut Lcg| {
+    let set = |rng: &mut Lcg| {
         let key = keys[rng.below(keys.len() as u64) as usize];
         let i = cantus_core::inst::chorda::param(key).unwrap();
         // A little past either end now and then: the spec clamps it.

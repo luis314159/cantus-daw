@@ -24,7 +24,7 @@ fn the_new_knobs_at_their_defaults_are_nothing() {
     assert_eq!((c17.knock_bass, c17.blow_bass), (1.0, 1.0));
     assert_eq!(&c17.knock_shape[8..], &[0.0, 0.0]);
     for m in 21..=108u8 {
-        let mut w = c17.clone();
+        let mut w = c17;
         w.knock_treble_shape = KNOCK_TOP_AS_IS;
         assert_eq!(w.knock_shape_of(m), c17.knock_shape_of(m));
     }
@@ -33,7 +33,7 @@ fn the_new_knobs_at_their_defaults_are_nothing() {
 #[test]
 fn the_trebles_shape_moves_the_top_alone_and_reaches_its_value_at_c7() {
     let mut v = Voicing::c17();
-    let base = v.clone();
+    let base = v;
     v.knock_treble_shape = [4.0, 2.0, 0.25, 0.5, 0.3, 900.0];
     for m in 21..=KNOCK_TOP_FROM {
         assert_eq!(v.knock_shape_of(m), base.knock_shape_of(m), "key {m}");
@@ -74,7 +74,7 @@ fn the_bass_knock_and_blow_scale_the_bass_alone() {
         perform(&mut c, &[(0, Ev::On(key, 0.8, 1))], 9_600, 256, 1)
     };
     let base = Voicing::c17();
-    let mut low = base.clone();
+    let mut low = base;
     low.knock_bass = 0.1;
     low.blow_bass = 0.1;
     assert!(play(&low, 24) != play(&base, 24), "the bass did not move");
