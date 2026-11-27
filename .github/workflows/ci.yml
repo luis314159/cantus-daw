@@ -16,7 +16,8 @@ name: CI
 # the files a test reads, which still trigger: the manual (xtask builds it and checks its
 # pictures and links), THIRD-PARTY-NOTICES.md (the notices check), PRIVACY.md (About's
 # links), the site's top.rs (the download link's name test) and release.yml (the ASIO
-# hash and the installer name tests). `paths` with `!` patterns is used instead of `paths-ignore`
+# hash and the installer name tests), and tools/soundlab/subjects/ (the listening kits
+# compile their subjects in). `paths` with `!` patterns is used instead of `paths-ignore`
 # because only `paths` can re-include a file after excluding its folder; later patterns
 # win. The two lists below are the same; xtask's `ci_paths` test keeps them equal and
 # checks that every document a test reads is re-included (ADR 0048 §2).
@@ -38,6 +39,7 @@ on:
       - "docs/RELEASING.md"
       - "docs/releases/PREFLIGHT.md"
       - "tools/release/**"
+      - "tools/soundlab/subjects/**"
       - "web/src/top.rs"
       - "web/build.rs"
       - "web/site_version.rs"
@@ -58,6 +60,7 @@ on:
       - "docs/RELEASING.md"
       - "docs/releases/PREFLIGHT.md"
       - "tools/release/**"
+      - "tools/soundlab/subjects/**"
       - "web/src/top.rs"
       - "web/build.rs"
       - "web/site_version.rs"
