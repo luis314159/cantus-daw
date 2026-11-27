@@ -1401,3 +1401,103 @@ over Drawn, the picture at 100 %), `collar-400.png` (the knot and both collar po
 scratchpad): `shoot_arcus --hold=man --only=violin-play-+-night --scales=1` and
 `--scales=2 --ppp=2`, the picture cropped at (8, 60)–(600, 490) and the knot at
 (158, 192)–(262, 282) of the 100 % window.
+
+## arcus-polish6 (2026-11-26/27): the neckline, the edge line, the far band
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 89243a276. The
+coordinator's list after sheet7, in order, with the coordinator's rulings mid-pass. ADR 0159
+amended ("The polish, pass 6"). The left hand and the hand geometry code in
+`build_figures.py` are arcus-hands' (untouched).
+
+**The MakeHuman inputs** (new, and why pass 5's V trials were void): the system assets in
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys` had lost their `skins` and `clothes`
+(a temp folder); `build_figures.py` failed halfway, left its out folder empty, and
+`CANTUS_FIGURE_DIR` read the embedded figure in silence — so `V_DEPTH` 8, 6.5 and 4 "gave
+the same patch". The assets the converter reads are now extracted durably in
+`F:\projects\daw-r42\tmp\mh-sys` (from `mh-dl\sys.zip`: `skins/young_caucasian_*`,
+`clothes/shoes04`, `clothes/male_elegantsuit01`, `eyes`, `eyebrows`, `eyelashes`, `hair`,
+`packs`); the data folder is still `C:\Users\luis1\AppData\Local\Temp\claude\mh-src\mh\makehuman\data`
+(copy it somewhere durable before a clean-up). `build_figures.py` checks every input before
+any work and exits naming what is missing (`NEEDED`, `check_inputs`); `CANTUS_FIGURE_DIR`
+says on stderr when a file is not in its folder and the embedded one is read. With the
+committed inputs the converter reproduces `woman.fig` and her lids byte for byte (V 11).
+`CANTUS_V_DEPTH` sets `V_DEPTH` for a run.
+
+**Done** (where; the measures):
+1. *Her V neckline* (`build_figures.py::V_DEPTH` 11 → 7; `woman.fig`, `woman_lids.bin`
+   regenerated): with the real figure, `V_DEPTH` moves the point — the sleeve test's patch at
+   the frog 1096 px at 200 % (V 11), 631 (6), 324 (4), 25/0 (2). The coordinator: keep a
+   moderate V (the dress's design; ref-04), seen under the forearm it reads as the neckline,
+   not as a hole. Sheets `tmp\polish6\sheet-v\neckline-{photo,drawn}-{100,200}.png` (old V 15
+   over new V 7 at the frog, 0.2, the middle and the tip).
+2. *The sleeve test* (`no_skin_shows_through_or_under_her_bow_sleeve`) fails only on islands:
+   a patch of skin under the forearm that is not the chest region (the picture's largest
+   patch of skin), that dark cloth frames (`SLEEVE_RING` 0.6 of the pixels round it darker
+   than `SLEEVE_DARK`), at least `SLEEVE_THIN` 4 px across (the viola's lit lower edge line
+   was a 56 × 6 strip) and at least `SLEEVE_ISLAND` 500 px at 100 % (the whole patch). It
+   reports every island's size. V 7: islands of 119–410 px (the sliver at the frog and 0.2)
+   — passes; the old V 15 (`CANTUS_FIGURE_DIR` = `tmp\polish5\oldfig`): 638–2121 px at
+   0.05–0.3, both styles, both instruments — fails.
+3. *The back lights' edge line on small steep forms* (the specks gate's largest group): its
+   share is the cloth's form's size — on the live arm per vertex (`figure::cloth::broad`, the
+   radius of curvature at rest from the normals' turn along the cloth's edges, eased from 0 at
+   0.8 cm to 1 at 2.0, `cloth::EDGE_SMALL`; the concert's colour from a second map without the
+   line, `LutAt::colour_sized`, slots 8–9), in the bake per sample (`px_shade::edge_size`: the
+   footprint over the normal's turn and its slope, `normal_turn` now taken for velvet and
+   wool). His cuff buttons' rings and the shoulder's fold-lip dots are gone; the gate 185 →
+   147 strays on the final build (`rim_r0`, `rim_r1` tune it).
+4. *His crown's bright single strands* (`bowed_human::TIPS` thickness 2.0 → 1.2,
+   `px_bowed::TIP_ALBEDO` 2.4 → 1.6, `tip_albedo` tunable): the tips over the hair are faint
+   strands; the outline stays broken.
+5. *Tunables added*: `knot_lap_ru`, `_rv`, `_h0`, `_hr` (the lift's ramps, soft now);
+   `drawn_beside_mode` 2 (below); `probe_x`, `probe_y` (every Drawn figure triangle over a
+   point, printed); `strip_probe_x`, `_y` and `strip_pass_edges` (the live outline strips);
+   `arm_shadow_reach`, `arm_shadow_depth` (the forearm's shadow on the trunk);
+   `contact_depth`, `contact_sigma` (the skin's shade at a cloth's edge).
+
+**Open** (in the order the owner will see them):
+0. *The far collar band in Drawn* (`drawn_beside_mode`, default 0 = pass 5: the neck meets
+   the tie on the violin's side). Tried this pass: (a) the band sorted by its middles and
+   kept out of the instrument's faces on screen (`Shape::Poly`'s `out`, a mask): the band
+   then lost to the stretched jacket triangles the tuck leaves (`Wool`, nearer by ~1.5 cm at
+   the knot's right) — nothing showed; (b) nearer by 0.5–4 cm and kept out of the chin rest's
+   ebony only: it showed, striped by the top's grain decals (sorted just nearer than the
+   top's nearest cell) and in shards; (c) a layer of its own (`Layer::Front`) kept out of the
+   chin rest and the figure's nearer skin, tie and hair (grown 0.6 pt): with every marked
+   triangle, white shards ran down past the knot over the jacket and the varnish (a triangle
+   with a tucked corner is a sliver); with only the band kept where it is (every corner
+   untucked, `uv[1]` now carries the tuck), too few triangles are left to make a band.
+   Next: draw the band from the Photographic picture's own pixels for that patch, or tuck by
+   whole triangles (a triangle tucked when its middle is), so the kept band has clean edges.
+0b. *The collar's points over the knot* (`knot_lap=1`): with the softer ramps the white curl
+   is still there (the collar point's own jagged tip lifted onto the knot); off.
+1. *The thin white diagonal line on her dress under the neckline* (every picture, both
+   styles, the same place at every bow position, about (257, 315) of the 100 % window): a
+   live arm's cloth outline strip — `strip_small_px=1000` removes it; `drawn_skip` of every
+   kind does not (not the bake); not a strip between the two passes (`strip_pass_edges=0`
+   leaves it). `strip_probe_x/_y` did not catch it at the window's or the picture's
+   coordinates — find the space `sc.sp` is in, then which arm and edge.
+2. *Her Drawn neck dot* (192, 277): not a sort (a velvet bias of 0.4–2 cm leaves it): no
+   figure triangle covers that point but the dress's (`probe_x/_y`) — a hole between skin
+   triangles (a T-junction of the dress's cut, `build_figures.py::cut`) through which the
+   velvet behind shows. Next: weld the cut's T-junctions, or a wider seam on skin.
+3. *The neckline's edge and the forearm's shadow* (the coordinator: hem thickness and outline
+   where the dress meets the skin, the forearm's cast shadow on the chest): the tunables
+   above change nothing on her — her bake takes the skin from its texture, not from the
+   contact detail, and the trunk shadow does not reach there. Bake work; not started.
+4. `arcus_figure_specks` 147 strays (185 before; none in the room); most are the earlier camera's
+   bow hand (arcus-hands').
+5. `arcus_hold_budget` on an idle machine; the WSL Linux check.
+
+**Gates** (the final build, release, the committed figures — `woman.fig` at V 7):
+`arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
+`scene_identity` ✓, `arcus_figure_auto` ✓, `arcus_arm_pose` ✓ (the left arm's ignored for
+arcus-hands), `arcus_figure_shape` ✓, the sleeve test ✓ on V 7 and ✗ on the old V 15 (as it
+must), `arcus_figure_specks` ✗ 147 (Open 4), clippy `-D warnings` on cantus-ui ✓.
+
+**Sheets** (never committed; `F:\projects\daw-r42\tmp\polish6\`): `sheet-v\` (the
+neckline), `sheet6\` (before = 89243a276's binary, after = this pass's final build:
+`man-100.png`, `man-400.png` — the collar and the knot; `woman-100.png`, `woman-400.png` —
+the neckline; `his-hair-200.png`). The sheet script: the scratchpad's `sheet6.py <before>
+<after> <out>` (shots from `shoot_arcus --hold=man|woman --only=violin-play-+-night
+--scales=1` and `--scales=2 --ppp=2`).

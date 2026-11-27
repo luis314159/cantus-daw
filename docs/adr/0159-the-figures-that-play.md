@@ -508,6 +508,29 @@ occluding capsules in its live painter.
     - **`CANTUS_TUNE`** (`figure::tune`): any number under study set for a process
       (`collar_*`, `knot_*`, `despike_*`, `tips_*`, `his_*`, `small_part`, `strip_small_px`,
       `drawn_skip`) — a release build takes an hour on the shared machine.
+  - **The polish, pass 6: the neckline, the edge line, the far band** (amendment,
+    2026-11-27, r42:arcus-polish6 — the coordinator's list after sheet7 and rulings):
+    - **Her V neckline is the dress's design** (`build_figures.py::V_DEPTH` 7, 11 before):
+      under the bow forearm at the frog and at the figure's start its point shows as a
+      sliver past the arm, which reads as the neckline; a moderate V as ref-04's dress, not
+      a high one (2 cm hid the point and changed the design). Pass 5's trials had read the
+      embedded figure: the converter now checks its inputs before any work and
+      `CANTUS_FIGURE_DIR` says on stderr when it falls back.
+    - **The sleeve test fails on islands only**: skin under the forearm that is not the
+      chest region (the largest patch), framed by dark cloth, at least 4 px across and
+      500 px at 100 % — V 7's sliver is 119–410 px, the old V 15's diamond 638–2121.
+    - **The back lights' edge line by the form's size**: a cloth's form under 0.8 cm of
+      radius takes none of it, over 2 cm all (`figure::cloth::broad` per vertex on the live
+      arm, `px_shade::edge_size` per sample in the bake) — his cuff buttons' rims and the
+      folds' lips no longer light as rings and dots; a sleeve's and a shoulder's outline
+      keep it.
+    - **His crown's tips thinner and darker** (1.2 × the wisps' radius, 1.6 × his hair's
+      albedo): over the hair they are faint strands, at the outline they still break it.
+    - **Still open**: Drawn's far collar band (a layer of its own over the picture, kept out
+      of the chin rest and the figure's nearer parts, is built as `drawn_beside_mode` 2; the
+      tuck's slivers make it shards — default left out as pass 5), the collar's points over
+      the knot, a live outline strip on her dress, her Drawn neck dot (a hole between skin
+      triangles), the neckline's edge and the forearm's shadow in the bake.
 - **Arcus is the first client**: `bowed_human::arcus_rig` builds its PlayRig from the
   stylised skeleton (the chin rest under a chin; the instrument's seat behind a cello or a
   bass; the stylised figure's knees and ankles; the live arms' poses) and `bowed_human::body`
