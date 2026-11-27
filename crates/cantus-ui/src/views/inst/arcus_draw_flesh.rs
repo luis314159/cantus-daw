@@ -712,6 +712,11 @@ struct Scratch {
     /// last picture was filled for (the skinning's key and its rectangle).
     ras: RefCell<super::raster::Raster>,
     ras_key: [Option<([V3; 8], egui::Rect)>; 4],
+    /// r42 integration — where each pass's picture lies (the raster's own rectangle when it
+    /// was filled): the one raster is filled pass after pass, so at rest, its rectangle was
+    /// the last pass's — the bow arm's — and the left hand's picture was drawn there, the
+    /// left hand gone (Photographic, High, a still hand: `arcus_hold` with no vibrato).
+    ras_at: [Option<egui::Rect>; 4],
     col: Vec<[Color32; 3]>,
     order: Vec<(f32, u32)>,
     ao: Vec<f32>,
@@ -1908,6 +1913,7 @@ pub fn arm(
             sc.ras_key[slot] = Some((key, ras_rect));
             let ss = ras_samples(b.ppp());
             sc.ras.borrow_mut().begin(ras_rect, b.ppp(), ss);
+            sc.ras_at[slot] = Some(sc.ras.borrow().rect());
         }
         let tri_box = |p: &[Pos2]| egui::Rect::from_points(p);
         let in_ras = |bx: egui::Rect| rast && ras_rect.is_positive() && ras_rect.intersects(bx);
@@ -2188,8 +2194,7 @@ pub fn arm(
                 }
             }
         }
-        if rast && ras_rect.is_positive() {
-            let rect = sc.ras.borrow().rect();
+        if let (true, Some(rect)) = (rast && ras_rect.is_positive(), sc.ras_at[slot]) {
             let tex = super::raster::upload(b.ctx(), slot, &mut sc.ras.borrow_mut(), fresh);
             if let Some(tex) = tex {
                 b.foreign(tex, rect);

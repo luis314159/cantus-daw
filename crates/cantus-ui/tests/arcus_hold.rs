@@ -151,6 +151,7 @@ fn the_stop_marker_holds_three_to_one_in_every_theme() {
 /// mannequin, both looks — away from the sounding string and the fingers' arches in front.
 #[test]
 fn the_left_hand_passes_behind_the_neck() {
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
     use cantus_core::inst::InstrumentKind;
     use cantus_engine::EngineHandle;
     use cantus_ui::scene::{self, SceneBackend, SceneView, Subject};
@@ -216,7 +217,18 @@ fn the_left_hand_passes_behind_the_neck() {
                         instrument: b,
                         holder: h,
                     },
-                    room: scene::Room::Studio,
+                    // (r42 integration: the room the view draws in — `arcus_draw::scene_view`'s
+                    // rule: a realistic figure under concert light stands on the stage. The
+                    // Studio bake held the Photographic cello woman's pixel beside her neck,
+                    // the stage's black backdrop in the shot, to the studio's tan curtain.)
+                    room: if app.settings.figure_light
+                        == cantus_ui::scene::figure::Lighting::Concert
+                        && cantus_ui::scene::bowed_human::who(h.hold).is_some()
+                    {
+                        scene::Room::Stage
+                    } else {
+                        scene::Room::Studio
+                    },
                     look: Default::default(),
                     dark: true,
                     selected: None,
@@ -353,8 +365,13 @@ fn the_left_hand_passes_behind_the_neck() {
                     })
                     .map(|pc| (to_px(pc.a), to_px(pc.b), pc.ra.max(pc.rb)))
                     .collect();
+                // (r42 integration: the sounding string as `arcus_draw_body::live` draws it — its
+                // swing, up to 0.63 cm at a full level on a cello-sized body, and its 3 pt
+                // glow: with the bake on the view's own room, the cello woman's next sample
+                // lay under the string's gold band, a pixel the figure has no part in.)
+                let swing = 0.63 * d.body / 75.7;
                 let clear = |p: egui::Pos2| {
-                    !near_seg(p, to_px(bridge), to_px(nut), 1.5 + 0.3 * cm)
+                    !near_seg(p, to_px(bridge), to_px(nut), 4.5 + (0.3 + swing) * cm)
                         && fronts
                             .iter()
                             .all(|&(a, e, r)| !near_seg(p, a, e, 1.5 + r * cm))
@@ -510,6 +527,30 @@ fn the_left_hand_passes_behind_the_neck() {
                         })
                     })
                 };
+                // (r42:arcus-hands, pass 7: CANTUS_HOLD_SHOT=<dir> keeps the shot of a failing
+                // case, to look at what covers the pixel; r42 integration: and the bake it is
+                // held to, as a PPM, with where the picture lies in the shot.)
+                let keep = |what: &str| {
+                    let Ok(dir) = std::env::var("CANTUS_HOLD_SHOT") else {
+                        return;
+                    };
+                    let dir = std::path::Path::new(&dir);
+                    let _ = canvas
+                        .write_png(&dir.join(format!("hold-{be:?}-{b:?}-{hold:?}-{what}.png")));
+                    let mut ppm =
+                        format!("P6\n{} {}\n255\n", baked.size[0], baked.size[1]).into_bytes();
+                    for c in &baked.pixels {
+                        ppm.extend_from_slice(&[c.r(), c.g(), c.b()]);
+                    }
+                    let _ = std::fs::write(
+                        dir.join(format!(
+                            "bake-{be:?}-{b:?}-{hold:?}-{what}-at-{:.1}-{:.1}.ppm",
+                            rect.min.x * PPP,
+                            rect.min.y * PPP
+                        )),
+                        ppm,
+                    );
+                };
                 for (w, by_neck) in samples {
                     let p = to_px(w);
                     let hid = if by_neck {
@@ -528,19 +569,12 @@ fn the_left_hand_passes_behind_the_neck() {
                         continue;
                     }
                     let (got, want, diff) = pixel(p);
-                    // (r42:arcus-hands, pass 7: CANTUS_HOLD_SHOT=<dir> keeps the shot of a
-                    // failing case, to look at what covers the pixel.)
                     if diff > 40 {
-                        if let Ok(dir) = std::env::var("CANTUS_HOLD_SHOT") {
-                            let _ = canvas.write_png(&std::path::Path::new(&dir).join(format!(
-                                "hold-{be:?}-{b:?}-{hold:?}-{:.0}-{:.0}.png",
-                                p.x, p.y
-                            )));
-                            println!(
-                                "{be:?} {b:?} {hold:?}: {p:?} by_neck {by_neck}, local {:?}",
-                                local(w)
-                            );
-                        }
+                        println!(
+                            "{be:?} {b:?} {hold:?}: {p:?} by_neck {by_neck}, local {:?}",
+                            local(w)
+                        );
+                        keep(&format!("{:.0}-{:.0}", p.x, p.y));
                     }
                     assert!(
                         diff <= 40,
@@ -556,6 +590,9 @@ fn the_left_hand_passes_behind_the_neck() {
                     .map(|w| pixel(to_px(w)).2)
                     .max()
                     .unwrap_or(0);
+                if shows <= 40 {
+                    keep("finger");
+                }
                 assert!(
                     shows > 40,
                     "{be:?} {b:?} {hold:?}: the playing finger's arch is hidden ({shows} at most)"
@@ -698,4 +735,147 @@ fn the_left_arm_keeps_the_photographs_angles() {
             }
         }
     }
+}
+
+/// r42 integration — one at a time: the shots set the process's scene backend.
+static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// r42 integration — the realistic figures' hands in the Photographic picture at High,
+/// still (no vibrato: nothing moves, so after its first frame each arm's picture is drawn
+/// again, not filled), shot twice running on one context as the app draws frame after
+/// frame: each hand's skin on screen is the hand, skin-coloured over most of it, not the
+/// picture behind it nor a flat fill. (The arm raster's picture at rest was drawn in the
+/// last-filled pass's rectangle, the bow arm's: the left hand vanished and a white block
+/// stood where the shot renderer had no texture; `the_left_hand_passes_behind_the_neck`'s
+/// finger check passed on it only while its bake was the wrong room.)
+#[test]
+fn a_still_hand_at_high_is_drawn_in_every_frame() {
+    let _turn = TURN.lock().unwrap_or_else(|e| e.into_inner());
+    use cantus_core::inst::InstrumentKind;
+    use cantus_engine::EngineHandle;
+    use cantus_ui::scene::{self, SceneBackend};
+    use cantus_ui::{views, welcome_project, CantusApp};
+    views::inst::chorda::scene::hybrid::register();
+    scene::set_blocking(true);
+    const PPP: f32 = 2.0;
+    scene::backend::set_default(SceneBackend::PerPixel);
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx);
+    let mut looked = 0;
+    for (inst, b, string, key) in [
+        (2.0f32, Bowed::Violin, 3.0f32, 81.0f32),
+        (0.0, Bowed::Cello, 3.0, 59.0),
+    ] {
+        for hold in [Hold::Woman, Hold::Man] {
+            let mut app =
+                CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
+            app.settings.arcus_holder = Holder::of(hold);
+            app.settings.figure_quality = cantus_ui::scene::figure::Quality::High;
+            app.demo_editor("arcus");
+            let t = app.inst.open.expect("an Arcus editor");
+            app.set_inst_value(t, "inst", inst, false);
+            views::inst::arcus::demo_feed(&mut app);
+            if let Some(tele) = app.inst.injected.as_mut() {
+                tele[cantus_dsp::arcus::tel::STRING] = string;
+                tele[cantus_dsp::arcus::tel::KEY] = key;
+                tele[cantus_dsp::arcus::tel::VIBRATO] = 0.0;
+            }
+            let size = views::inst::editor_size(InstrumentKind::BowedString);
+            for run in 0..2 {
+                views::inst::arcus::probe::record(true);
+                let canvas = cantus_ui::raster::shoot(&ctx, size, PPP, 4, None, |ui| {
+                    views::inst::window_in(&mut app, ui)
+                });
+                let arms = views::inst::arcus::probe::arms();
+                views::inst::arcus::probe::record(false);
+                for side in [0usize, 1] {
+                    let arm = arms
+                        .iter()
+                        .find(|a| a.side == side)
+                        .unwrap_or_else(|| panic!("{b:?} {hold:?}: no arm {side} drawn"));
+                    let (n, skinlike, flat) = hand_pixels(&canvas, arm, PPP);
+                    let tag = format!("{b:?} {hold:?} arm {side}, run {run}");
+                    assert!(n > 400, "{tag}: the hand covers {n} px");
+                    // Most of the hand is skin (the bow's stick, the neck and the strings
+                    // over it take the rest); none of it a flat white or black block.
+                    assert!(
+                        skinlike as f32 >= n as f32 * 0.4,
+                        "{tag}: {skinlike} of {n} px skin-coloured"
+                    );
+                    assert!(
+                        (flat as f32) < n as f32 * 0.05,
+                        "{tag}: {flat} of {n} px one flat colour"
+                    );
+                    looked += 1;
+                }
+            }
+        }
+    }
+    scene::backend::set_default(SceneBackend::Vector);
+    assert_eq!(looked, 16);
+}
+
+/// The pixels of `arm`'s skin triangles on `canvas` (at `ppp`): how many, how many are
+/// skin-coloured (warm: red over green over blue, lit enough), and how many share the
+/// commonest exact colour when that colour is pure white or near black (a missing picture).
+fn hand_pixels(
+    canvas: &cantus_ui::raster::Canvas,
+    arm: &cantus_ui::views::inst::arcus::probe::Arm,
+    ppp: f32,
+) -> (usize, usize, usize) {
+    let (w, h) = (canvas.width, canvas.height);
+    let mut mask = vec![false; w * h];
+    for t in &arm.tris {
+        if !t.iter().all(|&i| arm.skin[i as usize]) {
+            continue;
+        }
+        let q = t.map(|i| arm.screen[i as usize] * ppp);
+        let x0 = q.iter().map(|p| p.x).fold(f32::MAX, f32::min).max(0.0) as usize;
+        let x1 = (q.iter().map(|p| p.x).fold(f32::MIN, f32::max).ceil() as usize).min(w);
+        let y0 = q.iter().map(|p| p.y).fold(f32::MAX, f32::min).max(0.0) as usize;
+        let y1 = (q.iter().map(|p| p.y).fold(f32::MIN, f32::max).ceil() as usize).min(h);
+        let (a, b, c) = (q[0], q[1], q[2]);
+        let den = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+        if den.abs() < 1e-6 {
+            continue;
+        }
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+                let l0 = ((b.y - c.y) * (px - c.x) + (c.x - b.x) * (py - c.y)) / den;
+                let l1 = ((c.y - a.y) * (px - c.x) + (a.x - c.x) * (py - c.y)) / den;
+                if l0 >= 0.0 && l1 >= 0.0 && l0 + l1 <= 1.0 {
+                    mask[y * w + x] = true;
+                }
+            }
+        }
+    }
+    let (mut n, mut skinlike) = (0, 0);
+    let mut counts = std::collections::HashMap::new();
+    for y in 0..h {
+        for x in 0..w {
+            if !mask[y * w + x] {
+                continue;
+            }
+            let p = canvas.pixel(x, y);
+            n += 1;
+            let (r, g, b) = (p[0] as i32, p[1] as i32, p[2] as i32);
+            if r > 60 && r > g && g > b {
+                skinlike += 1;
+            }
+            *counts.entry((p[0], p[1], p[2])).or_insert(0usize) += 1;
+        }
+    }
+    let flat = counts
+        .iter()
+        .filter(|(c, _)| {
+            let m = c.0.max(c.1).max(c.2);
+            c.0.min(c.1).min(c.2) >= 250 || m <= 6
+        })
+        .map(|(_, &k)| k)
+        .max()
+        .unwrap_or(0);
+    (n, skinlike, flat)
 }
