@@ -1608,12 +1608,11 @@ pub fn arm(
         sc.vout.resize(am.verts.len(), egui::Vec2::ZERO);
         sc.eout.clear();
         sc.eout.resize(am.edges.len(), egui::Vec2::ZERO);
-        // r42:arcus-polish6 — an edge is the outline only where the arm's surface really ends
-        // or turns away there: between a triangle this pass draws and one the other pass draws
-        // (behind the instrument or the neck, and in front) it is the arm's middle — its strip
-        // there was a thin light line over her dress under the neckline, in every picture
-        // (`strip_pass_edges` 1 draws them as before, while studied).
-        let pass_edges = crate::scene::figure::tune::tune("strip_pass_edges", 0.0) > 0.5;
+        // r42:arcus-polish6 — `strip_pass_edges` 0 draws no outline between a triangle this
+        // pass draws and one the other pass draws (behind the instrument or the neck, and in
+        // front): studied for the thin light line over her dress under the neckline — not it
+        // (the line stays); 1, the default, as before.
+        let pass_edges = crate::scene::figure::tune::tune("strip_pass_edges", 1.0) > 0.5;
         let open = |f0: bool, f1: bool, t0: u32, t1: u32| {
             let facing = |t: u32| t != u32::MAX && sc.cls[t as usize] & CLS_FACING != 0;
             f0 != f1 && (pass_edges || !(facing(t0) && facing(t1)))
