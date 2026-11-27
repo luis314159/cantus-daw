@@ -153,7 +153,7 @@ Después de este informe se hizo el **modelo 6**, que cambia cómo empieza cada 
 tambores. Las canciones que ya tenías siguen sonando exactamente igual con el modelo 5:
 una canción guardada antes recuerda el suyo, comprobado muestra a muestra. Los cambios:
 
-- cada modo del parche entra empujado por el contacto del palo (0,8 ms fuerte, 1,8 ms suave; el doble con la maza del bombo);
+- cada modo del parche entra empujado por el contacto del palo (0,8 ms fuerte, 1,8 ms suave; el doble con la maza del bombo). La literatura mide 3–8 ms en una caja o un tom real: este contacto es de 3 a 5 veces demasiado corto, otra razón para no seguir puliendo el modelo;
 - la bordonera llega con un retraso, por el aire de dentro del tambor;
 - el «knock» es el empuje del parche y ya no un ruido;
 - un golpe entre dos capas de velocidad ya no puede anularse a sí mismo: el bombo a 96 caía 3,3 dB bajo el de 80;

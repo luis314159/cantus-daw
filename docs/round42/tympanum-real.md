@@ -206,7 +206,7 @@ python -I tools/tympanum-real/law.py law.log <work>/hits <crates/cantus-dsp/src/
 
 ## 7. Done, and open
 
-**Done (branch `r42/tympanum-real`):** the library catalogued and fetched within the disk budget
+**Done (branch `r42/tympanum-real`), first session:** the library catalogued and fetched within the disk budget
 (≈ 2.3 GB downloaded: Aasimonster built for Tympanum 1.7 GB, Freesound 51 MB, GMD 9 MB; the CC0
 packs joined from the app's folder; MuldjordKit stopped at 0.8 GB when F: neared its floor — the
 manifest's `muldjordkit-tympanum` pack fetches it later; ShittyKit's old DrumGizmo format the
@@ -214,33 +214,81 @@ builder refuses, removed); the tools above; the measures of eight recorded kits 
 the level law and the jazz toms' burst
 (`DSP_VERSION` 19, ADR 0124's sixth amendment); the owner's previews and report.
 
-**Tests:** cantus-dsp `pulsus::measured` (the law interpolates; every table grows at every step;
-the burst table; the existing block-size, rest and
-choke tests), cantus-engine's Tympanum lib tests (14), `inst_contract` (51) and `rt_memory` (68) on
-the law; cantus-ui `tympanum_e2e`'s `every_modelled_piece_grows_with_the_velocity_through_the_app`
-through `CantusApp::assemble`.
+**Done, second session (ADR 0124's seventh amendment):**
 
-**Open, in the order the measures rank them:**
-1. **The onset** (§4.4): the generated snare's bands peak 5–10 ms early; the grooves' crest 2–10 dB
-   high. Model 6's contact-driven onset, the wires' cavity lag, the knock as the head's push.
-2. **The blend at one hit's seed (corrected 2026-11-26):** through the app, the studio kick at
-   velocity 96 comes out 3.3 dB under its 80 — struck 1 s or 4 s after the last hit alike, so it is
-   *not* the re-strike (an earlier note here said it was). 96 lies between the 80 and 110 layers
-   (x = 0.53, the main layer just switched to 110): the hit takes the main layer's onset phases with
-   both layers' amplitudes, and for some seeds they cancel. `LAW` fixes the mean of three seeds,
-   not one hit's. `every_modelled_piece_grows_with_the_velocity_through_the_app` (cantus-ui
-   `tympanum_e2e`) catches it and is `#[ignore]`d with this reason until model 6 blends the onset.
-3. **The blend's cause:** a hit between two layers takes its onset phases from the main layer and
-   its amplitudes from both — the source of the level law's lumps; `LAW` compensates the level,
-   model 6 should blend the onset itself.
-4. **Brushes** (§5), then **per-genre kits** measured off Aasimonster (metal), Gogodze (1970s
-   funk/soul), Big Rusty (1980s rock), Unruly (indie, brushes) — only against those recordings.
-5. **The snare's strike position** modal measure (its f0 under the wires), and the toms' other
-   modes.
-6. **The commercial comparison** (§2) on the owner's machine; the blind kit with the new genres.
-7. Catalogue: `drums-dg` and `drums-packs` are not `record`ed (the raw Aasimonster files were
-   deleted after the build for disk; the packs are the app's own); `fetch.py record` once they are
-   on disk again.
+- **Model 6** for a drum's onset (`pulsus_measured_onset.rs`; Tympanum's `model` 2; schema
+  **86**, `v86.cantus`):
+  - the contact phasor;
+  - one level draw per mode, with the modal power restored;
+  - the bands' rise and the wires' lag;
+  - the knock as the head's push;
+  - the moving-head re-strike;
+  - `LAW6`;
+  - a hat's stick fixed stroke to stroke.
+- **Model 1 renders bit-identical** to the previous model 5 binary (the studio drums' hits
+  compared byte for byte).
+- **Tools:** `onset.py`, `onset_fit.py`, `law6.py`, `quick_preview.py`, `brushes.py`,
+  `elements.py` and `elements_page.py`; `preview.py` takes `--labels`.
+- **For the owner** (`F:\projects\cantus-work\listen\tympanum-real\`):
+  - `m6/index.html`: the interim preview;
+  - `escuchar.html`: model 5 against model 6, all nine grooves and the three real recordings;
+  - `informe.html` with §4b;
+  - `analisis-elementos/index.html`: 12 pieces, each with clips, spectrograms, thirds, decay,
+    partials, variation and mics, a verdict per piece and a ranking.
+  - The previous pages are kept as `escuchar-ley-r42.html` and `informe-ley-r42.html`.
+- **§8, the pivot plan**, with the drums physics survey folded in.
+
+**Model 6's numbers** (weighted outside-range; groove crest, recorded range in brackets):
+
+| | model 5 | model 6 |
+|---|---|---|
+| studio, weighted outside | 13.7 | 12.8 |
+| jazz, weighted outside | 25.7 | 24.1 |
+| rock (studio) crest, dB [19.1–23.8] | 27.7 | **22.8** |
+| funk (studio) [20.9–27.8] | 30.2 | 29.1 |
+| gospel (studio) [19.4–27.2] | 27.8 | 29.8 |
+| hip-hop (studio) [20.5–25.1] | 26.5 | **23.2** |
+| jazz (jazz) [18.5–20.8] | 25.7 | 23.7 |
+| pop (studio) [23.7–29.3] | 27.9 | 28.5 |
+| punk (studio) [17.6–23.9] | 26.5 | 24.5 |
+| samba (studio) [15.5–24.7] | 26.4 | 26.3 |
+| soul (studio) [21.7–26.1] | 27.5 | **24.8** |
+
+The jazz kit's grooves improve more: punk 31.0 → 25.5, pop 34.4 → 27.8, rock 28.7 → 26.1.
+
+Per-band peak times of hard strokes, recorded median → studio → jazz (ms; lows / mids /
+1.5–4 kHz / 4–12 kHz / waveform):
+
+- snare: 9.7 / 13.6 / 18 / 26 / 10.4 → 3.5 / 6.0 / 25.5 / 29.4 / 2.6 → 11.7 / 6.0 / 39 / 34 / 6.1
+- kick: 7.2 / 9.3 / 8.7 / 7.1 / 10.1 → 21 / 2.2 / 1.9 / 3.9 / 5.8 → 18.7 / 31 / 31 / 29 / 17.3
+
+The first 10 ms crest over every drum, against the recorded median: studio −0.2 dB (model 5
++0.1), jazz +1.7 dB (model 5 +2.8).
+
+**The owner's ear:** model 6's rock, *"suena horroroso"*; everything modelled, *"todo era un
+desastre"*. Hence §8.
+
+**Open:**
+
+1. **The pivot (§8)**: rounds 43–44.
+2. **The modelled family's onset**: model 6's half-sine is 3–5× shorter than the measured 3–8
+   ms contact. Its next step is a Hunt–Crossley stick on the modal head, with the energy-driven
+   glide and air loading (§8 (c)).
+3. **The tables' faults** found piece by piece (`analisis-elementos`):
+   - the studio kick has no highs after its attack;
+   - hats, crash and toms carry 6–12 dB of extra lows at 100–200 Hz;
+   - the ride's bell lacks its 1 kHz note;
+   - the studio snare is hollow at 500–800 Hz, with a 200 Hz ring that lasts too long.
+
+   These matter only for the modelled family.
+4. **The hybrid's residual** was fitted on model 5's power, so it is stale for model 6
+   (`refit_hybrid.sh`, if the hybrid is kept at all once kits are sampled).
+5. **An old song cannot be moved to model 2** from the app (Chorda's preset path does it for
+   Chorda): a small command plus a line in the Kit view, if the owner wants it for the modelled
+   family.
+6. **Brushes** (§5, §8: sampled taps and sweeps); `brushes.py` holds the first measures.
+7. **The commercial comparison** and the blind kits (§2, §8).
+8. Catalogue: `drums-dg` and `drums-packs` are not `record`ed (`fetch.py record` once on disk).
 
 ## 8. The pivot: sample-first flagship kits (plan, 2026-11-26)
 
