@@ -132,9 +132,13 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
         .unwrap_or(hp::real_skin(0).albedo);
     // r42:arcus-polish5 — whether a shirt triangle lies over a held instrument's outline
     // (`bowed_human::clear_of_the_body` marks its corners): every corner (`drawn_beside_any`
-    // 1: any — the knot's top, where the collar's band turns in front of the neck, then
-    // showed its lining as a dark bow).
+    // 1: any). How the Drawn picture takes them (`drawn_beside_mode`): 0 (the default) leaves
+    // every such triangle out — the band there sorted by its middles drew white stripes
+    // between the chin rest's cells, sorted farther (1) it uncovered the shirt's shaded
+    // front under the collar's point as dark shards by the knot; left out, the Drawn collar
+    // goes under the chin rest as before pass 5, the Photographic picture keeps the band.
     let any = super::figure::tune::tune("drawn_beside_any", 0.0) > 0.5;
+    let leave_out = super::figure::tune::tune("drawn_beside_mode", 0.0) < 0.5;
     for (role, t) in &m.tris {
         let marked = |i: usize| {
             t.uv.get(i)
@@ -176,6 +180,12 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             let fnrm = if fnrm.dot(sn) < 0.0 { -fnrm } else { fnrm };
             let inside = !cam.facing(ctr, fnrm);
             if inside && !two_sided {
+                continue;
+            }
+            if leave_out && *role == Role::Shirt && t.uv.len() == t.pts.len() && {
+                let m = |i: usize| t.uv[i][0] == super::bowed_human::BESIDE_BODY;
+                m(i0) || m(i1) || m(i2)
+            } {
                 continue;
             }
             c.keep_facet(&q, fnrm, &base, 1.0);
