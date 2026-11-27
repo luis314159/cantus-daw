@@ -1,7 +1,9 @@
 //! A measured piece's strike and its render, sample by sample (see `pulsus_measured.rs`).
 
 use super::super::shape::Noise;
-use super::{split, Bank, Layer, Object, Strike, Table, BP_MS, CTRL, FRESH_NOISE, MAX_SLOTS, NB, NBP};
+use super::{
+    split, Bank, Layer, Object, Strike, Table, BP_MS, CTRL, FRESH_NOISE, MAX_SLOTS, NB, NBP,
+};
 use crate::math;
 use std::f32::consts::{LN_10, PI, TAU};
 
