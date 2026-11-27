@@ -398,12 +398,20 @@ const SUIT_LIFT: f32 = 0.12;
 /// r42:arcus-hand — each figure's hands scaled about the wrist (hers, his): the review
 /// found his hand, wrist crease to fingertip, longer than his face (a man's is about as
 /// long). `hand_rig.py::HAND_SCALE` is the same.
-pub const HAND_SCALE: [f32; 2] = [1.0, 0.93];
+/// (r42:arcus-hands: hers 1.08 — wrist crease to middle fingertip 15.5 cm, 0.095 of her
+/// 162.8 cm; a woman's hand is about 0.105 of her height: a small fist at the neck.)
+pub const HAND_SCALE: [f32; 2] = [1.08, 0.93];
 
 /// r42:arcus-hand — each figure's palm drawn in across toward the hand's middle line (hers,
 /// his): the owner found her hand "tosca", the palm bulging out of a slim wrist (her palm
 /// 1.25–1.64 times her wrist from the picture's camera; the photographs' about 1.25). The
 /// fingers' bases come in with it. `hand_rig.py::PALM_SLIM` is the same.
+/// (r42:arcus-hands, pass 6 — kept, though it draws her hand's breadth across the knuckles
+/// to 6.4 cm, ANSUR II's 0th percentile for her stature (7.7 ± 0.34; his 8.1, the 4th):
+/// 0.99 and 1.04 brought both to the middle half, but the slim factor moves the thumb's base
+/// out with the fingers', and the hands' outline at the middle stood 1.8–2.1 times the wrist
+/// from the camera (`arcus_hand_table`'s `PALM_WIDE`, the photographs' 1.1–1.3: the owner's
+/// "tosca"). The knuckles alone are spread at build instead: `build_figures.py::KNUCKLE_SPREAD`.)
 pub const PALM_SLIM: [f32; 2] = [0.86, 1.0];
 
 fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
@@ -928,6 +936,11 @@ pub struct HandAim {
 
 /// Set one arm's bones (`s` 0 left, 1 right) in `aims` through `a`, the shoulder where
 /// the body carries it.
+/// r42:arcus-hands — how far from its knuckle a finger that does not play may reach toward
+/// its pose's tip, as shares of its length (a curled finger round a bow's stick reaches
+/// about 0.6 of it; was 0.7).
+pub const RELAX: (f32, f32) = (0.55, 0.86);
+
 pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &ArmAim, sh: V3) {
     let o = side(s);
     let u = (a.elbow - sh).norm();
@@ -1028,10 +1041,28 @@ pub fn arm_aims(fig: &Figure, aims: &mut [Option<Aim>; BONES], s: usize, a: &Arm
             let tip = if f > 0 && h.exact != Some(f - 1) {
                 let d = j[3] - k0;
                 let full = l0 + l1 + l2;
-                k0 + d.norm() * d.len().clamp(0.7 * full, 0.86 * full)
+                k0 + d.norm() * d.len().clamp(RELAX.0 * full, RELAX.1 * full)
             } else {
                 j[3]
             };
+            // r42:arcus-hands — a finger's three joints bend together toward its tip (the
+            // last following the middle: `figure::fingers::curl`).
+            if f > 0 {
+                let c = super::figure::fingers::curl(k0, tip, j[1], [l0, l1, l2]);
+                for k in 0..3 {
+                    let (from, to) = (c[k], c[k + 1]);
+                    let d = to - from;
+                    let bone = &fig.bones[o + finger(f, k)];
+                    let rest = r.apply((bone.tail - bone.head).norm());
+                    aims[o + finger(f, k)] = Some(Aim {
+                        head: Some(from),
+                        y: d.norm(),
+                        x: Some(Rot::between(rest, d.norm()).mul(&r).apply(bone.x)),
+                        len: Some(d.len().max(0.2)),
+                    });
+                }
+                continue;
+            }
             let reach = (tip - k0).len();
             let sc = (reach / ((l0 + l1 + l2) * 0.97)).max(1.0);
             let (l0, l1, l2) = (l0 * sc, l1 * sc, l2 * sc);

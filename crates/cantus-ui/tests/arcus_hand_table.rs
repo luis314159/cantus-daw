@@ -66,6 +66,8 @@ fn dump_left_hand_inputs() {
                     }
                 }
             }
+            // r42:arcus-hands — the neck, the fingerboard and the body as drawn.
+            let solid = solid_of(b);
             let ys: Vec<f32> = (0..=120)
                 .map(|i| d.body - 4.0 + (nut_y(d) + 1.0 - d.body + 4.0) * i as f32 / 120.0)
                 .collect();
@@ -79,6 +81,7 @@ fn dump_left_hand_inputs() {
                 "board": ys.iter().map(|&y| serde_json::json!([y, board_w(d, y) * 0.5, board_z(d, y)])).collect::<Vec<_>>(),
                 "shoulder": j(arm.shoulder), "upper": arm.upper, "fore": arm.fore, "pole": j(arm.pole),
                 "eye": j(cam.eye()), "cam_f": j(cam.f), "cam_r": j(cam.r), "cam_u": j(cam.u),
+                "solid": solid.json(),
                 "rows": rows,
             }));
         }
@@ -88,6 +91,192 @@ fn dump_left_hand_inputs() {
         serde_json::to_string(&serde_json::json!({ "at": AT, "figs": all })).unwrap(),
     )
     .expect("write the dump");
+}
+
+/// r42:arcus-hands — the violin's or the viola's neck, fingerboard and body as the picture
+/// draws them, in the instrument's own frame (x the E side, y toward the scroll, z the
+/// fingerboard's normal): a signed distance (cm, negative inside) the hands are kept out
+/// of. The fingerboard's and the neck's sections are `bowed_head::neck`'s own patches'
+/// rows (the fingerboard's top arc and its underside; the neck's rounded back closed along
+/// its top), the body the outline with the plates' arching over and under the ribs.
+struct Solid {
+    board: Vec<(f32, Vec<(f32, f32)>)>,
+    shaft: Vec<(f32, Vec<(f32, f32)>)>,
+    outline: Vec<(f32, f32)>,
+    d: &'static cantus_ui::scene::bowed::Dims,
+}
+
+/// The signed distance from `p` to the closed polygon `poly` (negative inside).
+fn sd_poly(poly: &[(f32, f32)], p: (f32, f32)) -> f32 {
+    let n = poly.len();
+    let mut best = f32::MAX;
+    let mut inside = false;
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + 1) % n]);
+        let (dx, dy) = (b.0 - a.0, b.1 - a.1);
+        let l2 = (dx * dx + dy * dy).max(1e-12);
+        let t = (((p.0 - a.0) * dx + (p.1 - a.1) * dy) / l2).clamp(0.0, 1.0);
+        let (ex, ey) = (a.0 + dx * t - p.0, a.1 + dy * t - p.1);
+        best = best.min(ex * ex + ey * ey);
+        if (a.1 > p.1) != (b.1 > p.1) && p.0 < a.0 + (p.1 - a.1) / (b.1 - a.1) * dx {
+            inside = !inside;
+        }
+    }
+    if inside {
+        -best.sqrt()
+    } else {
+        best.sqrt()
+    }
+}
+
+fn solid_of(b: Bowed) -> Solid {
+    use cantus_ui::scene::bowed::{outline, Pose};
+    use cantus_ui::scene::bowed_head;
+    use cantus_ui::scene::bowed_mesh::{Mesh, Role};
+    let d = b.dims();
+    let mut m = Mesh::default();
+    let id = Pose {
+        o: V3::default(),
+        ex: V3 {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        },
+        ey: V3 {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0,
+        },
+        ez: V3 {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        },
+    };
+    bowed_head::neck(&mut m, d, &id);
+    // (The order `neck` pushes them in: the fingerboard's top, its two sides, its end, its
+    // underside, the nut, then the neck's back.)
+    let p = &m.patches;
+    let (top, under) = (&p[0].1, &p[4].1);
+    let shaft = &p[6].1;
+    assert!(
+        p[0].0 == Role::Ebony && p[4].0 == Role::Ebony && p[6].0 == Role::Maple,
+        "bowed_head::neck's patches as the solid reads them"
+    );
+    assert!(top.cols >= 3 && under.cols == 2 && under.rows == top.rows && shaft.cols >= 7);
+    let board = (0..top.rows)
+        .map(|r| {
+            let mut poly: Vec<(f32, f32)> = (0..top.cols)
+                .map(|c| {
+                    let q = top.pts[r * top.cols + c];
+                    (q.x, q.z)
+                })
+                .collect();
+            for c in [1, 0] {
+                let q = under.pts[r * 2 + c];
+                poly.push((q.x, q.z));
+            }
+            (top.pts[r * top.cols].y, poly)
+        })
+        .collect();
+    let shaft = (0..shaft.rows)
+        .map(|r| {
+            let poly: Vec<(f32, f32)> = (0..shaft.cols)
+                .map(|c| {
+                    let q = shaft.pts[r * shaft.cols + c];
+                    (q.x, q.z)
+                })
+                .collect();
+            (shaft.pts[r * shaft.cols].y, poly)
+        })
+        .collect();
+    Solid {
+        board,
+        shaft,
+        outline: outline(b, 8),
+        d,
+    }
+}
+
+impl Solid {
+    /// The signed distance (cm) of a section stack at local `q`: the two sections either
+    /// side of its y blended, past the stack's ends the distance to its end face.
+    fn stack(s: &[(f32, Vec<(f32, f32)>)], q: V3) -> f32 {
+        let (y0, y1) = (s[0].0, s[s.len() - 1].0);
+        let y = q.y.clamp(y0, y1);
+        let i = s
+            .iter()
+            .position(|r| r.0 >= y)
+            .unwrap_or(s.len() - 1)
+            .max(1);
+        let (a, b) = (&s[i - 1], &s[i]);
+        let t = ((y - a.0) / (b.0 - a.0).max(1e-6)).clamp(0.0, 1.0);
+        let poly: Vec<(f32, f32)> =
+            a.1.iter()
+                .zip(b.1.iter())
+                .map(|(p, r)| (p.0 + (r.0 - p.0) * t, p.1 + (r.1 - p.1) * t))
+                .collect();
+        let d2 = sd_poly(&poly, (q.x, q.z));
+        let e = (y0 - q.y).max(q.y - y1);
+        if e <= 0.0 {
+            d2.max(e)
+        } else if d2 > 0.0 {
+            (d2 * d2 + e * e).sqrt()
+        } else {
+            e
+        }
+    }
+
+    /// The body's signed distance at local `q` (the outline across, the top's arch over
+    /// the edge plane, the back's under the ribs).
+    fn body(&self, q: V3) -> f32 {
+        use cantus_ui::scene::bowed::{arch, dist, reach, rib};
+        let d = self.d;
+        let dd = dist(&self.outline, q.x, q.y);
+        let inside = sd_poly(&self.outline, (q.x, q.y)) < 0.0;
+        let (zt, zb) = if inside {
+            (
+                arch(d.arch, dd, reach(d)),
+                -rib(d, q.y.clamp(0.0, d.body)) - arch(d.arch_back, dd, reach(d)),
+            )
+        } else {
+            (0.42, -rib(d, q.y.clamp(0.0, d.body)) - 0.42)
+        };
+        let dz = (q.z - zt).max(zb - q.z);
+        let dxy = if inside { -dd } else { dd };
+        if dxy > 0.0 && dz > 0.0 {
+            (dxy * dxy + dz * dz).sqrt()
+        } else {
+            dxy.max(dz)
+        }
+    }
+
+    /// The signed distance at local `q`: the fingerboard, the neck, the body.
+    fn at(&self, q: V3) -> f32 {
+        Self::stack(&self.board, q)
+            .min(Self::stack(&self.shaft, q))
+            .min(self.body(q))
+    }
+
+    /// The dump's form: each section stack as [y, [[x, z], ...]] rows, the outline, the
+    /// plates' arching and the ribs.
+    fn json(&self) -> serde_json::Value {
+        use cantus_ui::scene::bowed::{reach, rib};
+        let st = |s: &[(f32, Vec<(f32, f32)>)]| {
+            s.iter()
+                .map(|(y, p)| {
+                    serde_json::json!([y, p.iter().map(|q| [q.0, q.1]).collect::<Vec<_>>()])
+                })
+                .collect::<Vec<_>>()
+        };
+        let d = self.d;
+        serde_json::json!({
+            "board": st(&self.board), "shaft": st(&self.shaft),
+            "outline": self.outline.iter().map(|q| [q.0, q.1]).collect::<Vec<_>>(),
+            "arch": d.arch, "arch_back": d.arch_back, "reach": reach(d), "flat_back": d.flat_back,
+            "ribs": (0..=40).map(|i| { let y = d.body * i as f32 / 40.0; [y, rib(d, y)] }).collect::<Vec<_>>(),
+        })
+    }
 }
 
 /// How far the playing finger's last phalanx may lean from the fingerboard's normal
@@ -102,7 +291,13 @@ const UPRIGHT: f32 = 30.0;
 /// never its palm nor its edge), and where the index finger's base knuckle sits against the
 /// neck's E side (cm out from the fingerboard's edge) and the knuckles' height against the
 /// fingerboard's top (cm).
-const WRIST: f32 = 8.0;
+/// (r42:arcus-hands: 16 — the photographs' 3–23°, median ~10; was 8, which kept the hand
+/// leaning along the neck.)
+const WRIST: f32 = 16.0;
+/// r42:arcus-hands — from the 9th semitone: the hand toward the body's shoulder, the forearm
+/// leaning along the instrument from an elbow the upper arm reaches (ref-40, crop-11), the
+/// wrist bent toward the back as well.
+const WRIST_HIGH: f32 = 30.0;
 /// How much wider the hand's outline may be at its middle than at the wrist's crease where
 /// the index or the middle finger plays low on the neck (the photographs: 1.1–1.3; ours
 /// 1.05–1.3 but one viola case at 1.42).
@@ -124,7 +319,26 @@ const BACK_WL_HIGH: f32 = 1.2;
 const FINGER_PALM: (f32, f32) = (0.95, 1.35);
 const BACK_TO_CAMERA: f32 = 0.2;
 const INDEX_OUT: (f32, f32) = (-0.5, 2.2);
-const KNUCKLES_UP: (f32, f32) = (-1.6, 2.6);
+/// r42:arcus-hands — the hand's line to the fingerboard's edge in the picture (degrees): the
+/// photographs' front views 70-89 (`left_hand_refs.md`), a few degrees' give.
+const HAND_NECK: (f32, f32) = (68.0, 92.0);
+/// r42:arcus-hands, pass 3 — the base knuckles' height over the fingerboard's top (cm), held
+/// to the photographs' span: `left_hand_refs.md` measures them from −1.5 (ref-02, high up)
+/// to +1.8 neck thicknesses (the owner's photograph 2, first position) — −3.0 … +3.7 cm on
+/// the 2.03 cm neck; the top at 3.4 (was 2.6, under the photographs' own: high up the hand
+/// clears the body's shoulder, the owner's "never sinking into the body", and stood its
+/// knuckles 2.6–3.2 cm over the top there), the floor at −1.6 (lower, the knuckles hide
+/// behind the neck from the audience).
+const KNUCKLES_UP: (f32, f32) = (-1.6, 3.4);
+/// r42:arcus-hands, pass 7 — from the 12th semitone (the hand at the neck's heel or past it)
+/// the thumb's tip in the heel's curve under the neck: down to this far under the
+/// fingerboard's top (cm; the heel's underside) and in from the G side to this share of the
+/// half width past the middle (`left_hand_refs.md` §5: "under the neck's shoulder in 3rd"; from
+/// the heel on the thumb stays there, hidden, while the fingers go on over the body — beside
+/// the fingerboard over the body there is no room for it over the top plate). Lower down it is
+/// up the G side, its tip about level with the fingerboard (−1.6 … +1.2, the G half).
+const THUMB_HIGH: f32 = -3.6;
+const THUMB_UNDER: f32 = 0.25;
 
 /// The angle between two ways, degrees.
 fn deg(a: V3, b: V3) -> f32 {
@@ -140,7 +354,7 @@ fn the_tables_hand_plays_as_a_violinists_does() {
     use cantus_ui::scene::figure::neck_hand;
     let size = egui::vec2(590.0, 430.0);
     let mut bad: Vec<String> = Vec::new();
-    let mut worst = [0.0f32; 7];
+    let mut worst = [0.0f32; 8];
     for (who, hold) in [(hu::Who::Woman, Hold::Woman), (hu::Who::Man, Hold::Man)] {
         for b in [Bowed::Violin, Bowed::Viola] {
             let h = Holder::of(hold);
@@ -243,9 +457,14 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                                 }
                             }
                         }
+                        // (r42:arcus-hands, pass 6: what the picture shows, as the photographs'
+                        // outline is measured — skin the neck hides from the eye, the thumb
+                        // and the palm's edge behind it, is not the hand's outline.)
+                        let eye = cam.eye();
                         let pts: Vec<V3> = (0..fig.pos.len())
                             .filter(|&i| used[i])
                             .map(|i| posed.vertex(fig, i))
+                            .filter(|&p| !hand::hidden_by_neck(p, eye, d, &rig.pose))
                             .collect();
                         let mid = (lp.fingers[1][0] + lp.fingers[2][0]) * 0.5;
                         let ax = (mid - lp.wrist).norm();
@@ -293,12 +512,12 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                     worst[0] = worst[0].max(upright);
                     worst[1] = worst[1].max((mcp - 57.5).abs());
                     worst[2] = worst[2].max((pip - 85.0).abs());
-                    worst[3] = worst[3].max((dip - 35.0).abs());
-                    if !(30.0..=80.0).contains(&mcp)
-                        || !(60.0..=110.0).contains(&pip)
-                        // (The little finger, the shortest, may land with its last joint
-                        // near straight, as a violist's often does on a long reach.)
-                        || !((if j == 3 { 0.0 } else { 10.0 })..=60.0).contains(&dip)
+                    worst[3] = worst[3].max((dip - 15.0).abs());
+                    // (r42:arcus-hands: open arches — the last joint nearly straight onto the
+                    // string, 5-20° in crop-08 and crop-11, the middle joint carrying the bend.)
+                    if !(15.0..=80.0).contains(&mcp)
+                        || !(50.0..=110.0).contains(&pip)
+                        || !(0.0..=45.0).contains(&dip)
                         || upright > UPRIGHT
                     {
                         bad.push(format!(
@@ -365,9 +584,26 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                             "{tag}: the back of the hand {wl:.2} wide over long"
                         ));
                     }
+                    // r42:arcus-hands — the hand standing up from the neck in the picture as
+                    // the photographs' front views show it (left_hand_refs.md: the hand's
+                    // line, wrist to the base knuckles, 70-89° to the fingerboard's edge; the
+                    // table before this pass stood it at ~65°): up to the octave.
+                    if semis <= 9.0 {
+                        let line = cam.p(mid) - cam.p(lp.wrist);
+                        let edge = cam.p(la.a) - cam.p(la.a + la.bw * 5.0);
+                        let a = line.angle() - edge.angle();
+                        let a = a.sin().atan2(a.cos()).to_degrees().abs();
+                        let a = if a > 90.0 { 180.0 - a } else { a };
+                        worst[7] = worst[7].max(HAND_NECK.0 - a).max(a - HAND_NECK.1);
+                        if !(HAND_NECK.0..=HAND_NECK.1).contains(&a) {
+                            bad.push(format!(
+                                "{tag}: the hand {a:.0}° to the neck in the picture"
+                            ));
+                        }
+                    }
                     let wrist = deg(lp.wrist - lp.elbow, mid - lp.wrist);
                     worst[5] = worst[5].max(wrist);
-                    if wrist > WRIST {
+                    if wrist > if semis >= 9.0 { WRIST_HIGH } else { WRIST } {
                         bad.push(format!("{tag}: the wrist bent {wrist:.0}°"));
                     }
                     worst[6] = worst[6].max(upright);
@@ -393,9 +629,18 @@ fn the_tables_hand_plays_as_a_violinists_does() {
                             ));
                         }
                     }
+                    // (r42:arcus-hands, pass 7: from the 12th semitone the hand is at or past the
+                    // neck's heel and the thumb's tip sits in the heel's curve under the neck,
+                    // hidden from the audience — THUMB_HIGH, THUMB_UNDER.)
+                    let high = semis >= 12.0;
+                    let (t_lo, t_x) = if high {
+                        (THUMB_HIGH, la.hw * THUMB_UNDER)
+                    } else {
+                        (-1.6, -la.hw * 0.5)
+                    };
                     if ix <= la.hw + index_in
-                        || tx >= -la.hw * 0.5
-                        || !(top - 1.6..=top + 1.2).contains(&tz)
+                        || tx >= t_x
+                        || !(top + t_lo..=top + 1.2).contains(&tz)
                     {
                         bad.push(format!(
                             "{tag}: the index's base at x {ix:.1}, the thumb's tip at x {tx:.1}, \
@@ -408,12 +653,139 @@ fn the_tables_hand_plays_as_a_violinists_does() {
         }
     }
     println!(
-        "worst: {:.0}° off upright, MCP ±{:.0}°, PIP ±{:.0}°, DIP ±{:.0}° from the ranges' middles; the back's least facing {:.2}, the wrist {:.0}°",
-        worst[0], worst[1], worst[2], worst[3], -worst[4], worst[5]
+        "worst: {:.0}° off upright, MCP ±{:.0}°, PIP ±{:.0}°, DIP ±{:.0}° from the ranges' middles; the back's least facing {:.2}, the wrist {:.0}°, the hand to the neck {:.0}° outside its range",
+        worst[0], worst[1], worst[2], worst[3], -worst[4], worst[5], worst[7]
     );
     assert!(
         bad.is_empty(),
         "{} of the hand's rules broken: {bad:#?}",
+        bad.len()
+    );
+}
+
+/// r42:arcus-hands — how far the playing fingertip's pad may press into its string and the
+/// fingerboard (cm), and anything else of the hand or the forearm into the neck, the
+/// fingerboard or the body (the skin's own sampling slack).
+const PAD_PRESS: f32 = 0.1;
+const SKIN_SLACK: f32 = 0.03;
+
+/// r42:arcus-hands — the owner, 2026-11-25: "a veces choca con el mástil" and, high up, "se
+/// solapa la mano y antebrazo con el cuerpo del violín". For every figure, instrument,
+/// string and a spread of positions up to the body, the skinned left hand and forearm are
+/// kept out of the neck, the fingerboard and the body as the picture draws them
+/// (`Solid`): only the playing fingertip's pad presses its string, by at most a millimetre.
+#[test]
+fn the_left_hand_keeps_out_of_the_neck_and_the_body() {
+    use cantus_ui::scene::bowed_human::{self as hu, finger, side};
+    let mut bad: Vec<String> = Vec::new();
+    let mut worst = (0.0f32, 0.0f32);
+    for (who, hold) in [(hu::Who::Woman, Hold::Woman), (hu::Who::Man, Hold::Man)] {
+        for b in [Bowed::Violin, Bowed::Viola] {
+            let h = Holder::of(hold);
+            let rig = rig_for(b, h);
+            let d = b.dims();
+            let arm = left_arm(b, h).expect("a figure");
+            let fig = hu::figure(who);
+            let base = hu::rest_body(b, who);
+            let solid = solid_of(b);
+            let o = side(0);
+            // The hand's and the forearm's own vertices (as the palm's gate takes them), and
+            // the bone each one follows most.
+            let mut used: Vec<(usize, u16)> = Vec::new();
+            for i in 0..fig.pos.len() {
+                let mine = fig.bw[i].iter().filter(|(b, _)| {
+                    (*b as usize) >= o + hu::FORE1 && (*b as usize) <= o + finger(4, 2)
+                });
+                let share: f32 = mine.clone().map(|x| x.1).sum();
+                if share > 0.6 {
+                    let top = mine.fold((0u16, 0.0f32), |a, x| {
+                        if x.1 > a.1 {
+                            (x.0 as u16, x.1)
+                        } else {
+                            a
+                        }
+                    });
+                    used.push((i, top.0));
+                }
+            }
+            let span = hand::span(true);
+            for string in 0..4 {
+                for semis in [1.0f32, 3.0, 5.0, 7.0, 9.0, 12.0, 14.0, 17.0] {
+                    let at = hand::target(1.0, semis, span);
+                    let l = hand::Left {
+                        rig: &rig,
+                        d,
+                        string,
+                        semis,
+                        at,
+                        rock: 0.0,
+                        side: rig.pose.ex,
+                        span,
+                    };
+                    let lp = hand::left_pose(&arm, &l);
+                    let j = lp.playing.expect("a stopped note");
+                    let aim = hu::ArmAim {
+                        elbow: lp.elbow,
+                        wrist: lp.wrist,
+                        hand: Some(hu::HandAim {
+                            fingers: lp.fingers,
+                            thumb: lp.thumb,
+                            exact: lp.playing,
+                            rots: lp.rots,
+                        }),
+                    };
+                    let posed = hu::repose_arm(fig, &base.0, 0, &aim);
+                    let pad = (o + finger(j + 1, 2)) as u16;
+                    let mut deep = [(0.0f32, 0u16); 2];
+                    for &(i, bone) in &used {
+                        let p = posed.vertex(fig, i) - rig.pose.o;
+                        let q = V3 {
+                            x: p.dot(rig.pose.ex),
+                            y: p.dot(rig.pose.ey),
+                            z: p.dot(rig.pose.ez),
+                        };
+                        let s = solid.at(q);
+                        let k = (bone != pad) as usize;
+                        if -s > deep[k].0 {
+                            deep[k] = (-s, bone);
+                        }
+                    }
+                    worst.0 = worst.0.max(deep[0].0);
+                    worst.1 = worst.1.max(deep[1].0);
+                    let tag = format!("{who:?} {b:?} string {string} +{semis}");
+                    if deep[0].0 > PAD_PRESS {
+                        bad.push(format!(
+                            "{tag}: the playing pad {:.1} mm in",
+                            deep[0].0 * 10.0
+                        ));
+                    }
+                    if deep[1].0 > SKIN_SLACK {
+                        let name = match deep[1].1 as usize - o {
+                            x if x == hu::FORE1 || x == hu::FORE2 => "the forearm".to_string(),
+                            x if x == hu::HAND => "the palm".to_string(),
+                            x => format!(
+                                "finger {} bone {}",
+                                (x - finger(0, 0)) / 3,
+                                (x - finger(0, 0)) % 3
+                            ),
+                        };
+                        bad.push(format!(
+                            "{tag}: {name} {:.1} mm into the instrument",
+                            deep[1].0 * 10.0
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "worst: the playing pad {:.1} mm in, anything else {:.1} mm",
+        worst.0 * 10.0,
+        worst.1 * 10.0
+    );
+    assert!(
+        bad.is_empty(),
+        "{} cases into the instrument: {bad:#?}",
         bad.len()
     );
 }

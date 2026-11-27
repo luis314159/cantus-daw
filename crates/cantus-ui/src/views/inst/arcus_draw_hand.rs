@@ -38,12 +38,21 @@ pub fn semis(st: f32) -> f32 {
 /// The hand's position for a note `s` semitones up, from where it is (`at`): it stays
 /// while the note lies under its fingers (an open string never moves it), else it shifts
 /// so the note falls under its first or its last finger, whichever is nearer.
+/// r42:arcus-hands, pass 4 — how far (semitones) the fourth finger reaches past the hand's
+/// position from the 12th semitone up.
+const HIGH_REACH: f32 = 3.0;
+
 pub fn target(at: f32, s: f32, span: f32) -> f32 {
     if s < 0.5 {
         return at;
     }
     // The note under the first finger at most, under the fourth at least.
-    let lo = (s - span).max(1.0);
+    // (r42:arcus-hands, pass 4: high up a held instrument's hand shifts rather than reach —
+    // from the 9th semitone the fourth finger's reach falls from the span to 3 by the 12th:
+    // the little finger's long reach from the 7th position put the palm into the body's
+    // shoulder, the coordinator: "let the hand shift or turn instead".)
+    let reach = span - (span - HIGH_REACH).max(0.0) * ((s - 9.0) / 3.0).clamp(0.0, 1.0);
+    let lo = (s - reach).max(1.0);
     let hi = s.max(1.0);
     if at < lo - 0.25 {
         lo
@@ -488,7 +497,90 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
     // top - depth ≤ z ≤ top
     bound(t0 + tk * ya - a.z, tk * yd - dir.z);
     bound(a.z - (t0 + tk * ya - depth), dir.z - tk * yd);
-    lo <= hi
+    if lo > hi {
+        return false;
+    }
+    // r42:arcus-hands, pass 5 — and through the neck as it is drawn, not its box: the
+    // fingerboard's slab, then the neck's rounded back under it. Skin in the box's lower
+    // corners (beside the rounded back) was taken for hidden, painted before the neck's stamp
+    // and stamped over with the picture's background: the saw-toothed chips at the hand's
+    // edge in third position.
+    (0..NECK_STEPS).any(|k| {
+        let t = lo + (hi - lo) * (k as f32 + 0.5) / NECK_STEPS as f32;
+        let q = a + dir * t;
+        let (w, top) = (w0 + wk * q.y, t0 + tk * q.y);
+        let r = (q.x / w.max(1e-3)).clamp(-1.0, 1.0);
+        q.z <= top && q.z >= top - NECK_SLAB.max(depth * (1.0 - r * r).sqrt())
+    })
+}
+
+/// r42:arcus-hands, pass 5 — the fingerboard's own thickness (cm) over the neck's rounded
+/// back, and the samples along a ray's way through the neck's box.
+const NECK_SLAB: f32 = 0.55;
+const NECK_STEPS: usize = 10;
+
+/// r42:arcus-hands, pass 6 — whether the body hides `p` from `eye`: `p` deeper than the
+/// back plate (`margin` cm under the ribs, over the body's length) and its ray to the eye
+/// crossing the back's or the top's plane inside the body's outline. Skin under the back
+/// whose ray passed beside the body was taken for hidden, painted before the body's stamp
+/// and stamped over with the picture round the body's edge: the thin dark wedge in her palm
+/// near the wrist in high position (pass 5's 400 % sheets).
+pub fn hidden_by_body(
+    p: V3,
+    eye: V3,
+    b: crate::scene::bowed::Bowed,
+    pose: &Pose,
+    margin: f32,
+) -> bool {
+    use crate::scene::bowed::{rib, Bowed};
+    let d = b.dims();
+    let loc = |w: V3| {
+        let q = w - pose.o;
+        V3 {
+            x: q.dot(pose.ex),
+            y: q.dot(pose.ey),
+            z: q.dot(pose.ez),
+        }
+    };
+    let a = loc(p);
+    if !(0.0..=d.body).contains(&a.y) || a.z >= -rib(d, a.y) - margin {
+        return false;
+    }
+    let e = loc(eye);
+    let dir = e - a;
+    if dir.z <= 1e-6 {
+        return false;
+    }
+    // The body's outline, once a kind (the app's own, `bowed::outline`).
+    static OUTLINES: std::sync::OnceLock<[Vec<(f32, f32)>; 4]> = std::sync::OnceLock::new();
+    let all = OUTLINES.get_or_init(|| {
+        [Bowed::Cello, Bowed::Bass, Bowed::Violin, Bowed::Viola]
+            .map(|k| crate::scene::bowed::outline(k, 8))
+    });
+    let o = &all[match b {
+        Bowed::Cello => 0,
+        Bowed::Bass => 1,
+        Bowed::Violin => 2,
+        Bowed::Viola => 3,
+    }];
+    let back = -rib(d, a.y);
+    [back, 0.0].iter().any(|&z| {
+        let t = (z - a.z) / dir.z;
+        inside(o, a.x + dir.x * t, a.y + dir.y * t)
+    })
+}
+
+/// Whether (x, y) lies inside the closed polygon `o` (crossings of a ray along +x).
+fn inside(o: &[(f32, f32)], x: f32, y: f32) -> bool {
+    let n = o.len();
+    let mut c = false;
+    for i in 0..n {
+        let (p, q) = (o[i], o[(i + n - 1) % n]);
+        if (p.1 > y) != (q.1 > y) && x < p.0 + (q.0 - p.0) * (y - p.1) / (q.1 - p.1) {
+            c = !c;
+        }
+    }
+    c
 }
 
 /// Paint the left arm's pieces the neck hides from the eye (`hidden`: painted before the

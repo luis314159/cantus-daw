@@ -19,6 +19,7 @@
 pub mod cards;
 pub mod cloth; // r42:arcus-polish
 pub mod concert; // r42:arcus-polish3
+pub mod fingers; // r42:arcus-hands
 pub mod grip;
 pub mod live;
 pub mod neck_hand;

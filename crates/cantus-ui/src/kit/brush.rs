@@ -90,6 +90,9 @@ pub struct Brush {
     texts: Vec<Deferred>,
     ring: Vec<Pos2>,
     foreign: Vec<(TextureId, Rect)>,
+    /// r42:arcus-hands — the foreign textures' quads, pooled as the geometry's meshes are
+    /// (a figure's arms at rest drew a fresh image mesh a pass: allocations at rest).
+    fpool: Vec<Arc<Mesh>>,
     ppp: f32,
     tex: TextureId,
     white: Pos2,
@@ -113,6 +116,7 @@ impl Default for Brush {
             texts: Vec::new(),
             ring: Vec::new(),
             foreign: Vec::new(),
+            fpool: Vec::new(),
             ppp: 1.0,
             tex: TextureId::default(),
             white: egui::epaint::WHITE_UV,
@@ -294,9 +298,24 @@ impl Brush {
             }
             self.items.clear();
         }
-        for (tex, rect) in self.foreign.drain(..) {
+        for (used, (tex, rect)) in self.foreign.drain(..).enumerate() {
             let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
-            painter.image(tex, rect, uv, Color32::WHITE);
+            // A pooled quad epaint has finished with, refilled (its room kept).
+            let free =
+                (used..self.fpool.len()).find(|&i| Arc::get_mut(&mut self.fpool[i]).is_some());
+            let i = match free {
+                Some(i) => i,
+                None => {
+                    self.fpool.push(Arc::new(Mesh::default()));
+                    self.fpool.len() - 1
+                }
+            };
+            self.fpool.swap(used, i);
+            let m = Arc::get_mut(&mut self.fpool[used]).expect("free above");
+            m.clear();
+            m.texture_id = tex;
+            m.add_rect_with_uv(rect, uv, Color32::WHITE);
+            painter.add(Shape::Mesh(self.fpool[used].clone()));
         }
         for t in self.texts.drain(..) {
             let mut s = TextShape::new(t.pos, t.galley, t.color);

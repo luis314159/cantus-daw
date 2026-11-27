@@ -370,6 +370,14 @@ fn the_left_hand_passes_behind_the_neck() {
                 // Along the thumb and the upper arm: where the neck or the body hides
                 // them, the picture's own pixels.
                 let mut samples = Vec::new();
+                // r42:arcus-hands, pass 7 — a realistic figure's own skin in front of the neck
+                // (its triangles as the picture's eye sees them, each point at the pixel not
+                // hidden by the neck): what it covers is the figure's to show — the wider
+                // knuckles' index base over a hidden vertex's pixel (Vector Violin Man) is not
+                // the hand showing through the neck. The stylised tubes' clearance (`fronts`)
+                // does not reach the skinned hand's own breadth.
+                let mut front_tris: Vec<([egui::Pos2; 3], [cantus_ui::scene::geo::V3; 3])> =
+                    Vec::new();
                 for i in 1..20 {
                     let t = i as f32 / 20.0;
                     for s in 0..3 {
@@ -395,6 +403,18 @@ fn the_left_hand_passes_behind_the_neck() {
                         }),
                     };
                     let posed = hu::repose_arm(fig, &base.0, 0, &aim);
+                    for (k, t) in fig.tris.iter().enumerate() {
+                        if fig.part[k] & 2 == 0 || fig.part[k] & 1 != 0 {
+                            continue;
+                        }
+                        let w = t.map(|i| posed.vertex(fig, i as usize));
+                        if w.iter()
+                            .all(|&q| hand::hidden_by_neck(q, eye, d, &rig.pose))
+                        {
+                            continue;
+                        }
+                        front_tris.push((w.map(to_px), w));
+                    }
                     let mut seen = std::collections::HashSet::new();
                     for (k, t) in fig.tris.iter().enumerate() {
                         if fig.part[k] & 2 == 0 || fig.part[k] & 1 != 0 {
@@ -416,6 +436,28 @@ fn the_left_hand_passes_behind_the_neck() {
                         }
                     }
                 }
+                // Whether the figure's own skin in front of the neck covers the pixel `p`.
+                let front_skin = |p: egui::Pos2| {
+                    front_tris.iter().any(|(q, w)| {
+                        let (a, b, c) = (q[0], q[1], q[2]);
+                        let den = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                        if den.abs() < 1e-6 {
+                            return false;
+                        }
+                        let l0 = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / den;
+                        let l1 = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / den;
+                        let l2 = 1.0 - l0 - l1;
+                        l0 >= 0.0
+                            && l1 >= 0.0
+                            && l2 >= 0.0
+                            && !hand::hidden_by_neck(
+                                w[0] * l0 + w[1] * l1 + w[2] * l2,
+                                eye,
+                                d,
+                                &rig.pose,
+                            )
+                    })
+                };
                 for (w, by_neck) in samples {
                     let p = to_px(w);
                     let hid = if by_neck {
@@ -426,7 +468,28 @@ fn the_left_hand_passes_behind_the_neck() {
                     if !hid || !clear(p) {
                         continue;
                     }
+                    if front_skin(p) {
+                        let (_, _, diff) = pixel(p);
+                        if diff > 40 {
+                            println!("{be:?} {b:?} {hold:?}: at {p:?} the figure's own front skin");
+                        }
+                        continue;
+                    }
                     let (got, want, diff) = pixel(p);
+                    // (r42:arcus-hands, pass 7: CANTUS_HOLD_SHOT=<dir> keeps the shot of a
+                    // failing case, to look at what covers the pixel.)
+                    if diff > 40 {
+                        if let Ok(dir) = std::env::var("CANTUS_HOLD_SHOT") {
+                            let _ = canvas.write_png(&std::path::Path::new(&dir).join(format!(
+                                "hold-{be:?}-{b:?}-{hold:?}-{:.0}-{:.0}.png",
+                                p.x, p.y
+                            )));
+                            println!(
+                                "{be:?} {b:?} {hold:?}: {p:?} by_neck {by_neck}, local {:?}",
+                                local(w)
+                            );
+                        }
+                    }
                     assert!(
                         diff <= 40,
                         "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the instrument (got {got:?}, the picture's {want:?})"
@@ -543,9 +606,15 @@ fn the_left_arm_keeps_the_photographs_angles() {
                         j(nut)
                     );
                 }
-                // (r42:arcus-hand: the forearm may turn up to 6° toward the little finger, as
-                // the photographs show it: within 8°.)
-                assert!(wrist < 8.0, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
+                // (r42:arcus-hand: the forearm may turn toward the little finger, as the
+                // photographs show it — r42:arcus-hands: they measure 3–23°, median ~10
+                // (`left_hand_refs.md`); the table rests at 9 and turns at most 14: within 16°.)
+                // (r42:arcus-hands, pass 4: from the 9th semitone 30°, as arcus_hand_table's
+                // WRIST_HIGH — high up the hand now shifts to the 9th position for the octave
+                // rather than reach it from the 7th with the little finger, and there the
+                // wrist bends toward the back beside the body's shoulder, as the owner asked.)
+                let most = if semis >= 9.0 && d.held { 30.0 } else { 16.0 };
+                assert!(wrist < most, "{b:?} {hold:?}: the wrist bent {wrist:.1}°");
                 // (A cellist's hand comes up beside the shoulder: the elbow folds more.)
                 assert!(
                     (if d.held { 50.0 } else { 30.0 }..=130.0).contains(&elbow),

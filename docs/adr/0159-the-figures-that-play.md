@@ -122,6 +122,357 @@ occluding capsules in its live painter.
     tie told apart with clean edges (`smooth_tie`, a two-neighbour majority), the suit
     1.2 mm further off the skin (`lift_suit`), and the bow arm's shoulder-band triangles
     the live arm covers or the bake's pose stretches left out of the bake (`emit`).
+    **The hands** (amendment, 2026-11-25, r42:arcus-hands — the owner: "the musicians can
+    still look much, much better… especially the fingers of the hand"; earlier "un
+    desastre", "artritis", "tosca/gorda"; the reference is photographs of professional
+    violinists):
+    - *Proportions.* MakeHuman's index and little fingers were short against the middle
+      (7.7 and 6.0 cm against 8.6 on her; a real hand's index ~0.93 of the middle, the
+      little finger's tip at the ring's last joint) and the little finger's middle phalanx
+      0.49 of its first. Each finger's segments are stretched along their own bones when the
+      figure is built (`build_figures.py::lengthen_fingers`); measured, 1 : 0.57–0.60 :
+      0.55–0.69 (the last to the skin's tip; the bones' 1 : 0.63 : 0.45 plus the pad), the
+      index and the ring 0.90 / 0.94 of the middle, the middle finger 1.13 of the back.
+    - *Form.* The joints fuller than the shafts, each phalanx a little slimmer than the one
+      before, the pad's side flatter than the nail's (a rounded D), the tip's pad full
+      (`slim_fingers`); the nails 0.6–0.75 of the finger's width (`NAIL_ARC`).
+    - *Bending.* A finger posed to a tip bends all three joints, the last following the
+      middle at 0.7 of it (`figure::fingers::curl`, Kapandji; mirrored in `hand_rig.py`):
+      the bow hand's fingers curl round the stick, slanting toward its tip, the knuckles
+      higher over it (`grip::bow_frog`, against Commons "Right hand position on bow.jpg").
+    - *The left hand's table, re-solved* as open arches (the coordinator on sheet hands-1:
+      the fingers read as hooks): the first phalanx leaning over the board toward its string
+      (within 50° of the board's normal, was 31–40°), the middle joint carrying the bend
+      (55–100°), the last nearly straight onto the string (4–25°, was 15–45), the tip within
+      25° of the normal; and the hand and the forearm standing up from the neck as the
+      photographs' front views show them (the table had the hand's line 55° to the neck in
+      the picture, the photographs 70–89°): `HAND_UP`, `FORE_UP`, the wrist's turn toward
+      the little finger 0–12° resting at 8 (the photographs 3–23°, median ~10; the gates
+      `arcus_hold` and `arcus_hand_table` hold it within 16°, was 8), the back turned 10°
+      toward the scroll (was 30°).
+    - *The neck's edge.* A hand patch with some corners behind the neck is drawn in both of
+      the left arm's passes, cut four a side, each small triangle in the pass its own middle
+      belongs to (`CLS_SPLIT`): painted behind whole, the neck's stamp had cut the fingers
+      along their triangles — the dark board-coloured shards and stair-steps.
+    - *Creases* as marks on the skinned surface (`views/inst/arcus_draw_marks.rs`): three
+      over each middle joint, two over each last joint and the thumb's, anchored at rest to
+      the arm's triangles, carried, sorted and hidden with the skin; soft (at most 0.3
+      darker), at least 1.6 px wide, gone below 12 points a centimetre. The per-vertex crease
+      band (dark 1–3 px dashes at 100 %) is gone.
+    - The flat skin round the wrist takes the patches' texture and relief per vertex (a
+      lighter band had marked where the patches end); the patches' corners and edge
+      midpoints are lit once a frame and shared.
+    - *A depth per sample* (`views/inst/arcus_draw_raster.rs`): High's live arms are filled,
+      each pass, into a small buffer over the arm's screen rectangle — 3×3 samples a pixel at
+      100 %, 2×2 at 200 %, the bake's — each sample keeping the nearest surface, averaged
+      into the pixel and drawn as one texture; the creases blend over the skin with a depth
+      test; nothing is filled or uploaded at rest. Painted by triangle middles with a one-bit
+      fill, curled fingers had shown notches, slivers, stair-steps and the board through
+      them. Light keeps the vector path. Her hand is scaled 1.08 (`HAND_SCALE`: 0.095 of her
+      height, a woman's ~0.105). The cost is not yet measured (the next session).
+    - **Pass 2** (amendment, 2026-11-25, r42:arcus-hands — the owner: "la mano izquierda de
+      la chica aún falla… los dedos muy raros… a veces choca con el mástil", and high up
+      "se solapa la mano y antebrazo con el cuerpo del violín"; then "aún se pueden mejorar
+      los dedos"):
+      - *The fingers are never thinned.* `thin.py` had collapsed each phalanx to one ring
+        of seven or eight points a joint (edges of 6 mm), so a bent finger folded there as
+        a paper hinge — the notches, saw-tooth shards, kinks and facets seen at 400 % were
+        that, not the neck. `build_figures.py::FINGER_KEEP` keeps MakeHuman's own rings
+        on every phalanx (about 1 200 more triangles a hand); the palm and the forearm
+        are still thinned. The fingers fuller (`FINGER_SEX` 1.0 / 1.03, the middle finger
+        1.06: her PIP breadth 1.53 / 1.52 cm, his 1.81 / 1.91), their joints no longer bony
+        (`JOINT` 1.0), the tips half slimmed (`TIP_FULL`: unslimmed beside fuller shafts
+        they read bulbous); the back of the hand given its forms (`hand_relief`: the base
+        knuckles' heads, the hollows between them, the extensor tendons' ridges — a flat
+        slab before). Held together and nearly parallel: MakeHuman's rest hand fans its
+        fingers 15.6°, −10.2° and −18.6° off the middle finger; `SPREAD` takes three
+        quarters of that back and `SPREAD_MAX` holds each within 8° of it (a hovering index
+        had swung 50° off the middle finger to stay over its note; `HOVER_SLACK` looser).
+      - *The instrument as drawn, kept out.* The table's dump carries the fingerboard's and
+        the neck's sections from `bowed_head::neck`'s own patches and the body (its
+        outline, the plates' arching, the ribs); `tools/arcus-figures/hand_solid.py`
+        samples their signed distance and the solver keeps some 750 skinned points of the
+        hand and the forearm out of the neck, the fingerboard, the strings and the body —
+        only the playing pad presses its string, by 1 mm at most (`PAD_PRESS`); the walls
+        start soft and harden (`settle`), so a thumb begun inside the neck slides out where
+        its rules want it. `left_hand.py pen` draws a row with what goes in red.
+      - *High up* (crop-11, ref-02, ref-12, ref-40): past the neck's heel the thumb lags
+        the fingers by half (`THUMB_LAG`), leaving the heel's curve for the fingerboard's G
+        side; the wrist rises beside the upper bout's rib (`WRIST_Z_HIGH`, `WRIST_X_HIGH`)
+        and may bend toward the back (`WRIST_FLEX_HIGH`: the forearm leans along the
+        instrument from an elbow the upper arm can reach); the palm turns round the body's
+        shoulder (`PALM_FREE_HIGH`); the knuckles rise over it (`HIGH_RISE`).
+      - *The rules on the thinner neck* (polish2's 01c32794e, 2.03 cm deep; polish3's heel,
+        da0ad2fc2, 1.8 cm — it had been a 7.5 cm wedge in 3rd–5th position): the arches 1.3
+        neck thicknesses (`ARCHES`, was 3.5–3.8 cm); gentle arches, the playing PIP to 100°
+        and its last phalanx within 28° of the board's normal (held to 25° every playing
+        PIP folded to its end, 110–112°: hooks), the knuckles free to stand over the board
+        as in crop-11 (`KNUCKLES` to 2 cm); the upper arm 38–60° below level; the wrist
+        −1.7 … +2.0 cm across from the E edge as the photographs have it (was 0 … 3.5), the
+        index's base held to the E side (`CROOK_W` 15).
+      - *Creases* fainter, wider and neutral (a shadow toward the skin's own grey, never a
+        red line), fading as their joint bends (`BEND_FADE`, read on the finger's back
+        either side of the joint each frame); the skin's fine variation per vertex, the
+        extensor tendons as faint lighter ridges, the knuckles and the pads warmer, the
+        base knuckles' tops lighter; the nail plate's broad gloss and its sheen at a glance
+        (`NAIL_GLOSS`).
+      - The kit's brush pools the foreign textures' quads as it pools its meshes (the
+        depth raster's arm pictures at rest had drawn a fresh image mesh a pass:
+        `arcus_scene`'s nothing-allocated-at-rest gate); the rod grip's tips curled under the
+        stick and back toward the palm (`figure_contract`: the lengthened fingers, curled at
+        three joints, had stood their middle joints 4.2 cm off it).
+      - *Gates*: `arcus_hand_table::the_left_hand_keeps_out_of_the_neck_and_the_body`
+        (every figure, instrument, string and eight positions to the 17th semitone: the
+        playing pad ≤ 1 mm in, anything else ≤ 0.3 mm — the skin's sampling), the hand's
+        line 68–92° to the fingerboard's edge in the picture up to the 9th semitone, and
+        `arcus_hand_shape`'s breadth measured on the middle phalanx's own skin past its
+        joint (her index and middle 1.5–1.8 cm, the little ≤ 1.5; his 1.6–2.1 / ≤ 1.7).
+      - *Cost* (measured, `arcus_hold_budget`, release, the machine shared): High's live arms
+        on the violinists +7.9 / +10.4 ms at 100 %, +20.7 / +29.2 ms at 200 % — the depth
+        raster (first measured here) and the unthinned fingers; over the 4 ms the owner
+        allows for the look: open, the handoff's first item. Light +0.8–1.2 ms.
+    - **Pass 3** (amendment, 2026-11-26, r42:arcus-hands — the owner across the passes:
+      "alienígenas", "con artritis", "tosca/gorda"; the coordinator at 400 %: "rubber-glove
+      sausages" — one cross-section from base to tip, blunt tips, no joint definition, no
+      pad; the skin "flat orange-yellow"):
+      - *The joints turn within millimetres.* MakeHuman's weights blend each finger's PIP
+        and DIP over some 2 cm — nearly the whole middle phalanx —, so a bent finger bowed
+        like a tube. `build_figures.py::sharpen_joints` splits the phalanges' share of each
+        vertex again by where it lies along the finger: within `JOINT_BLEND` (0.32 cm on her
+        hand, by the hand's length on his) of the joint, one phalanx's elsewhere. The
+        knuckle reads as a corner, the phalanges as straight segments (crop-02, crop-11).
+      - *The fingers' form along their length* (`finger_form`): each finger's skin, ring by
+        ring, scaled about its bones to a profile — the breadth at the PIP `FINGER_W` (as
+        the app draws them: her 1.62 / 1.66 / 1.55 / 1.36 cm index … little, his 1.92 /
+        1.96 / 1.85 / 1.60; Greiner 1991's means 1.8 / 2.1 at the PIP and 1.55 / 1.8 at the
+        DIP, a woman's / a man's, hers a slim violinist's under it), the first phalanx's
+        shaft 0.9 of it, the middle phalanx's waist and the DIP 0.89, the nail 0.8, the tip
+        rounding off in plan as a half circle (`FORM_B`, `FORM_TIP_B`); the pads full
+        mid-phalanx and drawn in at the creases (`FORM_PAD`), the back a little flatter
+        along the shafts (`FORM_BACK`), and the last phalanx's pulp to its own depth (0.54 →
+        0.41 of the PIP's breadth under the nail, rounding to the end; MakeHuman's ran
+        straight from the DIP to the nail's edge: a wedge, the blunt tips).
+        `finger_profile.py` measures them as the app loads them.
+      - *The hands' own skin* (`views/inst/arcus_draw_skin.rs`, apart from the arms' and the
+        face's shading so the polish's work and this merge cleanly): measured on the
+        photographs the back and the fingers' hue is 11–24°, green over red 0.69–0.80 and
+        blue over red 0.48–0.68; the hands were 26–28°, 0.71 and 0.47 under the concert
+        light (the arms' `SKIN_WARM` on the concert's own warm skin gain). Their own gains
+        (1.05, 0.95, 1.02) bring them to 23–25°, 0.69–0.73 and 0.51–0.56; a soft sheen (a
+        broad lobe on the knuckles and the back, a glance as the skin turns away); the
+        redness detail tints toward pink (blood: the green falls most) and the tips and the
+        knuckles are redder (0.5, 0.5); the dorsal creases keep 0.45 of their strength at a
+        joint's full bend (they had faded to nothing past 60°, but crop-02's and crop-08's
+        bent middle joints show their folds round the stretched knuckle).
+        `CANTUS_HAND_TUNE` overrides these numbers in `shoot_arcus` while designing.
+      - *The table*: free fingertips within 1.7 cm of the fingerboard's top (`HOVER_UP`; the
+        table's hovered 2–3.4 cm: the raised index of the first position); high up the
+        knuckles rise 0.6 cm at most (`HIGH_RISE`, was 1.4): the photographs' high
+        positions put the knuckles lower against the neck, never higher (ref-02 −1.5 neck
+        thicknesses, crop-02 below the fingerboard's edge) — the rise near the body is the
+        wrist's (`WRIST_Z_HIGH`). The gate's `KNUCKLES_UP` is the photographs' whole span:
+        −1.6 … 3.4 cm (`left_hand_refs.md`: −1.5 to +1.8 neck thicknesses, −3.0 … +3.7 cm on
+        the 2.03 cm neck; it was 2.6, under the photographs' own top, and the hand clearing
+        the body's shoulder high up stood its knuckles 2.6–3.2 cm over the board). The hand's
+        line stands up harder (`HAND_UP` 84°, weight 1.5: the room's angle the solver holds
+        read 62–68° in the picture on the A and E strings, the gate's 68–92°); the playing
+        tip's lean and the wrist's bend weigh more (`UPRIGHT_W` 600, `WRIST_TOTAL_W` 6).
+        `left_hand.py --dense` and `hand_check.py --dense` keep and check every skin point,
+        as the gate does (`hand_check.py`'s bent wrist from the 9th semitone, as the gate's).
+      - *Cost*: High's depth raster covers the hand's own rectangle only; the sleeve and
+        the forearm outside it are painted in depth order as Light's are (a triangle across
+        the rectangle's edge both ways): High's live arms on the violinists +4.4 / +4.6 ms at
+        100 % (her / him, pass 2 +7.9 / +10.4) and +8.0 / +8.4 ms at 200 % (pass 2 +20.7 /
+        +29.2), measured on a loaded machine — still over the 4 ms at 200 %. A hand patch
+        across the neck's edge is cut sample by sample in the raster (`Raster::tri_kept`).
+        The hands' skin has its own light map; each vertex blends it with the arm's by its
+        share of the hand's bones, so the forearm keeps the body's tone.
+    - **Pass 4** (amendment, 2026-11-26, r42:arcus-hands — the coordinator on pass 3: "a
+      smooth mitten with short, fused fingers"):
+      - *The bones are long enough; the webs were not.* MCP-to-tip over wrist-to-MCP measured
+        1.00 / 1.15 / 1.09 / 0.87 on her (index … little), the tables' middle finger ~1.05–1.1
+        (Buryanov & Kotiuk 2010); the webs reached 0.51–0.63 of the first phalanx.
+        `build_figures.py::clefts` (`CLEFT` 0.6 cm) brings them to 0.38–0.52.
+      - *Nails drawn* (`skin::nail`: the bed, the lunula, the free edge; `skin::fold` the
+        cuticle and the side folds; `raise_nails` the plate 0.3 mm off its folds), the
+        fingers' shade on each other stronger (`AO_K` 0.65), tendons and veins as lit
+        modulations.
+      - *High up the hand shifts rather than reaches* (`hand::target`, `HIGH_REACH` 3: from
+        the 9th semitone the fourth finger's reach falls to 3 semitones by the 12th): the
+        palm at +12/+14 no longer goes into the body's shoulder (`arcus_hand_table`'s
+        penetration 65 → 48 cases). `arcus_hold`'s wrist bound follows the table gate's (30°
+        from the 9th semitone on a held instrument).
+    - **Pass 5** (amendment, 2026-11-26, r42:arcus-hands):
+      - *The sheets of passes 3–4 were drawn with a stale example*: `cargo test --no-run
+        --example shoot_arcus` builds a test harness and leaves `examples/shoot_arcus.exe`
+        alone. Sheets are built with `cargo build --release -p cantus-ui --example
+        shoot_arcus`, the exe's time checked before shooting.
+      - *The neck's hidden test follows the neck as drawn* (`hand::hidden_by_neck`: the
+        fingerboard's slab `NECK_SLAB` 0.55 cm, then the rounded back sampled `NECK_STEPS`
+        10 times along the ray), not its box: skin beside the rounded back had been painted
+        before the neck's stamp and stamped over — the saw-toothed chips at the hand's edge.
+      - *The skin's grain per sample* (`Raster::tri_grain`, `skin::Grain`): value noise at
+        0.07 / 0.035 cm (5 %) and, over each finger joint's back, dorsal wrinkles 0.11 cm
+        apart (16 % at most), laid at rest so they move with the skin.
+      - *The fingers apart by role* (`left_hand.py`): `SPREAD` 4 / 3 / 5° wider, each finger
+        as capsules along its phalanges, the playing finger 2.8 mm from its neighbours
+        (`GAP_PLAY`), the free pairs 1.5 mm (`GAP_FREE`); measured by `finger_gap.py`, the
+        middle and ring 3.8–4.2 mm apart (median; were glued at 0.9–2.1).
+    - **Pass 6** (amendment, 2026-11-26, r42:arcus-hands — the owner on pass 5's 400 %:
+      "las imágenes de las manos se ven mucho mejor, solo creo que las últimas falanges sí
+      se ven un poco largas"):
+      - *The last phalanges shortened to anatomy* (`build_figures.py::FINGER_STRETCH`'s
+        last column; `phalanx_ratio.py` measures them as the app loads them). The skin past
+        the DIP was 1.20 / 0.94 / 1.11 / 1.05 of the middle phalanx on her (index …
+        little; his 1.15 / 0.95 / 1.09 / 1.05), the middle phalanges 0.58–0.60 of the first.
+        The bones run proximal : middle : distal about 1 : 0.6–0.65 : 0.4–0.45, the distal
+        0.6–0.75 of the middle on the index, middle and ring and close to it on the little
+        finger (Buryanov & Kotiuk 2010, "Proportions of hand segments", Int. J. Morphol.
+        28(3), radiographs of 66 adults); on the skin the pulp and the nail past the bone
+        bring the last segment closer to the middle one, still shorter on the first three.
+        Now 0.95 / 0.82 / 0.92 / 1.0 on her (his 0.91 / 0.83 / 0.91 / 1.0), the index's and
+        the ring's middle phalanges lengthened to 0.62 / 0.61 of the first so the index stays
+        0.90 and the ring 0.94 of the middle finger; the middle finger's MCP-to-tip 1.09 /
+        1.06 of wrist-to-MCP (her / him, was 1.13 / 1.10). The photographs show no finger
+        side-on, so they do not pin the ratio (crop-08's raised index reads 1.5 with its tip
+        tilted toward the camera, crop-11's index ~1.1).
+      - *The table blends cleanly between its rows* (`blend_check.py`, `blend_fix.py`). The
+        app blends two rows for any position between the table's (`neck_hand::row`); every
+        row was clean but the blends were not: a thumb under the neck at the 9th semitone and
+        beside the heel at the 12th cut through the neck between them (8–10 mm at the gate's
+        +14), and 500 of the rows' thirds went into the instrument. `blend_check.py`
+        rebuilds the gate's cases in Python (it agrees with `arcus_hand_table` to 0.1 mm)
+        and, with `--mid`, every pair of rows at thirds; `blend_fix.py` solves rows again
+        with their blends' skin held out of the instrument beside their own.
+      - *The index's base joint within 1.8 cm of the E edge* (`left_hand.py::INDEX_OUT`):
+        the crook's point a third up the first phalanx stood at 0.85 cm while the joint, the
+        hand upright, stood 2.2–3.4 cm out on the viola low down (the gate's bound 2.2).
+      - *The thumb under the neck's far side from the app's eye* (`left_hand.py::Pose.peek`,
+        `thumb_peek`): the thumb's last joint and tip, with their skin, stand at most 0.6 cm
+        past the neck's far silhouette in first position (crop-08 shows the tip's end over
+        the neck), 0.15 from the 3rd semitone (crop-02 and crop-11 show none), 0.2 more past
+        the heel. The tables' thumb tips had stood ~0.8 cm past it (a stray fingertip beside
+        the fingerboard at 400 %).
+      - *The grain's tuned numbers* are read once a triangle, not once a sample. Measured on
+        a loaded machine, High's live arms cost +6.3 / +7.0 ms at 100 % and +15.2 / +21.6 at
+        200 % (her / him; pass 3 +4.4 / +4.6 and +8.0 / +8.4): the per-sample grain and the
+        wider hand. The owner's rule stands: render cost never gates the look.
+      - *The table at the pass's end*: `arcus_hand_table`'s penetration 63 → 32 cases, the
+        worst skin 12.2 → 2.8 mm; its rule breaks 49 → 82 (the thumb against the index's
+        base, her outline's middle over the wrist on the reach and high rows, the knuckles
+        over the board at +12/+14, the index's base out from the E edge) are the handoff's
+        first open item. `arcus_hand_shape`'s lobe and `arcus_hand_form`'s specks are in.
+      - *The hands set against average hands for each musician's stature* (the owner:
+        "compararlas con tamaños promedio para el tamaño del músico"; `hand_anthro.py`):
+        ANSUR II's hand length, palm length, breadth and middle finger by linear regression
+        on stature (Gordon et al. 2014, the public data: 1 986 women, 4 082 men), finger
+        lengths from Chatzioglou, Pinar & Govsa 2024 scaled by stature, the bones' ratios
+        from Buryanov & Kotiuk 2010. Her (160.3 cm) hand had the right length but long
+        fingers on a short, narrow palm — the breadth at the knuckles ANSUR II's 0th
+        percentile, his 4th, the middle finger's share of the hand the 87th / 86th. The
+        metacarpals are lengthened (`PALM_STRETCH`), the first and last phalanges shortened,
+        the metacarpal heads spread from the hand's middle line (`KNUCKLE_SPREAD` her 1.2, his
+        1.07; the thumb, its base and its CMC left where they were — `PALM_SLIM` moved them
+        too and the outline from the camera grew to 1.8–2.1 times the wrist, the owner's
+        "tosca"): her hand's length, palm, breadth and middle finger now at the 37th / 29th /
+        36th / 52nd percentile, his (173.2 cm) 49th / 36th / 46th / 61st. `PALM_WIDE` measures
+        the outline the picture shows (skin hidden by the neck left out). The joints' breadths stay a slim violinist's
+        (pass 3).
+      - *The body's hidden test follows the body as drawn* (`hand::hidden_by_body`): skin
+        under the back plate is behind the body only where its ray to the eye crosses the
+        back's or the top's plane inside the body's outline. Skin whose ray passed beside
+        the body had been painted before the body's stamp and stamped over with the
+        picture round the body's edge: the thin dark wedge in her palm near the wrist, high
+        up (pass 5's 400 % sheets).
+    - **Pass 7** (amendment, 2026-11-26, r42:arcus-hands):
+      - *The gate's rules solved on the blended poses.* `rule_check.py` rebuilds
+        `arcus_hand_table`'s rules (the outline's width, the arches, the index's base, the
+        knuckles, the back's slant and facing, the hand to the neck, the wrist, the thumb) on
+        the table's blends as `blend_check.py` rebuilds its penetration — the forearm skinned
+        as the app's `repose_arm` aims it (its twist shared 0.45 / 0.95 along it; carried
+        rigidly with the hand it read the wrist 0.3–0.4 cm broader). `blend_fix.py --rules`
+        holds them (with margins) on the gate's cases each row's blends make and on the row's
+        own stop up to the 12th semitone; a row is kept only if its skin and its blends go no
+        deeper into the instrument than before.
+      - *Her hand edge-on on the reach and high rows* (crop-02, crop-11): the back's facing
+        held to 0.6 at most on those rows' own poses (the table's read 0.85–0.92 there,
+        broadside), the palm's way 20° freer, each row started too from the hand turned
+        ±25° and ±45° about its length. The palm's width is unchanged (`KNUCKLE_SPREAD` as pass 6).
+      - *`KNUCKLES_UP` stays −1.6 … 3.4 cm high up.* No photograph shows a hand past the
+        neck's heel; the highest (crop-02 and ref-02 at the body's shoulder, crop-11 in third)
+        put the knuckles at or under the fingerboard's top, never over it, so the first
+        position's top (the owner's photograph 2, +1.8 neck thicknesses) is already the most
+        the photographs allow. The table is brought under it, not the gate raised.
+      - *The thumb in the heel's curve from the 12th semitone* (`left_hand.py`
+        `THUMB_DROP_HIGH` 2.2, `THUMB_UNDER_HIGH` 0.75; the gate's `THUMB_HIGH` −3.6,
+        `THUMB_UNDER` 0.25). The gate's thumb (up the G side, its tip within 1.6 cm under the
+        fingerboard's top) is the first position's (`left_hand_refs.md` §5); the same note
+        has it "under the neck's shoulder in 3rd", and from the heel on it stays there, under
+        the neck and hidden, while the fingers go on over the body — beside the fingerboard
+        over the body there is no room for it over the top plate (the solver's thumb rules
+        and the body fought there: thumb tips pushed out to the E side, beside the index's
+        base). Of pass 6's 22 thumb breaks, 12 were tips in the heel's curve; the rest, tips
+        on the E side, were the pose's.
+      - *The occlusion test sees the figure's own front skin* (`arcus_hold::
+        the_left_hand_passes_behind_the_neck`): a hidden sample's pixel covered by a skinned
+        triangle of the realistic arm whose point there the neck does not hide is the
+        figure's to show. Vector Violin Man's pixel at [459, 271] was that: the wider
+        knuckles' index base in front of the neck over a hidden vertex's pixel (the
+        stylised tubes' clearance does not reach the skinned hand's breadth).
+        `CANTUS_HOLD_SHOT=<dir>` keeps a failing case's shot.
+      - *High draws a hand patch whose flat triangle turns a little away* (`FOLD_GRAZE`
+        0.15, the cosine) into the depth raster: a fold's curved patch can still bulge
+        toward the eye; culled, it opened the thin dark slit at her hand's ulnar edge high
+        up (the web between the ring and the little finger). The samples' depths keep what
+        lies behind.
+      - *The raster tests depth first* (`Raster::fill`): a sample that would not be written
+        skips the neck's test, the colour and the grain — the same picture, less work.
+      - *The table at the pass's end*: `arcus_hand_table`'s rule breaks 82 → 40 (the thumb
+        22 → 12, `PALM_WIDE` 19 → 8, the knuckles 19 → 11, the index's base 16 → 7),
+        penetration 32 → 29 cases (the worst skin 2.8 → 3.2 mm), `blend_check --mid` 342 →
+        345 points. Her hand is turned edge-on only in part (the facing on the reach and
+        high cases 0.70–0.97 → 0.65–0.91 on the violin): the high rows' own rules and the
+        body hold LM near the broadside pose; the handoff's first item.
+      - *Cost* (one run, a loaded machine): High's live arms +7.2 / +8.2 ms at 100 % and
+        +19.7 / +22.5 at 200 % (her / him; pass 6 +6.3 / +7.0 and +15.2 / +21.6). The
+        owner's rule stands: render cost never gates the look.
+    - **Pass 8** (amendment, 2026-11-26, r42:arcus-hands — her hand edge-on high up, as
+      crop-02, crop-11 and ref-02 show it; the target the back's facing to the app's eye at
+      0.6 or less in high positions, penetration no worse than pass 7's):
+      - *No table change: the turn costs more instrument than the budget allows.* Each
+        high row was solved again with the facing held at weight 1 000 (`edge_probe.py`,
+        `blend_fix.py --rules`' problem), from the table's pose and from frames built along
+        the instrument (the knuckle line level and along the neck, the back at the wanted
+        slant, the wrist 1.5 cm or more clear of the body, the playing tip on its stop) —
+        every start settles into the same pose. Her A string, middle finger (the facing; her
+        own residuals; the deepest skin of the row and its blends):
+
+        | row | pass 7 | held to 0.6 | held to 0.5 | held to 0.4 |
+        |---|---|---|---|---|
+        | violin 9 (the high shot, +12) | 0.72; 266; 0.7 mm | 0.58; 1 200; 1.7–3.1 | 0.51; 2 300; 3.2–4.9 | 0.40; 3 500–5 100; 6.5–6.7 |
+        | violin 12 (+14, +17) | 0.91; 570; 2.2 | 0.60; 3 700; 4.2 | 0.52; 6 000; 7.2 | 0.43; 10 200; 9.4 |
+        | viola 9 | 0.89; 720; 0.6 | 0.59; 3 200–3 500; 3.4–3.5 | 0.51; 5 000–8 300; 8.4–10.8 | 0.40; 7 200–18 600; 5.6–11.5 |
+        | viola 12 | 0.87; 1 080; 0.9 | 0.60; 7 100; 3.1 | 0.52; 10 600; 3.6 | 0.43; 14 800; 5.4 |
+
+        On the violin the turned hand drives the palm's radial side into the neck's heel
+        (row 9) and the index's base into the fingerboard (row 12): the tip is pinned on
+        its stop and the fingers cannot reach further, so the hand cannot move out to
+        make room. On the viola her upper arm cannot reach the turned hand at all
+        (`upper_len` 2 700–4 300 and `elbow_down` 1 400–3 200 at row 12): her arm is the
+        limit, as the brief foresaw. Let go to weight 300 the facing returns to 0.61–0.71
+        and the skin still goes 1.5–3.0 mm in. From the app's eye 0.6 is not visibly
+        different from pass 7's 0.72; 0.4 reads turned as crop-02 but with the palm 4.7 mm
+        inside the neck's heel. A visible edge-on hand needs the rig's own changes (the
+        palm's breadth and cupping, which the owner is judging, or contact allowed between
+        the hand's heel and the body's shoulder, as real hands rest there), not another
+        start.
+      - *The thumb tips on the E side at +12 / +14* (pass 7's 12): started again with the
+        thumb of the rows one and two positions lower and at rest, the tips came in by
+        0.1–0.4 cm at most, each row going 0.1–0.8 mm deeper and one breaking the playing
+        finger's upright rule; the +14 breaks are the row-12 blend's. Her viola's rows carry
+        `upper_len` 700–1 150 there: the same arm.
+      - `left_hand.py::CROOK_X_HIGH` (a probe's knob, `CANTUS_CROOK_X_HIGH`, 0 by default:
+        the rule the table was solved with) lets the crook leave the E side past the heel.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la
