@@ -2350,9 +2350,36 @@ def look_at(fig, name, out, part=None):
                    out=os.path.join(out, f"{name}-back.png"))
 
 
+# r42:arcus-polish6 — every asset file the converter reads, checked before it starts (pass 5
+# lost an afternoon: a system-assets folder missing its skins failed halfway, left the out
+# folder empty, and the app read its embedded figures instead without a word).
+NEEDED = (
+    ("data", "3dobjs/base.obj"),
+    ("assets", "skins/young_caucasian_female/young_lightskinned_female_diffuse.png"),
+    ("assets", "skins/young_caucasian_male/young_lightskinned_male_diffuse.png"),
+    ("assets", "clothes/male_elegantsuit01/male_elegantsuit01.mhclo"),
+    ("assets", "clothes/shoes04/shoes04.mhclo"),
+    ("assets", "eyes/materials"),
+    ("assets", "eyebrows"),
+    ("assets", "eyelashes"),
+    ("assets", "hair"),
+)
+
+
+def check_inputs(data, assets):
+    """Exit with the list of what is missing, before any work, if an input is not there."""
+    roots = {"data": data, "assets": assets}
+    missing = [os.path.join(roots[r], f) for r, f in NEEDED
+               if not os.path.exists(os.path.join(roots[r], f))]
+    if missing:
+        sys.exit("build_figures.py: missing inputs (extract makehuman_system_assets_cc0.zip "
+                 "whole into <system assets dir>, DEVELOPING §4):\n  " + "\n  ".join(missing))
+
+
 def main():
     global BASE
     data, assets, out = sys.argv[1:4]
+    check_inputs(data, assets)
     prev = sys.argv[sys.argv.index("--preview") + 1] if "--preview" in sys.argv else None
     BASE = mh.read_obj(os.path.join(data, "3dobjs", "base.obj"))
     sk, _ = mh.read_skeleton(data)

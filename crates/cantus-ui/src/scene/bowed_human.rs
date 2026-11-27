@@ -158,13 +158,24 @@ static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
 /// built (`CANTUS_FIGURE_DIR` names a folder `tools/arcus-figures/build_figures.py` wrote),
 /// that folder's file of the same name, read once — so a rebuilt figure is looked at in
 /// `shoot_arcus` without compiling the app again (DEVELOPING §4). Unset in the app.
+///
+/// r42:arcus-polish6 — never silently: a folder named that lacks the file is said on stderr
+/// (pass 5's trials read the embedded figure from an empty folder the converter had left).
 pub(crate) fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
-    std::env::var_os("CANTUS_FIGURE_DIR")
-        .and_then(|d| std::fs::read(std::path::Path::new(&d).join(name)).ok())
-        .map_or(
-            std::borrow::Cow::Borrowed(embedded),
-            std::borrow::Cow::Owned,
-        )
+    let Some(d) = std::env::var_os("CANTUS_FIGURE_DIR") else {
+        return std::borrow::Cow::Borrowed(embedded);
+    };
+    let path = std::path::Path::new(&d).join(name);
+    match std::fs::read(&path) {
+        Ok(b) => std::borrow::Cow::Owned(b),
+        Err(e) => {
+            eprintln!(
+                "CANTUS_FIGURE_DIR: {} not read ({e}); the embedded {name} instead",
+                path.display()
+            );
+            std::borrow::Cow::Borrowed(embedded)
+        }
+    }
 }
 
 /// r42:arcus-hand — `CLID`, a `u16` version (1), a `u32` count, then per moved vertex its
