@@ -175,7 +175,7 @@ fn a_plucks_partials_are_in_tune() {
 fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
     let fid = ArcusSettings {
         instrument: Instrument::Violin,
-        pair: 1.0,
+        steel: 1.0,
         mode: crate::voices::PlayMode::Legato,
         ..ArcusSettings::default()
     };
@@ -205,10 +205,60 @@ fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
         }
         changes
     };
-    let classical = ArcusSettings { pair: 0.0, ..fid };
+    let classical = ArcusSettings { steel: 0.0, ..fid };
     let (f, c) = (shuffles(&fid), shuffles(&classical));
     assert!(
         f < c && f >= 3,
         "a fiddler's bow changed {f} times, a classical one {c}"
     );
+}
+
+/// One bow on two strings (`bow.pair`) on a classical violin: a slurred passage crossing strings
+/// keeps every note sounding (the Paganini caprice's Variation 2 dropped 9 of 16 bars' slurred
+/// notes to −90 dB with the pair on), and the classical player stays on (the pair is not a
+/// fiddler: `shape::fiddler`).
+#[test]
+fn a_slurred_crossing_on_one_bow_keeps_every_note() {
+    let st = ArcusSettings {
+        instrument: Instrument::Violin,
+        pair: 1.0,
+        mode: crate::voices::PlayMode::Legato,
+        ..ArcusSettings::default()
+    };
+    assert_eq!(shape::classical(st.player, shape::fiddler(&st)), 1.0);
+    // … and on a fiddler's steel set, its shuffle and soft changes on, no note lost either.
+    for st in [st, ArcusSettings { steel: 1.0, ..st }] {
+        let keys = [
+            69u8, 76, 71, 76, 72, 76, 74, 76, 69, 81, 79, 76, 74, 72, 71, 69,
+        ];
+        let step = S / 4;
+        let mut score = Vec::new();
+        for (i, k) in keys.iter().enumerate() {
+            score.push((i * step, Ev::On(*k, 0.6)));
+            if i > 0 {
+                score.push((i * step + S / 100, Ev::Off(keys[i - 1])));
+            }
+        }
+        score.push((keys.len() * step, Ev::Off(*keys.last().unwrap())));
+        score.sort_by_key(|e| e.0);
+        let (l, _) = render(&st, &score, keys.len() * step + S, &|_| 256, &Serial);
+        let lv: Vec<f64> = (0..keys.len())
+            .map(|i| {
+                let a = (i * step) as f64 / SR as f64 + 0.05;
+                level(&l, a, a + 0.15)
+            })
+            .collect();
+        let mut sorted = lv.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median = sorted[sorted.len() / 2];
+        for (i, v) in lv.iter().enumerate() {
+            assert!(
+                *v > median - 12.0,
+                "steel {}: note {i} (key {}) {:.1} dB under the passage's median",
+                st.steel,
+                keys[i],
+                median - v
+            );
+        }
+    }
 }

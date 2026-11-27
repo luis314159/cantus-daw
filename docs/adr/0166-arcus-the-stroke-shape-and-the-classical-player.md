@@ -46,7 +46,8 @@ player on, the pizzicato clean and 4 cents flat, the vibrato starting at 0 s ins
   lead, matched at the fundamental only, left the partials 3–4 cents flat), and its finger's
   contact shortens with the period from the lowest open string (power 0.8, at least 0.5 of it); the
   viola's and the cello's vibrato × 0.8 (the strings-hq phrases).
-- **A fiddler's bow** (`bow.grit` > 0, the Fiddle character) plays its own player: the classical
+- **A fiddler** (`shape::fiddler`: the Fiddle character's steel set — never `bow.pair` alone, a
+  classical double stop's too) plays its own player: the classical
   shape, taper, vibrato's way back and intonation give way to it (all at grit 1, so the Fiddle
   preset's measured lines keep their numbers); instead its fast separate notes are slurred two or
   three to a bow (the shuffle, seeded), its fast bow changes turn in 0.6 of `bow.change`, and its

@@ -202,9 +202,10 @@ impl Voice {
         // r42 arcus-classical: with the player, a held stroke's shape is the bow's (`shape`):
         // from silence the swell's depth and length move the bow (its output envelope
         // retired), a bow change starts its stroke a few dB under, and the key let go tapers.
-        // (A fiddler's bow — one bow on two strings, `bow.pair`, the Fiddle character's — plays
-        // its own player: the classical shape gives way to it, `shape::classical`.)
-        let p_shape = super::super::shape::classical(p, s.pair);
+        // (A fiddler — the Fiddle character's steel set, `shape::fiddler` — plays his own
+        // player: the classical shape gives way to it, `shape::classical`. One bow on two
+        // strings alone is a classical double stop's too.)
+        let p_shape = super::super::shape::classical(p, super::super::shape::fiddler(s));
         let shaped = p_shape > 0.0 && tech == NoteTech::Arco;
         let begin = if keep && was_bowing {
             super::super::shape::Begin::Rebow
@@ -283,7 +284,7 @@ impl Voice {
         self.into = (e, tend, 0.0);
         // r42 arcus-classical: a fiddler's fast bow change is a quicker turn, and his long
         // note's vibrato comes in late (`shape::fiddle_vib`).
-        self.soft = s.pair >= 0.5 && p > 0.0 && keep && was_bowing && fast;
+        self.soft = super::super::shape::fiddler(s) > 0.0 && p > 0.0 && keep && was_bowing && fast;
         self.fid_t = 0.0;
         self.lvl = (self.swell.1, self.swell.1);
         self.stop_lift = false;
@@ -539,7 +540,7 @@ impl Voice {
         };
         // r42 arcus-classical: the slurred note's own shape, from where the last one sagged to
         // (`shape`; none for a tremolo's strokes or with the player off).
-        let p_shape = super::super::shape::classical(p, s.pair);
+        let p_shape = super::super::shape::classical(p, super::super::shape::fiddler(s));
         let shaped = p_shape > 0.0 && tech.unwrap_or(self.tech) == NoteTech::Arco;
         let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
         self.shape.begin(

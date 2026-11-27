@@ -54,8 +54,9 @@ holds the decision; this file the work and the numbers. `DSP_VERSION` 20.
    bass's rows measured again (pass 6's window, three passes); the cello's rows pass 6's (they
    keep the pitch and the attack gates with the shape; measured again they cost the open A's pp
    attack its gate).
-8. **A fiddler's bow** (`bow.pair` on — the Fiddle character): the classical shape, taper, way
-   back, intonation and corner give way to it; instead it **shuffles** (two or three fast separate
+8. **A fiddler** (`shape::fiddler`: the Fiddle character's steel set, `steel` — not `bow.pair`, which
+   a classical double stop or a ringing crossing needs with the classical player kept): the
+   classical shape, taper, way back, intonation and corner give way to him; instead it **shuffles** (two or three fast separate
    notes slurred into a bow, seeded), turns a fast change in 0.6 of `bow.change`, and widens a long
    note's vibrato late (from 0.3 s, 2.4 × depth, 1.12 × rate) — the coordinator's fiddle items.
 
@@ -112,6 +113,15 @@ references and from fresh starts the gate refused.
 the harmonics 4–8 kHz −39.2 / −40.4 dB (agudas / rápidas), YIN d' 0.01, raucous share 0.05–0.06,
 long notes with vibrato 0.67 / 0.33 of them (the analysis's fiddle: 0.02; the references
 0.04–0.30). The classical shape, taper, way back, intonation and corner do not touch it.
+
+**Bow on two strings, classical** (the Paganini builder's two findings): the fiddler was first keyed
+to `bow.pair`, so a classical double stop lost the classical player and took the shuffle; it is
+keyed to the steel set now, and `tests_classical::a_slurred_crossing_on_one_bow_keeps_every_note`
+holds a slurred string-crossing passage with the pair on, classical and fiddler, every note within
+12 dB of the passage's median (the Var. 2 render's −90 dB notes were not reproduced by this
+passage; the Var. 2 render itself is the Paganini builder's to check on this build). The player's
+semitone tendency does not yet reach a double stop's second string (`arcus_voice_pair.rs`, the
+fiddle builder's file): open.
 
 ## Open
 

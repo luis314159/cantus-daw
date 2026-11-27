@@ -336,7 +336,7 @@ impl Arcus {
 
     /// r42 arcus-classical — whether a fiddler's shuffle slurs this note into the sounding bow:
     /// a fast separate note on a mono voice still bowed in a sustained stroke, with no
-    /// articulation of its own (or a plain sustain), on a fiddler's bow (`bow.pair`).
+    /// articulation of its own (or a plain sustain), on a fiddler's bow (`shape::fiddler`).
     #[allow(clippy::too_many_arguments)]
     fn shuffle_slurs(
         &mut self,
@@ -347,7 +347,7 @@ impl Arcus {
         key: u8,
         id: u64,
     ) -> bool {
-        let fiddle = self.s.pair >= 0.5 && self.s.player > 0.0;
+        let fiddle = shape::fiddler(&self.s) > 0.0 && self.s.player > 0.0;
         let can = fiddle
             && mono
             && fast

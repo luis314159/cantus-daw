@@ -242,12 +242,19 @@ pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
     }
 }
 
-/// The classical player's share at the player's `amount` and `bow.pair`: a fiddler's bow
+/// The classical player's share at the player's `amount` and how much of a fiddler plays: a fiddler
 /// (ADR 0164) plays its own way — the Fiddle character's measured lines (`docs/round42/fiddle.md`)
 /// keep their numbers — so the shape, the taper, the vibrato's way back and the intonation give
-/// way to it, all of it with the pair on.
-pub fn classical(amount: f32, pair: f32) -> f32 {
-    (amount.clamp(0.0, 1.0) * (1.0 - pair.clamp(0.0, 1.0))).max(0.0)
+/// way to it, all of it on a full steel set.
+pub fn classical(amount: f32, fiddler: f32) -> f32 {
+    (amount.clamp(0.0, 1.0) * (1.0 - fiddler.clamp(0.0, 1.0))).max(0.0)
+}
+
+/// How much of a fiddler the settings describe (0 … 1): the Fiddle character's steel set
+/// (`steel`, ADR 0164). Neither one bow on two strings (`bow.pair`: a classical double stop, a
+/// string left ringing at a crossing) nor the bow's grit makes a fiddler by itself.
+pub fn fiddler(s: &super::ArcusSettings) -> f32 {
+    s.steel.clamp(0.0, 1.0)
 }
 
 /// How long a note must have been held for its whole taper, s.

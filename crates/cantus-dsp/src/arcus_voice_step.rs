@@ -210,7 +210,7 @@ impl Voice {
         // r42 arcus-classical: a fiddler's late vibrato on a long note, narrow and quick
         // (`shape::fiddle_vib`; model 2, a fiddler's bow).
         let (amount, vdt) = if s.model >= 2
-            && s.pair >= 0.5
+            && super::super::shape::fiddler(s) > 0.0
             && s.player > 0.0
             && self.tech == NoteTech::Arco
         {
@@ -402,10 +402,9 @@ impl Voice {
         if self.bow_on && s.bow_noise_db > -60.0 {
             // r42 arcus-classical: the hair's noise rides the shape's speed (the friction's
             // roughness goes with the force, and the force with the speed; exactly 1 unshaped).
-            let mut lvl =
-                ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
-            // r42 fiddle: the bow's grit, rising near the bridge and with the force.
-            // The bite gives each note its share of it by the dynamic (a chop all of it).
+            let mut lvl = ROUGH * math::db_to_gain(s.bow_noise_db) * self.rate.noise_scale() * kv; // r42:arcus-upper
+                                                                                                   // r42 fiddle: the bow's grit, rising near the bridge and with the force.
+                                                                                                   // The bite gives each note its share of it by the dynamic (a chop all of it).
             if s.grit > 0.0 {
                 let share = if self.tech == NoteTech::Chop {
                     1.0
@@ -463,8 +462,8 @@ impl Voice {
         let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
         let mut corner = super::super::upper::corner_hz(self.inst, spec.corner_hz, f) // r42:arcus-upper
             * super::pair::steel_corner(s); // r42 fiddle
-        // (The violin's and the viola's: on the cello it moved none of the loud partials the
-        // cellos have, and on the bass it held the E string's attack past Guettler's limit.)
+                                            // (The violin's and the viola's: on the cello it moved none of the loud partials the
+                                            // cellos have, and on the bass it held the E string's attack past Guettler's limit.)
         if s.model >= 2
             && matches!(self.inst, Instrument::Violin | Instrument::Viola)
             && self.tech == NoteTech::Arco
@@ -488,8 +487,13 @@ impl Voice {
             let r = (bw.force / f_mf.max(1e-6)).max(1e-3);
             // (A fiddler's bow keeps its tuned top: its bridge and body were fitted with the
             // corner fixed, ADR 0164.)
-            let fixed = 1.0 - s.pair.clamp(0.0, 1.0);
-            let g = fixed * if r >= 1.0 { knobs.bright.0 } else { knobs.bright.1 };
+            let fixed = 1.0 - super::super::shape::fiddler(s);
+            let g = fixed
+                * if r >= 1.0 {
+                    knobs.bright.0
+                } else {
+                    knobs.bright.1
+                };
             corner = (corner * math::powf(r, g as f64).clamp(0.5, 3.0)).min(0.4 * sr as f64);
             // … and the string's upper partials lose less between the bow's re-sharpenings
             // under a heavier bow (the loss exponent, `Knobs::loss_force`).
