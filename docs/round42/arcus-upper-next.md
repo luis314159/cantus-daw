@@ -1847,8 +1847,13 @@ crop-02 — study only, outside the repository).
   `KNUCKLE_SPREAD`: not touched), or (c) a longer reach for the viola's arm (her shoulder or
   upper arm, the polish builder's figure).
 
-**Gates at the end of pass 8** (release, the installed assets = pass 7's table): see the
-report of this pass; the table, the figures and the Rust code are pass 7's.
+**Gates at the end of pass 8** (release, rebuilt, the installed assets = pass 7's table; the
+table, the figures and the Rust code are pass 7's): green `arcus_hand_shape`,
+`arcus_hand_form`, `arcus_scene`, `scene_identity`, `figure_contract`, `kit_lint`, clippy
+`-D warnings` on cantus-ui (lib, `arcus_hold`, `arcus_hand_table`); red, as
+in pass 7, `arcus_hand_table` (40 rules, 29 cases into the instrument) and
+`arcus_hold::the_left_hand_passes_behind_the_neck` on the cello's neck stamp (Vector Cello
+Woman at [312.4, 160.9]: the instrument's, not the figure's).
 
 **Open after pass 8, in order**: (1) her hand edge-on high up — a rig decision first (a,
 b or c above), then `edge_probe.py` and `blend_fix.py --rules`; (2) the 12 thumb tips on
