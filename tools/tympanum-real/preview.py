@@ -195,7 +195,9 @@ background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8p
            "CC BY 4.0, Google) tocada por baterías grabadas de verdad y por Tympanum, antes y "
            "después de esta ronda. Todos a la misma sonoridad (−20 LUFS, o menos si un pico pasaba "
            "de −1 dBFS). Con nombres, no a ciegas: la prueba ciega viene después. Escucha con "
-           "auriculares; el informe con las medidas está en <a href='informe.html'>informe.html</a>.</p>"]
+           "auriculares; el informe con las medidas está en <a href='informe.html'>informe.html</a>; "
+           "cada pieza por separado, con espectrogramas, en <a href='analisis-elementos/index.html'>"
+           "analisis-elementos</a>.</p>"]
     for name, mid, hint, items, lv in page:
         out.append(f"<section><h2>{html.escape(name)}</h2><p class='hint'>Fíjate en: "
                    f"{html.escape(hint)}. <small>({html.escape(mid.split('/')[-1])}, {lv:.1f} LUFS)</small></p>")

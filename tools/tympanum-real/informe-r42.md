@@ -147,6 +147,52 @@ es.
 
 ![El ride](fig_ride.png)
 
+## 4b. El modelo 6: el ataque, y por qué no basta
+
+Después de este informe se hizo el **modelo 6**, que cambia cómo empieza cada golpe de los
+tambores. Las canciones que ya tenías siguen sonando exactamente igual con el modelo 5:
+una canción guardada antes recuerda el suyo, comprobado muestra a muestra. Los cambios:
+
+- cada modo del parche entra empujado por el contacto del palo (0,8 ms fuerte, 1,8 ms suave; el doble con la maza del bombo);
+- la bordonera llega con un retraso, por el aire de dentro del tambor;
+- el «knock» es el empuje del parche y ya no un ruido;
+- un golpe entre dos capas de velocidad ya no puede anularse a sí mismo: el bombo a 96 caía 3,3 dB bajo el de 80;
+- el clic del palo en el charles es el mismo golpe a golpe;
+- un tambor golpeado mientras suena nunca queda más débil que el golpe solo.
+
+| | modelo 5 | modelo 6 | grabadas |
+|---|---|---|---|
+| Studio: peso total fuera del rango | 13,7 | 12,8 | — |
+| Jazz: peso total fuera del rango | 25,7 | 24,1 | — |
+| Cresta del ritmo de rock, Studio (dB) | 27,7 | 22,8 | 19,1–23,8 |
+| Cresta del funk, Studio (dB) | 30,2 | 29,1 | 20,9–27,8 |
+| Cresta del jazz, Jazz (dB) | 25,7 | 23,7 | 18,5–20,8 |
+| Cresta de los primeros 10 ms, media de los tambores Jazz, sobre la mediana grabada | +2,8 dB | +1,7 dB | 0 |
+
+Escucha el modelo 6 en [m6/index.html](m6/index.html). Los gráficos de abajo comparan ahora el
+modelo 5 (azul) con el modelo 6 (naranja) sobre el rango de las grabadas.
+
+**Tu oído tenía razón.** Al rock con el modelo 6 lo llamaste «horroroso», y a todo lo anterior
+«un desastre, no se parece nada a algo real». Las medidas mejoraron, pero no lo bastante para
+sonar real. El análisis pieza a pieza ([analisis-elementos/index.html](analisis-elementos/index.html))
+dice por qué:
+
+- al bombo Studio le faltan todos los agudos después del ataque (12–39 dB);
+- charles, crash y toms tienen graves de más (6–12 dB a 100–200 Hz);
+- a la campana del ride le falta su nota;
+- la caja Studio está hueca en 500–800 Hz y tiene un tono de 200 Hz demasiado largo.
+
+Varias de estas cosas se pueden corregir en las tablas. Pero la bordonera, el lavado de los
+platos y el roce de los charles son ruidos caóticos que una muestra trae tal cual y que el
+modelo solo imita en promedio.
+
+**Por eso cambia el plan.** Las baterías principales de Tympanum pasan a ser **muestreadas**,
+desde las mejores grabadas libres: DRSKit, Virtuosity, Gogodze, Big Rusty, Unruly, MuldjordKit.
+Tendrán todas sus capas, round robin sin repetir, sus micrófonos y su fuga entre micrófonos, y
+un cruce entre capas que no se anula. El modelo queda para lo que hace mejor que una muestra:
+afinar, apagar, variar sin fin, la bordonera simpática, la posición del golpe y la sala. Las
+baterías modeladas quedan como una familia aparte, con su nombre. Es el plan de la ronda 43.
+
 ## 5. Lo que falta (en orden de lo que más se oye)
 
 1. **Los picos (diagnosticado, sin corregir todavía).** En los grooves, Tympanum tiene
