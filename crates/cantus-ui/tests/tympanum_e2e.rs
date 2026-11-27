@@ -590,14 +590,19 @@ fn the_jazz_kit_plays_its_own_measured_voices() {
 /// every step a drummer plays, for every seed — the drums a second apart, each struck while its
 /// last hit rings: model 6 (a new Tympanum's `model` 2) never lets one hit's own draw cancel its
 /// level (model 5's blend did: the studio kick at 96 3.3 dB under its 80 for one seed). The
-/// cymbals and the hat 4 s apart: a cymbal struck while it rings blooms as a harder hit by design
-/// (ADR 0124's second amendment), so a ride's 112 a second after its 96 already plays near its 127.
+/// hat 4 s apart and the cymbals 12 s: a cymbal struck while it rings blooms as a harder hit by
+/// design (ADR 0124's second amendment) — a ride rings for 7–10 s, and its 112 a few seconds after
+/// its 96 already plays as its 127.
 #[test]
 fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
     const VELS: [u8; 9] = [16, 32, 48, 56, 64, 80, 96, 112, 127];
     for kit in ["model:studio", "model:jazz"] {
         for key in [36u8, 38, 45, 41, 42, 49, 51] {
-            let beats = if matches!(key, 42 | 49 | 51) { 4 } else { 1 };
+            let beats = match key {
+                49 | 51 => 12,
+                42 => 4,
+                _ => 1,
+            };
             for seed in [0.0f32, 1.0, 2.0] {
                 let mut p = Project::new("Law");
                 p.tempo_bpm = 60.0;

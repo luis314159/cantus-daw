@@ -626,7 +626,7 @@ Elsewhere:
 - cantus-project `schema_86_keeps_each_tympanums_model` (fixture `v86.cantus`);
 - cantus-ui `tympanum_e2e`:
   - `every_modelled_piece_grows_with_the_velocity_through_the_app`: the drums 1 s apart
-    (the cymbals 4 s apart: their re-strike blooms by design), three seeds, through
+    (the hat 4 s, the cymbals 12 s: their re-strike blooms by design), three seeds, through
     `CantusApp::assemble`;
   - `a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own`: model 2's snare and
     kick play model 6, not model 5, and the crash plays the same bits.
