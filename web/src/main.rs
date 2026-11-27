@@ -26,6 +26,7 @@ mod nav; // r39:web-content — the bar, the phone menu, "send the link"
 mod pages; // r39 — /download, /measured, /instruments/<name>, /effects/<name>, /learn
 mod picture; // r39:web-content — the program's picture, one swappable asset
 mod platform;
+mod plugins; // r42:site-plugins — the effects as plug-ins on their own: names, facts, text
 #[cfg(feature = "ssr")]
 mod prerender; // r39:web-struct — every page as static HTML, after `trunk build`
 mod proof; // r39:web-extra — GitHub's counts from stats.json, hidden below the floor
@@ -112,8 +113,12 @@ fn main() {
         }
     };
     wasm_bindgen_futures::spawn_local(async move {
-        // The units' long text first, so the app's first render says what the page says.
+        // The units' long text first, so the app's first render says what the page says —
+        // and on the plug-in pages their files' facts and text (round 42).
         unit_text::load().await;
+        if matches!(page.route, route::Route::Plugins | route::Route::Plugin(_)) {
+            plugins::load().await;
+        }
         let y = win.scroll_y().unwrap_or(0.0);
         root.set_inner_html("");
         yew::Renderer::<app::App>::with_root_and_props(root, app::AppProps { page }).render();

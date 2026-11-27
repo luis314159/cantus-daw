@@ -7,8 +7,11 @@
 //! - `/instruments/<name>`, `/effects/<name>` — [`unit::UnitPage`]; `/instruments`,
 //!   `/effects` — [`unit::UnitIndex`] (web-content)
 //! - `/learn` — [`learn::Learn`] (web-extra)
+//! - `/plugins`, `/plugins/<effect>` — [`plugins::PluginsIndex`], [`plugins::PluginPage`]
+//!   (round 42: the effects as plug-ins on their own)
 
 pub mod download;
 pub mod learn;
 pub mod measured;
+pub mod plugins;
 pub mod unit;

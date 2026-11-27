@@ -310,7 +310,7 @@ pub fn units() -> Html {
                             <ul class="up-meta">
                                 if let Some(p) = presets { <li>{ p }</li> }
                                 if u.plugin {
-                                    <li>{ l.t("Also a CLAP and VST3 plug-in for other DAWs, with the same face", "También plug-in CLAP y VST3 para otros DAW, con la misma cara") }</li>
+                                    <li><a href={crate::nav::href(l, &format!("/plugins/{}", u.file))}>{ l.t("Also a CLAP and VST3 plug-in for other DAWs, with the same face on Windows", "También plug-in CLAP y VST3 para otros DAW, con la misma cara en Windows") }</a></li>
                                 } else {
                                     <li>{ l.t("Every change one undo step, saved with the song", "Cada cambio, un paso de deshacer, guardado con la canción") }</li>
                                 }

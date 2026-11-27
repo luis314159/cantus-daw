@@ -74,6 +74,17 @@ python tools/units_pictures.py ../target/shots/skins-es --es   # the Spanish pag
 It writes `assets/units/` (the cards and the large pictures, dark and light; `-es` for the
 Spanish page, whose pictures show the editors in Spanish) and the README's `docs/images/units/`.
 
+## The plug-ins on their own (round 42)
+
+`/plugins/` and `/plugins/<effect>/` (`src/pages/plugins.rs`) offer each effect as a CLAP and
+VST3 plug-in for other DAWs: the release's `Cantus-plugin-<slug>-<platform>.zip` and
+`Cantus-plugins-all-<platform>.zip` (`xtask plugin-zips`, `docs/RELEASING.md` L10), linked through
+`releases/latest/download/`. `src/plugins.rs` holds the names, the folders per system and the
+pages' longer text. A button is live only when `assets/release.json` lists its file, else it is
+shown disabled with a note: the site needs no change when a release first carries them. The
+files' facts and the text are not in the WebAssembly: the pre-renderer writes `/plugins.json`,
+which only these pages fetch.
+
 ## The recording mode's and the studio's pictures
 
 `assets/studio/record-*` and `mix-snap-*` (each in EN and ES) come from

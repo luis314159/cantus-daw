@@ -60,13 +60,13 @@ fn system(l: Lang, os: Os) -> System {
 
 /// The hash and the line that checks it, with a copy button.
 #[derive(Properties, PartialEq)]
-struct HashProps {
-    cmd: AttrValue,
-    sha: AttrValue,
+pub struct HashProps {
+    pub cmd: AttrValue,
+    pub sha: AttrValue,
 }
 
 #[function_component(Hash)]
-fn hash(p: &HashProps) -> Html {
+pub fn hash(p: &HashProps) -> Html {
     let l = use_lang().lang;
     let copied = use_state(|| false);
     let copy = {
@@ -219,8 +219,9 @@ pub fn download_page() -> Html {
                         <p class="dl-other">{ l.t("On Windows 10? Nobody has tried it there yet. ", "¿Usas Windows 10? Nadie lo ha probado ahí todavía. ") }
                             <a href={WIN10_REPORT}>{ l.t("Tell us whether it runs", "Cuéntanos si funciona") }</a>{ l.t(" — a short report is how Windows 10 joins the list.", " — un reporte corto es como Windows 10 entra en la lista.") }</p>
                     }
-                    <p class="dl-other">{ l.t("Other systems, the plug-ins alone and every file: ", "Otros sistemas, los plug-ins solos y cada archivo: ") }
-                        <a href="#systems">{ l.t("below", "abajo") }</a>{ " · " }<a href={REL_NOTES}>{ l.t("release notes", "notas de la versión") }</a>{ " · " }
+                    <p class="dl-other">{ l.t("Other systems and every file: ", "Otros sistemas y cada archivo: ") }
+                        <a href="#systems">{ l.t("below", "abajo") }</a>{ " · " }
+                        <a href={crate::nav::href(l, "/plugins")}>{ l.t("the effects alone, as plug-ins", "los efectos solos, como plug-ins") }</a>{ " · " }<a href={REL_NOTES}>{ l.t("release notes", "notas de la versión") }</a>{ " · " }
                         <a href={format!("{GITHUB}/blob/master/docs/DEVELOPING.md")}>{ l.t("build it yourself", "compílalo tú") }</a></p>
                 </div>
                 <aside class="dl-before">

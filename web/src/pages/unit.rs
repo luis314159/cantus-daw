@@ -126,7 +126,7 @@ pub fn unit_page(p: &UnitProps) -> Html {
                         <ul class="up-meta">
                             if let Some(p) = presets { <li>{ p }</li> }
                             if u.plugin {
-                                <li>{ l.t("Also a CLAP and VST3 plug-in for other DAWs, with the same face", "También plug-in CLAP y VST3 para otros DAW, con la misma cara") }</li>
+                                <li><a href={href(l, &format!("/plugins/{}", u.file))}>{ l.t("Also a CLAP and VST3 plug-in for other DAWs, with the same face on Windows", "También plug-in CLAP y VST3 para otros DAW, con la misma cara en Windows") }</a></li>
                             } else {
                                 <li>{ l.t("Every change one undo step, saved with the song", "Cada cambio, un paso de deshacer, guardado con la canción") }</li>
                             }
@@ -166,7 +166,12 @@ pub fn unit_index(p: &IndexProps) -> Html {
                 <h1>{ l.t("All its own, all free", "Todos propios, todos gratis") }</h1>
             </div></div>
             <crate::units::Units />
-            if p.effects { <crate::tryit::TryIt /> }
+            if p.effects {
+                <crate::tryit::TryIt />
+            }
+            <div class="chapter-more">
+                <p class="wrap"><a class="link" href={href(l, "/plugins")}>{ l.t("The effects as plug-ins for your DAW: CLAP and VST3, free", "Los efectos como plug-ins para tu DAW: CLAP y VST3, gratis") }<i aria-hidden="true">{ " →" }</i></a></p>
+            </div>
         </>
     }
 }

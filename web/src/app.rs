@@ -191,6 +191,8 @@ fn body_of(page: Page) -> Html {
                 <why::Why />
             </>
         },
+        Route::Plugins => html! { <pages::plugins::PluginsIndex /> },
+        Route::Plugin(name) => html! { <pages::plugins::PluginPage file={name} /> },
     }
 }
 

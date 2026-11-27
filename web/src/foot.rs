@@ -50,6 +50,7 @@ pub fn footer() -> Html {
                     { col(l.t("Product", "Producto"), vec![
                         (to(Route::Download), l.t("Download", "Descargar")),
                         (to(Route::Instruments), l.t("Instruments and effects", "Instrumentos y efectos")),
+                        (to(Route::Plugins), l.t("Plug-ins for your DAW", "Plug-ins para tu DAW")),
                         (to(Route::Studio), l.t("The studio", "El estudio")),
                         (to(Route::Ai), l.t("AI on your computer", "IA en tu computadora")),
                         (to(Route::Measured), l.t("Measured", "Medido")),

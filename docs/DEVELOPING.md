@@ -239,6 +239,7 @@ cargo run -p xtask -- package                   # build, lay out, installer, zip
 cargo run -p xtask -- package --no-installer    # zips only (no NSIS needed)
 cargo run -p xtask -- sign-test-cert            # a self-signed certificate for trying --sign-test
 cargo run -p xtask -- bundle                    # our effects as .clap/.vst3 for other DAWs
+cargo run -p xtask -- plugin-zips <out>         # each effect zipped on its own + all, for this system (the site's Plug-ins pages)
 cargo run -p xtask -- manual                    # the manual as HTML into target/manual
 ```
 

@@ -362,6 +362,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let text = dist.join(crate::unit_text::URL.trim_start_matches('/'));
     std::fs::write(&text, crate::unit_text::json())
         .map_err(|e| format!("{}: {e}", text.display()))?;
+    // The plug-in pages' files and text, which only those pages fetch (plugins.rs, round 42).
+    let plug = dist.join(crate::plugins::URL.trim_start_matches('/'));
+    std::fs::write(&plug, crate::plugins::json())
+        .map_err(|e| format!("{}: {e}", plug.display()))?;
     let extra = static_pages(&dist);
     let map = dist.join("sitemap.xml");
     std::fs::write(&map, head::sitemap(&lastmod, &extra))

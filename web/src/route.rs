@@ -33,6 +33,10 @@ pub enum Route {
     Learn,
     /// Why Cantus is made, in its author's words (round 41, `why.rs`).
     Why,
+    /// The effects as plug-ins on their own, for any DAW (round 42, `pages::plugins`).
+    Plugins,
+    /// One effect's plug-in downloads; the slug is its `units_data` `file`.
+    Plugin(&'static str),
 }
 
 /// A page in a language: one address.
@@ -40,6 +44,15 @@ pub enum Route {
 pub struct Page {
     pub lang: Lang,
     pub route: Route,
+}
+
+/// An effect exported as a plug-in, by its slug.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))] // read by the browser only
+fn plugin_slug(s: &str) -> Option<&'static str> {
+    EFFECTS
+        .iter()
+        .find(|u| u.plugin && u.file == s)
+        .map(|u| u.file)
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))] // read by the browser only
@@ -63,6 +76,8 @@ impl Route {
             Route::Roadmap => "roadmap/".into(),
             Route::Learn => "learn/".into(),
             Route::Why => "why/".into(),
+            Route::Plugins => "plugins/".into(),
+            Route::Plugin(s) => format!("plugins/{s}/"),
         }
     }
 
@@ -81,6 +96,8 @@ impl Route {
             ["roadmap"] => Route::Roadmap,
             ["learn"] => Route::Learn,
             ["why"] => Route::Why,
+            ["plugins"] => Route::Plugins,
+            ["plugins", s] => Route::Plugin(plugin_slug(s)?),
             _ => return None,
         })
     }
@@ -102,6 +119,13 @@ impl Route {
         ];
         v.extend(INSTRUMENTS.iter().map(|u| Route::Instrument(u.file)));
         v.extend(EFFECTS.iter().map(|u| Route::Effect(u.file)));
+        v.push(Route::Plugins);
+        v.extend(
+            EFFECTS
+                .iter()
+                .filter(|u| u.plugin)
+                .map(|u| Route::Plugin(u.file)),
+        );
         v
     }
 }
@@ -194,6 +218,21 @@ impl Page {
                 "{}{tail}",
                 l.t("Why I'm building Cantus", "Por qué construyo Cantus")
             ),
+            Route::Plugins => format!(
+                "{}{tail}",
+                l.t(
+                    "Plug-ins for your DAW · CLAP and VST3",
+                    "Plug-ins para tu DAW · CLAP y VST3"
+                )
+            ),
+            Route::Plugin(_) => {
+                let u = unit(self.route).expect("a unit route has its unit");
+                format!(
+                    "{} {} · CLAP, VST3{tail}",
+                    u.name,
+                    l.t("plug-in", "plug-in")
+                )
+            }
         }
     }
 
@@ -224,6 +263,23 @@ impl Page {
                 "Every instrument and effect of Cantus's own: synths, a sampler, drums, an organ, a piano, and effects from EQ to reverb, each with its window, its presets heard and its own page. All free.",
                 "Cada instrumento y efecto propio de Cantus: sintetizadores, un sampler, batería, un órgano, un piano y efectos del EQ a la reverb, cada uno con su ventana, sus presets para escuchar y su propia página. Todos gratis.",
             ),
+            Route::Plugins => l.t(
+                "Every effect of Cantus as a free CLAP and VST3 plug-in for the DAW you already use, for Windows, Linux and macOS: one zip each or all at once, with their checksums and how to install them.",
+                "Cada efecto de Cantus como plug-in CLAP y VST3 gratuito para el DAW que ya usas, para Windows, Linux y macOS: un zip cada uno o todos a la vez, con sus sumas y cómo instalarlos.",
+            ),
+            Route::Plugin(_) => {
+                let u = unit(self.route).expect("a unit route has its unit");
+                return format!(
+                    "{} — {}, {} {}",
+                    u.name,
+                    l.t(u.kind.0, u.kind.1),
+                    l.t(
+                        "as a free CLAP and VST3 plug-in for your DAW, for Windows, Linux and macOS.",
+                        "como plug-in CLAP y VST3 gratuito para tu DAW, para Windows, Linux y macOS."
+                    ),
+                    crate::unit_text::pitch(u, l)
+                );
+            }
             Route::Instrument(_) | Route::Effect(_) => {
                 let u = unit(self.route).expect("a unit route has its unit");
                 return format!(
@@ -266,7 +322,7 @@ impl Page {
 pub fn unit(route: Route) -> Option<&'static crate::units::Unit> {
     match route {
         Route::Instrument(s) => INSTRUMENTS.iter().find(|u| u.file == s),
-        Route::Effect(s) => EFFECTS.iter().find(|u| u.file == s),
+        Route::Effect(s) | Route::Plugin(s) => EFFECTS.iter().find(|u| u.file == s),
         _ => None,
     }
 }
@@ -287,7 +343,16 @@ mod tests {
 
     #[test]
     fn unknown_addresses_are_no_page() {
-        for p in ["/nope/", "/instruments/nope/", "/es/es/", "/download/x/"] {
+        for p in [
+            "/nope/",
+            "/instruments/nope/",
+            "/es/es/",
+            "/download/x/",
+            "/plugins/nope/",
+            // an instrument is no plug-in yet
+            "/plugins/unda/",
+            "/plugins/tactus/",
+        ] {
             assert_eq!(Page::parse(p), None, "{p}");
         }
     }

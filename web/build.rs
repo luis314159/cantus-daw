@@ -54,7 +54,8 @@ fn logo_uri(dir: &str) {
 }
 
 /// `assets/release.json` → `$OUT_DIR/release.rs`: `REL_VERSION`, `REL_DATE`, `REL_NOTES`
-/// and `REL_FILES` (name, size in bytes, SHA-256, link).
+/// and `REL_FILES` (name, size in bytes, SHA-256, link) — and, natively only, `REL_PLUGINS`:
+/// the plug-in zips (round 42).
 fn release_facts(dir: &str) {
     let path = std::path::Path::new(dir).join("assets/release.json");
     println!("cargo:rerun-if-changed=assets/release.json");
@@ -67,16 +68,29 @@ fn release_facts(dir: &str) {
     out += &format!("pub const REL_VERSION: &str = {:?};\n", s(&v, "version"));
     out += &format!("pub const REL_DATE: &str = {:?};\n", s(&v, "date"));
     out += &format!("pub const REL_NOTES: &str = {:?};\n", s(&v, "notes"));
+    // Each effect's plug-in zips (round 42, `plugins.rs`): over a hundred files, kept out of
+    // `REL_FILES` and out of the WebAssembly (its budget), which reads them from
+    // `/plugins.json`; natively, for the pre-renderer, `REL_PLUGINS`.
+    let all = v["files"].as_array().cloned().unwrap_or_default();
+    let plugin = |f: &serde_json::Value| s(f, "name").starts_with("Cantus-plugin");
+    let list = |want: bool| {
+        let mut o = String::new();
+        for f in all.iter().filter(|f| plugin(f) == want) {
+            o += &format!(
+                "    RelFile {{ name: {:?}, size: {}, sha256: {:?}, url: {:?} }},\n",
+                s(f, "name"),
+                f["size"].as_u64().unwrap_or(0),
+                s(f, "sha256"),
+                s(f, "url")
+            );
+        }
+        o
+    };
     out += "pub const REL_FILES: &[RelFile] = &[\n";
-    for f in v["files"].as_array().into_iter().flatten() {
-        out += &format!(
-            "    RelFile {{ name: {:?}, size: {}, sha256: {:?}, url: {:?} }},\n",
-            s(f, "name"),
-            f["size"].as_u64().unwrap_or(0),
-            s(f, "sha256"),
-            s(f, "url")
-        );
-    }
+    out += &list(false);
+    out += "];\n";
+    out += "#[cfg(not(target_arch = \"wasm32\"))]\npub const REL_PLUGINS: &[RelFile] = &[\n";
+    out += &list(true);
     out += "];\n";
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR");
     let dest = std::path::Path::new(&out_dir).join("release.rs");
