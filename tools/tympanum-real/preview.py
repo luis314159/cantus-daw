@@ -88,6 +88,12 @@ def to16(x, rng):
 def main():
     work, listen = Path(sys.argv[1]), Path(sys.argv[2])
     tags = (P.arg("--tags", "before,after")).split(",")
+    # each tag's name on the page (`--labels after=antes,m6=después`)
+    lab_of = {"before": "antes", "after": "después"}
+    for kv in (P.arg("--labels", "") or "").split(","):
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            lab_of[k] = v
     rng = np.random.default_rng(42)
     labels = {k[0]: k[2] for k in P.KITS}
     page = []
@@ -103,7 +109,7 @@ def main():
             for t in tags:
                 p = work / "grooves" / t / f"{name}--{kid}.wav"
                 if p.exists():
-                    clips.append((f"{lab} · {'antes' if t == 'before' else 'después' if t == 'after' else t}", p))
+                    clips.append((f"{lab} · {lab_of.get(t, t)}", p))
         if not clips:
             continue
         audio = []
@@ -120,7 +126,7 @@ def main():
         d.mkdir(parents=True, exist_ok=True)
         items = []
         for i, ((lab, p, x, fs), g) in enumerate(zip(audio, gains)):
-            fn = f"{i + 1:02d}-{lab.replace(' · ', '-').replace(' ', '_').lower()}.wav".replace("é", "e")
+            fn = f"{i + 1:02d}-{lab.replace(' · ', '-').replace(' ', '_').lower()}.wav".replace("é", "e").replace("(", "").replace(")", "")
             y = x * 10 ** ((g - drop) / 20)
             sf.write(str(d / fn), to16(y, rng), fs, subtype="PCM_16")
             items.append((lab, f"{name}/{fn}"))
@@ -131,7 +137,7 @@ def main():
         src = P.REFS / "drums" / "freesound" / mp3
         clips = [("grabación original", src, 0.0)]
         for kid, lab, t in [("drskit", "grabada · DRSKit, la transcripción", "ref")] + [
-                (k, f"{l} · {'antes' if t == 'before' else 'después'}, la transcripción", t)
+                (k, f"{l} · {lab_of.get(t, t)}, la transcripción", t)
                 for k, l in TYMP for t in tags]:
             p = work / "grooves" / t / f"{name}--{kid}.wav"
             if p.exists():

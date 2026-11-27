@@ -648,7 +648,14 @@ impl Object {
         let v = h.vel.clamp(1.0, 127.0) / 127.0;
         self.stick_len = ((0.0004 * (1.4 - 0.6 * v) * sr) as u32).max(2);
         self.six = six;
-        self.hat_push = t.hat && h.gen >= 6;
+        if t.hat && h.gen >= 6 {
+            // Model 6's hat: the stick's click the same every stroke — a soft closed hat is
+            // little else (the jazz one's 40 layer: its burst, bands at −75 dB), and 0.5 ms of
+            // noise drawn anew set its level and colour anew each stroke (6.1 dB).
+            let k = 0xC11C_4A75_0000_0000u64 ^ t.id as u64;
+            self.vary = Noise::from_seed(k);
+            self.burst_s = Noise::from_seed(k ^ 0x2F6B_4A1D_93C5_E871);
+        }
         if six {
             // The contact (a kick's felt beater the longer), and the knock as its push.
             self.contact_len = p6.contact(h.vel, t.id % 16 == 4, sr);
@@ -764,11 +771,7 @@ impl Object {
                         acs += s * self.burst_s.next() * SQRT3;
                     }
                 }
-                let x = if self.hat_push {
-                    // Model 6's hat: the stick's push, the same each stroke — drawn noise
-                    // 2 ms long gave the closed hat's lows a different level every stroke.
-                    math::sin(PI * t / knock_len as f32)
-                } else if !self.six {
+                let x = if !self.six {
                     math::sin(PI * t / knock_len as f32) * z
                 } else if self.stick_t < self.contact_len {
                     // Model 6: the head's push, the contact's own half-sine.

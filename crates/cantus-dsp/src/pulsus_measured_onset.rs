@@ -26,10 +26,10 @@
 //!   noise), at [`Onset6::knock`] of model 5's.
 //!
 //! The cymbals are not drums: model 6 plays them as model 5 does, to the bit — but for a
-//! **hat's knock**, which is the stick's push the same every stroke: model 5's was 2 ms of
-//! drawn noise, too short to be the same twice, and under the soft closed hat's thin lows
-//! it set their level anew each stroke (the jazz closed hat's 6.1-dB take-to-take change,
-//! 7 dB a third octave at 250 Hz – 1.6 kHz at velocity 32).
+//! **hat's stick**: its click (the sub-millisecond burst) and knock are the same every
+//! stroke. Model 5 drew them anew from noise half a millisecond to 2 ms long, too short to be
+//! the same twice, and a soft closed hat is little else (the jazz hat's 40 layer: the click,
+//! its bands at −75 dB) — its level and colour changed stroke to stroke by 6.1 dB.
 
 /// Model 6's onset constants (fitted against the recorded kits' per-band peak timing:
 /// `tools/tympanum-real/onset.py`).
@@ -63,7 +63,7 @@ pub(crate) const ONSET6: Onset6 = Onset6 {
     contact_pp_ms: 1.8,
     mallet: 2.0,
     drawn_phase: 0.0,
-    knock: 0.0,
+    knock: 0.3,
     burst: 1.0,
     vary_db: 1.5,
     wire_lag_ms: 1.5,

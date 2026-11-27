@@ -387,8 +387,6 @@ pub(crate) struct Object {
     /// Model 6 (a drum): the stick's contact — samples into it, and its length — and the
     /// knock's end.
     pub six: bool,
-    /// Model 6's hats: the stick's knock is its push, the same each stroke (no noise).
-    pub hat_push: bool,
     pub contact_n: u32,
     pub contact_len: u32,
     pub stick_end: u32,
@@ -636,7 +634,6 @@ impl Object {
             split: false,
             lpz: [0.0; 4],
             six: false,
-            hat_push: false,
             contact_n: 0,
             contact_len: 0,
             stick_end: 0,

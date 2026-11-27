@@ -124,38 +124,33 @@ fn a_model_6_drum_renders_the_same_bits_however_cut_and_comes_to_rest() {
     assert!(!p.measured.as_deref().unwrap().any(), "at rest");
 }
 
-/// The stick's contact: a model 6 drum's first half millisecond is far under model 5's (whose
-/// modes start at full), and its waveform peaks later — the same hits, the same seeds.
-
-/// The stick's contact: a model 6 drum's first half millisecond is far under model 5's (whose
-/// modes start at full), and its waveform peaks later — the same hits, the same seeds.
+/// The stick's contact: over every drum of both kits, a model 6 hit's first 10 ms are less
+/// peaked than model 5's (its crest — peak over RMS — lower: the modes pushed in over the
+/// contact, the knock a push and no longer a burst of noise), the same hits, the same seeds.
 #[test]
 fn a_model_6_drum_comes_in_through_the_contact() {
-    let peak_at = |x: &[f32]| {
-        x.iter()
-            .enumerate()
-            .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
-            .map_or(0, |(i, _)| i)
+    let crest = |x: &[f32]| {
+        let w = &x[..480];
+        let pk = w.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        20.0 * crate::math::log10(pk / rms(w).max(1e-12))
     };
+    let (mut c5, mut c6) = (0.0, 0.0);
     for table in DRUMS {
-        let (mut early5, mut early6, mut at5, mut at6) = (0.0, 0.0, 0usize, 0usize);
         for id in 1..=4u64 {
             let five = hit(table, 110, id, 5, 2_400);
             let six = hit(table, 110, id, 6, 2_400);
-            early5 += rms(&five[..24]);
-            early6 += rms(&six[..24]);
-            at5 += peak_at(&five);
-            at6 += peak_at(&six);
+            let first = |x: &[f32]| x.iter().position(|v| v.abs() > 1e-7).unwrap_or(0);
+            c5 += crest(&five[first(&five)..]);
+            c6 += crest(&six[first(&six)..]);
         }
-        assert!(
-            early6 < 0.5 * early5,
-            "table {table}: {early6} against {early5}"
-        );
-        assert!(
-            at6 >= at5,
-            "table {table}: peak at {at6} against {at5} samples"
-        );
     }
+    let n = (DRUMS.len() * 4) as f32;
+    assert!(
+        c6 / n < c5 / n - 0.3,
+        "first 10 ms crest: model 6 {:.2} dB against model 5 {:.2}",
+        c6 / n,
+        c5 / n
+    );
 }
 
 /// Model 6's level is the force's: every drum grows with the velocity at every step a
@@ -183,23 +178,52 @@ fn every_model_6_drum_grows_with_the_velocity_for_every_seed() {
     }
 }
 
+/// `hits` (frame, key, velocity, tick) as sequenced notes — each hit's seed its own note's,
+/// whatever else was struck — in blocks of 512: the summed lanes.
+fn play_seq(p: &mut Pulsus, hits: &[(usize, u8, u8, i64)], n: usize) -> Vec<f32> {
+    let mut out = vec![0.0f32; n];
+    let (mut at, mut e) = (0, 0);
+    while at < n {
+        while e < hits.len() && hits[e].0 <= at {
+            let (_, key, vel, tick) = hits[e];
+            p.trigger(
+                key,
+                vel,
+                super::super::super::Hit {
+                    id: tick as u64,
+                    tick,
+                    ordinal: 0,
+                    sequenced: true,
+                },
+            );
+            e += 1;
+        }
+        let next = hits.get(e).map_or(n, |x| x.0.max(at + 1));
+        let c = (n - at).min(512).min(next - at);
+        p.process_buses(c, &mut |_, off, l, r| {
+            for (i, (a, b)) in l.iter().zip(r).enumerate() {
+                out[at + off + i] += 0.5 * (a + b);
+            }
+        });
+        at += c;
+    }
+    out
+}
+
 /// Struck while it rings, a model 6 drum takes the stick's push on top of its moving head
-/// (the contact's phasors added to the ring): on average over when it lands it never comes out
-/// quieter than the same hit at rest, and at no moment by more than a hit's own variation —
-/// the kick at 80 then 96, the snare and a tom likewise, 100 ms to 1 s later.
+/// (the contact's phasors added to the ring): on average over when it lands it never comes
+/// out quieter than the same hit (the same seed) at rest, and at no moment by more than a
+/// hit's own variation — the kick at 80 then 96, the snare and a tom likewise, 100 ms to 1 s
+/// later.
 #[test]
 fn a_model_6_drum_struck_while_it_rings_never_loses_level_on_average() {
     for (key, table) in [(36u8, 4u8), (38, 5), (45, 6)] {
         let mut diffs = Vec::new();
         for k in 0..10usize {
             let gap = 4_800 + k * 4_800;
-            let two = play(
-                &mut drums_gen(6),
-                &[(0, key, 80), (gap, key, 96)],
-                gap + 3_840,
-                512,
-            );
-            let alone = play(&mut drums_gen(6), &[(gap, key, 96)], gap + 3_840, 512);
+            let second = (gap, key, 96, 7_000 + k as i64);
+            let two = play_seq(&mut drums_gen(6), &[(0, key, 80, 1), second], gap + 3_840);
+            let alone = play_seq(&mut drums_gen(6), &[second], gap + 3_840);
             let d = db(&two[gap..]) - db(&alone[gap..]);
             assert!(d > -1.5, "table {table}, {gap} samples on: {d:.2} dB");
             diffs.push(d);

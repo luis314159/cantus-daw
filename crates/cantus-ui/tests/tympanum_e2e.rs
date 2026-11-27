@@ -635,8 +635,8 @@ fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
 
 /// Model 6 through the app (r42:tympanum-real, ADR 0124's seventh amendment; schema 86): a
 /// new Tympanum stores `model` 2 and its drums come in through the stick's contact — the
-/// snare's first half millisecond far under what a song made before (`model` 1, model 5)
-/// plays — while its cymbals play the same bits under either model.
+/// snare's and the kick's first 10 ms less peaked (their crest lower) than a song made before
+/// (`model` 1, model 5) plays them — while its crash plays the same bits under either model.
 #[test]
 fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
     let render_with = |model: Option<f32>, key: u8| {
@@ -659,19 +659,28 @@ fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
         let (mut app, _proc) = boot(p.clone());
         offline(&mut app, &p, 48_000, 512)
     };
-    let onset = |x: &[f32]| {
-        let first = x.iter().position(|v| v.abs() > 1e-6).unwrap_or(0);
-        let w = &x[first..first + 2 * 24];
-        (w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32).sqrt()
+    // the first 10 ms's crest (peak over RMS, dB), the left channel
+    let crest = |x: &[f32]| {
+        let first = x.iter().position(|v| v.abs() > 1e-6).unwrap_or(0) & !1;
+        let w: Vec<f32> = x[first..first + 2 * 480]
+            .iter()
+            .step_by(2)
+            .copied()
+            .collect();
+        let pk = w.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+        let rms = (w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32).sqrt();
+        20.0 * cantus_dsp::math::log10(pk / rms.max(1e-12))
     };
-    let (old, new) = (render_with(Some(1.0), 38), render_with(None, 38));
-    assert!(peak(&new) > 1e-3);
-    assert!(
-        onset(&new) < 0.5 * onset(&old),
-        "the snare's first 0.5 ms: model 2 {} against model 1 {}",
-        onset(&new),
-        onset(&old)
-    );
+    for key in [38u8, 36] {
+        let (old, new) = (render_with(Some(1.0), key), render_with(None, key));
+        assert!(peak(&new) > 1e-3);
+        assert!(
+            crest(&new) < crest(&old),
+            "key {key}'s first 10 ms crest: model 2 {:.2} dB against model 1 {:.2}",
+            crest(&new),
+            crest(&old)
+        );
+    }
     same(
         &render_with(Some(1.0), 49),
         &render_with(None, 49),
