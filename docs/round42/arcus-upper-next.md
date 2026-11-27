@@ -1394,7 +1394,7 @@ shoulder's fold-lip dots (both the concert's `cloth_rim` line, Open 1), her Draw
 (Open 2).
 
 **Sheets** (never committed; the photographs not beside — study only):
-`F:\projects\daw-r42\tmp\polish5\sheet5\` — `collar-100.png` (before | after, Photographic
+`F:\projects\daw-r42\tmp\polish5\sheet7\` (the committed defaults; `sheet6\` the lap on; `sheet5\` the hair) — `collar-100.png` (before | after, Photographic
 over Drawn, the picture at 100 %), `collar-400.png` (the knot and both collar points at
 400 %), `his-hair-200.png` (before | after at 200 %). Before = this branch's binary with
 `CANTUS_TUNE` set to pass 4's numbers. The sheet script was a session tool (the

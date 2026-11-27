@@ -2142,7 +2142,7 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
             let q = *p - c;
             let (y, h) = (q.dot(up), q.dot(n));
             // (Near the knot's face only: the collar's back round the neck lies behind it.)
-            if h < -1.5 || h > KNOT_D + 1.0 {
+            if !(-1.5..=KNOT_D + 1.0).contains(&h) {
                 continue;
             }
             let v = y / KNOT_H + 0.5;

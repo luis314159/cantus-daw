@@ -2676,16 +2676,16 @@ fn despike(am: &ArmMesh, sc: &mut Scratch, eye: V3) {
             }
         }
     }
-    for i in 0..n {
+    for (i, b) in broad.iter().enumerate().take(n) {
         if !am.sleeve[i] {
             continue;
         }
         let e = (eye - sc.pts[i]).norm();
-        let g = broad[i].dot(e) - sc.nrm[i].dot(e);
+        let g = b.dot(e) - sc.nrm[i].dot(e);
         let t = ((g - g0) / (g1 - g0)).clamp(0.0, 1.0);
         let k = t * t * (3.0 - 2.0 * t);
         if k > 0.0 {
-            sc.nrm[i] = (sc.nrm[i] + (broad[i] - sc.nrm[i]) * k).norm();
+            sc.nrm[i] = (sc.nrm[i] + (*b - sc.nrm[i]) * k).norm();
         }
     }
     sc.broad = broad;
