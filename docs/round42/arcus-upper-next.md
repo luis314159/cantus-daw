@@ -1786,3 +1786,71 @@ viola high up: `upper_len` and `hand_up` fight the rules there); (3) the index's
 E side at +1 (7, the A and E strings; `index_out` weight 40 brought her viola's in at the
 cost of the hand-to-neck angle — `hand_neck` weight 3 holds both); (4) the cello's neck stamp
 against the bake (the instrument's owner); (5) the budget on an idle machine.
+
+### Pass 8 (2026-11-26): her hand edge-on high up — measured, not reachable within the budget
+
+Work folder: `F:\projects\daw-r42\tmp\hands8\` (`explore.py` and `thumb.py` the session's
+probes, now `tools/arcus-figures/edge_probe.py`; `t40\` / `t50\` the forced runs' logs and
+poses; `v*\` their previews; `edge-study-woman-violin-row9.png` the study sheet beside
+crop-02 — study only, outside the repository).
+
+- *The brief*: re-pose her reach and high rows (violin and viola) from a start along the
+  instrument's rib, as crop-02, to the back's facing toward the app's eye ≤ ~0.6 high up,
+  penetration no worse than pass 7's (29 cases; `blend_check --mid` ≤ 345), the finger gaps
+  kept; on the viola, if her arm makes the turn impossible without going into the body,
+  show it with numbers and stop.
+- *The facing on pass 7's gate cases* (`rule_check.py --all`): her violin +12 0.65–0.89,
+  +14 0.78–0.91; her viola +12 0.81–0.91, +14 0.86–0.90. The app's eye in the neck's frame
+  is (0.84, 0.07, 0.54) (x the E side, y toward the scroll, z the fingerboard's normal): it
+  sees the E side more than the top, as crop-02's camera does (its rib band against the
+  top's breadth reads about the same angle), so the photograph's turn is the hand's, not
+  the camera's.
+- *`edge_probe.py`* (new): one row solved again as `blend_fix.py --rules` solves it with
+  the facing held at `--facing` (weight 1 000), from the table's pose and from `--rib=N`
+  frames built along the instrument (the knuckle line level and along the neck so the
+  playing finger can still come down onto its string, the back at the wanted slant, the
+  wrist ≥ 1.5 cm clear of the body, the playing tip on its stop); `--relax` lets the facing
+  go afterwards, `--thumb` starts from the thumbs of the rows below, `--look` saves
+  `pen_look`'s views. Every start settles into the same pose for a row — the start was
+  not what held pass 7.
+- *What the turn costs* (her A string, middle finger; facing; her own residuals; the
+  deepest skin of the row and its blends):
+
+  | row | pass 7 | held to 0.6 | held to 0.5 | held to 0.4 |
+  |---|---|---|---|---|
+  | violin 9 (the high shot, +12) | 0.72; 266; 0.7 mm | 0.58; 1 200; 1.7–3.1 | 0.51; 2 300; 3.2–4.9 | 0.40; 3 500–5 100; 6.5–6.7 |
+  | violin 12 (+14, +17) | 0.91; 570; 2.2 | 0.60; 3 700; 4.2 | 0.52; 6 000; 7.2 | 0.43; 10 200; 9.4 |
+  | viola 9 | 0.89; 720; 0.6 | 0.59; 3 200–3 500; 3.4–3.5 | 0.51; 5 000–8 300; 8.4–10.8 | 0.40; 7 200–18 600; 5.6–11.5 |
+  | viola 12 | 0.87; 1 080; 0.9 | 0.60; 7 100; 3.1 | 0.52; 10 600; 3.6 | 0.43; 14 800; 5.4 |
+
+  The violin: the palm's radial side goes into the neck's heel (row 9), the index's base
+  into the fingerboard (row 12) — the playing tip is pinned on its stop and the fingers
+  cannot reach further, so the turned hand cannot move out to make room (the crook let 1–3
+  cm off the E side past the heel, `CANTUS_CROOK_X_HIGH`, changes little). The viola: her
+  upper arm cannot reach the turned hand (`upper_len` 2 700–4 300, `elbow_down` 1 400–3 200
+  at row 12) — her arm is the limit, as the brief foresaw. Let go at weight 300 the facing
+  comes back to 0.61–0.71 with the skin still 1.5–3.0 mm in. From the app's eye, 0.61 looks
+  as pass 7's 0.72; 0.40 reads turned as crop-02 but the palm sits 4.7 mm inside the neck's
+  heel (the study sheet). **So the table is pass 7's, unchanged**: the gates are pass 7's
+  (below), no 400 % before/after sheet was made (after would equal before), nothing sent on.
+- *Item 2, the thumb tips on the E side at +12 / +14* (`thumb.py`, now `edge_probe.py
+  --thumb`): her viola 0-2-9, 1-2-9 and her violin 1-2-9 started again with the thumb of the
+  rows one and two positions lower and at rest — the tips came in 0.1–0.4 cm at most, each
+  row 0.1–0.8 mm deeper, one breaking the playing finger's upright rule (30° off); the +14
+  breaks are the row-12 blend's and stay. Her viola's rows carry `upper_len` 700–1 150 there.
+  Not kept.
+- *What a visible edge-on hand needs* (for whoever takes it next): the rig, not the start —
+  (a) contact allowed between the hand's heel and the body's shoulder (real hands rest
+  there; `SKIN_GAP` 0.12 and the gate's 0.3 mm slack forbid it), (b) the palm narrower or
+  cupped across the metacarpals when turned (the owner is judging the palm's width and
+  `KNUCKLE_SPREAD`: not touched), or (c) a longer reach for the viola's arm (her shoulder or
+  upper arm, the polish builder's figure).
+
+**Gates at the end of pass 8** (release, the installed assets = pass 7's table): see the
+report of this pass; the table, the figures and the Rust code are pass 7's.
+
+**Open after pass 8, in order**: (1) her hand edge-on high up — a rig decision first (a,
+b or c above), then `edge_probe.py` and `blend_fix.py --rules`; (2) the 12 thumb tips on
+the E side and the 11 knuckle rows at +14 (her arm on the viola); (3) the index's base on
+the E side at +1 (7); (4) the cello's neck stamp against the bake (the instrument's owner);
+(5) the budget on an idle machine.

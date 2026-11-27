@@ -436,6 +436,43 @@ occluding capsules in its live painter.
       - *Cost* (one run, a loaded machine): High's live arms +7.2 / +8.2 ms at 100 % and
         +19.7 / +22.5 at 200 % (her / him; pass 6 +6.3 / +7.0 and +15.2 / +21.6). The
         owner's rule stands: render cost never gates the look.
+    - **Pass 8** (amendment, 2026-11-26, r42:arcus-hands — her hand edge-on high up, as
+      crop-02, crop-11 and ref-02 show it; the target the back's facing to the app's eye at
+      0.6 or less in high positions, penetration no worse than pass 7's):
+      - *No table change: the turn costs more instrument than the budget allows.* Each
+        high row was solved again with the facing held at weight 1 000 (`edge_probe.py`,
+        `blend_fix.py --rules`' problem), from the table's pose and from frames built along
+        the instrument (the knuckle line level and along the neck, the back at the wanted
+        slant, the wrist 1.5 cm or more clear of the body, the playing tip on its stop) —
+        every start settles into the same pose. Her A string, middle finger (the facing; her
+        own residuals; the deepest skin of the row and its blends):
+
+        | row | pass 7 | held to 0.6 | held to 0.5 | held to 0.4 |
+        |---|---|---|---|---|
+        | violin 9 (the high shot, +12) | 0.72; 266; 0.7 mm | 0.58; 1 200; 1.7–3.1 | 0.51; 2 300; 3.2–4.9 | 0.40; 3 500–5 100; 6.5–6.7 |
+        | violin 12 (+14, +17) | 0.91; 570; 2.2 | 0.60; 3 700; 4.2 | 0.52; 6 000; 7.2 | 0.43; 10 200; 9.4 |
+        | viola 9 | 0.89; 720; 0.6 | 0.59; 3 200–3 500; 3.4–3.5 | 0.51; 5 000–8 300; 8.4–10.8 | 0.40; 7 200–18 600; 5.6–11.5 |
+        | viola 12 | 0.87; 1 080; 0.9 | 0.60; 7 100; 3.1 | 0.52; 10 600; 3.6 | 0.43; 14 800; 5.4 |
+
+        On the violin the turned hand drives the palm's radial side into the neck's heel
+        (row 9) and the index's base into the fingerboard (row 12): the tip is pinned on
+        its stop and the fingers cannot reach further, so the hand cannot move out to
+        make room. On the viola her upper arm cannot reach the turned hand at all
+        (`upper_len` 2 700–4 300 and `elbow_down` 1 400–3 200 at row 12): her arm is the
+        limit, as the brief foresaw. Let go to weight 300 the facing returns to 0.61–0.71
+        and the skin still goes 1.5–3.0 mm in. From the app's eye 0.6 is not visibly
+        different from pass 7's 0.72; 0.4 reads turned as crop-02 but with the palm 4.7 mm
+        inside the neck's heel. A visible edge-on hand needs the rig's own changes (the
+        palm's breadth and cupping, which the owner is judging, or contact allowed between
+        the hand's heel and the body's shoulder, as real hands rest there), not another
+        start.
+      - *The thumb tips on the E side at +12 / +14* (pass 7's 12): started again with the
+        thumb of the rows one and two positions lower and at rest, the tips came in by
+        0.1–0.4 cm at most, each row going 0.1–0.8 mm deeper and one breaking the playing
+        finger's upright rule; the +14 breaks are the row-12 blend's. Her viola's rows carry
+        `upper_len` 700–1 150 there: the same arm.
+      - `left_hand.py::CROOK_X_HIGH` (a probe's knob, `CANTUS_CROOK_X_HIGH`, 0 by default:
+        the rule the table was solved with) lets the crook leave the E side past the heel.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

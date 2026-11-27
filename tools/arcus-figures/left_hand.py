@@ -377,6 +377,12 @@ CROOK_X = 0.85
 # (r42:arcus-hands: 15 — at 5 the upright hand stood its index base 2.3 cm out.)
 CROOK_W = 15.0
 CROOK_Z = (-1.2, 0.3)
+# r42:arcus-hands, pass 8 — a probe's knob (``edge_probe.py``): past the heel the crook may
+# stand up to CROOK_X_HIGH cm further out from the E side (at the hand's full ``high``;
+# INDEX_OUT still bounds the base joint itself), for a hand turned edge-on over the body's
+# shoulder (crop-02). 0, the rule the shipped table was solved with: the probes found no
+# edge-on pose within the penetration budget (ADR 0159, pass 8).
+CROOK_X_HIGH = float(os.environ.get("CANTUS_CROOK_X_HIGH", "0"))
 # r42:arcus-hands, pass 6 — the index's base joint at most this far out from the E edge
 # (cm, her hand; the gate's INDEX_OUT 2.2 with a margin), and the rule's weight.
 INDEX_OUT = 1.8
@@ -625,7 +631,8 @@ class Pose:
         # fingerboard's top.
         base = P[1, 0] * 0.7 + P[1, 1] * 0.3
         qb = loc(base)
-        add("crook_x", CROOK_W * (qb[0] - (nk.hw(qb[1]) + CROOK_X)))
+        cx = qb[0] - (nk.hw(qb[1]) + CROOK_X)
+        add("crook_x", CROOK_W * (cx - np.clip(cx, 0.0, CROOK_X_HIGH * self.high)))
         # (r42:arcus-hands, pass 6: and the index's base joint itself within INDEX_OUT of the
         # E edge, as arcus_hand_table measures it — the crook's point a third up the first
         # phalanx stood at 0.85 while the joint, the hand upright, stood 2.2-3.4 cm out on
