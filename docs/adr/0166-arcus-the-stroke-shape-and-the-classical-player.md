@@ -23,12 +23,15 @@ player on, the pizzicato clean and 4 cents flat, the vibrato starting at 0 s ins
   Schelleng's limit, the measured region and the force are linear in the speed, so the bowing
   keeps its place) and, for 0.6 of it, the dynamic the bowing is read at (the contact and the
   force's place), that share lagging the level by 0.3 s (the tone opens after the level rises).
-  From silence it starts at the instrument's swell depth (within 15 dB) over 1.6 × its length
-  (at least 0.2 s) — **the output's amplitude swell is retired with the player on**; a bow change
-  starts its stroke 6 dB under (a fast passage's 0.3 of it); a slur starts where the last note
-  sagged to; then the stroke sags 6 dB (τ 1.2 s) and breathes (a seeded walk of about a dB, a step
-  every 0.45 s); the key let go **tapers** the bow 12 dB over 1.5 × `bow.release` before it
-  lifts, and the bow lifts still moving. The hair's noise rides the speed.
+  From silence it starts at the instrument's swell depth — within 15 dB (the bass 8), × (1 − 0.8 d)
+  loud, less under C3 (none at E1) — over 1.6 × the swell's length (0.2 … 0.6 s); **what the bow
+  may not carry stays the output's swell** it was (pass 4's rise); a fresh note in a fast passage
+  bites at once; a bow change keeps its speech (a dip there rang the viola's change ticks over
+  the references'); a slurred note starts 3 dB under where the last had sagged; the stroke holds
+  still 0.3 s, then sags 6 dB (τ 1.2 s) and breathes (a seeded walk of about a dB, a step every
+  0.45 s); the key let go **tapers** the bow 12 dB over 1.5 × `bow.release` — in proportion to
+  how long the note was held, up to 0.8 s (the Paganini caprice's short notes) — and the bow
+  lifts still moving. The hair's noise rides the speed. Guettler's attack gate bounds the depths.
 - **The vibrato's way back** into a note inside a phrase (a bow change or a slur that is not a
   fast passage's): 0.1 of itself until 0.08 s, full by 0.38 s.
 - **The player's intonation in a passage** (never a note from silence, so every pitch gate's
@@ -37,10 +40,12 @@ player on, the pizzicato clean and 4 cents flat, the vibrato starting at 0 s ins
 - **The string after the bow (model 2):** a released string the bow has left rings at the
   family's measured pluck T60 and its fall with the partials (`pizz_t60`), never longer than
   `ring`; **the corner** (`InstrumentSpec::corner_hz`) moves with the bow's force against the
-  same bowing's mf force (power 0.8 above, 0.3 below, × 0.5 … 3); **a pluck** on a string the bow
+  same bowing's mf force (power 0.8 above, 0.3 below, × 0.5 … 3) — on the violin and the viola
+  only (on the cello it moved nothing, on the bass it broke the E string's attack gate); **a pluck** on a string the bow
   did not leave pushed uses the loop's DC blocker at 1/1024 of the fundamental (at 1/64 its phase
   lead, matched at the fundamental only, left the partials 3–4 cents flat), and its finger's
-  contact shortens with the period from the lowest open string (power 0.8).
+  contact shortens with the period from the lowest open string (power 0.8, at least 0.5 of it); the
+  viola's and the cello's vibrato × 0.8 (the strings-hq phrases).
 - **A fiddler's bow** (`bow.grit` > 0, the Fiddle character) plays its own player: the classical
   shape, taper, vibrato's way back and intonation give way to it (all at grit 1, so the Fiddle
   preset's measured lines keep their numbers); instead its fast separate notes are slurred two or
@@ -50,8 +55,9 @@ player on, the pizzicato clean and 4 cents flat, the vibrato starting at 0 s ins
   stay); the tools try other values through `ArcusSettings::shape_try` (never stored,
   `ARCUS_SHAPE=name=value,…` in `arcus_match` and `arcus_upper_listen`), as the match tool tries a
   match.
-- **The bowed-pitch tables** (`arcus_pitch_data.rs`, `arcus_upper_pitch_data.rs`) are measured
-  again with the player on, over a held note's steady part (0.6–2.95 s, as the lab measures).
+- **The bowed-pitch tables**: the upper strings' measured again with the player on (0.6–2.95 s);
+  the bass's rows again in pass 6's window (three passes); the cello's pass 6's (they keep both
+  gates with the shape).
 
 ## Consequences
 

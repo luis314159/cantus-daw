@@ -50,6 +50,20 @@ def main(d, notes):
         out.append(f"<div class='card'><b>{name}</b><div class='row'>{''.join(rows)}</div></div>")
     out.append("<h2>El cuarteto</h2><div class='card'><div class='row'>"
                + audio_row("Antes", "antes-cuarteto.wav") + audio_row("Ahora", "ahora-cuarteto.wav") + "</div></div>")
+    hq = d / "hq"
+    if hq.exists():
+        out.append("<h2>Al lado de las referencias de más calidad (hq/)</h2>"
+                   "<p class='mute'>Nota: Iowa MIS 2012 (anecoica, mf) y la misma nota de Arcus; frase: Musopen K465 "
+                   "(micrófono del intérprete, con algo del resto del cuarteto) y la frase de Arcus.</p>")
+        for key, name in INSTS:
+            rows = []
+            for kind, label in (("nota", "Nota"), ("frase", "Frase")):
+                for who, wl in (("arcus", "Arcus"), ("grabacion", "Grabación"), ("grabacion2", "Grabación 2")):
+                    f = f"hq/{key}-{kind}-{who}.wav"
+                    if (d / f).exists():
+                        rows.append(audio_row(f"{label} · {wl}", f))
+            if rows:
+                out.append(f"<div class='card'><b>{name}</b><div class='row'>{''.join(rows)}</div></div>")
     out.append("<h2>Qué cambió</h2><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in n["cambios"]) + "</ul>")
     out.append("<h2>Números (notas reservadas del laboratorio y frases)</h2><table><tr><th>Rasgo</th><th>Antes</th><th>Ahora</th><th>Grabaciones</th></tr>")
     for r in n["numeros"]:
