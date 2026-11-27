@@ -118,8 +118,8 @@ fn add(c: C3, d: C3, k: f32) -> C3 {
     ]
 }
 
-/// Draw `m`'s triangles through `c`.
-pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
+/// Draw `m`'s triangles through `c`; `cover` the instrument's faces on screen.
+pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover]) {
     let cam = c.cam;
     // The skin's colour, which the hair's edge blends into.
     let scalp = m
@@ -132,13 +132,29 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
         .unwrap_or(hp::real_skin(0).albedo);
     // r42:arcus-polish5 — whether a shirt triangle lies over a held instrument's outline
     // (`bowed_human::clear_of_the_body` marks its corners): every corner (`drawn_beside_any`
-    // 1: any). How the Drawn picture takes them (`drawn_beside_mode`): 0 (the default) leaves
-    // every such triangle out — the band there sorted by its middles drew white stripes
-    // between the chin rest's cells, sorted farther (1) it uncovered the shirt's shaded
-    // front under the collar's point as dark shards by the knot; left out, the Drawn collar
-    // goes under the chin rest as before pass 5, the Photographic picture keeps the band.
+    // 1: any). How the Drawn picture takes them (`drawn_beside_mode`): 0 leaves every such
+    // triangle out (pass 5: the Drawn collar went under the chin rest, the neck met the tie
+    // on the violin's side); 1 sorts them farther by `drawn_beside` (it uncovered the
+    // shirt's shaded front under the collar's point as dark shards by the knot).
+    // r42:arcus-polish6 — 2 (the default): each sorted by its own middle, as every other
+    // triangle of the figure is, and kept out of the instrument's faces on screen (`cover`):
+    // sorted by their middles alone they drew white stripes between the chin rest's cells;
+    // kept out of them, the band runs from the knot to where the instrument covers it
+    // whatever the sort says.
     let any = super::figure::tune::tune("drawn_beside_any", 0.0) > 0.5;
-    let leave_out = super::figure::tune::tune("drawn_beside_mode", 0.0) < 0.5;
+    let mode = super::figure::tune::tune("drawn_beside_mode", BESIDE_MODE);
+    let leave_out = mode < 0.5;
+    let keep_out = mode > 1.5;
+    // r42:arcus-polish6 — `CANTUS_TUNE`'s `probe_x`, `probe_y` (points): every triangle drawn
+    // over that place printed (its role, depth, corners' colours) — to find what drew a
+    // stray pixel.
+    let probe = {
+        let (x, y) = (
+            super::figure::tune::tune("probe_x", -1.0),
+            super::figure::tune::tune("probe_y", -1.0),
+        );
+        (x >= 0.0 && y >= 0.0 && !c.mirror).then(|| egui::pos2(x, y))
+    };
     for (role, t) in &m.tris {
         let marked = |i: usize| {
             t.uv.get(i)
@@ -251,7 +267,7 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // light flecks in the Drawn picture).
             let bias = if matches!(role, Role::Shell(_)) {
                 SHELL_BIAS
-            } else if *role == Role::Shirt && !inside && beside([i0, i1, i2]) {
+            } else if *role == Role::Shirt && !inside && !keep_out && beside([i0, i1, i2]) {
                 // r42:arcus-polish5 — the collar's band where it passes under a held
                 // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
                 -super::figure::tune::tune("drawn_beside", BESIDE_BIAS)
@@ -260,8 +276,42 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             };
             c.p.at(cam.depth(ctr) - bias, Part::Bowed);
             let sp = c.sps(&q);
+            if let Some(at) = probe {
+                if super::geo::inside(&sp, at) {
+                    eprintln!(
+                        "probe ({:.1}, {:.1}): {role:?} depth {:.2} (bias {bias:.2}) inside \
+                         {inside} corners {:?} colours {:?} marked {}",
+                        at.x,
+                        at.y,
+                        cam.depth(ctr),
+                        sp,
+                        cols,
+                        marked(i0) || marked(i1) || marked(i2)
+                    );
+                }
+            }
             // Overlapping a little more than a pixel: no seam grid on a light theme.
-            c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
+            let out: Vec<Vec<egui::Pos2>> =
+                if keep_out && *role == Role::Shirt && (marked(i0) || marked(i1) || marked(i2)) {
+                    let bx = super::geo::bbox(&sp);
+                    cover
+                        .iter()
+                        .filter(|(b, _)| {
+                            b.0 <= bx.2 + 1.0
+                                && bx.0 <= b.2 + 1.0
+                                && b.1 <= bx.3 + 1.0
+                                && bx.1 <= b.3 + 1.0
+                        })
+                        .map(|(_, o)| o.clone())
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+            if out.is_empty() {
+                c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
+            } else {
+                c.p.poly_out(sp.clone(), gradient(&sp, &cols), 1.0, 1.0, out);
+            }
             // (Not over the hair's edge band, where it blends into its roots: light strands
             // there read as white dashes along the hairline.)
             let edge = [i0, i1, i2].iter().any(|&i| t.detail[i][1] < 0.45);
@@ -323,8 +373,13 @@ fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]
 const SHELL_BIAS: f32 = 0.6;
 
 /// r42:arcus-polish5 — how much farther the collar's band over a held instrument's outline
-/// sorts (cm).
+/// sorts (cm), in `drawn_beside_mode` 1.
 const BESIDE_BIAS: f32 = 1.5;
+
+/// r42:arcus-polish6 — how the Drawn picture takes the collar's band over a held
+/// instrument's outline: 2, sorted by its own middles and kept out of the instrument's faces
+/// on screen (`draw`).
+const BESIDE_MODE: f32 = 2.0;
 
 /// How far apart (in the hair's across coordinate: about three degrees round the
 /// head) her drawn strands lie.

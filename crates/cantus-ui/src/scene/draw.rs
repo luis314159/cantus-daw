@@ -106,7 +106,12 @@ fn draw_op(pix: &mut Pixmap, o: &Op, tf: Transform) {
         ..tiny_skia::Paint::default()
     };
     match &o.shape {
-        Shape::Poly { pts, seam, clip } => {
+        Shape::Poly {
+            pts,
+            seam,
+            clip,
+            out,
+        } => {
             let Some(p) = path(pts, true) else {
                 return;
             };
@@ -119,6 +124,22 @@ fn draw_op(pix: &mut Pixmap, o: &Op, tf: Transform) {
             if clip.is_some() && mask.is_none() {
                 return;
             }
+            // r42:arcus-polish6 — kept out of `out`: their union filled, then inverted (each
+            // filled on its own: one path of them all would cancel where two wind apart).
+            let mask = if out.is_empty() {
+                mask
+            } else {
+                let Some(mut m) = Mask::new(pix.width(), pix.height()) else {
+                    return;
+                };
+                for o in out {
+                    if let Some(op) = path(o, true) {
+                        m.fill_path(&op, FillRule::Winding, true, tf);
+                    }
+                }
+                m.invert();
+                Some(m)
+            };
             pix.fill_path(&p, &paint, FillRule::Winding, tf, mask.as_ref());
             if *seam > 0.0 {
                 pix.stroke_path(&p, &paint, &stroke(*seam, Cap::Round), tf, mask.as_ref());

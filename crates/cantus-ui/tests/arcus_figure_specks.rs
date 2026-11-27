@@ -497,6 +497,10 @@ const SLEEVE_ALONG: [f32; 6] = [0.05, 0.2, 0.3, 0.4, 0.5, 0.92];
 /// still be one the arm cut off (the old V's point at the figure's start, about 950; her
 /// neckline running on up past the arm, about 15 000).
 const SLEEVE_PATCH: f32 = 2500.0;
+/// r42:arcus-polish6 — a patch counts only when at least this share of the pixels round it
+/// (the hand's and the bow's left out) are dark cloth, every channel under `SLEEVE_DARK`.
+const SLEEVE_RING: f32 = 0.6;
+const SLEEVE_DARK: u8 = 70;
 
 #[test]
 fn no_skin_shows_through_or_under_her_bow_sleeve() {
@@ -594,6 +598,8 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 let outside = outside.grow(2);
                 let skin = skin.grow(3);
                 let (mut inside_n, mut under_n) = (0, 0);
+                // (r42:arcus-polish6: where the counted pixels lie, for the report.)
+                let mut under_box = (usize::MAX, usize::MAX, 0usize, 0usize);
                 // (Skin in the light and in shade — the V's point under her arm was shaded
                 // skin, about (83, 67, 61) —; not the velvet's grey sheen, the varnish's
                 // orange or the bow's red-brown.)
@@ -640,6 +646,29 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                     }
                     sizes.push(n);
                 }
+                // r42:arcus-polish6 — and only a patch in the dark cloth round it (the forearm's
+                // sleeve, her dress): a light speck on the varnish under the forearm (its
+                // highlight, its edge's lit line — skin-coloured, orange round it) is the
+                // instrument's, not her skin cut off by the arm.
+                let mut ring = vec![(0u32, 0u32); sizes.len()];
+                for y in 1..h - 1 {
+                    for x in 1..w - 1 {
+                        let k = y * w + x;
+                        if part[k] == u32::MAX {
+                            continue;
+                        }
+                        for j in [k - 1, k + 1, k - w, k + w] {
+                            if part[j] == part[k] || skin.m[j] {
+                                continue;
+                            }
+                            let q = canvas.pixel(j % w, j / w);
+                            let r = &mut ring[part[k] as usize];
+                            r.0 += 1;
+                            r.1 += (q[0].max(q[1]).max(q[2]) < SLEEVE_DARK) as u32;
+                        }
+                    }
+                }
+                let in_cloth = |id: usize| ring[id].1 as f32 >= ring[id].0 as f32 * SLEEVE_RING;
                 let patch = (SLEEVE_PATCH * SLEEVE_PPP * SLEEVE_PPP) as usize;
                 for y in 0..h {
                     for x in 0..w {
@@ -653,15 +682,30 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                             && !sleeve.m[k]
                             && part[k] != u32::MAX
                             && sizes[part[k] as usize] < patch
+                            && in_cloth(part[k] as usize)
                         {
                             under_n += 1;
+                            under_box = (
+                                under_box.0.min(x),
+                                under_box.1.min(y),
+                                under_box.2.max(x),
+                                under_box.3.max(y),
+                            );
                         }
                     }
                 }
                 let area = sleeve.m.iter().filter(|&&x| x).count();
                 eprintln!(
                     "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside, \
-                     {under_n} under"
+                     {under_n} under{}",
+                    if under_n > 0 {
+                        format!(
+                            " in ({}, {})-({}, {})",
+                            under_box.0, under_box.1, under_box.2, under_box.3
+                        )
+                    } else {
+                        String::new()
+                    }
                 );
                 if area < (400.0 * SLEEVE_PPP * SLEEVE_PPP) as usize {
                     bad.push(format!(

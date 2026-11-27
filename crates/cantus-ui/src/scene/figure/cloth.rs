@@ -90,6 +90,69 @@ pub fn edges(fig: &Figure) -> Vec<f32> {
     (0..n).map(|i| dist[fig.weld[i] as usize]).collect()
 }
 
+/// r42:arcus-polish6 — how broad each cloth vertex's form is at rest: its radius of
+/// curvature (cm: one over the mean, along its welded edges on velvet or wool, of how far
+/// the normals turn over the edge's length) eased from 0 at [`EDGE_SMALL`]'s first to 1 at
+/// its second (`CANTUS_TUNE`'s `rim_r0`, `rim_r1`); 1 for every other vertex. A cuff
+/// button's dome or a fold's lip turns through its whole round within a centimetre and
+/// takes none of the back lights' edge line; a sleeve or a shoulder takes all of it — as
+/// the Photographic bake's `px_shade::edge_size` measures it on screen.
+pub fn broad(fig: &Figure) -> Vec<f32> {
+    let n = fig.pos.len();
+    let w = |i: u16| fig.weld[i as usize] as usize;
+    // The normals at rest, area-weighted, summed over a place's copies.
+    let mut nrm = vec![V3::default(); n];
+    for t in &fig.tris {
+        let [a, b, c] = t.map(w);
+        let f = (fig.pos[b] - fig.pos[a]).cross(fig.pos[c] - fig.pos[a]);
+        for i in [a, b, c] {
+            nrm[i] = nrm[i] + f;
+        }
+    }
+    let nrm: Vec<V3> = nrm
+        .into_iter()
+        .map(|v| if v.len() > 1e-9 { v.norm() } else { v })
+        .collect();
+    let (mut sum, mut cnt) = (vec![0.0f32; n], vec![0u32; n]);
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if !matches!(s, Stuff::Velvet | Stuff::Wool) {
+            continue;
+        }
+        for k in 0..3 {
+            let (a, b) = (w(t[k]), w(t[(k + 1) % 3]));
+            let l = (fig.pos[a] - fig.pos[b]).len();
+            if a == b || l < 1e-4 {
+                continue;
+            }
+            // (The curvature along the edge: the normals' turn over its length.)
+            let kappa = (nrm[a] - nrm[b]).len() / l;
+            for i in [a, b] {
+                sum[i] += kappa;
+                cnt[i] += 1;
+            }
+        }
+    }
+    let (r0, r1) = {
+        use super::tune::tune;
+        (tune("rim_r0", EDGE_SMALL.0), tune("rim_r1", EDGE_SMALL.1))
+    };
+    let at = |i: usize| {
+        if cnt[i] == 0 {
+            return 1.0;
+        }
+        let r = cnt[i] as f32 / sum[i].max(1e-6);
+        let x = ((r - r0) / (r1 - r0).max(1e-3)).clamp(0.0, 1.0);
+        x * x * (3.0 - 2.0 * x)
+    };
+    (0..n).map(|i| at(fig.weld[i] as usize)).collect()
+}
+
+/// r42:arcus-polish6 — the radius (cm) under which a cloth's form takes none of the back
+/// lights' edge line, and over which all of it (a cuff button's dome about 0.5, a fold's lip
+/// under 1; a forearm's sleeve 4–5, a shoulder more): [`broad`] here, `px_shade::edge_size`
+/// in the Photographic bake.
+pub const EDGE_SMALL: (f32, f32) = (0.8, 2.0);
+
 /// The stuff numbered `k` (the enum's order).
 fn stuff_of(k: u32) -> Stuff {
     const ALL: [Stuff; 18] = [

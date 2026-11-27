@@ -756,6 +756,7 @@ thread_local! {
 /// Photographic picture's soft key (wrapped on skin, its light through skin warm in the
 /// terminator), its fill from the camera's side and its ambient, fitted to its bake, through
 /// its exposure and filmic curve.
+#[derive(Clone)]
 pub struct Shading {
     drawn: Option<crate::scene::light::Light>,
     eye: V3,
@@ -813,8 +814,9 @@ struct LutKey {
 #[derive(Default)]
 struct Luts {
     key: Option<LutKey>,
-    /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1.
-    maps: [Vec<[f32; 3]>; 8],
+    /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1; then the velvet's
+    /// and the wool's without the concert's edge line (r42:arcus-polish6, [`BARE`]).
+    maps: [Vec<[f32; 3]>; 10],
 }
 
 thread_local! {
@@ -833,6 +835,28 @@ fn stuff_slot(st: Stuff) -> usize {
         Stuff::Hair => 6,
         _ => 7,
     }
+}
+
+/// r42:arcus-polish6 — the stuffs whose maps are also made without the concert's edge line
+/// (slots 8 and 9).
+const BARE: [Stuff; 2] = [Stuff::Velvet, Stuff::Wool];
+
+/// A map's colour for the way `n` (bilinear between its cells).
+fn sample(map: &[[f32; 3]], n: V3) -> [f32; 3] {
+    let (u, v) = oct_uv(n);
+    let (fx, fy) = (u * LUT as f32 - 0.5, v * LUT as f32 - 0.5);
+    let (x0, y0) = (fx.floor().max(0.0), fy.floor().max(0.0));
+    let (tx, ty) = ((fx - x0).clamp(0.0, 1.0), (fy - y0).clamp(0.0, 1.0));
+    let (x0, y0) = ((x0 as usize).min(LUT - 1), (y0 as usize).min(LUT - 1));
+    let (x1, y1) = ((x0 + 1).min(LUT - 1), (y0 + 1).min(LUT - 1));
+    let at = |x: usize, y: usize| map[y * LUT + x];
+    let mut c = [0.0f32; 3];
+    for (k, ck) in c.iter_mut().enumerate() {
+        let a = at(x0, y0)[k] * (1.0 - tx) + at(x1, y0)[k] * tx;
+        let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
+        *ck = a * (1.0 - ty) + b * ty;
+    }
+    c
 }
 
 /// The octahedral map's place for a unit vector, and back.
@@ -914,32 +938,50 @@ fn with_lut<R>(sh: &Shading, side: usize, tone: u8, mid: V3, f: impl FnOnce(&mut
 impl LutAt<'_> {
     /// A corner's colour: its stuff by its normal from the map, its detail and occlusion.
     fn colour(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32) -> Color32 {
+        self.colour_sized(st, detail, n, ao, 1.0)
+    }
+
+    /// Slot `slot`'s map made if it is not (`bare`: without the concert's edge line).
+    fn fill(&mut self, slot: usize, st: Stuff, bare: bool) {
+        if !self.l.maps[slot].is_empty() {
+            return;
+        }
+        let mut sh = self.sh.clone();
+        if bare {
+            if let Some(c) = sh.concert.as_mut() {
+                c.cloth_rim = 0.0;
+            }
+        }
+        let plain = [1.0, 0.0];
+        let mut map = Vec::with_capacity(LUT * LUT);
+        for j in 0..LUT {
+            for i in 0..LUT {
+                let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
+                let c = colour(&sh, st, self.tone, plain, self.mid, d, 1.0);
+                map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+            }
+        }
+        self.l.maps[slot] = map;
+    }
+
+    /// r42:arcus-polish6 — as [`LutAt::colour`], with `size` how broad the cloth's form is
+    /// at the corner (`figure::cloth::broad`, 0 a button's rim or a fold's lip … 1 a
+    /// sleeve): the concert's back-light line along black cloth's edge in that share (lit in
+    /// full, his cuff buttons' rims read as light rings and his shoulder's fold lips as dots —
+    /// the specks gate's largest group).
+    fn colour_sized(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32, size: f32) -> Color32 {
         let slot = stuff_slot(st);
-        if self.l.maps[slot].is_empty() {
-            let plain = [1.0, 0.0];
-            let mut map = Vec::with_capacity(LUT * LUT);
-            for j in 0..LUT {
-                for i in 0..LUT {
-                    let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
-                    let c = colour(self.sh, st, self.tone, plain, self.mid, d, 1.0);
-                    map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+        self.fill(slot, st, false);
+        let mut c = sample(&self.l.maps[slot], n);
+        if size < 1.0 && self.sh.concert.is_some() {
+            if let Some(bare) = BARE.iter().position(|&s| s == st) {
+                self.fill(8 + bare, st, true);
+                let b = sample(&self.l.maps[8 + bare], n);
+                let k = size.max(0.0);
+                for (ck, bk) in c.iter_mut().zip(b) {
+                    *ck = bk + (*ck - bk) * k;
                 }
             }
-            self.l.maps[slot] = map;
-        }
-        let map = &self.l.maps[slot];
-        let (u, v) = oct_uv(n);
-        let (fx, fy) = (u * LUT as f32 - 0.5, v * LUT as f32 - 0.5);
-        let (x0, y0) = (fx.floor().max(0.0), fy.floor().max(0.0));
-        let (tx, ty) = ((fx - x0).clamp(0.0, 1.0), (fy - y0).clamp(0.0, 1.0));
-        let (x0, y0) = ((x0 as usize).min(LUT - 1), (y0 as usize).min(LUT - 1));
-        let (x1, y1) = ((x0 + 1).min(LUT - 1), (y0 + 1).min(LUT - 1));
-        let at = |x: usize, y: usize| map[y * LUT + x];
-        let mut c = [0.0f32; 3];
-        for (k, ck) in c.iter_mut().enumerate() {
-            let a = at(x0, y0)[k] * (1.0 - tx) + at(x1, y0)[k] * tx;
-            let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
-            *ck = a * (1.0 - ty) + b * ty;
         }
         // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
         // occlusion.
@@ -1528,7 +1570,9 @@ pub fn arm(
                             kept
                         } else {
                             let d = am.vdet[i];
-                            let mut cl = lut.colour(st, d, sc.nrm[i], sc.ao[i]);
+                            // (r42:arcus-polish6: the edge line by the form's size.)
+                            let size = fig.broad.get(am.verts[i] as usize).copied().unwrap_or(1.0);
+                            let mut cl = lut.colour_sized(st, d, sc.nrm[i], sc.ao[i], size);
                             if am.alpha[i] < 1.0 {
                                 cl = cl.gamma_multiply(am.alpha[i]);
                             }

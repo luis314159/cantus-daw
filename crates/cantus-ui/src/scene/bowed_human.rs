@@ -135,6 +135,10 @@ pub struct Figure {
     /// r42:arcus-polish — a cloth vertex's distance (cm) to its cloth's edge
     /// (`figure::cloth::edges`; `EDGE_FAR` for skin and the rest).
     pub edge: Vec<f32>,
+    /// r42:arcus-polish6 — how broad a cloth vertex's form is at rest, 0 (small and steep:
+    /// a cuff button's rim, a fold's lip) … 1 (`figure::cloth::broad`): the concert's
+    /// back-light line along black cloth's edge takes that share.
+    pub broad: Vec<f32>,
 }
 
 /// Which figure.
@@ -213,6 +217,7 @@ pub fn figure(w: Who) -> &'static Figure {
         // skin's contact shadow.
         super::figure::cloth::sink(&mut f);
         f.edge = super::figure::cloth::edges(&f);
+        f.broad = super::figure::cloth::broad(&f); // r42:arcus-polish6
         super::figure::cloth::contact(&mut f);
         // r42:arcus-polish2 — the shade under a collar's, a lapel's edge.
         super::figure::cloth::under_edges(&mut f);
@@ -1894,7 +1899,10 @@ const HIS_TIPS: usize = 250;
 /// r42:arcus-polish5 — how often a crown card's corner sends a tip out (was 0.12), how long
 /// (× 0.7–1.8 cm) and how thick (× the wisps' radius: a tip a pixel wide at 200 %, so it
 /// breaks the outline against the dark room) they are.
-const TIPS: (f32, f32, f32) = (0.35, 1.2, 2.0);
+/// r42:arcus-polish6 — thinner (2.0 → 1.2): the tips lying on the crown caught the back
+/// lights as bright single strands, scratches over the hair (the coordinator); at 1.2 a tip
+/// over the hair is a faint line, at the outline it still breaks the cap.
+const TIPS: (f32, f32, f32) = (0.35, 1.2, 1.2);
 
 /// r42:arcus-polish4 — how many loose hairs leave her bun's outline at most.
 const BUN_WISPS: usize = 12;
@@ -2134,6 +2142,19 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
     if lap <= 0.0 {
         return;
     }
+    // r42:arcus-polish6 — every edge of the lift soft over a ramp a shirt triangle or two
+    // wide (`knot_lap_ru`, `_rv`, shares of the knot's half width and height), and the
+    // knot's face's reach behind it soft too (`knot_lap_h0`, `_hr`, cm): cut hard at 1.5 cm
+    // behind the face, or ramped over a quarter of the knot, one corner rose and its
+    // neighbour stayed — a sliver, the white curl over the knot's top-left at 400 %.
+    let (ru, rv) = (
+        super::figure::tune::tune("knot_lap_ru", KNOT_LAP_RAMP.0).max(0.05),
+        super::figure::tune::tune("knot_lap_rv", KNOT_LAP_RAMP.1).max(0.05),
+    );
+    let (h0, hr) = (
+        super::figure::tune::tune("knot_lap_h0", KNOT_LAP_BEHIND.0),
+        super::figure::tune::tune("knot_lap_hr", KNOT_LAP_BEHIND.1).max(0.05),
+    );
     for (r, tr) in m.tris.iter_mut() {
         if *r != Role::Shirt {
             continue;
@@ -2142,17 +2163,19 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
             let q = *p - c;
             let (y, h) = (q.dot(up), q.dot(n));
             // (Near the knot's face only: the collar's back round the neck lies behind it.)
-            if !(-1.5..=KNOT_D + 1.0).contains(&h) {
+            let near = smooth_k((h + h0 + hr) / hr);
+            if near <= 0.0 {
                 continue;
             }
             let v = y / KNOT_H + 0.5;
             let w = KNOT_W.0 + (kw1 - KNOT_W.0) * v.clamp(0.0, 1.0);
             let u = q.dot(right) / (w * 0.5);
             let k = lap
-                * smooth_k((v - v0) / 0.25)
-                * (1.0 - smooth_k((v - 1.0) / KNOT_LAP_TOP))
-                * smooth_k((u.abs() - u0) / 0.25)
-                * (1.0 - smooth_k((u.abs() - u1) / 0.25));
+                * near
+                * smooth_k((v - v0) / rv)
+                * (1.0 - smooth_k((v - 1.0) / KNOT_LAP_TOP.max(rv * 0.6)))
+                * smooth_k((u.abs() - u0) / ru)
+                * (1.0 - smooth_k((u.abs() - u1) / ru));
             if k <= 0.0 {
                 continue;
             }
@@ -2177,6 +2200,11 @@ fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3
 /// over the knot's corner.)
 const KNOT_LAP: (f32, f32, f32) = (0.15, 1.8, 0.2);
 const KNOT_LAP_GAP: f32 = 0.15;
+/// r42:arcus-polish6 — the lift's ramps across and up (shares of the knot's half width and
+/// height; 0.25 each before), and from how far behind the knot's face a shirt corner starts
+/// to be lifted, over how much (cm; a hard 1.5 before).
+const KNOT_LAP_RAMP: (f32, f32) = (0.5, 0.35);
+const KNOT_LAP_BEHIND: (f32, f32) = (1.5, 1.0);
 /// r42:arcus-polish5 — the lap off: lifting single shirt corners onto the knot left a thin
 /// white curl over its top-left at 400 % (the coordinator on sheet6) — at the shirt's density
 /// a corner lifted is a sliver, not a folded edge. `knot_lap=1` while studied.

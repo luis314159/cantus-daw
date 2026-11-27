@@ -41,6 +41,10 @@ fn with_rosin(b: Bowed, mut m: PMat) -> PMat {
 /// How much of the rosin's colour lies over the varnish at its thickest.
 const ROSIN: f32 = 0.2;
 
+/// r42:arcus-polish4 — his loose tips' albedo over his dark hair's (lighter: a lone strand at
+/// the outline catches the back lights over its whole width).
+const TIP_ALBEDO: f32 = 2.4;
+
 /// The photographic material of a role (r42:arcus-polish3: under the concert light `cc`, a
 /// violin's or a viola's varnish red-amber and glossier, as the photographs' are under the
 /// spots).
@@ -159,7 +163,13 @@ fn pmat(b: Bowed, r: Role, cc: Option<&crate::scene::figure::concert::Concert>) 
         // r42:arcus-polish4 — his loose tips: his dark brown, a strand's gloss.
         // (Lighter than the hair's albedo: a lone strand at the outline catches the back
         // lights over its whole width, and at the hair's own value it vanished.)
-        Role::WispDark => PMat::lacquer(lin3(hp::HAIR_DARK).map(|c| c * 2.4), 0.2, 0.3),
+        // (r42:arcus-polish6: `CANTUS_TUNE`'s `tip_albedo` while studied.)
+        Role::WispDark => PMat::lacquer(
+            lin3(hp::HAIR_DARK)
+                .map(|c| c * crate::scene::figure::tune::tune("tip_albedo", TIP_ALBEDO)),
+            0.2,
+            0.3,
+        ),
         Role::Eye => PMat::lacquer(lin3(hp::EYE_WHITE), 0.35, 0.08),
         Role::Iris => PMat::lacquer(lin3(hp::IRIS), 0.35, 0.08),
         // (r42:arcus-hair: a little lighter than the Drawn picture's — near black, each lash

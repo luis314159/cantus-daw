@@ -2138,7 +2138,7 @@ def dress(pos, W, tris, J, lum, red, nail, vuv=None):
 # The bodice's smoothing (passes) and ease (cm), the sleeves' ease.
 BODICE_SMOOTH = 160
 # r42:arcus-polish4 — the V neckline's depth (cm under the neck's base at its middle).
-V_DEPTH = 11.0
+V_DEPTH = float(os.environ.get("CANTUS_V_DEPTH", "11.0"))
 # r42:arcus-polish4 — the further passes over the bust (``dress``).
 BUST_SMOOTH = 200
 BODICE_EASE = 0.7

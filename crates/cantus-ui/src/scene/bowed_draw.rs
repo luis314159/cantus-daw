@@ -389,6 +389,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
     // patches, 4 the figures' triangles, 8 the polygons, 16 the rods) leaves a kind out, to
     // find what drew a stray pixel. Unset: everything.
     let skip = super::figure::tune::tune("drawn_skip", 0.0) as u32;
+    // r42:arcus-polish6 — the instrument's faces turned to the camera, on screen (and their
+    // boxes): the collar's band that passes under it is kept out of them
+    // (`bowed_draw_tris::draw`).
+    let mut cover: Vec<Cover> = Vec::new();
     for (d, &a) in dec.iter().zip(&at) {
         if a < f32::MAX && skip & 1 == 0 {
             c.p.at(a - 0.01, Part::Bowed);
@@ -467,11 +471,23 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // A figure's fine cells overlap a little more, so no seam grid shows on its
             // dark hair and cloth. // r42:arcus-upper
             let seam = if figure_role(*role) { 1.1 } else { 0.45 }; // r42:arcus-upper
+            if !figure_role(*role) {
+                cover.push((super::geo::bbox(&sp), sp.clone()));
+            }
             c.p.poly(sp, paint, 1.0, seam);
         }
     }
+    for (role, poly) in &m.polys {
+        if poly.pts.len() < 3 || figure_role(*role) {
+            continue;
+        }
+        if cam.facing(super::geo::centre(&poly.pts), poly.n) {
+            let sp = c.sps(&poly.pts);
+            cover.push((super::geo::bbox(&sp), sp));
+        }
+    }
     if skip & 4 == 0 {
-        super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
+        super::bowed_draw_tris::draw(c, b, m, &cover); // r42:arcus-upper
     }
     for (role, poly) in &m.polys {
         if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) || skip & 8 != 0 {
@@ -680,6 +696,10 @@ fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
     }
     c.p.on(Layer::Objects);
 }
+
+/// r42:arcus-polish6 — an instrument's face on screen and its box (min x, min y, max x,
+/// max y).
+pub type Cover = ((f32, f32, f32, f32), Vec<Pos2>);
 
 /// r42:arcus-upper — a surface of the figure that holds the instrument (not the
 /// instrument's, nor the room's).

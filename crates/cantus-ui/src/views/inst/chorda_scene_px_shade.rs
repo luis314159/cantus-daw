@@ -923,13 +923,51 @@ fn cloth_spec(
 /// r42:arcus-polish3 — the back lights' line along a black cloth's edge (the photographs'
 /// dark sleeves and shoulders told from the dark hall by it): the cloth's own sheen seen at
 /// grazing toward a light behind, not its black albedo's share.
-fn cloth_edge(rig: &Rig, c: &crate::scene::figure::concert::Concert, n: V3, ndv: f32) -> Lin {
-    let g = (1.0 - ndv).powi(3);
+///
+/// r42:arcus-polish6 — `size`: how broad the form is ([`edge_size`]): the line stays on a
+/// sleeve's, a shoulder's, a jacket's outline and goes off a small steep form's (his cuff
+/// buttons' rims lit as rings, a fold's lip as a dotted line — the specks gate's largest
+/// group).
+fn cloth_edge(
+    rig: &Rig,
+    c: &crate::scene::figure::concert::Concert,
+    n: V3,
+    ndv: f32,
+    size: f32,
+) -> Lin {
+    let g = (1.0 - ndv).powi(3) * size;
     let mut e = [0.0f32; 3];
     for &(d, col) in &rig.rims {
         e = ladd(e, lscale(col, n.dot(d).max(0.0) * g * c.cloth_rim));
     }
     e
+}
+
+/// r42:arcus-polish6 — how broad a cloth's form is where a sample sees it, 0 (small and
+/// steep: a button's rim, a fold's lip) to 1 (a sleeve, a shoulder): its radius of curvature
+/// across the eye's way, the footprint `fp` (m a sample) over how far the smooth normal
+/// `turn`s over the sample, less its slope toward the eye (on a cylinder seen from its side
+/// the normal turns 1 / (r · n·v) a unit across) — in cm, eased from `cloth::EDGE_SMALL`'s
+/// first to its second. 1 where the turn is not known.
+fn edge_size(turn: V3, ndv: f32, fp: f32) -> f32 {
+    let t = turn.dot(turn).sqrt();
+    if t < 1e-6 {
+        return 1.0;
+    }
+    let r = 100.0 * fp / (t * ndv.max(0.05));
+    let (r0, r1) = edge_small();
+    smooth(r0, r1.max(r0 + 1e-3), r)
+}
+
+/// `cloth::EDGE_SMALL`, or `CANTUS_TUNE`'s `rim_r0`, `rim_r1` while studied (read once: this is
+/// asked per sample).
+fn edge_small() -> (f32, f32) {
+    static R: std::sync::OnceLock<(f32, f32)> = std::sync::OnceLock::new();
+    *R.get_or_init(|| {
+        use crate::scene::figure::cloth::EDGE_SMALL;
+        use crate::scene::figure::tune::tune;
+        (tune("rim_r0", EDGE_SMALL.0), tune("rim_r1", EDGE_SMALL.1))
+    })
 }
 
 /// The light leaving the surface of `m` at `p` toward `eye`. `n` is the shading normal,
@@ -1158,7 +1196,7 @@ pub fn shade(
                     c.velvet_back,
                     ladd(
                         cloth_spec(c, c.velvet_spec, n, v, l, kc, kv),
-                        cloth_edge(rig, c, n, ndv),
+                        cloth_edge(rig, c, n, ndv, edge_size(turn, ndv, fp)),
                     ),
                 ),
                 None => (VELVET_BACK, [0.0; 3]),
@@ -1187,7 +1225,7 @@ pub fn shade(
             match (cc, m.tex) {
                 (Some(cn), Tex::Wool) => ladd(
                     ladd(c, cloth_spec(cn, cn.wool_spec, n, v, l, kc, kv)),
-                    cloth_edge(rig, cn, n, ndv),
+                    cloth_edge(rig, cn, n, ndv, edge_size(turn, ndv, fp)),
                 ),
                 _ => c,
             }

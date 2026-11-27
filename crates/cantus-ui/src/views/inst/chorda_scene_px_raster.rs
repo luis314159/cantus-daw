@@ -1613,21 +1613,21 @@ pub fn bake(
                             1.0
                         };
                         let given = refl_at(x as f32, y as f32, tr.m, n, z);
-                        let mut c = shade(
-                            rig,
-                            m,
-                            eye,
-                            p,
-                            n,
-                            V3::default(),
-                            tg,
-                            uv,
-                            fp,
-                            ao,
-                            &vis,
-                            trace,
-                            given,
-                        );
+                        // r42:arcus-polish6 — a cloth's turn a pixel (its back lights' edge
+                        // line by its form's size, `px_shade::edge_size`).
+                        let turn = if matches!(m.tex, Tex::Velvet | Tex::Wool) {
+                            let c = (ss as f32) * 0.5;
+                            normal_turn(
+                                &scam,
+                                tr,
+                                x as f32 * ss as f32 + c,
+                                y as f32 * ss as f32 + c,
+                            ) * ss as f32
+                        } else {
+                            V3::default()
+                        };
+                        let mut c =
+                            shade(rig, m, eye, p, n, turn, tg, uv, fp, ao, &vis, trace, given);
                         if let (Some(mc), Tex::Floor) = (mirror, m.tex) {
                             let v = (eye - p).norm();
                             let f = 0.04 + 0.96 * (1.0 - v.y.abs()).powi(5);
@@ -1670,7 +1670,9 @@ pub fn bake(
                                 n,
                                 depth[k],
                             );
-                            let turn = if m.kind == Kind::Metal {
+                            let turn = if m.kind == Kind::Metal
+                                || matches!(m.tex, Tex::Velvet | Tex::Wool)
+                            {
                                 normal_turn(&scam, tr, sx as f32 + 0.5, sy as f32 + 0.5)
                             } else {
                                 V3::default()
