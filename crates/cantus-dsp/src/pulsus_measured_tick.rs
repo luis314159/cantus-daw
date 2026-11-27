@@ -513,6 +513,9 @@ impl Object {
             } else {
                 0.0
             };
+            // Model 6's hats: each split pair's halves drawn together (on the stack).
+            let lock = h.gen >= 6 && t.hat && t.lock.len() >= self.n;
+            let mut drawn = [f32::NAN; super::MAX_MODES];
             for i in 0..self.n {
                 let mut a = 0.0;
                 let mut e = 0.0;
@@ -550,7 +553,20 @@ impl Object {
                     let j = spread.min(PI) * (vary.next() + vary.next() + vary.next());
                     (lay.ph[i] + j, j)
                 } else {
-                    (TAU * vary.unit(), 0.0)
+                    let d = TAU * vary.unit();
+                    if lock {
+                        // Model 6: a hat's close partial takes its pair's draw (`data::locks`).
+                        let j = t.lock[i] as usize;
+                        let p = if j != i && drawn[j].is_finite() {
+                            drawn[j]
+                        } else {
+                            d
+                        };
+                        drawn[i] = p;
+                        (p, 0.0)
+                    } else {
+                        (d, 0.0)
+                    }
                 };
                 let (c, s) = (math::cos(ph), math::sin(ph));
                 bank.re[i] += a * c;

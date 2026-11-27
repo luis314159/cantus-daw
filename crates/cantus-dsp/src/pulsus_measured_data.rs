@@ -142,6 +142,7 @@ pub(crate) fn decode(b: &[u8]) -> Option<Vec<Table>> {
             });
         }
         let low_hz = low_hz(&hz, &states);
+        let lock = if hat { locks(&hz) } else { Vec::new() };
         tables.push(Table {
             id,
             hat,
@@ -150,9 +151,25 @@ pub(crate) fn decode(b: &[u8]) -> Option<Vec<Table>> {
             hz,
             states,
             low_hz,
+            lock,
         });
     }
     (r.at == b.len()).then_some(tables)
+}
+
+/// A hat's close partials (r42:tympanum-real, model 6): each mode's phase is drawn by the
+/// first mode (in the table's order) within 1 % of its frequency — the two halves of a split
+/// pair, which one stroke sets ringing together; drawn apart they beat differently each hit
+/// inside one third octave (the jazz closed hat: 6.1 dB from one stroke to the next, the
+/// recorded hats 1.4–2.0). Not in the blob: computed with it.
+fn locks(hz: &[f32]) -> Vec<u16> {
+    let mut lock: Vec<u16> = (0..hz.len() as u16).collect();
+    for i in 0..hz.len() {
+        if let Some(j) = (0..i).find(|&j| hz[j] > 0.0 && (hz[i] - hz[j]).abs() < 0.01 * hz[i]) {
+            lock[i] = lock[j];
+        }
+    }
+    lock
 }
 
 /// A piece's fundamental, as the fit names it (drums-gen 3): the lowest mode within 10 dB of

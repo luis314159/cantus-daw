@@ -672,5 +672,9 @@ fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
         onset(&new),
         onset(&old)
     );
-    same(&render_with(Some(1.0), 49), &render_with(None, 49), "the crash");
+    same(
+        &render_with(Some(1.0), 49),
+        &render_with(None, 49),
+        "the crash",
+    );
 }

@@ -1,5 +1,5 @@
-//! Model 6's rules (r42:tympanum-real, ADR 0124's seventh amendment): a cymbal plays it as
-//! model 5 to the bit; a drum's hit comes in through the stick's contact (its first
+//! Model 6's rules (r42:tympanum-real, ADR 0124's seventh amendment): a crash plays it as
+//! model 5 to the bit, a hat's split pairs ring together; a drum's hit comes in through the stick's contact (its first
 //! milliseconds quieter than model 5's, its waveform's peak later); the same bits however the
 //! block is cut; every drum comes to rest; each drum grows with the velocity at every step for
 //! every seed (one hit's own draw never cancels its level); a drum struck while it rings never
@@ -43,12 +43,53 @@ fn db(x: &[f32]) -> f32 {
 
 const DRUMS: [u8; 10] = [4, 5, 6, 7, 8, 20, 21, 22, 23, 24];
 
+/// A crash (a cymbal, not a hat) plays model 6 as model 5, to the bit.
 #[test]
-fn a_cymbal_plays_model_6_as_model_5_to_the_bit() {
-    let five = play(&mut kit(true), &GROOVE, 60_000, 333);
+fn a_crash_plays_model_6_as_model_5_to_the_bit() {
+    let ev: Vec<(usize, u8, u8)> = GROOVE.iter().copied().filter(|e| e.1 == 49).collect();
+    let five = play(&mut kit(true), &ev, 60_000, 333);
     let mut six = kit(true);
     six.measured_gen = 6;
-    assert!(play(&mut six, &GROOVE, 60_000, 333) == five);
+    assert!(rms(&five) > 1e-4);
+    assert!(play(&mut six, &ev, 60_000, 333) == five);
+}
+
+/// The energy of `x` between `lo` and `hi` Hz (a plain DFT every 10 Hz).
+fn band(x: &[f32], lo: f32, hi: f32) -> f32 {
+    let mut e = 0.0;
+    let mut f = lo;
+    while f <= hi {
+        let w = std::f32::consts::TAU * f / SR;
+        let (mut re, mut im) = (0.0f32, 0.0f32);
+        for (n, v) in x.iter().enumerate() {
+            re += v * crate::math::cos(w * n as f32);
+            im += v * crate::math::sin(w * n as f32);
+        }
+        e += re * re + im * im;
+        f += 10.0;
+    }
+    e
+}
+
+/// The jazz closed hat's split pairs (r42:tympanum-real): drawn apart (model 5) they beat
+/// differently each stroke inside one third octave; drawn together (model 6) the band's level
+/// holds from one stroke to the next.
+#[test]
+fn a_hats_split_pairs_ring_together_in_model_6() {
+    let spread = |gen: u8| {
+        let lv: Vec<f32> = (1..=8u64)
+            .map(|id| {
+                let x = hit(18, 100, id, gen, 1_440);
+                10.0 * crate::math::log10(band(&x, 3_700.0, 4_100.0).max(1e-30))
+            })
+            .collect();
+        let (lo, hi) = lv
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(a, b), v| (a.min(*v), b.max(*v)));
+        hi - lo
+    };
+    let (five, six) = (spread(5), spread(6));
+    assert!(six < five, "model 6 {six:.2} dB against model 5 {five:.2}");
 }
 
 #[test]

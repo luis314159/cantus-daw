@@ -25,7 +25,11 @@
 //! - **the knock is the head's push**: the stick's knock is the contact's own half-sine (no
 //!   noise), at [`Onset6::knock`] of model 5's.
 //!
-//! The cymbals and hats are not drums: model 6 plays them as model 5 does, to the bit.
+//! The cymbals are not drums: model 6 plays them as model 5 does, to the bit — but for a
+//! hat's **split pairs** (two partials within 1 %, `data::locks`), whose halves one stroke
+//! sets ringing together: model 6 draws their phases together, so they no longer beat
+//! differently from one stroke to the next (the jazz closed hat's 6.1-dB take-to-take
+//! change).
 
 /// Model 6's onset constants (fitted against the recorded kits' per-band peak timing:
 /// `tools/tympanum-real/onset.py`).
