@@ -139,3 +139,16 @@ todas las herramientas nuevas en `tools/`.
 - **Verificado solo en emulación**: la vista previa de macOS nunca se abrió en una Mac real;
   todas las compilaciones van sin firmar; los zips de plug-ins nunca se probaron en otro host;
   MTS-ESP contra un maestro real.
+
+## 3. Bugs vistos al cerrar la ronda 42 (revisar al empezar)
+
+- **`setup_done` que se pierde**: en las pruebas de `tympanum_kit_change_e2e`, una app que cargó
+  `audio_setup.setup_done: true` guardó `false`, y la siguiente abrió el diálogo de audio del
+  primer arranque. Las pruebas ya reescriben su configuración, pero falta saber si una app real
+  puede guardar `false` sobre un `true` (`audio_setup/apply.rs`, `store_settings`). Si puede, un
+  usuario vería otra vez el diálogo del primer arranque: escribe la prueba que lo reproduzca
+  por `CantusApp::assemble` y corrígelo.
+- **El pánico del `clamp` en `soak_smoke`**: visto una vez bajo carga, nunca reproducido; los tres
+  `clamp` que podían invertirse tienen guarda. Si vuelve, guarda la semilla y la entrada.
+- **`cargo fmt --all` en Windows** falla con «os error 206» (rutas largas); se usa rustfmt archivo
+  por archivo y `fmt --check` en WSL.
