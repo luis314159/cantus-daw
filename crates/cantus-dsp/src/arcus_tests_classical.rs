@@ -359,3 +359,45 @@ fn a_note_known_to_be_followed_eases_before_the_next() {
         );
     }
 }
+
+/// The size of pass 2's change on the pinned renders (`upper_tests::LOWER_HASHES`): on the cello
+/// and the bass only the classical hair noise moved them (the look-ahead needs a note's length,
+/// which the phrase does not give), so the bits before are the same renders with the hair 5 dB
+/// lower on the cello (`play::classical_noise_db`; the bass's 0). Prints each render's RMS
+/// change and their difference re each render.
+#[test]
+#[ignore]
+fn probe_pass2_size() {
+    use super::tests::{phrase, variety};
+    for s in variety()
+        .into_iter()
+        .filter(|s| matches!(s.instrument, Instrument::Cello | Instrument::Bass))
+    {
+        let k = if s.instrument == Instrument::Cello {
+            5.0
+        } else {
+            0.0
+        };
+        let before = ArcusSettings {
+            bow_noise_db: s.bow_noise_db - k,
+            ..s
+        };
+        let (a, _) = render(&before, &phrase(), 60_000, &|_| 256, &Serial);
+        let (b, _) = render(&s, &phrase(), 60_000, &|_| 256, &Serial);
+        let rms = |x: &[f32]| {
+            10.0 * math::log10(
+                x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>() / x.len() as f64 + 1e-30,
+            )
+        };
+        let d: Vec<f32> = a.iter().zip(&b).map(|(x, y)| y - x).collect();
+        let max = d.iter().fold(0f32, |m, v| m.max(v.abs()));
+        println!(
+            "{:?} {:?}: RMS {:+.2} dB, the difference {:.1} dB re the render (max |d| {:.3})",
+            s.instrument,
+            s.technique,
+            rms(&b) - rms(&a),
+            rms(&d) - rms(&b),
+            max
+        );
+    }
+}

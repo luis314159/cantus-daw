@@ -1,0 +1,38 @@
+{
+ "titulo": "Arcus clásico — pasada 2 (DSP 20)",
+ "intro": "Las mismas cuatro frases del análisis (ventana cantabile de cada solo, interpretado) en tres tomas: antes de la pasada clásica, la pasada 1 (lo que oíste: «sonando mucho mejor») y ahora, la pasada 2; al lado de la grabación del análisis. El cuarteto en las tres tomas. Todo a −23 LUFS (el cuarteto a −16). Rama r42/arcus-classical. La comparación con Paganini tiene su propia página (listen/paganini, versión «en mejora» renovada).",
+ "escuchar": [
+  "El final de cada nota dentro de una frase: ahora el arco sabe cuánto dura la nota (la reproducción se lo dice) y se apaga antes de la siguiente, como un intérprete; la nota siguiente arranca desde ahí.",
+  "Las notas cortas y rápidas: ya no se hunden una tras otra en un pasaje ligado.",
+  "El violín: menos «bombeo» grave (la cuerda Sol y los graves bajo las notas agudas) y más brillo arriba (2–3 kHz y el aire de 10 kHz).",
+  "Un poco más de crin entre los armónicos en el violín, la viola y el violonchelo (el sonido menos «limpio de sintetizador»).",
+  "Dime qué suena artificial todavía: eso decide lo siguiente."
+ ],
+ "cambios": [
+  "La reproducción ahora mira hacia delante: a cada nota de un clip le dice al instrumento cuánto dura y cuándo llega la siguiente (sin latencia, igual en tiempo real que al exportar).",
+  "El arco de Arcus apaga la nota antes de la siguiente (12 dB en una nota larga, 3 en una corta) y la siguiente empieza desde ahí; en una ligadura rápida cada nota llega a su nivel.",
+  "El cuerpo del violín: bajo su modo de aire (≈ 270 Hz) un violín radia poco (como un altavoz bass-reflex); la esquina del puente más nítida; la corrección de la salida rehecha entre las referencias cercanas (Iowa, TinySOL, VSCO, Good-sounds) y la grabación de Paganini en su sala.",
+  "Más ruido de crin entre armónicos: +5 dB violín y violonchelo, +3 viola.",
+  "Dobles cuerdas: la segunda cuerda lleva su propia afinación (también la tendencia del semitono) y la conserva al quedar sonando en un cruce; la Variación 2 de Paganini con dos cuerdas ya no pierde ninguna nota.",
+  "El violinista de fiddle es ahora un control propio («Intérprete de fiddle»); el preset Fiddle lo enciende y conserva el cuerpo con el que se afinó; las canciones antiguas se migran solas."
+ ],
+ "columnas": ["Antes (inicio)", "Pasada 1", "Ahora (pasada 2)"],
+ "numeros": [
+  ["Frases (HSD): final de las notas largas bajo el pico (vn / va / vc / cb)", "3,7 · 4,5 · 4,0 · 4,3 dB", "3,7 · 3,6 · 3,9 · 5,0 dB", "12,1 · 12,4 · 12,2 · 12,2 dB", "10,6 · 14,5 · 35,4 · 15,3 dB"],
+  ["Frases (Musopen + HSD): inicio bajo el pico (vn / va / vc)", "2,8 · 3,5 · 3,5 dB", "4,9 · 3,3 · 3,8 dB", "10,7 · 10,2 · 9,0 dB", "9,0 · 8,4 · 9,7 dB"],
+  ["Paganini: final de las notas de 0,3 s o más bajo el pico", "16,9 dB (actual)", "9,0 dB", "12,0 dB", "16,6 dB"],
+  ["Paganini: subida del ataque a −3 dB (mediana)", "45 ms", "45 ms", "33 ms", "32 ms"],
+  ["Paganini: tercio de octava de 200 Hz (la fundamental grave) frente a la grabación", "+13,9 dB", "+15,7 dB", "−3,0 dB", "0"],
+  ["Paganini: 2 kHz / 10 kHz / 12,7 kHz frente a la grabación", "−6,9 / −12,7 / −10,8 dB", "−7,1 / −12,7 / −10,4 dB", "−3,8 / −6,3 / −5,0 dB", "0"],
+  ["Paganini: Variación 2 con dos cuerdas, notas calladas (> 30 dB bajo la mediana)", "0", "9 de 16 compases con notas a −90 dB", "0 de 137 notas", "0"],
+  ["Violín, notas sueltas: armónicos 1–20, celdas dentro de la banda", "—", "78 %", "86 %", "banda p10–p90"],
+  ["Ruido entre armónicos, celdas dentro (vn / va / vc)", "—", "61 · 45 · 63 %", "73 · 60 · 73 %", "banda p10–p90"],
+  ["t_steady del violonchelo, grupos dentro", "—", "3/11 (0,12 s)", "5/11 (0,13 s)", "0,18–0,67 s"]
+ ],
+ "abierto": [
+  "El violonchelo fuerte sigue apagado: sus parciales 2–8 de Do4 a Do6 quedan 8–20 dB bajo las referencias; no es la esquina del puente (la del chelo ya está a 6 kHz): es la pérdida de la cuerda en los agudos, lo siguiente.",
+  "El pizzicato sigue demasiado limpio (su ruido entre armónicos ~40–50 dB, ninguna celda en la banda): el siguiente es el ruido del dedo y el aperiódico de la cuerda pulsada.",
+  "Las dos cuerdas de Paganini aún no se parecen: la de arriba cae 5,6 dB (el intérprete 9,7), el equilibrio +0,5 dB (+6,9) y el intervalo +5,6 cents (−9,2).",
+  "El violín en una sala con la grabación de Paganini y las referencias cercanas piden cosas distintas arriba de 2 kHz: la corrección queda entre las dos; tus oídos deciden hacia dónde."
+ ]
+}
