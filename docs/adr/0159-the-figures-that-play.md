@@ -384,6 +384,49 @@ occluding capsules in its live painter.
         the body had been painted before the body's stamp and stamped over with the
         picture round the body's edge: the thin dark wedge in her palm near the wrist, high
         up (pass 5's 400 % sheets).
+    - **Pass 7** (amendment, 2026-11-26, r42:arcus-hands):
+      - *The gate's rules solved on the blended poses.* `rule_check.py` rebuilds
+        `arcus_hand_table`'s rules (the outline's width, the arches, the index's base, the
+        knuckles, the back's slant and facing, the hand to the neck, the wrist, the thumb) on
+        the table's blends as `blend_check.py` rebuilds its penetration — the forearm skinned
+        as the app's `repose_arm` aims it (its twist shared 0.45 / 0.95 along it; carried
+        rigidly with the hand it read the wrist 0.3–0.4 cm broader). `blend_fix.py --rules`
+        holds them (with margins) on the gate's cases each row's blends make and on the row's
+        own stop up to the 12th semitone; a row is kept only if its skin and its blends go no
+        deeper into the instrument than before.
+      - *Her hand edge-on on the reach and high rows* (crop-02, crop-11): the back's facing
+        held to 0.6 at most on those rows' own poses (the table's read 0.85–0.92 there,
+        broadside), the palm's way 20° freer, each row started too from the hand turned
+        ±25° about its length. The palm's width is unchanged (`KNUCKLE_SPREAD` as pass 6).
+      - *`KNUCKLES_UP` stays −1.6 … 3.4 cm high up.* No photograph shows a hand past the
+        neck's heel; the highest (crop-02 and ref-02 at the body's shoulder, crop-11 in third)
+        put the knuckles at or under the fingerboard's top, never over it, so the first
+        position's top (the owner's photograph 2, +1.8 neck thicknesses) is already the most
+        the photographs allow. The table is brought under it, not the gate raised.
+      - *The thumb in the heel's curve from the 12th semitone* (`left_hand.py`
+        `THUMB_DROP_HIGH` 2.2, `THUMB_UNDER_HIGH` 0.75; the gate's `THUMB_HIGH` −3.6,
+        `THUMB_UNDER` 0.25). The gate's thumb (up the G side, its tip within 1.6 cm under the
+        fingerboard's top) is the first position's (`left_hand_refs.md` §5); the same note
+        has it "under the neck's shoulder in 3rd", and from the heel on it stays there, under
+        the neck and hidden, while the fingers go on over the body — beside the fingerboard
+        over the body there is no room for it over the top plate (the solver's thumb rules
+        and the body fought there: thumb tips pushed out to the E side, beside the index's
+        base). Of pass 6's 22 thumb breaks, 12 were tips in the heel's curve; the rest, tips
+        on the E side, were the pose's.
+      - *The occlusion test sees the figure's own front skin* (`arcus_hold::
+        the_left_hand_passes_behind_the_neck`): a hidden sample's pixel covered by a skinned
+        triangle of the realistic arm whose point there the neck does not hide is the
+        figure's to show. Vector Violin Man's pixel at [459, 271] was that: the wider
+        knuckles' index base in front of the neck over a hidden vertex's pixel (the
+        stylised tubes' clearance does not reach the skinned hand's breadth).
+        `CANTUS_HOLD_SHOT=<dir>` keeps a failing case's shot.
+      - *High draws a hand patch whose flat triangle turns a little away* (`FOLD_GRAZE`
+        0.35, the cosine) into the depth raster: a fold's curved patch can still bulge
+        toward the eye; culled, it opened the thin dark slit at her hand's ulnar edge high
+        up (the web between the ring and the little finger). The samples' depths keep what
+        lies behind.
+      - *The raster tests depth first* (`Raster::fill`): a sample that would not be written
+        skips the neck's test, the colour and the grain — the same picture, less work.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

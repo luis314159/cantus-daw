@@ -47,9 +47,11 @@ RULES_W = 1.0
 # hinge's weight. The rows are started too from the hand turned about its own length by
 # TURN_STARTS degrees (LM alone does not leave a broadside pose for an edge-on one).
 FACING_MOST = 0.6
-FACING_W = 25.0
-TURN_STARTS = (-25.0, 25.0)
-# A row is kept only if its skin and its blends go no deeper than before (or the slack).
+FACING_W = 100.0
+TURN_STARTS = (-45.0, -25.0, 25.0, 45.0)
+# A row is kept only if its skin and its blends go no deeper than before (or the slack, cm;
+# ``--keep=<mm>``: turned edge-on at the 9th semitone her hand's blends went 1.5 mm into the
+# instrument where the broadside pose had none).
 KEEP_SLACK = 0.03
 
 KS = (0.5,)
@@ -211,6 +213,7 @@ def main():
     worse = float(arg.get("--worse", "0.3")) / 10.0
     keys = arg.get("--keys")
     use_rules = "--rules" in sys.argv[2:]
+    keep_slack = float(arg.get("--keep", str(KEEP_SLACK * 10.0))) / 10.0
     F = next(F for F in D["figs"] if f'{F["who"]}-{F["inst"]}' == only)
     thin = L.Hand(F["who"])
     L.dense()
@@ -303,7 +306,7 @@ def main():
                 pose.pen_w = L.PEN_W
                 c = total(x)
                 if c < best[1] and (rules is None or worst(b, string, finger, at, me_of(pose, x))
-                                    <= max(was, KEEP_SLACK) + 1e-4):
+                                    <= max(was, keep_slack) + 1e-4):
                     best = (x, c)
             x, c = best
             if c < first:

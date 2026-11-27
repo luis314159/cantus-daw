@@ -1708,3 +1708,33 @@ arms on the violinists **+6.3 / +7.0 ms at 100 %** (her / him; pass 3 +4.4 / +4.
 rectangle are the likely costs; the cheap win taken is the grain's tuned numbers read once a
 triangle. The owner: render cost never gates the look. Next cheap one, if wanted: no grain at
 100 % (its 0.07 cm cells are under a pixel there) — a look change at 100 % to check first.
+
+### Pass 7 (2026-11-26): her hand edge-on, the gate's rules on the blends, the thumb high up, the slit
+
+Work folder: `F:\projects\daw-r42\tmp\hands7\` (`s11\` the table's caches and dump, `snap2\`
+the first round's caches, `fig2\`/`fig3\` the installed figures with each packed table,
+`run1.sh` / `run3.sh` the drivers, `keys_of.py` the rows behind `rule_check`'s breaks,
+`brk.py` a row's residuals by name).
+
+- *`rule_check.py`* (new): `arcus_hand_table::the_tables_hand_plays_as_a_violinists_does`
+  rebuilt in Python on the blended poses (as `blend_check.py` rebuilds the penetration gate).
+  It agreed with the gate on every break but the outline's width, which it reads up to 0.07
+  under the gate's ratio near the bound (19 gate breaks, 11 here, on pass 6's table): the
+  solver holds 1.55 for the gate's 1.7. The forearm is skinned as `repose_arm` aims it
+  (`skin_app`); `Hand.skin`'s rigid forearm read the wrist 0.3–0.4 cm broader.
+- *`blend_fix.py --rules`*: `rule_check.HOLD`'s hinges on the gate's cases a row's blends
+  make and on the row's own stop up to the 12th semitone; on the reach and high rows the
+  back's facing held to 0.6 (`FACING_MOST`; the table's 0.85–0.92), the palm's way 20° freer
+  (`PALM_FREE_REACH`, `Pose.palm_free`), starts turned ±25° about the hand's length
+  (`TURN_STARTS`); a row is kept only if its skin and blends go no deeper than before
+  (`KEEP_SLACK`). Rows that cost thousands (her viola at 9 and 12: `upper_len`, `palm_way`,
+  `hand_up` fight there — her arm on the viola high up) move little: LM from the old pose.
+- *`KNUCKLES_UP` high up: kept at −1.6 … 3.4* (ADR 0159 pass 7 gives the reason: no
+  photograph past the heel; the highest put the knuckles at or under the top).
+- *The thumb from the 12th semitone* in the heel's curve: gate and solver changed together
+  (ADR 0159 pass 7). Pass 6's table under the new rule: 22 thumb breaks → 10.
+- *`arcus_hold`*: Vector Violin Man's pixel was the figure's own front skin (the test now
+  knows it); the test now reaches the cello: see the gates below.
+- *The slit*: `arcus_draw_flesh.rs::FOLD_GRAZE` (High draws the slightly turned-away hand
+  patches into the depth raster).
+- *Budget*: `Raster::fill` tests depth first (same picture).

@@ -836,7 +836,7 @@ const CLS_FACING: u8 = 1;
 /// r42:arcus-hands, pass 7 — how far a High hand patch's flat triangle may turn away from the
 /// eye (the cosine) and still be drawn into the depth raster (a fold's patch bulging back
 /// toward it).
-const FOLD_GRAZE: f32 = 0.35;
+const FOLD_GRAZE: f32 = 0.15;
 const CLS_INSIDE: u8 = 2;
 const CLS_BEHIND: u8 = 4;
 /// r42:arcus-hands — a hand patch across the neck's edge (drawn split between the passes).

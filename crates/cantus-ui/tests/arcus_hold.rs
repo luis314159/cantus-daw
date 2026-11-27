@@ -476,6 +476,20 @@ fn the_left_hand_passes_behind_the_neck() {
                         continue;
                     }
                     let (got, want, diff) = pixel(p);
+                    // (r42:arcus-hands, pass 7: CANTUS_HOLD_SHOT=<dir> keeps the shot of a
+                    // failing case, to look at what covers the pixel.)
+                    if diff > 40 {
+                        if let Ok(dir) = std::env::var("CANTUS_HOLD_SHOT") {
+                            let _ = canvas.write_png(&std::path::Path::new(&dir).join(format!(
+                                "hold-{be:?}-{b:?}-{hold:?}-{:.0}-{:.0}.png",
+                                p.x, p.y
+                            )));
+                            println!(
+                                "{be:?} {b:?} {hold:?}: {p:?} by_neck {by_neck}, local {:?}",
+                                local(w)
+                            );
+                        }
+                    }
                     assert!(
                         diff <= 40,
                         "{be:?} {b:?} {hold:?}: at {p:?} the figure shows over the instrument (got {got:?}, the picture's {want:?})"
