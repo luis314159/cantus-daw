@@ -134,6 +134,10 @@ params! {
     // steel strings (0: as measured; both 0 change nothing, to the bit).
     SYM = ("sym", "arcus.sym", 0.0, 2.0, 0.0, "%", false, false),
     STEEL = ("steel", "arcus.steel", 0.0, 1.0, 0.0, "%", false, false),
+    // r42 arcus-classical (schema 87, ADR 0166): the player a fiddler (0 the classical
+    // player … 1 a fiddler's: the shuffle, the soft fast changes, the late vibrato, the body
+    // the Fiddle character was tuned with). Before it, a steel set made the fiddler.
+    FIDDLE = ("player.fiddle", "arcus.player.fiddle", 0.0, 1.0, 0.0, "%", false, false),
     // r42 fiddle (ADR 0164): the violin's cross-tunings — 0 Standard (G D A E) · 1 AEAE ·
     // 2 GDGD · 3 ADAE · 4 Calico (A E A C#) · 5 DDAD.
     CROSS = ("tuning.strings", "arcus.tuning.strings", 0.0, 5.0, 0.0, "", false, true),

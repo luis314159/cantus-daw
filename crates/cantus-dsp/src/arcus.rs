@@ -349,6 +349,9 @@ pub struct ArcusSettings {
     /// r42 fiddle — steel strings (0 the measured synthetic-core set … 1 steel): a sharper
     /// corner, less loss in the upper partials, a longer ring.
     pub steel: f32,
+    /// r42 arcus-classical (`player.fiddle`, schema 87) — the player a fiddler (0 the
+    /// classical player … 1 a fiddler, `shape::fiddler`): no longer read from the steel set.
+    pub fiddle: f32,
     /// r42 fiddle — the strings' tuning (`tuning.strings`: 0 standard, 1 AEAE, 2 GDGD, 3 ADAE,
     /// 4 calico, 5 DDAD — the violin's; `upper::tables::CROSS`).
     pub cross: u8,
@@ -430,6 +433,7 @@ impl Default for ArcusSettings {
             grit: 0.0,       // r42 fiddle
             bite: 0.5,       // r42 fiddle
             steel: 0.0,      // r42 fiddle
+            fiddle: 0.0,     // r42 arcus-classical
             cross: 0,        // r42 fiddle
             mic: 0.0,        // r42 fiddle
             bridge: 0.0,     // r42 fiddle

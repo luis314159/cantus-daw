@@ -464,8 +464,10 @@ impl Voice {
             * super::pair::steel_corner(s); // r42 fiddle
                                             // r42 arcus-classical (model 2): the violin's corner sharper (`upper::VIOLIN_CORNER_K`;
                                             // a tool's try × `Knobs::corner_k` on the upper strings).
+                                            // (a fiddler's keeps the corner the Fiddle character was tuned with, ADR 0164)
         if s.model >= 2 && self.inst == Instrument::Violin {
-            corner *= super::super::upper::VIOLIN_CORNER_K;
+            let fid = super::super::shape::fiddler(s) as f64;
+            corner *= 1.0 + (super::super::upper::VIOLIN_CORNER_K - 1.0) * (1.0 - fid);
         }
         if knobs.corner_k != 1.0 && matches!(self.inst, Instrument::Violin | Instrument::Viola) {
             corner *= knobs.corner_k as f64; // r42 arcus-classical: a tool's try

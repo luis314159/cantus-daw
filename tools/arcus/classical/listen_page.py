@@ -4,10 +4,12 @@ recording, and the quartet demo before and now; 16-bit WAVs under 30 MB each.
 
     python -I tools/arcus/classical/listen_page.py <listen dir> <notes.json>
 
-The folder holds `antes-<inst>.wav`, `ahora-<inst>.wav`, `grabacion-<inst>.wav` (inst: violin,
+The folder holds `antes-<inst>.wav`, `ahora-<inst>.wav` (and `antes2-<inst>.wav`, the take before
+the newest pass, when it is there), `grabacion-<inst>.wav` (inst: violin,
 viola, violonchelo, contrabajo) and `antes-cuarteto.wav`, `ahora-cuarteto.wav`; `notes.json`
 holds the page's Spanish text: {"titulo", "intro", "cambios": [...], "numeros": [[rasgo, antes,
-ahora, grabaciones], ...], "escuchar": [...], "abierto": [...]}.
+ahora, grabaciones], ...], "escuchar": [...], "abierto": [...]} (and "columnas": the numbers'
+headings between the feature and the recordings, when there are more than two takes).
 """
 import html
 import json
@@ -35,6 +37,14 @@ def audio_row(label, f):
     return f'<div>{html.escape(label)}</div><audio controls preload="none" src="{html.escape(f)}"></audio>'
 
 
+def versions(d, key):
+    """The takes on the page, oldest first: `antes-` (before the classical pass), `antes2-`
+    (its first pass, when the second has been rendered) and `ahora-`."""
+    if (d / f"antes2-{key}.wav").exists():
+        return [("antes", "Antes (inicio)"), ("antes2", "Pasada 1"), ("ahora", "Ahora (pasada 2)")]
+    return [("antes", "Antes"), ("ahora", "Ahora")]
+
+
 def main(d, notes):
     d = Path(d)
     n = json.loads(Path(notes).read_text(encoding="utf-8"))
@@ -44,12 +54,13 @@ def main(d, notes):
     out.append("<h2>Qué escuchar</h2><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in n["escuchar"]) + "</ul>")
     out.append("<h2>Las cuatro frases (la misma ventana que el análisis)</h2>")
     for key, name in INSTS:
-        rows = [audio_row("Antes", f"antes-{key}.wav"), audio_row("Ahora", f"ahora-{key}.wav")]
+        rows = [audio_row(lab, f"{pre}-{key}.wav") for pre, lab in versions(d, key)]
         if (d / f"grabacion-{key}.wav").exists():
             rows.append(audio_row("Grabación", f"grabacion-{key}.wav"))
         out.append(f"<div class='card'><b>{name}</b><div class='row'>{''.join(rows)}</div></div>")
     out.append("<h2>El cuarteto</h2><div class='card'><div class='row'>"
-               + audio_row("Antes", "antes-cuarteto.wav") + audio_row("Ahora", "ahora-cuarteto.wav") + "</div></div>")
+               + "".join(audio_row(lab, f"{pre}-cuarteto.wav") for pre, lab in versions(d, "cuarteto"))
+               + "</div></div>")
     hq = d / "hq"
     if hq.exists():
         out.append("<h2>Al lado de las referencias de más calidad (hq/)</h2>"
@@ -65,7 +76,9 @@ def main(d, notes):
             if rows:
                 out.append(f"<div class='card'><b>{name}</b><div class='row'>{''.join(rows)}</div></div>")
     out.append("<h2>Qué cambió</h2><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in n["cambios"]) + "</ul>")
-    out.append("<h2>Números (notas reservadas del laboratorio y frases)</h2><table><tr><th>Rasgo</th><th>Antes</th><th>Ahora</th><th>Grabaciones</th></tr>")
+    heads = n.get("columnas", ["Antes", "Ahora"])
+    out.append("<h2>Números (notas reservadas del laboratorio y frases)</h2><table><tr><th>Rasgo</th>"
+               + "".join(f"<th>{html.escape(h)}</th>" for h in heads) + "<th>Grabaciones</th></tr>")
     for r in n["numeros"]:
         out.append("<tr>" + "".join(f"<td>{html.escape(str(c))}</td>" for c in r) + "</tr>")
     out.append("</table>")

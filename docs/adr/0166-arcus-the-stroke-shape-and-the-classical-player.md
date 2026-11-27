@@ -3,7 +3,7 @@
 **Status:** Proposed (round 42, the `arcus-classical` builder; the number is provisional, the
 integrator's to confirm — 0165 may be taken) · **Date:** 2026-11-26 · **Builds on:** ADR 0157
 (Arcus), ADR 0160 (the sound lab), ADR 0162 (the player), ADR 0164 (the fiddle) ·
-**`DSP_VERSION`:** 20 · **Schema:** none (no stored key added)
+**`DSP_VERSION`:** 20 · **Schema:** 87 (pass 2: `player.fiddle`; 86 is Tympanum's model 6)
 
 ## Context
 
@@ -77,3 +77,62 @@ the bit; a held note swells, sags, tapers before the lift and rings on after it 
 instruments; the intonation seeded and sparing a note from silence; a pluck's partials within
 half a cent; a fiddler's shuffle); every earlier Arcus gate at the new defaults (the block sizes,
 offline = real time, the pool, rest, the pitch gates).
+
+## Pass 2 (the owner: *"sigue mejorando para que podamos sonar más natural, como esa grabación de Paganini"*)
+
+### Decision
+
+- **The playback's look-ahead** (`InstrumentUnit::note_len`, `processor::look_ahead`): just
+  before a clip note's note-on (after its articulation) the engine hands a native instrument
+  the note's length and the distance from its end to the track's next note-on (a later tick:
+  a chord's notes are not its next), in frames, read from the snapshot's sorted events through
+  the transport's tempo map — a scan of at most `LOOK_AHEAD` (256) events, no allocation, **no
+  latency**, the same offline and in real time and at every block size (the events and the
+  tempo map are the song's, not the blocks'). A live note, a note out of the note effects and a
+  note whose end lies past the scan get no call and play as before. No other instrument reads
+  it yet.
+- **Arcus's stroke eases before a note it knows is followed** (`Shape::expect`, `Knobs::end_*`):
+  a note followed within 0.1 s eases 12 dB before its end (3 dB at 0.15 s or shorter, between
+  them by its length), over half its length up to 0.6 s; before a rest half of that (the key's
+  taper after it carries the rest). A bow change after an eased end starts from half of where
+  it ended; a slurred or re-bowed note's rise fits in 0.4 of its length (without it a run of
+  short slurred notes, each starting where the last had eased, sank note by note: the Paganini
+  variation's note peaks spread 26 dB against the recording's 14). With the player at 0 none
+  of it runs (the null test).
+- **The violin's body (model 2)**: below its air mode a vented box radiates as Thiele and Small's
+  port and cone do (the port's volume velocity cancels the plates'), a fourth-order high-pass:
+  `InstrumentSpec::air_hz` (the violin 260 Hz, a fourth-order Butterworth replacing the
+  second-order corner under its G string); the bridge corner × 2 (`upper::VIOLIN_CORNER_K`:
+  harmonics 3–8 of A4–D6 sat 5–15 dB under the Iowa, TinySOL and VSCO violins'; at × 3 nothing
+  more moved); the match's correction re-set between those close references and the Paganini
+  hall recording (the 250 Hz hill +10 → +8, the bridge hill's cuts at 1.6–4 kHz taken back in
+  part, 10 kHz −2 → +1).
+- **The noise between the harmonics**: model 2's classical hair noise +5 dB on the violin and
+  the cello, +3 on the viola, over each match (a fiddler's bow keeps its tuned scratch).
+- **A double stop's second string carries its own intonation** (error and semitone tendency
+  from the note the string last held) and keeps it when left ringing at a crossing.
+- **The fiddler is its own switch** (`player.fiddle`, schema 87): the steel set no longer makes
+  the player a fiddler; the Fiddle character sets it, and a song from schema 85–86 whose Arcus
+  has a steel set is migrated to `player.fiddle` = its steel, so it plays as it did. A fiddler's
+  violin keeps the body the Fiddle character was tuned with (the pass-1 correction
+  `VIOLIN_FIDDLE_EQ`, the corner × 1, the second-order corner), its measured lines unchanged.
+
+### Consequences
+
+- The look-ahead is a contract any native instrument may read (Exemplar's legato, Chorda's
+  pedalling could); it carries no latency because it reads the song, not the future audio.
+  Live playing still has none: a note's end inside a live slur cannot ease before the next.
+- The violin's single notes are brighter and their G-string fundamentals weaker than pass 1's
+  (the lab's harmonics 78 → 86 % in band); the classical violin and the Fiddle character now
+  have different bodies.
+- Schema 87: an older build drops `player.fiddle` and reads the steel set as the fiddler again.
+
+### What the tests hold (pass 2)
+
+`cantus-dsp` `arcus::tests_classical`: with the player off the look-ahead touches no sample (all
+four instruments); a note known to be followed eases more than 2 dB deeper than without it and
+over 5 dB under its peak, the same bits at any block size. `cantus-ui`
+`tests/arcus_ahead_e2e.rs`: Arcus through `CantusApp::assemble`, two notes in a clip, the first
+note's last 60 ms more than 6 dB under its peak through the real processor, and the same bits in
+blocks of 512 and 97. `cantus-project`: schema 87's fixture keeps `player.fiddle`, schema 85's
+steel set migrates to it, an older file without steel stays classical.

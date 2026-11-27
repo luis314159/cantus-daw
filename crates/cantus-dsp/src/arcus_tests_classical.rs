@@ -176,6 +176,7 @@ fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
     let fid = ArcusSettings {
         instrument: Instrument::Violin,
         steel: 1.0,
+        fiddle: 1.0, // r42 arcus-classical: the fiddler is its own switch
         mode: crate::voices::PlayMode::Legato,
         ..ArcusSettings::default()
     };
@@ -205,7 +206,11 @@ fn a_fiddlers_fast_notes_are_shuffled_into_bows() {
         }
         changes
     };
-    let classical = ArcusSettings { steel: 0.0, ..fid };
+    let classical = ArcusSettings {
+        steel: 0.0,
+        fiddle: 0.0,
+        ..fid
+    };
     let (f, c) = (shuffles(&fid), shuffles(&classical));
     assert!(
         f < c && f >= 3,
@@ -227,7 +232,14 @@ fn a_slurred_crossing_on_one_bow_keeps_every_note() {
     };
     assert_eq!(shape::classical(st.player, shape::fiddler(&st)), 1.0);
     // … and on a fiddler's steel set, its shuffle and soft changes on, no note lost either.
-    for st in [st, ArcusSettings { steel: 1.0, ..st }] {
+    for st in [
+        st,
+        ArcusSettings {
+            steel: 1.0,
+            fiddle: 1.0,
+            ..st
+        },
+    ] {
         let keys = [
             69u8, 76, 71, 76, 72, 76, 74, 76, 69, 81, 79, 76, 74, 72, 71, 69,
         ];

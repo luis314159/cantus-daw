@@ -31,7 +31,9 @@
 //! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
 //! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
-use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, VibSpec, RADIATION_SHARE};
+use super::super::tables::{
+    Bowing, InstrumentSpec, Match, StringSpec, VibSpec, EQ_BANDS, RADIATION_SHARE,
+};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -221,15 +223,16 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
 /// Judged on the Iowa and VSCO notes and the study's band, which the correction's start did not
 /// use.
 pub const VIOLIN_MATCH: Match = Match {
-    // r42 arcus-classical, pass 2: the 250 Hz hill +10 → +4 (with the air mode's roll-off
-    // under it: the Paganini recording's 150–400 Hz under its loud high notes sat 6–9 dB under
-    // Arcus's), 400 Hz +1.4 → −2 and 1 kHz +4.1 → 0 (the fundamentals of A4–A5 against
-    // their partials, 9 dB over the recording's), the bridge hill's cuts at 1.6 and 2.5 kHz
-    // (−2.4, −5) and 4 kHz's taken back, 6.3 kHz −4 → −2 and 10 kHz −2 → +4 (the top 2–3 and
-    // 10–12.7 kHz 3–13 dB under the recording's): measured on the Paganini caprice and the
-    // Iowa, TinySOL, VSCO and Good-sounds violins (harmonics 78 → 92 % of the cells in band).
+    // r42 arcus-classical, pass 2 (with the air mode's roll-off under 260 Hz and the corner
+    // × 2): the 250 Hz hill +10 → +8 (the Paganini recording's 150–400 Hz under its loud high
+    // notes had sat 6–9 dB under Arcus's), 400 Hz +1.4 → 0, 1 kHz +4.1 → +2, 1.6 kHz −2.4 →
+    // −1.2, 2.5 kHz −5 → −3, 4 kHz −0.3 → −3, 6.3 kHz −4 → −5, 10 kHz −2 → +1: between the
+    // close Iowa, TinySOL, VSCO and Good-sounds violins (harmonics 78 → 86 % of the cells in
+    // band; at the brighter 92 % the hall recording's 2.5–8 kHz sat 6–8 dB over) and the
+    // Paganini caprice in its hall (its third-octaves 2–3.2 kHz −6.4 … −1.5 → −3.8 … +1.4 dB,
+    // 10–12.7 kHz −12.3 / −10.7 → −7.2 / −6.0).
     eq_db: [
-        0.6, 0.6, -5.0, 4.0, -2.0, -1.2, 0.0, 0.0, 0.0, 0.0, -2.0, 4.0,
+        0.6, 0.6, -5.0, 8.0, 0.0, -1.2, 2.0, -1.2, -3.0, -3.0, -5.0, 1.0,
     ],
     noise_db: 22.0,
     pizz_decay: 1.0,
@@ -237,6 +240,12 @@ pub const VIOLIN_MATCH: Match = Match {
     vib_depth: 1.0,
     vib_rate: 1.0,
 };
+
+/// r42 arcus-classical — the violin's correction before pass 2, which a fiddler's violin keeps
+/// (the Fiddle character's bridge, grit and noise were fitted over it, ADR 0164).
+pub const VIOLIN_FIDDLE_EQ: [f32; EQ_BANDS] = [
+    0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
+];
 
 /// The viola's: no recordings of a viola's scales to start from, so the violin's correction
 /// stands for it (the same family's body at 1.12 × its size — an assumption, said so in

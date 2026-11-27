@@ -70,9 +70,27 @@ impl Arcus {
         self.s.poly = s.poly.clamp(1, MAX_VOICES);
         // Model 2's match: the hair's noise and the pluck's ring on the settings the voices
         // read, the output's correction designed.
-        let m = self.s.match_now();
+        let mut m = self.s.match_now();
+        // r42 arcus-classical: a fiddler's violin keeps the correction the Fiddle character was
+        // tuned with (`upper::tables::VIOLIN_FIDDLE_EQ`; ADR 0164's measured lines).
+        let fid = shape::fiddler(&self.s);
+        if self.s.model >= 2
+            && fid > 0.0
+            && self.s.matched.is_none()
+            && self.s.instrument == tables::Instrument::Violin
+        {
+            for (g, f) in m.eq_db.iter_mut().zip(upper::tables::VIOLIN_FIDDLE_EQ) {
+                *g += (f - *g) * fid;
+            }
+        }
         if self.s.bow_noise_db > -60.0 {
             self.s.bow_noise_db += m.noise_db;
+            // r42 arcus-classical: the classical player's hair noise over the match's
+            // (`CLASSICAL_NOISE_DB`; a fiddler's bow keeps its tuned scratch, ADR 0164).
+            if self.s.model >= 2 {
+                self.s.bow_noise_db +=
+                    classical_noise_db(self.s.instrument) * (1.0 - shape::fiddler(&self.s));
+            }
         }
         self.s.pizz_decay *= m.pizz_decay;
         self.s.vib_depth *= m.vib_depth;
@@ -87,7 +105,8 @@ impl Arcus {
         // (`InstrumentSpec::air_hz`; the tools' `shape::Knobs::air_k` × it).
         let spec = self.s.instrument.spec();
         let air = spec.air_hz * self.s.shape_try.unwrap_or(shape::KNOBS).air_k;
-        if self.s.model >= 2 && air > 0.0 {
+        // (a whole fiddler's violin keeps its second-order corner: its body was tuned so)
+        if self.s.model >= 2 && air > 0.0 && fid < 1.0 {
             self.rad_c = radiation_q(air, BW4_Q.0, self.sr);
             self.rad_c2 = radiation_q(air, BW4_Q.1, self.sr);
         } else {
@@ -614,6 +633,19 @@ impl Arcus {
 /// of a held bow, its reversal at a tremolo's every stroke and a bow change — is not heard.
 pub(super) fn radiation(hz: f32, sr: f32) -> [f32; 5] {
     radiation_q(hz, std::f32::consts::FRAC_1_SQRT_2, sr)
+}
+
+/// r42 arcus-classical — model 2's classical hair noise over each instrument's match, dB:
+/// the noise between the harmonics (the lab's HNR bands on the strings-hq subjects) sat in
+/// the references' band on 50 % of the violin's cells, 45 % of the viola's and 63 % of the
+/// cello's; +5 dB brought them to 70, 68 and 73 % (`docs/round42/arcus-classical.md`, pass 2)
+/// — the viola +3, its crest factor's groups falling 11 → 9 of 12 at +5. The bass's stays.
+pub(super) fn classical_noise_db(inst: tables::Instrument) -> f32 {
+    match inst {
+        tables::Instrument::Violin | tables::Instrument::Cello => 5.0,
+        tables::Instrument::Viola => 3.0,
+        tables::Instrument::Bass => 0.0,
+    }
 }
 
 /// r42 arcus-classical — a fourth-order Butterworth's two sections' Q.

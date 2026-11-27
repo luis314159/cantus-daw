@@ -1,0 +1,3 @@
+# Arcus's classical player (round 42, ADR 0166) — owned by the arcus-classical builder. Every key here needs its twin in arcus_classical.es.txt.
+arcus.player.fiddle = Fiddler's player
+arcus.player.fiddle.short = Fiddler

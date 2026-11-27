@@ -184,7 +184,7 @@ mientras suena.</p>
 {clip("Original (35 s)", "original.wav")}
 {clip("Arcus actual, alineado, sala", "arcus-actual-alineado-sala.wav", "El tempo, el rubato y la dinámica de la grabación.")}
 {clip("Arcus en mejora, alineado, sala (una cuerda)", "arcus-mejora-alineado-1cuerda-sala.wav", "La rama del sonido clásico en curso, con su intérprete clásico entero.")}
-{clip("Arcus en mejora, alineado, sala, dos cuerdas", "arcus-mejora-alineado-sala.wav", "Con bow.pair: se calla en 9 de los 16 compases de la Variación 2 (ver abajo).")}
+{clip("Arcus en mejora, alineado, sala, dos cuerdas", "arcus-mejora-alineado-sala.wav", "Con bow.pair y el intérprete clásico entero (pasada 2: ya no se calla ninguna nota).")}
 {clip("Arcus actual, alineado, seco", "arcus-actual-alineado-seco.wav")}
 {clip("Arcus en mejora, alineado, seco (una cuerda)", "arcus-mejora-alineado-1cuerda-seco.wav")}
 {clip("Control: Arcus actual, Variación 2 en una sola cuerda", "arcus-actual-alineado-1cuerda-sala.wav", "Las mismas notas sin bow.pair.")}
@@ -286,16 +286,14 @@ original, {f1(X["arcus-actual-alineado-sala"]["ring_db"])} en Arcus actual y
 partitura marca dos cuerdas en todos los compases menos el 6 y el 8 (compases 10 y 12 de la
 interpretación), que no llevan digitación. Las medidas del original dicen si el intérprete también los
 cruza.</p>
-<p><b>La versión en mejora y bow.pair.</b> En la rama arcus-classical (d9f66789e), <code>bow.pair</code> no
-sólo da las dos cuerdas: también apaga el intérprete clásico, porque <code>shape::classical</code> lo
-reparte como <code>player × (1 − pair)</code>, y enciende el del fiddle (el «shuffle» que liga notas
-rápidas sueltas, el cambio de arco suave y el vibrato tardío). En la versión en mejora, la Variación 2
-con dos cuerdas suena por eso con el arco del fiddle. Además <b>se calla</b>: en 9 de los 16 compases
-(2, 3, 6, 8, 10, 11, 13, 14 y 16 de la interpretación) varias notas ligadas no suenan, hasta −90 dB. La
-versión actual, con la misma partitura y el mismo <code>pair</code>, no pierde ninguna, y la versión en
-mejora sin <code>pair</code> tampoco. Por eso, en el análisis general y en el A/B, «en mejora» es su toma
-de una cuerda. Para tener las dos cosas a la vez, el DSP necesita separar «dos cuerdas» de «arco de fiddle»
-(un control propio o que <code>classical()</code> no lea <code>pair</code>). No lo he cambiado.</p>
+<p><b>La versión en mejora y bow.pair (pasada 2).</b> En la primera toma de la rama, <code>bow.pair</code>
+apagaba el intérprete clásico y encendía el del fiddle, y la Variación 2 con dos cuerdas se callaba en 9 de
+los 16 compases (notas ligadas hasta −90 dB). Ahora el violinista de fiddle es un control propio
+(<code>player.fiddle</code>), las dos cuerdas guardan el intérprete clásico, y la segunda cuerda de una
+doble cuerda lleva su propia afinación (la tendencia del semitono incluida) y la conserva cuando queda
+sonando al cruzar. En esta toma <b>ninguna</b> de las 137 notas de la Variación 2 cae más de 30 dB bajo
+la mediana, con dos cuerdas ni con una. En el análisis general y en el A/B, «en mejora» sigue siendo la
+toma de una cuerda, para comparar lo mismo que antes.</p>
 
 <h3>La dinámica nota a nota</h3>
 <img src="analisis/dinamica.png" alt="Pico de cada nota en Arcus frente al original">
@@ -311,7 +309,8 @@ una correspondencia lineal sencilla.</p>
 y separadas es lo primero que delata la máquina: falta el «clic» de la crin al agarrar la cuerda.</li>
 <li><b>Las notas no se apagan al final del golpe.</b> Terminan solo {f1(A["end_under"][0])} /
 {f1(M["end_under"][0])} dB bajo su pico, contra {f1(O["end_under"][0])} dB. Las notas cortas suenan unidas y como de
-órgano en vez de habladas. La versión en mejora empeora las largas en este pasaje.</li>
+órgano en vez de habladas. La versión en mejora (pasada 2) ya sabe cuánto dura cada nota y la apaga antes
+de la siguiente; la diferencia que queda está en las notas cortas.</li>
 <li><b>Falta brillo y aire.</b> Hay −3 a −7 dB en 2–3,2 kHz y −11 a −13 dB en 10–12,7 kHz, y el ruido
 entre armónicos es 4–7 dB más limpio sobre 6 kHz. El violín real rasca un poco arriba y Arcus suena
 pulido y algo apagado.</li>
@@ -333,8 +332,7 @@ Variación 2 suena por fin bajo la de abajo. El equilibrio pasa de {f1(CTRL["bal
 cuerda a {f1(X["arcus-actual-alineado-sala"]["balance_db"])} dB, contra {f1(X["original"]["balance_db"])} dB en el
 original. Pero cae sólo {f1(X["arcus-actual-alineado-sala"]["ring_db"])} dB mientras suena la otra, contra
 {f1(X["original"]["ring_db"])} dB en el original: Arcus mantiene la cuerda libre casi tan fuerte como si
-siguiera bajo el arco. En la versión en mejora, <code>bow.pair</code> además se calla en 9 de los 16
-compases (ver <a href="#cuerdas">las dos cuerdas</a>).</li>
+siguiera bajo el arco (ver <a href="#cuerdas">las dos cuerdas</a>).</li>
 <li><b>Detalles menores:</b> el hueco entre notas ligadas ({f1(A["dip_slur"][0])} / {f1(M["dip_slur"][0])} contra
 {f1(O["dip_slur"][0])} dB) y el vibrato de la versión en mejora, más lento ({f1(M["vib_hz"][0])} Hz contra
 {f1(O["vib_hz"][0])} Hz, sobre pocas notas).</li>

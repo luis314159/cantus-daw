@@ -91,6 +91,7 @@ pub fn settings_from(v: &[f32; COUNT]) -> ArcusSettings {
         grit: v[ix::GRIT],
         bite: v[ix::BITE],
         steel: v[ix::STEEL],
+        fiddle: v[ix::FIDDLE], // r42 arcus-classical (schema 87)
         cross: round(ix::CROSS).clamp(0.0, 5.0) as u8,
         mic: round(ix::MIC),
         bridge: v[ix::BRIDGE],

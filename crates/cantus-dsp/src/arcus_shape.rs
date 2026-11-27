@@ -308,11 +308,13 @@ pub fn classical(amount: f32, fiddler: f32) -> f32 {
     (amount.clamp(0.0, 1.0) * (1.0 - fiddler.clamp(0.0, 1.0))).max(0.0)
 }
 
-/// How much of a fiddler the settings describe (0 … 1): the Fiddle character's steel set
-/// (`steel`, ADR 0164). Neither one bow on two strings (`bow.pair`: a classical double stop, a
-/// string left ringing at a crossing) nor the bow's grit makes a fiddler by itself.
+/// How much of a fiddler the settings describe (0 … 1): the player's own switch
+/// (`player.fiddle`, schema 87 — the Fiddle character sets it; before it the steel set stood
+/// for it, and a song from then is migrated to the same value). Neither one bow on two strings
+/// (`bow.pair`: a classical double stop, a string left ringing at a crossing), the bow's grit
+/// nor a steel set makes a fiddler by itself.
 pub fn fiddler(s: &super::ArcusSettings) -> f32 {
-    s.steel.clamp(0.0, 1.0)
+    s.fiddle.clamp(0.0, 1.0)
 }
 
 /// How long a note must have been held for its whole taper, s.

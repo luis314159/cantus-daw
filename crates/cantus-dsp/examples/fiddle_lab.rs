@@ -66,6 +66,7 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
         grit: 0.75,
         bow_noise_db: 0.0,
         steel: 1.0,
+        fiddle: 1.0, // r42 arcus-classical: the fiddler is its own switch
         just: 0.6,
         mic: 1.0,
         bridge: 1.3,
@@ -79,6 +80,7 @@ fn after(args: &[(String, f32)]) -> ArcusSettings {
             "sym" => s.sym = *v,
             "grit" => s.grit = *v,
             "steel" => s.steel = *v,
+            "fiddle" => s.fiddle = *v, // r42 arcus-classical
             "just" => s.just = *v,
             "tilt" => s.tilt = *v,
             "noise" => s.bow_noise_db = *v,
