@@ -14,6 +14,15 @@ use egui::{Color32, ImageData, TextureId};
 use std::collections::HashMap;
 use std::path::Path;
 
+thread_local! {
+    /// r42 integration — each recent context's textures between [`shoot`]'s runs.
+    static KEPT: std::cell::RefCell<Vec<(egui::Context, Textures)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// How many contexts' textures [`KEPT`] holds.
+const KEPT_CONTEXTS: usize = 4;
+
 /// The textures a frame's meshes sample, kept across frames as egui sends only deltas.
 #[derive(Default)]
 pub struct Textures {
@@ -278,7 +287,18 @@ pub fn shoot_events(
     mut ui: impl FnMut(&mut egui::Ui),
 ) -> Canvas {
     ctx.set_pixels_per_point(ppp);
-    let mut textures = Textures::default();
+    // (r42 integration: the textures a context was sent in earlier runs are kept, as a
+    // screen's renderer keeps them — egui sends each texture once and then only what
+    // changed. A run that began empty drew every texture an earlier run uploaded as white:
+    // the font atlas, a picture baked once, a still arm's High picture — so a shot taken
+    // after another on the same context showed white bars for text and a white rectangle
+    // for a hand, and the gates that looked there passed on nothing.)
+    let mut textures = KEPT
+        .with(|k| {
+            let mut k = k.borrow_mut();
+            k.iter().position(|(c, _)| c == ctx).map(|i| k.remove(i).1)
+        })
+        .unwrap_or_default();
     // One frame that draws nothing first: until a frame has run at the new scale, egui
     // still has its provisional screen (5000 points wide), and a window first shown then
     // takes its default place there — off the real screen at any scale but 100 % (round
@@ -318,6 +338,14 @@ pub fn shoot_events(
         bg,
     );
     canvas.paint(&prims, &textures, out.pixels_per_point);
+    KEPT.with(|k| {
+        let mut k = k.borrow_mut();
+        k.push((ctx.clone(), textures));
+        // (A few contexts' worth: a test's contexts come and go.)
+        if k.len() > KEPT_CONTEXTS {
+            k.remove(0);
+        }
+    });
     if let Some(p) = path {
         let _ = canvas.write_png(p);
     }
