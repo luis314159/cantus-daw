@@ -1930,6 +1930,28 @@ user count on the site matches the published method.
   CPU at 128-frame quanta, whether `SharedArrayBuffer` (COOP/COEP on Cloudflare) is needed, and
   the output equal to the native render to the bit.
 
+- **Instruments and effects to download on their own (the owner, 2026-11-26).** Some people
+  come only for our instruments or plug-ins, not the DAW. The site gets a section for them:
+  - **A catalogue page per unit:** its picture, sound takes, presets, formats (CLAP, VST3; AU
+    when macOS signing allows) and platforms. Each unit has its own download (installer or
+    zip per OS) with SHA-256 sums, the licence (GPL-3.0-or-later, the trademark note) and a
+    pointer to the full DAW.
+  - **"All effects" and "all instruments" bundles,** plus single-unit downloads, built by the
+    release workflow from `cantus-plugins` (one binary per unit, as the bundler already does
+    for the effects) and published with each release.
+  - **The instruments as plug-ins:** Chorda, Arcus, Tympanum, Fides and the synths built as
+    CLAP/VST3 instruments (MIDI in, MPE where the unit has it, the same editor and presets),
+    with their sound packs downloading on demand into a shared folder exactly as in the app
+    (ADR 0030). Today `cantus-plugins` builds the effects only, so this part is new work:
+    host-side note input, the content download from inside a plug-in, the state round-trip,
+    and a null test that the plug-in renders the same bits as the instrument in Cantus.
+  - **Tested in other hosts,** with real installs (REAPER, Bitwig, FL Studio, Ableton Live,
+    Studio One, Logic for AU), in `docs/beta-checklist.md`.
+
+  **Done when** a visitor who never installs Cantus downloads one effect or one instrument
+  from its page and plays it in their own DAW in under two minutes, and the plug-in sounds
+  bit-identical to the unit inside Cantus.
+
 ## 6b. Audio setup that is direct (requested 2026-10-05)
 
 Today the audio device lives in Settings ▸ Audio (round 19 made it complete); the owner
