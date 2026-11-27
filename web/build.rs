@@ -18,6 +18,39 @@ fn main() {
     println!("cargo:rerun-if-changed=site_version.rs");
     println!("cargo:rustc-env=CANTUS_VERSION={version}");
     release_facts(&dir);
+    logo_uri(&dir);
+}
+
+/// `assets/logo-48.svg` → `$OUT_DIR/logo.rs`: `LOGO_48`, the bar's mark as a `data:` address.
+/// The mark is in the first paint; drawn from the page itself it needs no request of its own,
+/// which on a slow phone would share the line with the hero's picture (the site budget's LCP).
+fn logo_uri(dir: &str) {
+    let path = std::path::Path::new(dir).join("assets/logo-48.svg");
+    println!("cargo:rerun-if-changed=assets/logo-48.svg");
+    let svg =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    assert!(
+        !svg.contains('\''),
+        "{}: the data: address quotes the attributes with ', so the drawing must use \"",
+        path.display()
+    );
+    let mut uri = String::from("data:image/svg+xml,");
+    for c in svg.trim().chars() {
+        match c {
+            '"' => uri.push('\''),
+            '%' => uri.push_str("%25"),
+            '#' => uri.push_str("%23"),
+            '<' => uri.push_str("%3C"),
+            '>' => uri.push_str("%3E"),
+            '&' => uri.push_str("%26"),
+            '\r' | '\n' | '\t' => uri.push(' '),
+            c => uri.push(c),
+        }
+    }
+    let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR");
+    let dest = std::path::Path::new(&out_dir).join("logo.rs");
+    std::fs::write(&dest, format!("pub const LOGO_48: &str = {uri:?};\n"))
+        .unwrap_or_else(|e| panic!("write {}: {e}", dest.display()));
 }
 
 /// `assets/release.json` → `$OUT_DIR/release.rs`: `REL_VERSION`, `REL_DATE`, `REL_NOTES`
