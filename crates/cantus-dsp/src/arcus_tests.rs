@@ -23,6 +23,9 @@ pub(super) enum Ev {
     Cc(u8, f32),
     /// The next note's own articulation and bow.
     Art(u8, Option<Art>, Option<BowDir>),
+    /// r42 arcus-classical — the next note's look-ahead: its length and the next note's
+    /// distance from its end, frames (`Arcus::note_len`).
+    Len(u8, u32, Option<i32>),
 }
 
 pub(super) fn id_of(k: u8) -> u64 {
@@ -38,6 +41,7 @@ pub(super) fn apply(f: &mut Arcus, e: Ev) {
         Ev::Slide(k, v) => f.expression(id_of(k), 2, v),
         Ev::Cc(w, v) => f.controller(w, v),
         Ev::Art(k, a, b) => f.note_art(id_of(k), a, b),
+        Ev::Len(k, len, next) => f.note_len(id_of(k), len, next),
     }
 }
 

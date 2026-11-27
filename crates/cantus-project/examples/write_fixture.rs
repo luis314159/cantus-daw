@@ -2178,6 +2178,18 @@ fn main() {
             }
         }
     }
+    // r42 arcus-classical — Schema 87 (ADR 0166): the Arcus track's player a fiddler by its own
+    // switch, at a share its steel set (1) would not give it.
+    if upto >= 87 {
+        if let Some(n) = p
+            .tracks
+            .iter_mut()
+            .find(|t| t.name == "Arcus")
+            .and_then(|t| t.instrument.native_mut())
+        {
+            n.set("player.fiddle", 0.8);
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

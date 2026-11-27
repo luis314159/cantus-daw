@@ -585,7 +585,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         &CROSS_TUNINGS,
         300.0,
         &[
-            &["bow.pair", "bow.tilt", "dstop.just"],
+            &["bow.pair", "bow.tilt", "dstop.just", "player.fiddle"],
             &["bow.bite", "bow.grit", "sym", "steel"],
         ],
     );

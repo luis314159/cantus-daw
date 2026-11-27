@@ -184,6 +184,16 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     fn note_art(&mut self, id: u64, art: cantus_core::note_art::NoteArt) {
         let _ = (id, art);
     }
+    /// r42 arcus-classical — the look-ahead a player needs (ADR 0166): the clip's note `id`
+    /// that starts next is `len` frames long, and the next note on the track starts `next`
+    /// frames after its end (negative: before it ends; `None`: none within
+    /// `processor::LOOK_AHEAD` events). Handed just before its note-on, after
+    /// [`Self::note_art`], on playback — offline and in real time alike (read from the
+    /// snapshot's sorted events: no latency, no allocation); a live note or one out of the
+    /// note effects gets no call. Default: nothing.
+    fn note_len(&mut self, id: u64, len: u32, next: Option<i32>) {
+        let _ = (id, len, next);
+    }
     /// A program change from live MIDI (round 29, ADR 0062): a hosted instrument hears it
     /// as MIDI; a native one has no programs. Default: nothing.
     fn program(&mut self, _program: u8) {}

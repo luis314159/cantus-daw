@@ -91,6 +91,8 @@ pub const PRESETS: &[FactoryPreset] = &[
          // r42 fiddle (ADR 0164): one bow on two strings, the open strings in sympathy, the
          // grit, a steel set, double stops tuned most of the way to just.
          "bow.pair" => 1.0, "sym" => 1.0, "bow.grit" => 0.75, "steel" => 1.0,
+         // r42 arcus-classical (schema 87): and a fiddler plays it — its own switch now.
+         "player.fiddle" => 1.0,
          "bow.bite" => 0.5, "dstop.just" => 0.6,
          // … and one close microphone, as a fiddle is miked (the pair's mono sum was dark);
          // r42 fiddle: the bow nearer the bridge (0.82 → 0.73) and heavier (1.15 → 1.32) — in

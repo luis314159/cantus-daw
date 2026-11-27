@@ -31,7 +31,9 @@
 //! (`upper_tests_gate`; Schoonderwaldt, Guettler & Askenfelt 2008, doi:10.3813/aaa.918070, the
 //! violin's Schelleng diagram on its D and E strings, read in `downloads/study/papers/s08.txt`).
 
-use super::super::tables::{Bowing, InstrumentSpec, Match, StringSpec, VibSpec, RADIATION_SHARE};
+use super::super::tables::{
+    Bowing, InstrumentSpec, Match, StringSpec, VibSpec, EQ_BANDS, RADIATION_SHARE,
+};
 use crate::fides::body::BodyKind;
 
 /// A string from Percival's decay rates: the fundamental's T60 and the partials' exponent.
@@ -108,7 +110,9 @@ pub const VIOLA_VIB: VibSpec = VibSpec {
     hz: 5.6,
     hz_dyn: 0.08,
     hz_oct: 0.01,
-    pp_ct: 23.2,
+    pp_ct: 18.6, // r42 arcus-classical: × 0.8 (was 23.2): in music the violas
+    // vibrate narrower than on single notes (the strings-hq phrases: violas 21 cents, cellos 10–25;
+    // Arcus's phrases 28–31), the single notes still inside their band.
     pp_oct: 0.11,
     pp_dyn: 0.97,
     jitter: (0.18, 0.17),
@@ -150,12 +154,18 @@ pub const VIOLIN: InstrumentSpec = InstrumentSpec {
     // Pass 4's 8 Hz high-pass: the bow's static push reaches the bridge as a DC force no body
     // radiates (measured on the violin too: `docs/round42/arcus-upper.md` §6).
     radiation_hz: RADIATION_SHARE * 196.0, // r42:arcus-p5: G3
+    // r42 arcus-classical: the air mode's vented-box roll-off (Bissinger's violins: A0 at
+    // 270–280 Hz; the fourth-order corner a little under it, −3 dB there).
+    air_hz: VIOLIN_AIR_HZ,
     // r42:arcus-p5: measured (`tests_gate2::probe_levels`, every three semitones G3–E7):
     // the violin fell 0.17 dB a semitone, its top 6 dB under its G string.
     balance_db_st: 0.17,
     balance_key: 72.0,
     matched: VIOLIN_MATCH,
 };
+
+/// r42 arcus-classical — the violin's air-mode corner (`InstrumentSpec::air_hz`), Hz.
+pub const VIOLIN_AIR_HZ: f32 = 260.0;
 
 /// The viola: C3 G3 D4 A4 over 366 mm; its body the violin's scaled (`upper::body`).
 pub const VIOLA: InstrumentSpec = InstrumentSpec {
@@ -187,6 +197,7 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
     spic_ring: 0.35,                        // r42:arcus-p5
     trem_db: 5.0,                           // r42:arcus-p5
     radiation_hz: RADIATION_SHARE * 130.81, // r42:arcus-p5: C3
+    air_hz: 0.0,                            // r42 arcus-classical: not measured on a viola
     // r42:arcus-p5: measured the same way, the viola 0.12 dB a semitone C3–A6.
     balance_db_st: 0.12,
     balance_key: 65.0,
@@ -212,8 +223,16 @@ pub const VIOLA: InstrumentSpec = InstrumentSpec {
 /// Judged on the Iowa and VSCO notes and the study's band, which the correction's start did not
 /// use.
 pub const VIOLIN_MATCH: Match = Match {
+    // r42 arcus-classical, pass 2 (with the air mode's roll-off under 260 Hz and the corner
+    // × 2): the 250 Hz hill +10 → +8 (the Paganini recording's 150–400 Hz under its loud high
+    // notes had sat 6–9 dB under Arcus's), 400 Hz +1.4 → 0, 1 kHz +4.1 → +2, 1.6 kHz −2.4 →
+    // −1.2, 2.5 kHz −5 → −3, 4 kHz −0.3 → −3, 6.3 kHz −4 → −5, 10 kHz −2 → +1: between the
+    // close Iowa, TinySOL, VSCO and Good-sounds violins (harmonics 78 → 86 % of the cells in
+    // band; at the brighter 92 % the hall recording's 2.5–8 kHz sat 6–8 dB over) and the
+    // Paganini caprice in its hall (its third-octaves 2–3.2 kHz −6.4 … −1.5 → −3.8 … +1.4 dB,
+    // 10–12.7 kHz −12.3 / −10.7 → −7.2 / −6.0).
     eq_db: [
-        0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
+        0.6, 0.6, -5.0, 8.0, 0.0, -1.2, 2.0, -1.2, -3.0, -3.0, -5.0, 1.0,
     ],
     noise_db: 22.0,
     pizz_decay: 1.0,
@@ -221,6 +240,16 @@ pub const VIOLIN_MATCH: Match = Match {
     vib_depth: 1.0,
     vib_rate: 1.0,
 };
+
+/// r42 arcus-classical — the classical violin's output over its trim with pass 2's body, dB
+/// (measured: its presets in music −21.3 … −22.0 LUFS against the family's −20.6 … −21.4).
+pub const VIOLIN_CLASSICAL_TRIM_DB: f32 = 0.6;
+
+/// r42 arcus-classical — the violin's correction before pass 2, which a fiddler's violin keeps
+/// (the Fiddle character's bridge, grit and noise were fitted over it, ADR 0164).
+pub const VIOLIN_FIDDLE_EQ: [f32; EQ_BANDS] = [
+    0.6, 0.6, -5.0, 10.0, 1.4, -1.2, 4.1, -2.4, -5.0, -0.3, -4.0, -2.0,
+];
 
 /// The viola's: no recordings of a viola's scales to start from, so the violin's correction
 /// stands for it (the same family's body at 1.12 × its size — an assumption, said so in

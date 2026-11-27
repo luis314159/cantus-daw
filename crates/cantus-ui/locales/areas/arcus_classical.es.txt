@@ -1,0 +1,3 @@
+# El intérprete clásico de Arcus (ronda 42, ADR 0166) — del constructor arcus-classical. Cada clave aquí necesita su gemela en arcus_classical.en.txt.
+arcus.player.fiddle = Intérprete de fiddle
+arcus.player.fiddle.short = Fiddle

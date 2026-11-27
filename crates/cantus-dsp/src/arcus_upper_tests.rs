@@ -57,26 +57,45 @@ fn lower() -> Vec<ArcusSettings> {
 /// −1.19, −0.06 dB; their difference +1.2, −4.4, −22.4, −12.7 (cello) and −1.0, −6.4, −21.4 dB
 /// (bass) re each render — the bowed ones at the signal's level (the vibrato's and the strokes'
 /// shapes move them), every one on purpose.
+///
+/// r42 arcus-classical (`DSP_VERSION` 20, ADR 0166): re-made for the stroke's shape (the bow's
+/// speed and the dynamic it is read at rising, sagging, breathing and tapering inside a held
+/// note), the free string after the lift, the pluck's DC corner and contact, the vibrato's way
+/// back and the player's intonation in a passage, the violin's and viola's corner with the force,
+/// the viola's and cello's narrower vibrato and the upper strings' pitch table measured again with
+/// the player on. The measured size: `docs/round42/arcus-classical.md`, *The size of the change*.
+///
+/// r42 arcus-classical pass 2 (`DSP_VERSION` 20 kept, unreleased): re-made for the classical hair
+/// noise on the held stroke (+5 dB on the cello, `play::classical_noise_db`) — the only change
+/// that reaches these renders (the look-ahead needs a note's length; the violin's body is not
+/// in them). Measured by `tests_classical::probe_pass2_size`: the cello's two bowed renders RMS
+/// −0.14 and +0.03 dB, their difference −15.4 and −16.0 dB re each render (max |Δ| 0.13, 0.10);
+/// the cello's pluck and tremolo and the bass's three the same to the bit (under −266 dB).
 const LOWER_HASHES: &[u64] = &[
-    0x0bc1035d57c1b9c9,
-    0x009de863481bb899,
-    0xa5fce59fe0fd3315,
-    0xd901c894ec7ac2a6,
-    0x9114597ec54d728d,
-    0x78e40fe592b9a488,
-    0xc8a91674dd71955c,
+    0xf0916ad0d9291ca3,
+    0xfb4ff005dc44c607,
+    0x8ab414d6e1b9ffd4,
+    0x2499bbc3fbcb96a4,
+    0xd7dc01a4b7d153d7,
+    0xfc4755af4bd14dce,
+    0xfb9c139a75d9d005,
 ];
 
-/// r42 arcus-expr — pass 6's [`LOWER_HASHES`] (`DSP_VERSION` 14): the null of the player
-/// (ADR 0162). With `player` 0 every one of the seven renders keeps pass 6's bits.
+/// r42 arcus-expr — the null of the player (ADR 0162): with `player` 0 the seven renders keep
+/// the string's own bits — pass 6's until `DSP_VERSION` 20, when the string's model-2 changes of
+/// r42 arcus-classical (the free ring after the lift, the pluck's DC corner and contact, the
+/// viola's and cello's vibrato) moved them on purpose; the player's shape, taper, way back and
+/// intonation stay out of them (`tests_classical::with_the_player_off_the_shape_touches_no_sample`).
+/// Pass 2's classical hair noise is the bow's, not the player's: it moved the cello's two bowed
+/// renders here too, on purpose (the same size as in [`LOWER_HASHES`]).
 const PASS6_HASHES: &[u64] = &[
-    0x6d5e0259952247da,
-    0xe01dd2f1fccb542d,
-    0xa568fb3f43a76064,
-    0x7427607794f02a73,
-    0xca2c6a870093b044,
-    0xd0b07d0d827ca234,
-    0x368b8fa3f06e79bf,
+    0x1a98a31f85a64b82,
+    0xd7aaa34134495e07,
+    0x14bce81194da377a,
+    0xff53c5e8c8a78e36,
+    0x8fc5c4e1e644e2b7,
+    0x46d4102f6774671c,
+    0x0022787859074505,
 ];
 
 #[test]

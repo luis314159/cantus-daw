@@ -269,6 +269,12 @@ pub fn corner_hz(inst: Instrument, spec_hz: f64, f0: f64) -> f64 {
     }
 }
 
+/// r42 arcus-classical — model 2's violin corner × this (the bridge's corner rounding at twice
+/// the frequency): its harmonics 3–8 sat 5–15 dB under the Iowa, TinySOL and VSCO violins' on
+/// A4–D6 (`docs/round42/arcus-classical.md`, pass 2), its top 2–3 kHz 3–7 dB under the
+/// Paganini recording's. At × 3 nothing more moved: the rest is the string's own loss.
+pub const VIOLIN_CORNER_K: f64 = 2.0;
+
 /// The corner's least ratio to the fundamental on the upper strings.
 pub const CORNER_PER_F0: f64 = 6.0;
 

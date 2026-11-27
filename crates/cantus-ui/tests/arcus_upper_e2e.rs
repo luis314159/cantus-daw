@@ -115,6 +115,10 @@ fn the_violin_and_the_viola_play_a_legato_pair_in_tune_through_the_app() {
         let track = app.project().tracks.last().unwrap().id;
         // The Instrument card's switch, as it sets the choice.
         app.set_inst_value(track, "inst", inst, false);
+        // r42 arcus-classical: the tables' pitch, without the player's own intonation in a
+        // passage (a slurred note lands up to ±8 cents off and keeps 0.6 of it by design, ADR
+        // 0166; `arcus::tests_classical` holds it) — the slurred A5 sat +3.7 cents with it.
+        app.set_inst_value(track, "player", 0.0, false);
         let spec = app
             .project()
             .track(track)

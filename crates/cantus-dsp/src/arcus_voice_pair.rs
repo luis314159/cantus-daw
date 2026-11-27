@@ -51,6 +51,11 @@ pub struct Second {
     pub(super) ear: super::super::ear::Ear,
     pub(super) f0: f64,
     pub(super) balance: f32,
+    /// r42 arcus-classical — the player's intonation on this string (`shape::intonation`):
+    /// its note's error and tendency (cents) and the time into it (s), as the first string's
+    /// `Voice::into`; it changes places with the first's at a crossing (a string left ringing
+    /// keeps the pitch it was played at).
+    pub(super) into: (f32, f32, f32),
     /// Its share of the bow's force at the last step's end and this one's.
     pub(super) w: (f32, f32),
     /// The bow on it in this step.
@@ -80,6 +85,7 @@ impl Second {
             ear: super::super::ear::Ear::default(),
             f0: 261.6,
             balance: 1.0,
+            into: (0.0, 0.0, 0.0),
             w: (0.0, 0.0),
             bowed: false,
             fbuf: [0.0; SPAN],
@@ -95,6 +101,7 @@ impl Second {
         self.w = (0.0, 0.0);
         self.glide = 0.0;
         self.glide_step = 0.0;
+        self.into = (0.0, 0.0, 0.0);
         self.string.clear();
     }
 }
@@ -161,6 +168,7 @@ impl Voice {
         swap(&mut self.ear, &mut c.ear);
         swap(&mut self.f0, &mut c.f0);
         swap(&mut self.balance, &mut c.balance);
+        swap(&mut self.into, &mut c.into); // r42 arcus-classical
         swap(&mut self.w1, &mut c.w);
         swap(&mut self.restring, &mut c.fresh);
     }
@@ -256,7 +264,24 @@ impl Voice {
         if ix == self.string_ix {
             return false;
         }
+        // r42 arcus-classical: the second note's own intonation (`shape::intonation`), its
+        // semitone step's tendency from the note this string last held (none from rest).
+        let p_shape = super::super::shape::classical(s.player, super::super::shape::fiddler(s));
+        let into = if p_shape > 0.0 {
+            let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+            let step = if self.sec.on {
+                note + tune - (self.sec.note + self.sec.tune)
+            } else {
+                0.0
+            };
+            let (e, tend) =
+                super::super::shape::intonation(&knobs, p_shape, step, false, s.seed, key, id);
+            (e, tend, 0.0)
+        } else {
+            (0.0, 0.0, 0.0)
+        };
         let c = &mut self.sec;
+        c.into = into;
         let was = c.note + c.glide + c.tune;
         let ringing = c.on && c.string_ix == ix;
         if !ringing {
@@ -428,9 +453,19 @@ impl Voice {
         if now.is_finite() {
             c.tune = now;
         }
-        let semis = (c.note + c.glide + sh.ctl.bend * s.bend_st + c.tuning) as f64
+        let mut semis = (c.note + c.glide + sh.ctl.bend * s.bend_st + c.tuning) as f64
             + c.tune as f64
             + 0.01 * just;
+        // r42 arcus-classical: its own intonation, as the first string's (`Voice::into`).
+        if c.into.0 != 0.0 || c.into.1 != 0.0 {
+            let dt = span as f32 / sr;
+            c.into.2 += dt;
+            let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+            let k = super::super::shape::intonation_at(&knobs, c.into.0, c.into.1, c.into.2);
+            let land = (c.into.2 / (0.001 * s.finger_ms.max(1.0))).clamp(0.0, 1.0);
+            let land = land * land * (3.0 - 2.0 * land);
+            semis += 0.01 * (k * land) as f64;
+        }
         // One hand: a stopped second string vibrates with the first; an open one cannot.
         let vib = if c.open { 0.0 } else { self.vib_now };
         let f = 440.0 * math::exp2((semis + 0.01 * vib as f64 - 69.0) / 12.0);

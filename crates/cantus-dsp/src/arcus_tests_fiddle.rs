@@ -19,6 +19,7 @@ pub(crate) fn fiddle() -> ArcusSettings {
         sym: 1.0,
         grit: 1.0,
         steel: 1.0,
+        fiddle: 1.0, // r42 arcus-classical: the fiddler is its own switch
         just: 0.6,
         ..ArcusSettings::default()
     }

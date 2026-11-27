@@ -8,6 +8,12 @@ use super::*;
 /// more 4–12 kHz than the next 100 ms against the recordings' 10–20 (the study's thump).
 pub(super) const PLUCK_NOISE: f32 = 0.03;
 
+/// r42 arcus-classical — how the finger's contact shortens with the note's period (its power).
+pub(super) const PIZZ_CONTACT_POW: f32 = 0.8;
+/// … never under this share of `pizz.soft` (a key far over the instrument's range plucked
+/// with no contact at all rang eight voices to 25 × full scale).
+pub(super) const PIZZ_CONTACT_MIN: f32 = 0.5;
+
 /// r42:arcus-p5 — how long a re-bow's finger takes to a new note on a ringing string, ms.
 pub(super) const REBOW_FINGER_MS: f32 = 6.0;
 
@@ -140,9 +146,11 @@ impl Voice {
         let spec = self.spec();
         // r42 arcus-expr: the fingering (`bow::finger`): the string, an open one's rules.
         let p = s.player.clamp(0.0, 1.0);
+        let mut shift = false; // r42 arcus-classical
         if p > 0.0 {
             let from = (keep && was_bowing).then_some((was, self.string_ix));
             let fing = bow::finger(spec, self.note + self.tune, how.string, !fast, from);
+            shift = fing.shift;
             self.string_ix = fing.string;
             self.open = fing.open && tech.is_bowed();
             // (A tremolo keeps pass 6's vibrato: its level in music moved 1.5–2.5 LU with it.)
@@ -191,6 +199,94 @@ impl Voice {
         } else {
             (0.0, 1.0)
         };
+        // r42 arcus-classical: with the player, a held stroke's shape is the bow's (`shape`):
+        // from silence the swell's depth and length move the bow (its output envelope
+        // retired), a bow change starts its stroke a few dB under, and the key let go tapers.
+        // (A fiddler — the Fiddle character's steel set, `shape::fiddler` — plays his own
+        // player: the classical shape gives way to it, `shape::classical`. One bow on two
+        // strings alone is a classical double stop's too.)
+        let p_shape = super::super::shape::classical(p, super::super::shape::fiddler(s));
+        let shaped = p_shape > 0.0 && tech == NoteTech::Arco;
+        let begin = if keep && was_bowing {
+            super::super::shape::Begin::Rebow
+        } else {
+            let d = d_t.clamp(0.0, 1.0);
+            let (len, depth) = (spec.swell_s, spec.swell_db);
+            // (A loud stroke from the string is set in less deeply: `Knobs::fresh_ff`.)
+            let kn = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+            let ff = kn.fresh_ff;
+            // (the bass's own cap: `Knobs::fresh_cap_bass`)
+            let cap = if self.inst == Instrument::Bass {
+                kn.fresh_cap_bass
+            } else {
+                kn.fresh_cap
+            };
+            // … and the lowest notes nearer the stroke's speed (under C3 the depth falls to none
+            // at E1: a slow string's attack sits at Guettler's limit already — the cello's C and G
+            // strings at pp from 15 dB under took 335 and 202 ms against 270 and 180).
+            let hz = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
+            let low = ((hz - 41.2) / (130.8 - 41.2)).clamp(0.0, 1.0);
+            super::super::shape::Begin::Fresh(
+                ((depth.0 + (depth.1 - depth.0) * d) * (1.0 - ff * d) * low).min(cap),
+                len.0 + (len.1 - len.0) * d * d,
+            )
+        };
+        let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+        self.shape.begin(
+            begin,
+            &knobs,
+            if shaped { p_shape } else { 0.0 },
+            fast,
+            s.seed,
+            key,
+            id,
+        );
+        self.expect(sh, how); // r42 arcus-classical: the look-ahead (ADR 0166)
+        self.taper_s = if shaped {
+            knobs.taper_k * 0.001 * s.bow_release_ms.max(5.0)
+        } else {
+            0.0
+        };
+        if shaped && !keep {
+            // The bow carries the swell's depth as far as Guettler's gate lets it (`shape`'s caps);
+            // the rest stays the output's swell it was (pass 4's rise, the same length), so the
+            // level still rises as the players' do where the bow may not start that low.
+            let d = d_t.clamp(0.0, 1.0);
+            let full = spec.swell_db.0 + (spec.swell_db.1 - spec.swell_db.0) * d;
+            let rest = (full - self.shape.start_db()).max(0.0);
+            self.swell = if rest > 0.0 {
+                (self.swell.0, math::db_to_gain(-rest))
+            } else {
+                (0.0, 1.0)
+            };
+        }
+        // r42 arcus-classical: a bow change inside a phrase lets the vibrato in again
+        // (`shape::Knobs::vib_back`); a fast passage's keeps the passage's.
+        self.vib_re = if shaped && keep && was_bowing && !fast {
+            0.0
+        } else {
+            -1.0
+        };
+        // r42 arcus-classical: the player's intonation in a passage (never a note from
+        // silence: `shape::intonation`).
+        let (e, tend) = if shaped && keep && was_bowing {
+            super::super::shape::intonation(
+                &knobs,
+                p_shape,
+                self.note + self.tune - was,
+                shift,
+                s.seed,
+                key,
+                id,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        self.into = (e, tend, 0.0);
+        // r42 arcus-classical: a fiddler's fast bow change is a quicker turn, and his long
+        // note's vibrato comes in late (`shape::fiddle_vib`).
+        self.soft = super::super::shape::fiddler(s) > 0.0 && p > 0.0 && keep && was_bowing && fast;
+        self.fid_t = 0.0;
         self.lvl = (self.swell.1, self.swell.1);
         self.stop_lift = false;
         self.rough.set(Biquad::band(2500.0, 2.5, sh.sr));
@@ -200,9 +296,22 @@ impl Voice {
             self.bowing = false;
             self.v_mag = 0.0;
             self.force = 0.0;
+            // r42 arcus-classical (model 2): the finger leaves a shorter, tenser string sooner —
+            // its contact scaled with the period from the instrument's lowest open string (at a
+            // fixed 1.2 ms the upper registers' plucks lost their harmonics: the second octave's
+            // third to sixth 25–40 dB under the recordings').
+            let contact = if s.model >= 2 {
+                let f_note = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
+                let low = spec.strings[0].open_hz() as f32;
+                s.pizz_soft_ms
+                    * math::powf((low / f_note.max(1.0)).min(1.0), PIZZ_CONTACT_POW)
+                        .max(PIZZ_CONTACT_MIN)
+            } else {
+                s.pizz_soft_ms
+            };
             let est = ExciterSettings {
                 kind: ExciterKind::Pluck,
-                contact_ms: s.pizz_soft_ms,
+                contact_ms: contact,
                 noise: PLUCK_NOISE,
                 pos: s.pizz_pos,
                 ..ExciterSettings::default()
@@ -216,6 +325,12 @@ impl Voice {
             };
             let f0 = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
             let rng = self.rng;
+            // r42 arcus-classical (model 2): a string the bow did not leave pushed has no offset
+            // for the loop's DC blocker to take out — its own low corner keeps the partials in
+            // tune (`string::DC_CORNER_PLUCK`).
+            self.string.set_dc_share(
+                (s.model >= 2 && !was_bowing).then_some(super::super::string::DC_CORNER_PLUCK),
+            );
             self.pluck.start(
                 &est,
                 &noise,
@@ -229,20 +344,29 @@ impl Voice {
             return;
         }
         self.pluck.clear();
-        // The attack from the velocity: a harder note accelerates sooner and presses more
-        // (the Guettler region measured on this model, `docs/round42/arcus.md`).
+        self.string.set_dc_share(None); // r42 arcus-classical
+                                        // The attack from the velocity: a harder note accelerates sooner and presses more
+                                        // (the Guettler region measured on this model, `docs/round42/arcus.md`).
         let z0 = spec.strings[self.string_ix].z0();
         let open_hz = spec.strings[self.string_ix].open_hz(); // r42:arcus-upper
         let f = 440.0 * math::exp2((self.note as f64 + self.tune as f64 - 69.0) / 12.0);
+        // r42 arcus-classical: the attack is the classic one at the stroke's shape where it
+        // begins (a softer bow from silence, a new stroke's under a bow change).
+        let (kv, dd) = self
+            .shape
+            .bowing(self.d, super::super::shape::span_db(spec));
         let bw = bowing(
             spec,
-            self.d as f64,
+            (self.d + dd) as f64,
             self.contact(sh) as f64,
-            s.bow_force as f64 + super::super::upper::force_trim(self.inst, open_hz, f), // r42:arcus-upper
+            s.bow_force as f64
+                + super::super::upper::force_trim(self.inst, open_hz, f) // r42:arcus-upper
+                + if s.model >= 2 { knobs.press(self.d + dd) } else { 0.0 }, // r42 arcus-classical
             s.bow_speed as f64 * super::super::upper::speed_scale(self.inst, open_hz, f), // r42:arcus-upper
             z0,
             sh.sr as f64 / f,
-        );
+        )
+        .scaled(kv as f64);
         let (accel, mut f_attack) = attack_of(
             s,
             self.velocity,
@@ -331,6 +455,17 @@ impl Voice {
     /// again. `tech`: the new note's way of bowing when its own articulation slurs it (a
     /// sustain into a tremolo, a tremolo into a sustain — ADR 0158), `None` to keep the
     /// voice's.
+    /// r42 arcus-classical — the note's look-ahead (`NoteHow::len`, `next`, frames at the host's
+    /// rate) told to its stroke's shape in seconds (`shape::Shape::expect`).
+    fn expect(&mut self, sh: &Shared, how: &NoteHow) {
+        if let Some(len) = how.len {
+            // (`sh` is at the voice's own rate: its oversampling's factor times the host's)
+            let host = sh.sr / self.rate.os.max(1) as f32;
+            let next = how.next.map(|g| g as f32 / host);
+            self.shape.expect(len as f32 / host, next);
+        }
+    }
+
     #[allow(clippy::too_many_arguments)] // r42 arcus-expr: the note's how, the passage's speed
     pub fn glide_to(
         &mut self,
@@ -384,6 +519,7 @@ impl Voice {
         let p = s.player.clamp(0.0, 1.0);
         let spec = self.spec();
         let mut extra_ms = 0.0;
+        let mut shift = false; // r42 arcus-classical
         let ix = if p > 0.0 {
             let fing = bow::finger(
                 spec,
@@ -405,6 +541,7 @@ impl Voice {
             }
             // (A tremolo's slur is its strokes going on: its finger and dip stay pass 6's.)
             if fing.shift && !tremolo {
+                shift = true;
                 let st = (self.note + self.tune - was).abs();
                 extra_ms = p * ((st - 2.0).max(0.0) * bow::SHIFT_MS_PER_ST).min(bow::SHIFT_MS_MAX);
                 self.vib_kn *= 1.0 - 0.85 * p;
@@ -413,6 +550,44 @@ impl Voice {
         } else {
             spec.string_for(self.note + self.tune)
         };
+        // r42 arcus-classical: the slurred note's own shape, from where the last one sagged to
+        // (`shape`; none for a tremolo's strokes or with the player off).
+        let p_shape = super::super::shape::classical(p, super::super::shape::fiddler(s));
+        let shaped = p_shape > 0.0 && tech.unwrap_or(self.tech) == NoteTech::Arco;
+        let knobs = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+        self.shape.begin(
+            super::super::shape::Begin::Slur,
+            &knobs,
+            if shaped { p_shape } else { 0.0 },
+            fast,
+            s.seed,
+            key,
+            id,
+        );
+        self.expect(sh, how); // r42 arcus-classical: the look-ahead (ADR 0166)
+        if !shaped {
+            self.taper_s = 0.0;
+        } else if self.taper_s == 0.0 {
+            self.taper_s = knobs.taper_k * 0.001 * s.bow_release_ms.max(5.0);
+        }
+        // … and the vibrato's way back into a slurred note (none in a fast passage).
+        self.vib_re = if shaped && !fast { 0.0 } else { -1.0 };
+        // … and its intonation.
+        let (e, tend) = if shaped {
+            super::super::shape::intonation(
+                &knobs,
+                p_shape,
+                self.note + self.tune - was,
+                shift,
+                s.seed,
+                key,
+                id,
+            )
+        } else {
+            (0.0, 0.0)
+        };
+        self.into = (e, tend, 0.0);
+        self.fid_t = 0.0;
         // The finger's change dips the level (the study §2.10: ~3 dB over the change).
         self.dip = (
             self.lvl_t,

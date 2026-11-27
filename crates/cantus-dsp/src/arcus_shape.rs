@@ -1,0 +1,610 @@
+//! r42 arcus-classical — the stroke's shape (a child of `arcus`, the player's: ADR 0162's layer,
+//! `docs/round42/arcus-classical.md`): how a player's bow moves *inside* a held note. Measured on
+//! the HSD quartet's stems (`tools/arcus/expr/phrase_study.py`), a player's long note starts
+//! 7–15 dB and ends 10–35 dB under its peak, and its peak falls at 0.3–0.5 of its length; Arcus's
+//! started 2–5 dB and ended 3–4.5 dB under (an organ's note). The shape is the **bow's**, never
+//! an amplitude envelope: a contour in dB moves the bow's speed (the force riding it, so the
+//! bowing stays where it was in Schelleng's region: every limit is linear in the speed) and, for
+//! a share of it, the dynamic the bowing is read at (the contact point and the force's place:
+//! the tone opens as it swells, which is what makes the spectrum settle over the players'
+//! 0.15–0.85 s `t_steady` rather than at once).
+//!
+//! A note's contour (all in dB, 0 the stroke's level):
+//!
+//! - **the rise** — from where the note begins to 0 over its rise: from silence, the depth and
+//!   length the instrument's swell had (`InstrumentSpec::swell_s`, `swell_db`: the players' rise,
+//!   pass 4's fit — the bow's now, the output's envelope retired with the player on); a bow
+//!   change, a new stroke a few dB under (less in a fast passage); a slur, from where the last
+//!   note had sagged to;
+//! - **the sag** — then easing a few dB as the stroke goes on (a held bow loses a little as it
+//!   travels; Maestre 2010's sustained contours fall after their peak);
+//! - **the breath** — a slow wander of about a dB (a seeded walk, glided, one step every
+//!   `breath_s`: the 0.5–3 Hz movements of a held bow);
+//! - **the taper** — when the key is let go the bow does not lift at once: it slows and lightens
+//!   (`taper_db` over a time tied to `bow.release`), then lifts.
+//!
+//! Every value is a hash of the seed, the key and the note's id (its own generator: the
+//! vibrato's walk draws from the voice's), stepped on the control grid: the same bits at every
+//! block size. With the player off nothing here runs.
+
+use crate::fides::exciter::Rng;
+use crate::math;
+
+/// The shape's values (one set for every instrument; [`KNOBS`] the measured one). The tools may
+/// try others (`ArcusSettings::shape_try`, never stored), as the match tool tries a match.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Knobs {
+    /// The share of the contour's dB the bow's speed carries (the rest, the dynamic it is read
+    /// at: the contact point and the force's place move with it, so the tone opens as it swells).
+    pub speed_share: f32,
+    /// How much later the tone opens than the level rises: the dynamic's share follows the
+    /// contour through a one-pole of this time (s; 0 at once), the speed making up the level.
+    pub timbre_s: f32,
+    /// … and the dynamic never more than `dyn_max` under the note's (the bass's low strings, read
+    /// at pp under a mf stroke, did not settle within Guettler's limits).
+    pub dyn_max: f32,
+    /// From silence, the share of the instrument's swell depth (`InstrumentSpec::swell_db`) the
+    /// bow starts under, and of its length (`swell_s`) the rise takes.
+    pub fresh_db: f32,
+    pub fresh_s: f32,
+    /// … never deeper than `fresh_cap` dB (the bass's swell is 16–20 dB deep: from under that
+    /// its catch rang 3 dB over the next 60–160 ms) nor shorter than `fresh_min` s (the cello's
+    /// ff swell is 0.05 s: its spectrum settled at once).
+    pub fresh_cap: f32,
+    /// … the bass's (its low strings' attacks sit near Guettler's limit: from 12 dB under its E2
+    /// at pp took 238 ms against 214).
+    pub fresh_cap_bass: f32,
+    pub fresh_min: f32,
+    /// … nor longer than `fresh_max` s (the violin's soft swell is 0.7 s: at 1.6 × its notes
+    /// settled after the violins').
+    pub fresh_max: f32,
+    /// … its depth × (1 − `fresh_ff` · the dynamic): a loud stroke is set in quickly (the bass's
+    /// low strings at ff did not settle within Guettler's limits from 9 dB under).
+    pub fresh_ff: f32,
+    /// A bow change's new stroke: how far under it starts (dB; × `fast_share` in a fast passage)
+    /// and its rise (s).
+    pub rebow_db: f32,
+    pub rebow_s: f32,
+    /// A fast passage's share of a bow change's depth.
+    pub fast_share: f32,
+    /// A slurred note's rise from where the last one had sagged, s, and how far under that it
+    /// starts (dB; × `fast_share` in a fast passage): each note of a slur has its own swell.
+    pub slur_s: f32,
+    pub slur_db: f32,
+    /// The sag after the rise: how far (dB) and its time constant (s).
+    pub sag_db: f32,
+    pub sag_s: f32,
+    /// The breath: its size (dB, a walk of about a unit's spread) and its step (s).
+    pub breath_db: f32,
+    pub breath_s: f32,
+    /// The taper after the key: how far the bow eases (dB) before it lifts, over `taper_k` ×
+    /// `bow.release` (at its default 120 ms, 0.18 s).
+    pub taper_db: f32,
+    pub taper_k: f32,
+    /// The vibrato's way back into a note inside a phrase (after a bow change or a slur that is
+    /// not a fast passage's): held at `vib_floor` of itself until the first time (s), back in
+    /// full by the second. The HSD players' long notes inside a phrase start their vibrato at
+    /// 0.04–0.12 s (median; up to 0.25 s); Arcus's ran on from the last note, at 0 s.
+    pub vib_back_s: (f32, f32),
+    pub vib_floor: f32,
+    /// The string's, not the player's (model 2; here so the tools can try it): how the bridge's
+    /// corner (`InstrumentSpec::corner_hz`) moves with the bow's force against the same bowing's
+    /// mf force — its power above and below (0: the corner fixed, as before).
+    pub bright: (f32, f32),
+    /// The bowing's, model 2's (here so the tools can try it): how much nearer Schelleng's upper
+    /// limit the force is placed from mf to ff, octaves at ff (players press towards the raucous
+    /// edge when loud; the table's place rose only 0.33 → 0.36 of the limit, and the loud cello's
+    /// second to eighth partials sat 5–15 dB under the cellos').
+    pub press_ff: f32,
+    /// The string's (model 2): the loss exponent × (F / F_mf)^−this while the bow is on.
+    pub loss_force: f32,
+    /// The player's intonation in a passage (a note reached from another, never one from
+    /// silence): each note's own error (cents, about its spread; × `into_shift` on a shift), how
+    /// much of it is left once the ear has heard it (a share) and how fast it is corrected (s),
+    /// and the tendency of a semitone step (up high, down low, cents). The HSD players' notes sit
+    /// 13–16 cents off the nearest semitone at p90; Arcus's sat 3–7.
+    pub into_ct: f32,
+    pub into_keep: f32,
+    pub into_s: f32,
+    pub into_shift: f32,
+    pub into_step: f32,
+    /// The look-ahead's end (ADR 0166: a note's length known on playback): a note followed
+    /// within `end_follow` s by the next eases `end_db` before its end (`end_short` on a note
+    /// of `END_SHORT_S` or less, between them by its length), over `end_share` of its length
+    /// up to `end_max` s; one followed by a rest `end_rest` of that (0: none — the key's taper
+    /// after it carries it, and the note sounds its written length before it eases: eased
+    /// before a rest, a held note's last half-second moved its measured pitch 3.7 cents). The players' long notes inside a phrase end 8–10 dB (Musopen, HSD
+    /// 10–35) under their peak; Arcus's, without it, 3.6–5.0.
+    pub end_db: f32,
+    pub end_short: f32,
+    pub end_share: f32,
+    pub end_max: f32,
+    pub end_rest: f32,
+    pub end_follow: f32,
+    /// A bow change after an eased end starts its stroke this share of where the last one
+    /// ended (the bow turns slow and speeds up again; 0: at the stroke's level at once).
+    pub rebow_keep: f32,
+    /// With the note's length known, a long note's rise reaches its peak at least this share
+    /// of its length in (the players' peak at 0.3–0.5 of a long note; 0: the swell's own
+    /// rise), at most `rise_max` s.
+    pub rise_share: f32,
+    pub rise_max: f32,
+    /// … and a slurred or re-bowed note's rise never longer than `rise_fit` of its length (a
+    /// run of short slurred notes, each starting where the last had eased, sank note by note
+    /// when its rise outlasted it: the Paganini variation's peaks spread 26 dB against 14).
+    pub rise_fit: f32,
+    /// The body's, model 2's (here so the tools can try it): the air mode's corner ×
+    /// (`InstrumentSpec::air_hz`; 0: none, the second-order corner under the strings as before),
+    /// and the upper strings' bridge corner × (`InstrumentSpec::corner_hz`).
+    pub air_k: f32,
+    pub corner_k: f32,
+}
+
+/// A note this short or shorter eases only `Knobs::end_short` before its end, s.
+pub const END_SHORT_S: f32 = 0.15;
+/// … and one this long or longer the whole `Knobs::end_db`, s.
+pub const END_LONG_S: f32 = 1.0;
+
+/// The measured shape (`docs/round42/arcus-classical.md`).
+pub const KNOBS: Knobs = Knobs {
+    speed_share: 0.4,
+    timbre_s: 0.3,
+    dyn_max: 0.3,
+    fresh_db: 1.0,
+    fresh_s: 1.6,
+    fresh_cap: 15.0,
+    fresh_cap_bass: 8.0,
+    fresh_min: 0.2,
+    fresh_max: 0.6,
+    fresh_ff: 0.8,
+    rebow_db: 0.0,
+    rebow_s: 0.15,
+    fast_share: 0.0,
+    slur_s: 0.3,
+    slur_db: 3.0,
+    sag_db: 6.0,
+    sag_s: 1.2,
+    breath_db: 1.0,
+    breath_s: 0.45,
+    taper_db: 12.0,
+    taper_k: 1.5,
+    vib_back_s: (0.12, 0.5),
+    vib_floor: 0.05,
+    bright: (0.8, 0.3),
+    press_ff: 0.0,
+    loss_force: 0.0,
+    into_ct: 8.0,
+    into_keep: 0.6,
+    into_s: 0.18,
+    into_shift: 1.6,
+    into_step: 4.0,
+    end_db: 12.0,
+    end_short: 3.0,
+    end_share: 0.5,
+    end_max: 0.6,
+    end_rest: 0.0,
+    end_follow: 0.1,
+    rebow_keep: 0.5,
+    rise_share: 0.0,
+    rise_max: 1.2,
+    rise_fit: 0.4,
+    air_k: 1.0,
+    corner_k: 1.0,
+};
+
+impl Knobs {
+    /// The force's place over the table's at the dynamic `d` (octaves; 0 to mf).
+    pub fn press(&self, d: f32) -> f64 {
+        (self.press_ff * 2.0 * (d - 0.5).max(0.0)) as f64
+    }
+
+    /// The vibrato's factor `t` s into a note inside a phrase.
+    pub fn vib_back(&self, t: f32) -> f32 {
+        let (a, b) = self.vib_back_s;
+        let u = smooth((t - a) / (b - a).max(1e-3));
+        self.vib_floor + (1.0 - self.vib_floor) * u
+    }
+
+    /// A tool's knobs from text, `name=value,…` (unknown names and bad values ignored).
+    pub fn parse(mut self, text: &str) -> Knobs {
+        for kv in text.split(',') {
+            let mut it = kv.splitn(2, '=');
+            let (Some(k), Some(v)) = (it.next(), it.next()) else {
+                continue;
+            };
+            let Ok(v) = v.trim().parse::<f32>() else {
+                continue;
+            };
+            match k.trim() {
+                "speed_share" => self.speed_share = v,
+                "timbre_s" => self.timbre_s = v,
+                "dyn_max" => self.dyn_max = v,
+                "fresh_db" => self.fresh_db = v,
+                "fresh_s" => self.fresh_s = v,
+                "fresh_cap" => self.fresh_cap = v,
+                "fresh_cap_bass" => self.fresh_cap_bass = v,
+                "fresh_min" => self.fresh_min = v,
+                "fresh_max" => self.fresh_max = v,
+                "fresh_ff" => self.fresh_ff = v,
+                "rebow_db" => self.rebow_db = v,
+                "rebow_s" => self.rebow_s = v,
+                "fast_share" => self.fast_share = v,
+                "slur_s" => self.slur_s = v,
+                "slur_db" => self.slur_db = v,
+                "sag_db" => self.sag_db = v,
+                "sag_s" => self.sag_s = v,
+                "breath_db" => self.breath_db = v,
+                "breath_s" => self.breath_s = v,
+                "taper_db" => self.taper_db = v,
+                "taper_k" => self.taper_k = v,
+                "vib_back_a" => self.vib_back_s.0 = v,
+                "vib_back_b" => self.vib_back_s.1 = v,
+                "vib_floor" => self.vib_floor = v,
+                "bright_hi" => self.bright.0 = v,
+                "bright_lo" => self.bright.1 = v,
+                "press_ff" => self.press_ff = v,
+                "loss_force" => self.loss_force = v,
+                "into_ct" => self.into_ct = v,
+                "into_keep" => self.into_keep = v,
+                "into_s" => self.into_s = v,
+                "into_shift" => self.into_shift = v,
+                "into_step" => self.into_step = v,
+                "end_db" => self.end_db = v,
+                "end_short" => self.end_short = v,
+                "end_share" => self.end_share = v,
+                "end_max" => self.end_max = v,
+                "end_rest" => self.end_rest = v,
+                "end_follow" => self.end_follow = v,
+                "rebow_keep" => self.rebow_keep = v,
+                "rise_share" => self.rise_share = v,
+                "rise_max" => self.rise_max = v,
+                "rise_fit" => self.rise_fit = v,
+                "air_k" => self.air_k = v,
+                "corner_k" => self.corner_k = v,
+                _ => {}
+            }
+        }
+        self
+    }
+}
+
+/// r42 arcus-classical — a fiddler's fast bow change (a note under `bow::FAST_S` after the
+/// last): the turn this much of `bow.change`.
+pub const SOFT_CHANGE: f32 = 0.6;
+
+/// r42 arcus-classical — a fiddler's late vibrato on a long note: from `FIDDLE_VIB.0` s into the
+/// note it widens over `FIDDLE_VIB.1` s to `FIDDLE_VIB.2` × the vibrato's depth (the Fiddle
+/// preset's light 0.35) and quickens by `FIDDLE_VIB.3` (a fiddler's narrow, quick vibrato on a
+/// held note: the fiddle's lines vibrated 2 % of their long notes, the references 4–30 %).
+pub const FIDDLE_VIB: (f32, f32, f32, f32) = (0.3, 0.3, 2.4, 1.12);
+
+/// The fiddler's factors (depth, rate) `t` s into a note, at the player's `amount` (0: none).
+pub fn fiddle_vib(t: f32, amount: f32) -> (f32, f32) {
+    if amount <= 0.0 {
+        return (1.0, 1.0);
+    }
+    let g = amount.clamp(0.0, 1.0) * smooth((t - FIDDLE_VIB.0) / FIDDLE_VIB.1);
+    (
+        1.0 + (FIDDLE_VIB.2 - 1.0) * g,
+        1.0 + (FIDDLE_VIB.3 - 1.0) * g,
+    )
+}
+
+/// r42 arcus-classical — a fiddler's shuffle: how many fast separate notes one bow takes (two
+/// or three, seeded by the bow's first note).
+pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
+    let mut r = Rng::of(seed ^ 0x5B0F_F1E5, key, id);
+    if r.unit() < 0.5 {
+        2
+    } else {
+        3
+    }
+}
+
+/// The classical player's share at the player's `amount` and how much of a fiddler plays: a fiddler
+/// (ADR 0164) plays its own way — the Fiddle character's measured lines (`docs/round42/fiddle.md`)
+/// keep their numbers — so the shape, the taper, the vibrato's way back and the intonation give
+/// way to it, all of it on a full steel set.
+pub fn classical(amount: f32, fiddler: f32) -> f32 {
+    (amount.clamp(0.0, 1.0) * (1.0 - fiddler.clamp(0.0, 1.0))).max(0.0)
+}
+
+/// How much of a fiddler the settings describe (0 … 1): the player's own switch
+/// (`player.fiddle`, schema 87 — the Fiddle character sets it; before it the steel set stood
+/// for it, and a song from then is migrated to the same value). Neither one bow on two strings
+/// (`bow.pair`: a classical double stop, a string left ringing at a crossing), the bow's grit
+/// nor a steel set makes a fiddler by itself.
+pub fn fiddler(s: &super::ArcusSettings) -> f32 {
+    s.fiddle.clamp(0.0, 1.0)
+}
+
+/// How long a note must have been held for its whole taper, s.
+pub const TAPER_HELD_S: f32 = 0.8;
+
+/// How long a stroke holds still after its rise before it sags and breathes, s.
+pub const CALM_S: f32 = 0.3;
+
+/// The seed's twist that gives the shape its own generator, and the intonation's.
+const SEED_TWIST: u32 = 0x5A3E_0C11;
+const INTO_TWIST: u32 = 0x1A70_7E55;
+
+/// A note's intonation in a passage (`Knobs::into_*`): its error and its tendency (cents), for a
+/// note `step` semitones from the last (a shift or not), the player's `amount`.
+#[allow(clippy::too_many_arguments)]
+pub fn intonation(
+    k: &Knobs,
+    amount: f32,
+    step: f32,
+    shift: bool,
+    seed: u32,
+    key: u8,
+    id: u64,
+) -> (f32, f32) {
+    if amount <= 0.0 {
+        return (0.0, 0.0);
+    }
+    let mut r = Rng::of(seed ^ INTO_TWIST, key, id);
+    // Three uniforms: about a normal's shape, a unit's spread.
+    let u = r.bipolar() + r.bipolar() + r.bipolar();
+    let e = k.into_ct * u * if shift { k.into_shift } else { 1.0 };
+    let tend = if (step - 1.0).abs() < 0.3 {
+        k.into_step
+    } else if (step + 1.0).abs() < 0.3 {
+        -k.into_step
+    } else {
+        0.0
+    };
+    (amount * e, amount * tend)
+}
+
+/// The intonation `t` s into the note: the error corrected to its kept share, the tendency held.
+pub fn intonation_at(k: &Knobs, e: f32, tend: f32, t: f32) -> f32 {
+    if e == 0.0 && tend == 0.0 {
+        return 0.0;
+    }
+    let left = k.into_keep + (1.0 - k.into_keep) * math::exp(-t / k.into_s.max(1e-3));
+    tend + e * left
+}
+
+/// How a note begins.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Begin {
+    /// From silence: the instrument's swell, `(depth dB, length s)`.
+    Fresh(f32, f32),
+    /// A bow change on a ringing string.
+    Rebow,
+    /// A slur: the bow goes on.
+    Slur,
+}
+
+/// How much level an instrument's bowing spans from pp to ff, dB (the bridge's velocity goes as
+/// `v/β`: the cello's 0.15 → 0.27 m/s and β 0.14 → 0.07, 11 dB).
+pub fn span_db(spec: &super::tables::InstrumentSpec) -> f32 {
+    let b = &spec.bowing;
+    (20.0 * math::log10((b.speed.1 / b.beta.1) / (b.speed.0 / b.beta.0))) as f32
+}
+
+/// One voice's stroke shape.
+#[derive(Copy, Clone, Debug)]
+pub struct Shape {
+    /// The contour now, dB (0 the stroke's level), the player's amount in it.
+    pub l: f32,
+    /// The contour the tone follows (`Knobs::timbre_s`), dB.
+    l_t: f32,
+    amount: f32,
+    k: Knobs,
+    from: f32,
+    rise: f32,
+    t: f32,
+    breath: (f32, f32),
+    b_t: f32,
+    rng: Rng,
+    /// The taper: the level it started from, the time into it and its length (s).
+    taper: Option<(f32, f32, f32)>,
+    /// The look-ahead's end (`Knobs::end_*`): where it begins easing (s into the note), its
+    /// length (s) and its depth (dB); none for a note whose length is not known.
+    end: Option<(f32, f32, f32)>,
+    /// Whether this note began from silence.
+    fresh: bool,
+}
+
+impl Default for Shape {
+    fn default() -> Self {
+        Shape {
+            l: 0.0,
+            l_t: 0.0,
+            amount: 0.0,
+            k: KNOBS,
+            from: 0.0,
+            rise: 0.0,
+            t: 0.0,
+            breath: (0.0, 0.0),
+            b_t: 0.0,
+            rng: Rng(1),
+            taper: None,
+            end: None,
+            fresh: false,
+        }
+    }
+}
+
+fn smooth(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
+impl Shape {
+    /// A note begins (`amount` the player's, 0 none; `fast` a fast passage's).
+    #[allow(clippy::too_many_arguments)]
+    pub fn begin(
+        &mut self,
+        how: Begin,
+        k: &Knobs,
+        amount: f32,
+        fast: bool,
+        seed: u32,
+        key: u8,
+        id: u64,
+    ) {
+        let amount = amount.clamp(0.0, 1.0);
+        let was = self.l;
+        let fresh = matches!(how, Begin::Fresh(..));
+        let breath_was = self.breath_now();
+        self.k = *k;
+        if fresh || self.amount == 0.0 {
+            self.rng = Rng::of(seed ^ SEED_TWIST, key, id);
+            self.breath = (0.0, self.rng.bipolar());
+            self.b_t = 0.0;
+        }
+        // (whether the last note eased toward this one: the look-ahead's end had begun)
+        let eased = self.end.is_some_and(|(at, _, _)| self.t > at);
+        self.amount = amount;
+        self.taper = None;
+        self.end = None;
+        self.fresh = fresh;
+        self.t = 0.0;
+        let (from, rise) = match how {
+            // A note from silence in a fast passage (a détaché after a rest's breath) bites at
+            // once: the shape's depth `fast_share` of a long one's, its rise half as long.
+            Begin::Fresh(depth, len) => (
+                -(depth * k.fresh_db).min(k.fresh_cap) * if fast { k.fast_share } else { 1.0 },
+                (len * k.fresh_s).clamp(k.fresh_min, k.fresh_max.max(k.fresh_min))
+                    * if fast { 0.5 } else { 1.0 },
+            ),
+            // (after an eased end, from `rebow_keep` of where it ended: the bow turned slow)
+            Begin::Rebow => (
+                -k.rebow_db * if fast { k.fast_share } else { 1.0 }
+                    + if eased {
+                        k.rebow_keep * (was / amount.max(1e-6) - breath_was).min(0.0)
+                    } else {
+                        0.0
+                    },
+                if fast { k.rebow_s * 0.5 } else { k.rebow_s },
+            ),
+            // A slur from where the last note sagged to (a note from silence never slurs).
+            Begin::Slur => (
+                (was / amount.max(1e-6) - breath_was).min(0.0)
+                    - k.slur_db * if fast { k.fast_share } else { 1.0 },
+                k.slur_s,
+            ),
+        };
+        self.from = from;
+        self.rise = rise.max(1e-3);
+        self.l = if amount == 0.0 {
+            0.0
+        } else {
+            amount * (from + self.breath_now())
+        };
+        if fresh || amount == 0.0 || k.timbre_s <= 0.0 {
+            self.l_t = self.l;
+        }
+    }
+
+    /// r42 arcus-classical — the look-ahead (ADR 0166): this note lasts `len` s and the next
+    /// note starts `next` s after its end (`None`: none in sight). Called after
+    /// [`Self::begin`]; a note never told keeps the shape it had without it.
+    pub fn expect(&mut self, len: f32, next: Option<f32>) {
+        if self.amount == 0.0 || len <= 0.0 {
+            return;
+        }
+        let k = &self.k;
+        let follows = next.is_some_and(|g| g <= k.end_follow);
+        let u = smooth((len - END_SHORT_S) / (END_LONG_S - END_SHORT_S));
+        let depth =
+            (k.end_short + (k.end_db - k.end_short) * u) * if follows { 1.0 } else { k.end_rest };
+        let e = (k.end_share * len).min(k.end_max).max(1e-3);
+        if depth > 0.0 {
+            self.end = Some(((len - e).max(0.0), e, depth));
+        }
+        if k.rise_share > 0.0 {
+            self.rise = self.rise.max((k.rise_share * len).min(k.rise_max));
+        }
+        if !self.fresh && k.rise_fit > 0.0 {
+            self.rise = self.rise.min((k.rise_fit * len).max(1e-3));
+        }
+    }
+
+    /// The key is let go: the taper, over `len` s.
+    /// A note held only a short while tapers in proportion (a détaché note's end is the bow's
+    /// change or lift, not a diminuendo: the Paganini caprice's short notes ended 10.7 dB under
+    /// their peak with a full taper, the player's 16.5): full from `TAPER_HELD_S` held.
+    pub fn taper(&mut self, len: f32) {
+        if self.amount > 0.0 && self.taper.is_none() {
+            let held = smooth(self.t / TAPER_HELD_S);
+            self.taper = Some((self.l, 0.0, (len * held).max(1e-3)));
+        }
+    }
+
+    /// Whether the taper has run its course (the bow lifts now).
+    pub fn tapered(&self) -> bool {
+        self.taper.is_some_and(|(_, t, len)| t >= len)
+    }
+
+    /// How far under the stroke's level this note's shape began, dB (its player's share in it).
+    pub fn start_db(&self) -> f32 {
+        -self.amount * self.from
+    }
+
+    /// The knobs this note was begun with.
+    pub fn knobs(&self) -> &Knobs {
+        &self.k
+    }
+
+    fn breath_now(&self) -> f32 {
+        let u = smooth(self.b_t / self.k.breath_s.max(1e-3));
+        self.k.breath_db * (self.breath.0 + (self.breath.1 - self.breath.0) * u)
+    }
+
+    /// One control step of `dt` seconds: the contour at its end, dB.
+    pub fn step(&mut self, dt: f32) -> f32 {
+        if self.amount == 0.0 {
+            self.l = 0.0;
+            return 0.0;
+        }
+        self.t += dt;
+        self.b_t += dt;
+        let bs = self.k.breath_s.max(1e-3);
+        if self.b_t >= bs {
+            self.b_t -= bs;
+            // A walk whose steps keep about a unit's spread (uniform ±√3, half kept).
+            let next = 0.5 * self.breath.1 + 0.866 * self.rng.bipolar();
+            self.breath = (self.breath.1, next.clamp(-1.8, 1.8));
+        }
+        if let Some((from, t, len)) = self.taper.as_mut() {
+            *t += dt;
+            self.l = *from - self.amount * self.k.taper_db * smooth(*t / *len);
+        } else {
+            let rise = self.from * (1.0 - smooth(self.t / self.rise));
+            // (the sag too begins once the stroke has settled, `CALM_S` after its rise)
+            let after = (self.t - self.rise - CALM_S).max(0.0);
+            let sag = -self.k.sag_db * (1.0 - math::exp(-after / self.k.sag_s.max(1e-3)));
+            // The breath comes in once the stroke has risen (a settling bow does not wander:
+            // the bass's E1 attacks sat at Guettler's limit and its first breath pushed one over).
+            let calm = smooth((self.t - self.rise) / CALM_S);
+            // … and the look-ahead's end, before the next note (`expect`).
+            let end = self
+                .end
+                .map_or(0.0, |(at, e, depth)| -depth * smooth((self.t - at) / e));
+            self.l = self.amount * (rise + sag + calm * self.breath_now() + end);
+        }
+        self.l_t = if self.k.timbre_s > 0.0 {
+            self.l_t + (self.l - self.l_t) * (1.0 - math::exp(-dt / self.k.timbre_s))
+        } else {
+            self.l
+        };
+        self.l
+    }
+
+    /// The bow's speed factor and the dynamic's offset for the contour now, on an instrument
+    /// whose bowing spans `span_db` of level from pp to ff, at the dynamic `d`.
+    pub fn bowing(&self, d: f32, span_db: f32) -> (f32, f32) {
+        if self.l == 0.0 && self.l_t == 0.0 {
+            return (1.0, 0.0);
+        }
+        let want = (1.0 - self.k.speed_share) * self.l_t / span_db.max(1.0);
+        let dd = (d + want.max(-self.k.dyn_max)).clamp(0.0, 1.0) - d;
+        let carried = dd * span_db.max(1.0);
+        let kv = math::db_to_gain(self.l - carried);
+        (kv, dd)
+    }
+}

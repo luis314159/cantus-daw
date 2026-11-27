@@ -35,7 +35,8 @@ impl Arcus {
             body,
             upper_body: upper::body::UpperBody::new(sample_rate), // r42:arcus-upper
             rad_c: [0.0; 5],
-            rad: [[0.0; 4]; 2],
+            rad: [[0.0; 4]; 4],
+            rad_c2: [0.0; 5],
             sym: sym::Sympathy::new(sample_rate), // r42 fiddle
             eq: eq::MatchEq::default(),
             out,
@@ -43,7 +44,8 @@ impl Arcus {
             hammer_area,
             tuning: [0.0; 128],
             pending: None,
-            last_on: None, // r42 arcus-expr
+            last_on: None,   // r42 arcus-expr
+            shuffle: (0, 0), // r42 arcus-classical
             next_dir: BowDir::Down,
             table: Some(&pitch::TABLE),
             stolen: 0,
@@ -68,7 +70,19 @@ impl Arcus {
         self.s.poly = s.poly.clamp(1, MAX_VOICES);
         // Model 2's match: the hair's noise and the pluck's ring on the settings the voices
         // read, the output's correction designed.
-        let m = self.s.match_now();
+        let mut m = self.s.match_now();
+        // r42 arcus-classical: a fiddler's violin keeps the correction the Fiddle character was
+        // tuned with (`upper::tables::VIOLIN_FIDDLE_EQ`; ADR 0164's measured lines).
+        let fid = shape::fiddler(&self.s);
+        if self.s.model >= 2
+            && fid > 0.0
+            && self.s.matched.is_none()
+            && self.s.instrument == tables::Instrument::Violin
+        {
+            for (g, f) in m.eq_db.iter_mut().zip(upper::tables::VIOLIN_FIDDLE_EQ) {
+                *g += (f - *g) * fid;
+            }
+        }
         if self.s.bow_noise_db > -60.0 {
             self.s.bow_noise_db += m.noise_db;
         }
@@ -80,8 +94,26 @@ impl Arcus {
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
-        self.out.set(&self.s.output());
-        self.rad_c = radiation(self.s.instrument.spec().radiation_hz, self.sr);
+                                                             // r42 arcus-classical: the classical violin's body radiates about 1 dB less in music (the air
+                                                             // mode's roll-off, the 250 Hz hill lower): its output that much higher, so the bowed
+                                                             // presets keep their one level (`arcus_level_e2e`); a fiddler's keeps its own.
+        let mut out = self.s.output();
+        if self.s.model >= 2 && self.s.instrument == tables::Instrument::Violin {
+            out.gain_db += upper::tables::VIOLIN_CLASSICAL_TRIM_DB * (1.0 - fid);
+        }
+        self.out.set(&out);
+        // r42 arcus-classical: model 2's air mode, a vented box's fourth-order roll-off
+        // (`InstrumentSpec::air_hz`; the tools' `shape::Knobs::air_k` × it).
+        let spec = self.s.instrument.spec();
+        let air = spec.air_hz * self.s.shape_try.unwrap_or(shape::KNOBS).air_k;
+        // (a whole fiddler's violin keeps its second-order corner: its body was tuned so)
+        if self.s.model >= 2 && air > 0.0 && fid < 1.0 {
+            self.rad_c = radiation_q(air, BW4_Q.0, self.sr);
+            self.rad_c2 = radiation_q(air, BW4_Q.1, self.sr);
+        } else {
+            self.rad_c = radiation(spec.radiation_hz, self.sr);
+            self.rad_c2 = [0.0; 5];
+        }
         self.sym_tune(); // r42 fiddle
     }
 
@@ -136,6 +168,18 @@ impl Arcus {
 
     /// r42 arcus-expr — the next note's whole way of playing (ADR 0158, ADR 0162).
     pub fn note_how(&mut self, id: u64, how: NoteHow) {
+        self.pending = Some((id, how));
+    }
+
+    /// r42 arcus-classical — the next note's length and the next note's distance from its end,
+    /// frames (the playback's look-ahead, ADR 0166), after its [`Self::note_how`] if any.
+    pub fn note_len(&mut self, id: u64, len: u32, next: Option<i32>) {
+        let mut how = match self.pending {
+            Some((pid, how)) if pid == id => how,
+            _ => NoteHow::default(),
+        };
+        how.len = Some(len);
+        how.next = next;
         self.pending = Some((id, how));
     }
 
@@ -287,7 +331,11 @@ impl Arcus {
                         self.voices[voice].technique(),
                         NoteTech::Arco | NoteTech::Tremolo
                     );
-                if slur {
+                // r42 arcus-classical: a fiddler slurs two or three fast separate notes into a
+                // bow (the shuffle, `shape::shuffle`; the Fiddle character's lines carried a bow
+                // change's cue on 49 % of their fast notes against the players' 11–20 %).
+                let shuffled = !slur && self.shuffle_slurs(voice, art, mono, fast, key, id);
+                if slur || shuffled {
                     self.glide(voice, key, id, velocity, Some(NoteTech::Arco), &how, fast);
                 } else {
                     self.start(voice, key, id, velocity, stolen, &how, silent, fast);
@@ -327,6 +375,43 @@ impl Arcus {
             Action::Nothing => {}
         }
         self.sym_taken(); // r42 fiddle
+    }
+
+    /// r42 arcus-classical — whether a fiddler's shuffle slurs this note into the sounding bow:
+    /// a fast separate note on a mono voice still bowed in a sustained stroke, with no
+    /// articulation of its own (or a plain sustain), on a fiddler's bow (`shape::fiddler`).
+    #[allow(clippy::too_many_arguments)]
+    fn shuffle_slurs(
+        &mut self,
+        voice: usize,
+        art: Option<Art>,
+        mono: bool,
+        fast: bool,
+        key: u8,
+        id: u64,
+    ) -> bool {
+        let fiddle = shape::fiddler(&self.s) > 0.0 && self.s.player > 0.0;
+        let can = fiddle
+            && mono
+            && fast
+            && voice < MAX_VOICES
+            && self.voices[voice].active()
+            && self.voices[voice].technique() == NoteTech::Arco
+            && matches!(art, None | Some(Art::Sustain));
+        if !can {
+            self.shuffle = (0, 0);
+            return false;
+        }
+        if self.shuffle.1 == 0 {
+            self.shuffle = (0, shape::shuffle_len(self.s.seed, key, id));
+        }
+        self.shuffle.0 += 1;
+        if self.shuffle.0 < self.shuffle.1 {
+            true
+        } else {
+            self.shuffle = (0, 0);
+            false
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -506,7 +591,7 @@ impl Arcus {
         self.alloc.clear();
         self.body.reset();
         self.upper_body.reset(); // r42:arcus-upper
-        self.rad = [[0.0; 4]; 2];
+        self.rad = [[0.0; 4]; 4];
         self.sym.reset(); // r42 fiddle
         self.eq.reset();
         self.out.reset();
@@ -515,6 +600,7 @@ impl Arcus {
         self.ctl = Controls::default();
         self.pending = None;
         self.last_on = None; // r42 arcus-expr
+        self.shuffle = (0, 0); // r42 arcus-classical
         self.next_dir = BowDir::Down;
         self.stolen = 0;
         self.peak = 0.0;
@@ -547,12 +633,51 @@ impl Arcus {
 /// so what the bow pushes on the bridge slower than the strings sound — the static push
 /// of a held bow, its reversal at a tremolo's every stroke and a bow change — is not heard.
 pub(super) fn radiation(hz: f32, sr: f32) -> [f32; 5] {
+    radiation_q(hz, std::f32::consts::FRAC_1_SQRT_2, sr)
+}
+
+/// r42 arcus-classical — model 2's classical hair noise over each instrument's match, dB:
+/// the noise between the harmonics (the lab's HNR bands on the strings-hq subjects) sat in
+/// the references' band on 50 % of the violin's cells, 45 % of the viola's and 63 % of the
+/// cello's; +5 dB brought them to 70, 68 and 73 % (`docs/round42/arcus-classical.md`, pass 2)
+/// — the viola +3, its crest factor's groups falling 11 → 9 of 12 at +5. The bass's stays.
+///
+/// It rides the held stroke only (`voice::step`: faded in over `CLASSICAL_NOISE_IN_S` once the
+/// attack has settled — over the attack it held the upper strings' and the cello's captures
+/// past Guettler and Askenfelt's limits), and a fiddler's bow keeps its tuned scratch.
+pub(crate) fn classical_noise_db(inst: tables::Instrument) -> f32 {
+    #[cfg(test)]
+    if NO_CLASSICAL_NOISE.with(|c| c.get()) {
+        return 0.0;
+    }
+    match inst {
+        tables::Instrument::Violin | tables::Instrument::Cello => 5.0,
+        tables::Instrument::Viola => 3.0,
+        tables::Instrument::Bass => 0.0,
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The probes' switch: pass 1's bits on the pinned renders (`tests_classical::probe_pass2_size`).
+    pub(crate) static NO_CLASSICAL_NOISE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// r42 arcus-classical — a fourth-order Butterworth's two sections' Q.
+pub(super) const BW4_Q: (f32, f32) = (0.541_196_1, 1.306_563);
+
+/// r42 arcus-classical — [`radiation`] at a section's own `q` (at 1/√2 the same bits).
+pub(super) fn radiation_q(hz: f32, q: f32, sr: f32) -> [f32; 5] {
     if hz <= 0.0 {
         return [0.0; 5];
     }
     let w = std::f64::consts::TAU * hz as f64 / sr as f64;
     let (sn, cs) = math::sin_cos(w);
-    let alpha = sn / std::f64::consts::SQRT_2;
+    let alpha = if q == std::f32::consts::FRAC_1_SQRT_2 {
+        sn / std::f64::consts::SQRT_2
+    } else {
+        sn / (2.0 * q as f64)
+    };
     let a0 = 1.0 + alpha;
     let b0 = 0.5 * (1.0 + cs) / a0;
     [

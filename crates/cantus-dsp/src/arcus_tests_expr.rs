@@ -71,6 +71,8 @@ fn the_arm_weighs_more_at_the_frog_than_at_the_tip() {
     // In a stroke: the force at a steady dynamic falls as a down-bow nears the tip.
     let mut a = arcus(ArcusSettings {
         vib_depth: 0.0,
+        // r42 arcus-classical: the stroke's own shape held still (`shape`): the arm's weight alone.
+        shape_try: Some(super::shape::KNOBS.parse("fresh_db=0,sag_db=0,breath_db=0")),
         ..ArcusSettings::default()
     });
     a.controller(0, 0.5);
@@ -146,6 +148,8 @@ fn a_start_from_the_air_lands_moving_and_one_from_the_string_settles_slower() {
         let mut a = arcus(ArcusSettings {
             player,
             vib_depth: 0.0,
+            // r42 arcus-classical: the stroke's own shape held still: the attack's contour alone.
+            shape_try: Some(super::shape::KNOBS.parse("fresh_db=0,sag_db=0,breath_db=0")),
             ..ArcusSettings::default()
         });
         a.note_on(50, 0.6, 1);

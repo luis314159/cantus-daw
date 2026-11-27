@@ -36,6 +36,8 @@ pub mod pitch;
 mod play;
 #[path = "arcus_render.rs"]
 mod render;
+#[path = "arcus_shape.rs"] // r42 arcus-classical
+pub mod shape; // r42 arcus-classical
 #[path = "arcus_string.rs"]
 pub mod string;
 #[path = "arcus_sym.rs"] // r42 fiddle
@@ -45,6 +47,9 @@ pub mod tables;
 #[cfg(test)]
 #[path = "arcus_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "arcus_tests_classical.rs"] // r42 arcus-classical
+mod tests_classical;
 #[cfg(test)]
 #[path = "arcus_tests_expr.rs"] // r42 arcus-expr
 #[allow(clippy::needless_range_loop, clippy::type_complexity)]
@@ -170,6 +175,11 @@ pub struct NoteHow {
     pub part: Option<bow::Part>,
     /// The string, 0 the lowest (honoured where it reaches the note).
     pub string: Option<u8>,
+    /// r42 arcus-classical — the look-ahead on playback (ADR 0166): the note's length in
+    /// frames, and how many frames after its end the next note starts (negative: before it
+    /// ends; `None`: no next note in sight). `None` for a live note.
+    pub len: Option<u32>,
+    pub next: Option<i32>,
 }
 
 /// How the bow's direction is chosen, in `bow.dir`'s order.
@@ -339,6 +349,9 @@ pub struct ArcusSettings {
     /// r42 fiddle — steel strings (0 the measured synthetic-core set … 1 steel): a sharper
     /// corner, less loss in the upper partials, a longer ring.
     pub steel: f32,
+    /// r42 arcus-classical (`player.fiddle`, schema 87) — the player a fiddler (0 the
+    /// classical player … 1 a fiddler, `shape::fiddler`): no longer read from the steel set.
+    pub fiddle: f32,
     /// r42 fiddle — the strings' tuning (`tuning.strings`: 0 standard, 1 AEAE, 2 GDGD, 3 ADAE,
     /// 4 calico, 5 DDAD — the violin's; `upper::tables::CROSS`).
     pub cross: u8,
@@ -371,6 +384,9 @@ pub struct ArcusSettings {
     /// The tools' override of the factor a voice runs at (`upper::factor_with`: 1, 2 or 4;
     /// `None`, the instrument's own). Never stored. // r42:arcus-upper
     pub oversample: Option<u8>, // r42:arcus-upper
+    /// r42 arcus-classical — the tools' stroke shape to try instead of the measured one
+    /// (`shape::KNOBS`). Never stored.
+    pub shape_try: Option<shape::Knobs>,
 }
 
 impl Default for ArcusSettings {
@@ -417,6 +433,7 @@ impl Default for ArcusSettings {
             grit: 0.0,       // r42 fiddle
             bite: 0.5,       // r42 fiddle
             steel: 0.0,      // r42 fiddle
+            fiddle: 0.0,     // r42 arcus-classical
             cross: 0,        // r42 fiddle
             mic: 0.0,        // r42 fiddle
             bridge: 0.0,     // r42 fiddle
@@ -435,6 +452,7 @@ impl Default for ArcusSettings {
             gain_db: 0.0,
             seed: 0,
             oversample: None, // r42:arcus-upper
+            shape_try: None,  // r42 arcus-classical
         }
     }
 }
@@ -542,7 +560,10 @@ pub struct Arcus {
     /// coefficients `b₀ b₁ b₂ a₁ a₂`; none when `b₀` is 0) and each side's state
     /// `(x₁, x₂, y₁, y₂)`.
     rad_c: [f32; 5],
-    rad: [[f32; 4]; 2],
+    /// r42 arcus-classical — the air mode's second section (`InstrumentSpec::air_hz`: the
+    /// first is then `rad_c` at its own Q), none when `b₀` is 0; the states `rad[2..4]`.
+    rad_c2: [f32; 5],
+    rad: [[f32; 4]; 4],
     /// r42 fiddle — the open strings in sympathy (`sym`; never live at 0).
     sym: sym::Sympathy,
     /// Model 2's correction on the output (`eq`).
@@ -557,6 +578,9 @@ pub struct Arcus {
     pending: Option<(u64, NoteHow)>,
     /// r42 arcus-expr — the stream's sample at the last note-on (the passage's speed).
     last_on: Option<u64>,
+    /// r42 arcus-classical — a fiddler's shuffle (`shape::shuffle`): the notes slurred into the
+    /// bow so far and how many this bow takes.
+    shuffle: (u8, u8),
     /// The bow's direction for the next re-bow, when alternating.
     next_dir: BowDir,
     /// The pitch table (`None`: no correction, for the tool that measures it).

@@ -279,16 +279,33 @@ fn main() {
         // The held-out notes as WAVs for the study's estimator (`tools/arcus/study_compare.py`):
         // `render <out dir>` writes `arcus-<cello|bass>-<arco|pizz>-<key>-<pp|mf|ff>.wav`,
         // each note held 3 s (a pluck 2.5 s) and a second of release, 48 kHz 24-bit mono.
+        // r42:strings-refs: `render <out dir> violin viola …` names the instruments (default
+        // cello and bass); the violin and viola take every key of their spec, as the lab's
+        // subjects arcus-violin and arcus-viola measure them.
         let out = PathBuf::from(&args[1]);
         std::fs::create_dir_all(&out).expect("the out dir");
         let vel = [0.2f32, 0.55, 0.95];
         // r42:arcus-p6: `ARCUS_SPLIT=train` renders the other two thirds instead (what a
         // change is tuned on; the held-out third judges it once).
         let train = std::env::var("ARCUS_SPLIT").is_ok_and(|s| s == "train");
+        let asked: Vec<&str> = args[2..].iter().map(String::as_str).collect();
+        let upper = |i: Instrument| (i.spec().bottom(), i.spec().top);
+        let (vl, vh) = upper(Instrument::Violin);
+        let (al, ah) = upper(Instrument::Viola);
         for (inst, lo, hi, name) in [
             (Instrument::Cello, 36u8, 79u8, "cello"),
             (Instrument::Bass, 28, 67, "bass"),
-        ] {
+            (Instrument::Violin, vl, vh, "violin"),
+            (Instrument::Viola, al, ah, "viola"),
+        ]
+        .into_iter()
+        .filter(|(_, _, _, n)| {
+            if asked.is_empty() {
+                matches!(*n, "cello" | "bass")
+            } else {
+                asked.contains(n)
+            }
+        }) {
             for pizz in [false, true] {
                 for key in lo..=hi {
                     for (d, v) in vel.iter().enumerate() {
@@ -311,6 +328,14 @@ fn main() {
                             } else {
                                 Technique::Arco
                             },
+                            // r42 arcus-classical: `ARCUS_SHAPE=name=value,…` tries a stroke
+                            // shape (`shape::Knobs::parse`).
+                            shape_try: std::env::var("ARCUS_SHAPE")
+                                .ok()
+                                .map(|t| cantus_dsp::arcus::shape::KNOBS.parse(&t)),
+                            // r42 arcus-classical: `ARCUS_EQ=<12 gains>` tries a match's
+                            // correction (`ARCUS_EQ_INST` names the one instrument it is for).
+                            matched: eq_try(inst),
                             ..ArcusSettings::default()
                         });
                         a.note_on(key, *v, 1);
@@ -534,4 +559,39 @@ the other measures (medians over every note: references / before / after):"
             pick(&|d| d.noise, 0), pick(&|d| d.noise, 1),
         );
     }
+}
+
+/// r42 arcus-classical — `ARCUS_EQ=g0,…,g11` and `ARCUS_NOISE_DB` (dB per `tables::EQ_HZ` band) as the match's
+/// correction for the instrument `ARCUS_EQ_INST` names (default the violin), the rest of its
+/// match kept: a tool's try, never stored.
+fn eq_try(inst: Instrument) -> Option<cantus_dsp::arcus::tables::Match> {
+    let text = std::env::var("ARCUS_EQ").ok();
+    let noise = std::env::var("ARCUS_NOISE_DB")
+        .ok()
+        .and_then(|v| v.trim().parse::<f32>().ok());
+    if text.is_none() && noise.is_none() {
+        return None;
+    }
+    let text = text.unwrap_or_default();
+    let want = std::env::var("ARCUS_EQ_INST").unwrap_or_else(|_| "violin".into());
+    let name = match inst {
+        Instrument::Violin => "violin",
+        Instrument::Viola => "viola",
+        Instrument::Cello => "cello",
+        Instrument::Bass => "bass",
+    };
+    if name != want {
+        return None;
+    }
+    let mut m = inst.spec().matched;
+    for (g, v) in m.eq_db.iter_mut().zip(text.split(',')) {
+        if let Ok(v) = v.trim().parse() {
+            *g = v;
+        }
+    }
+    // (`ARCUS_NOISE_DB`: the match's hair noise, dB over model 1's)
+    if let Some(n) = noise {
+        m.noise_db = n;
+    }
+    Some(m)
 }

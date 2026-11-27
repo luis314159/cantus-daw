@@ -169,3 +169,29 @@ analysts' scripts read those labels).
 - The ladder's blind kit: `python -I tools/tympanum-fit/ladder_kit.py build <ladder dir> <kit dir>`
   (the key in `<kit dir>-key`), `ladder_kit.py score <key dir> <results.json>`;
   `docs/round40/ladder.md` has the method. Offline only (no online saving).
+
+## Arcus against a recording: Paganini's Caprice 24 (round 42)
+
+The violin cantabile preset plays a real passage, aligned to a real performance, and the page
+compares them (`$CANTUS_WORK/listen/paganini/escuchar.html`, in Spanish). The sources are the
+`paganini` set (`tools/sound-refs/catalog.toml`: QMUL's 2014 recording, Public Domain Mark;
+the theme's public-domain MIDI); fetch them with `python -I tools/sound-refs/fetch.py fetch paganini`.
+
+    W=$CANTUS_WORK/listen/paganini
+    python -I tools/listening/paganini_notes.py $W/work [pair]   # the theme and variation 2, aligned (DTW)
+    cargo build -p cantus-dsp --release --example paganini_render
+    R=target/release/examples/paganini_render
+    for t in alineado-tema alineado-var2 alineado-var2-1cuerda partitura-tema partitura-var2; do
+      $R $W/work/arcus-$t.txt $W/work/actual-$t-seco.wav; done      # and mejora-… from the other build
+    $R ir 5 160 8000 $W/work/aula-chamber.wav                       # Aula's small hall, as the unit shapes it
+    python -I tools/listening/paganini_mix.py $W/work $W           # sums the parts, hall, -23 LUFS, the A/B
+    python -I tools/listening/paganini_compare.py $W/work $W       # the measures and charts
+    python -I tools/listening/paganini_page.py $W "<which binaries>"
+
+Variation 2 is entered from the public-domain score (`VAR2_BARS` in `paganini_notes.py`): its
+first beats alternate two strings, rendered with one bow on two strings (`set pair 1`, each
+note's string from the score's fingering); `-1cuerda` is the same without the pair, the
+control the two strings are measured against. The mix step expects
+`{actual,mejora}-{alineado,partitura}-{tema,var2}-seco.wav` and
+`{actual,mejora}-alineado-var2-1cuerda-seco.wav` in the work folder: the second build is the
+same example on a branch whose sound is being improved.

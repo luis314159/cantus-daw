@@ -97,11 +97,14 @@ impl Arcus {
             let (bl, br) = (&mut self.buf_l[..frames], &mut self.buf_r[..frames]);
             // The radiation (r42:arcus-p5: a second-order Butterworth high-pass, 12 dB an
             // octave under the corner), its state let go at exact zeros so the instance rests.
-            let [b0, b1, b2, a1, a2] = self.rad_c;
-            if b0 != 0.0 {
+            // (r42 arcus-classical: model 2's air mode adds a second section, `rad_c2`.)
+            for (stage, [b0, b1, b2, a1, a2]) in [self.rad_c, self.rad_c2].into_iter().enumerate() {
+                if b0 == 0.0 {
+                    continue;
+                }
                 for side in 0..2 {
                     let buf: &mut [f32] = if side == 0 { &mut *bl } else { &mut *br };
-                    let [mut x1, mut x2, mut y1, mut y2] = self.rad[side];
+                    let [mut x1, mut x2, mut y1, mut y2] = self.rad[2 * stage + side];
                     if quiet && [x1, x2, y1, y2] == [0.0; 4] {
                         continue;
                     }
@@ -114,7 +117,7 @@ impl Arcus {
                         }
                         *x = y1;
                     }
-                    self.rad[side] = [x1, x2, y1, y2];
+                    self.rad[2 * stage + side] = [x1, x2, y1, y2];
                 }
             }
             self.body.process(bl, br, self.clock, quiet);

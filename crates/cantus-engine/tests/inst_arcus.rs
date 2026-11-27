@@ -112,6 +112,7 @@ fn shapes() -> Vec<(&'static str, NativeSpec)> {
                 ("bow.grit", 1.0),
                 ("bow.bite", 0.8),
                 ("steel", 1.0),
+                ("player.fiddle", 1.0), // r42 arcus-classical
                 ("dstop.just", 0.6),
                 ("transpose", 12.0),
             ]),
@@ -163,6 +164,7 @@ fn the_extras_at_their_defaults_change_no_sample() {
                 ("bow.grit", 0.0),
                 ("sym", 0.0),
                 ("steel", 0.0),
+                ("player.fiddle", 0.0), // r42 arcus-classical
             ]),
         ),
         // … the bite, which only shares out the grit, without any.

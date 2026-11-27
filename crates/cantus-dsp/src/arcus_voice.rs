@@ -133,6 +133,25 @@ pub struct Bowing {
     pub schelleng: f64,
 }
 
+impl Bowing {
+    /// r42 arcus-classical — the bowing with its speed × `k` (the stroke's shape, `shape`):
+    /// Schelleng's limit, the measured region and the force are all linear in the speed, so the
+    /// bowing keeps its place in the region (exactly itself at 1).
+    pub fn scaled(self, k: f64) -> Bowing {
+        if k == 1.0 {
+            return self;
+        }
+        Bowing {
+            speed: self.speed * k,
+            beta: self.beta,
+            force: self.force * k,
+            f_min: self.f_min * k,
+            f_max: self.f_max * k,
+            schelleng: self.schelleng * k,
+        }
+    }
+}
+
 /// The region of Helmholtz motion at `beta` for a bow at `v_bow` on a string of impedance
 /// `z0`, as this model measures it (N): `(lower, upper)`.
 pub fn limits(z0: f64, v_bow: f64, beta: f64) -> (f64, f64) {
@@ -312,6 +331,21 @@ pub struct Voice {
     open: bool,
     vib_k: f32,
     vib_kn: f32,
+    /// r42 arcus-classical — the stroke's shape (`shape`: the player's contour of the bow inside
+    /// a held note) and the taper's length after the key (s).
+    shape: super::shape::Shape,
+    taper_s: f32,
+    /// r42 arcus-classical — the vibrato's way back into a note inside a phrase: seconds since
+    /// the bow change or the slur (negative: none).
+    vib_re: f32,
+    /// r42 arcus-classical — the player's intonation in a passage (`shape::intonation`): the
+    /// note's error and tendency (cents) and the time into the note (s).
+    into: (f32, f32, f32),
+    /// r42 arcus-classical — a fiddler's fast bow change, softened (`shape::SOFT_CHANGE`).
+    soft: bool,
+    /// r42 arcus-classical — the time into the note for a fiddler's late vibrato on a long note
+    /// (`shape::fiddle_vib`), s.
+    fid_t: f32,
     t: u32,
     stroke: f64,
     jitter: f32,
@@ -422,6 +456,12 @@ impl Voice {
             open: false,
             vib_k: 1.0,
             vib_kn: 1.0,
+            shape: super::shape::Shape::default(),
+            taper_s: 0.0,
+            vib_re: -1.0,
+            into: (0.0, 0.0, 0.0),
+            soft: false,
+            fid_t: 0.0,
             t: 0,
             stroke: 0.0,
             jitter: 0.0,
@@ -629,7 +669,14 @@ impl Voice {
             return;
         }
         self.released = true;
-        if matches!(self.phase, Phase::Attack | Phase::Hold | Phase::Change) {
+        // r42 arcus-classical: with the player, a held stroke tapers before the bow lifts
+        // (`shape`); the step lifts it when the taper has run.
+        let taper = self.tech == NoteTech::Arco
+            && self.taper_s > 0.0
+            && matches!(self.phase, Phase::Attack | Phase::Hold);
+        if taper {
+            self.shape.taper(self.taper_s);
+        } else if matches!(self.phase, Phase::Attack | Phase::Hold | Phase::Change) {
             self.phase = Phase::Release;
             self.t = 0;
         }

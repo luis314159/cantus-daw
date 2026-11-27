@@ -251,6 +251,18 @@ impl TrackSlot {
         }
     }
 
+    /// r42 arcus-classical — the clip's note tagged `tag` that starts next lasts `len` frames,
+    /// the track's next note `next` frames after its end (`InstrumentUnit::note_len`, ADR
+    /// 0166): handed to a native instrument just before its note-on.
+    pub fn note_len(&mut self, pitch: u8, tag: u64, len: u32, next: Option<i32>) {
+        if self.outboard || self.instrument != SlotInstrument::Native {
+            return;
+        }
+        if let Some(n) = self.native.as_mut() {
+            n.unit.note_len(native_id(pitch, tag), len, next);
+        }
+    }
+
     /// A clip's note-on with its ordinal on the track ([`crate::inst::InstrumentUnit::note_on_seq`]).
     pub fn note_on_seq(&mut self, pitch: u8, velocity: u8, tag: u64, ordinal: u32) {
         if self.outboard {
@@ -579,7 +591,18 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                         // The notes still go to the inserts that hear them — and only
                         // they, for a track resting but for its notes (review 2).
                         if s.frozen.is_none() && !s.notes_only {
-                            fire(&mut s, ev);
+                            // r42 arcus-classical: the note's length and the next note's
+                            // distance, for a native instrument (ADR 0166).
+                            let ahead = if ev.is_on() && s.instrument == SlotInstrument::Native {
+                                crate::processor::look_ahead(
+                                    &track.events,
+                                    s.next_event,
+                                    &ctx.transport,
+                                )
+                            } else {
+                                None
+                            };
+                            fire(&mut s, ev, ahead);
                         }
                         s.next_event += 1;
                         if let Some(ob) = outbox.as_mut() {

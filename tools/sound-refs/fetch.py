@@ -274,7 +274,7 @@ class RangeFile(io.RawIOBase):
     central directory and the members it is asked for, nothing else."""
 
     def __init__(self, url):
-        self.url, self.pos, self.cache = url, 0, {}
+        self.url, self.pos, self.cache, self.curl = url, 0, {}, False
 
         def probe():
             with request(url, 0, 0) as r:
@@ -282,7 +282,35 @@ class RangeFile(io.RawIOBase):
                 if r.status != 206 or not cr:
                     raise Refused(f"{url}: the server does not answer range requests")
                 return int(cr.rsplit("/", 1)[1])
-        self.size = retrying(url, probe)
+        try:
+            self.size = retrying(url, probe)
+        except TlsRefused as e:
+            # As in download(): Python's OpenSSL may refuse a chain the system's store accepts
+            # (archive.org's data nodes, 2026-11-26); curl asks for the ranges instead, still
+            # verifying TLS with the system's store.
+            if not shutil.which("curl"):
+                raise
+            say(f"  {e}\n  range requests through curl (it verifies TLS with the system's store) …")
+            self.curl = True
+            self.size = retrying(url, self._curl_probe)
+
+    def _curl(self, a, b, head=False):
+        cmd = ["curl", "-sSL", "--fail", "-A", UA, "-m", "600", "-r", f"{a}-{b}"]
+        if head:
+            cmd += ["-D", "-", "-o", os.devnull]
+        p = subprocess.run(cmd + [self.url], capture_output=True)
+        if p.returncode in (35, 51, 58, 60, 77, 83, 90, 91):  # a certificate refused
+            raise Refused(f"curl exit {p.returncode} for {self.url} (the certificate refused)")
+        if p.returncode:
+            raise Wait(f"curl exit {p.returncode}")
+        return p.stdout
+
+    def _curl_probe(self):
+        h = self._curl(0, 0, head=True).decode("latin-1").lower()
+        cr = [ln for ln in h.splitlines() if ln.startswith("content-range:")]
+        if not cr:
+            raise Refused(f"{self.url}: the server does not answer range requests")
+        return int(cr[-1].rsplit("/", 1)[1])
 
     def readable(self):
         return True
@@ -303,11 +331,20 @@ class RangeFile(io.RawIOBase):
             b = min(self.size, a + BLOCK) - 1
 
             def get():
-                with request(self.url, a, b) as r:
-                    if r.status != 206:
-                        raise Wait(f"HTTP {r.status} to a range request")
-                    data = r.read()
-                if len(data) != b - a + 1:
+                if not self.curl:
+                    try:
+                        with request(self.url, a, b) as r:
+                            if r.status != 206:
+                                raise Wait(f"HTTP {r.status} to a range request")
+                            data = r.read()
+                    except TlsRefused as e:  # a redirect to a node Python's OpenSSL refuses
+                        if not shutil.which("curl"):
+                            raise
+                        say(f"  {e}\n  range requests through curl from here …")
+                        self.curl = True
+                if self.curl:
+                    data = self._curl(a, b)
+                if len(data) != b - a + 1:  # a proxy's page instead of the range, too
                     raise Wait(f"short read ({len(data)} of {b - a + 1} bytes)")
                 return data
             if len(self.cache) >= 6:
