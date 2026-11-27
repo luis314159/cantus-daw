@@ -18,8 +18,11 @@ pub const BPM: f64 = 74.0;
 /// The phrase's length, beats (the render runs its tail past it).
 pub const BEATS: f64 = 24.0;
 /// The level every bowed preset is fitted to on the phrase, integrated LUFS (the cello's
-/// cantabile where round 42 left it).
-pub const TARGET: f64 = -19.0;
+/// cantabile where round 42 left it: −19 with pass 6's Arcus; −21 with the classical player of
+/// `DSP_VERSION` 20, ADR 0166, whose stroke sags and breathes inside a held note — the family
+/// −20.7 … −21.5 there, and the Fiddle and the tremolos, which it leaves as they were, brought
+/// down to it at the integration).
+pub const TARGET: f64 = -21.0;
 /// The most the fitted presets may differ on the phrase, LU (the gate's).
 pub const PARITY_LU: f64 = 1.5;
 

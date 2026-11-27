@@ -5,7 +5,7 @@ instrument.tympanum = Tympanum
 
 # Las vistas del editor (el control segmentado de la cabecera).
 tympanum.view.kit = Kit
-tympanum.view.mixer = Mezclador
+tympanum.view.mixer = Mezcla
 
 # Sus parámetros (ADR 0124 §1).
 tympanum.model = Modelo

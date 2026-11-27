@@ -247,11 +247,18 @@ fn aperiodic(x: &[f32], f0: f64, from: f64, to: f64) -> f64 {
 /// (velocity 76) on the *Fiddle* preset, its vibrato off so the period holds still. The noise
 /// between the harmonics rises with every step of the bite (0 → 1/3 → 2/3 → 1), and the bite
 /// is a key a lane, a learned controller and a modulator may drive.
+///
+/// (r42 integration: each step is heard at four seeds — the `seed` knob, set by its command —
+/// and their noise averaged. At bite 1/3 an mf note gets a quarter of the grit, +0.6 dB of the
+/// hair's noise, which moves the noise between the harmonics by about +0.4 dB on average; one
+/// seed's take of the same note scatters ±0.3 dB about that, since the noise drives the
+/// friction and the pitch loop's path with it. With one seed the step was a draw: −27.5 →
+/// −27.6 dB after the merge, and the DSP alone fell at that step before it, on that seed.)
 #[test]
 fn the_bite_raises_the_noise_between_the_harmonics_through_the_app() {
     assert!(InstrumentKind::BowedString.automatable("bow.bite"));
     assert!(InstrumentKind::BowedString.modulatable("bow.bite"));
-    let take = |bite: f32| {
+    let take = |bite: f32, seed: f32| {
         let data = tempfile::tempdir().unwrap();
         let (mut app, mut proc_) = app_with_song(data.path());
         let purpose = PickPurpose::AddInstrument { index: None };
@@ -262,7 +269,7 @@ fn the_bite_raises_the_noise_between_the_harmonics_through_the_app() {
         app.open_preset_browser(Target::Track(track));
         assert!(app.apply_preset_id("arcus.preset.violin_fiddle"));
         app.close_preset_browser();
-        for (key, value) in [("vib.depth", 0.0), ("bow.bite", bite)] {
+        for (key, value) in [("vib.depth", 0.0), ("bow.bite", bite), ("seed", seed)] {
             assert!(app.exec(Command::SetInstrumentValue {
                 track,
                 key: key.into(),
@@ -284,9 +291,10 @@ fn the_bite_raises_the_noise_between_the_harmonics_through_the_app() {
         let f0 = peak_hz(&out, b4, 1.0, 1.8);
         aperiodic(&out, f0, 1.0, 1.8)
     };
+    const SEEDS: [f32; 4] = [0.0, 1.0, 2.0, 3.0];
     let r: Vec<f64> = [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0]
         .iter()
-        .map(|b| take(*b))
+        .map(|b| SEEDS.iter().map(|s| take(*b, *s)).sum::<f64>() / SEEDS.len() as f64)
         .collect();
     let db: Vec<f64> = r.iter().map(|v| 10.0 * v.max(1e-12).log10()).collect();
     println!("the noise between the harmonics at bite 0, 1/3, 2/3, 1: {db:.1?} dB");

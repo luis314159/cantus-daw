@@ -87,7 +87,7 @@ pub const PRESETS: &[FactoryPreset] = &[
         ["inst" => 2.0, "bow.pos" => 0.73, "bow.force" => 1.32,
          "bow.attack" => 0.7, "bow.release" => 70.0, "bow.change" => 14.0, "finger" => 14.0,
          "vib.depth" => 0.35, "vib.delay" => 450.0, "vib.var" => 0.35, "ring" => 1.8,
-         "body.ring" => 0.9, "gain" => 5.4,
+         "body.ring" => 0.9, "gain" => 3.0, // r42 integration: −2.4 dB to the family (`arcus_level`)
          // r42 fiddle (ADR 0164): one bow on two strings, the open strings in sympathy, the
          // grit, a steel set, double stops tuned most of the way to just.
          "bow.pair" => 1.0, "sym" => 1.0, "bow.grit" => 0.75, "steel" => 1.0,
@@ -109,7 +109,7 @@ pub const PRESETS: &[FactoryPreset] = &[
          "gain" => 2.4]),
     preset!("arcus.preset.violin_tremolo", VIOLIN,
         ["inst" => 2.0, "tech" => 2.0, "trem.rate" => 15.0, "vib.depth" => 0.4,
-         "gain" => 8.5]),
+         "gain" => 5.8]),
     // ---- the viola ----
     preset!("arcus.preset.viola", VIOLA, ["inst" => 3.0, "ring" => 1.6, "gain" => 4.4]),
     preset!("arcus.preset.viola_cantabile", VIOLA,
@@ -127,7 +127,7 @@ pub const PRESETS: &[FactoryPreset] = &[
          "gain" => 0.8]),
     preset!("arcus.preset.viola_tremolo", VIOLA,
         ["inst" => 3.0, "tech" => 2.0, "trem.rate" => 14.0, "vib.depth" => 0.4,
-         "gain" => 5.7]),
+         "gain" => 4.6]),
 ];
 
 /// The cello's and the bass's presets, then these (one list, `arcus::FACTORY_PRESETS`).

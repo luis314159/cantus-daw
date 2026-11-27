@@ -91,7 +91,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         ["tech" => 1.0, "mode" => 0.0, "pizz.decay" => 2.0, "pizz.soft" => 1.8, "ring" => 1.5,
          "body.ring" => 1.3, "gain" => 2.8]),
     preset!("arcus.preset.cello_tremolo", CELLO,
-        ["tech" => 2.0, "trem.rate" => 14.0, "vib.depth" => 0.4, "gain" => 9.3]),
+        ["tech" => 2.0, "trem.rate" => 14.0, "vib.depth" => 0.4, "gain" => 8.2]),
     preset!("arcus.preset.cello_slow", CELLO,
         ["bow.speed" => 0.6, "bow.force" => 1.23, "bow.friction" => 1.0, "vib.depth" => 0.9,
          "gain" => 12.0]),

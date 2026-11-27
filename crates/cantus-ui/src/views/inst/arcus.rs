@@ -83,13 +83,15 @@ const FRICTIONS: [Src<'static>; 2] = [
     Src::Key("arcus.friction_kind.thermal"),
 ];
 // r42 fiddle (ADR 0164): the violin's cross-tunings, in `tuning.strings`' order.
+// (r42 integration: the chips by their strings' letters — "Standard (GDAE)" and the Spanish
+// "Normal (Sol Re La Mi)" were cut in the card's title at every scale.)
 const CROSS_TUNINGS: [Src<'static>; 6] = [
-    Src::Key("arcus.cross_kind.standard"),
-    Src::Key("arcus.cross_kind.aeae"),
-    Src::Key("arcus.cross_kind.gdgd"),
-    Src::Key("arcus.cross_kind.adae"),
-    Src::Key("arcus.cross_kind.calico"),
-    Src::Key("arcus.cross_kind.ddad"),
+    Src::Key("arcus.cross_kind.standard.chip"),
+    Src::Key("arcus.cross_kind.aeae.chip"),
+    Src::Key("arcus.cross_kind.gdgd.chip"),
+    Src::Key("arcus.cross_kind.adae.chip"),
+    Src::Key("arcus.cross_kind.calico.chip"),
+    Src::Key("arcus.cross_kind.ddad.chip"),
 ];
 const DIRECTIONS: [Src<'static>; 3] = [
     Src::Key("arcus.dir_kind.alt"),

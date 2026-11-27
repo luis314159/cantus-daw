@@ -27,3 +27,10 @@ arcus.body.mic = Micrófono cercano
 arcus.body.mic.short = Mic. cerca
 arcus.body.bridge = Puente de fiddle
 arcus.body.bridge.short = Puente
+# r42 integration: the strings card's chips (the full names above are the tuning's words elsewhere)
+arcus.cross_kind.standard.chip = GDAE
+arcus.cross_kind.aeae.chip = AEAE
+arcus.cross_kind.gdgd.chip = GDGD
+arcus.cross_kind.adae.chip = ADAE
+arcus.cross_kind.calico.chip = AEAC#
+arcus.cross_kind.ddad.chip = DDAD
