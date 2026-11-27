@@ -65,7 +65,10 @@ impl Sys {
     /// What it runs on, in a few words.
     pub fn needs(self, l: Lang) -> &'static str {
         match self {
-            Sys::Windows => l.t("Windows 10 or 11 · x64", "Windows 10 u 11 · x64"),
+            Sys::Windows => l.t(
+                "Windows 11 · x64 (10 not tried yet)",
+                "Windows 11 · x64 (10 aún sin probar)",
+            ),
             Sys::Linux => l.t(
                 "x86-64 · glibc 2.35 or later (Ubuntu 22.04 on)",
                 "x86-64 · glibc 2.35 o posterior (Ubuntu 22.04 en adelante)",
@@ -213,18 +216,18 @@ pub const TEXT: &[(&str, &[(&str, &str)])] = &[
     )]),
     ("steps-windows", &[
         ("Right-click the zip → Properties → tick Unblock → OK, then Extract All.", "Clic derecho en el zip → Propiedades → marca Desbloquear → Aceptar, y luego Extraer todo."),
-        ("Copy each Cantus ….clap from CLAP into a CLAP folder, and each Cantus ….vst3 folder from VST3 into a VST3 folder:", "Copia cada Cantus ….clap de CLAP a una carpeta CLAP, y cada carpeta Cantus ….vst3 de VST3 a una carpeta VST3:"),
+        ("Copy the .clap files from CLAP into a CLAP folder, and the .vst3 folders from VST3 into a VST3 folder:", "Copia los archivos .clap de CLAP a una carpeta CLAP, y las carpetas .vst3 de VST3 a una carpeta VST3:"),
         ("Let your DAW look again for new plug-ins (below). One format is enough: CLAP where your DAW reads it, else VST3.", "Haz que tu DAW busque plug-ins nuevos (abajo). Basta un formato: CLAP donde tu DAW lo lea, si no VST3."),
     ]),
     ("steps-linux", &[
         ("Extract the zip (the libraries stay executable).", "Extrae el zip (las bibliotecas siguen siendo ejecutables)."),
-        ("Copy each Cantus ….clap from CLAP into a CLAP folder, and each Cantus ….vst3 folder from VST3 into a VST3 folder:", "Copia cada Cantus ….clap de CLAP a una carpeta CLAP, y cada carpeta Cantus ….vst3 de VST3 a una carpeta VST3:"),
+        ("Copy the .clap files from CLAP into a CLAP folder, and the .vst3 folders from VST3 into a VST3 folder:", "Copia los archivos .clap de CLAP a una carpeta CLAP, y las carpetas .vst3 de VST3 a una carpeta VST3:"),
         ("Let your DAW look again for new plug-ins (below). One format is enough: CLAP where your DAW reads it, else VST3.", "Haz que tu DAW busque plug-ins nuevos (abajo). Basta un formato: CLAP donde tu DAW lo lea, si no VST3."),
     ]),
     ("steps-mac", &[
         ("Open the zip: Finder extracts it beside it.", "Abre el zip: Finder lo extrae a su lado."),
-        ("Copy each Cantus ….clap bundle from CLAP into a CLAP folder, and each Cantus ….vst3 from VST3 into a VST3 folder (in Finder, Go → Go to Folder… opens one):", "Copia cada paquete Cantus ….clap de CLAP a una carpeta CLAP, y cada Cantus ….vst3 de VST3 a una carpeta VST3 (en Finder, Ir → Ir a la carpeta… abre una):"),
-        ("Let your DAW look again for new plug-ins (below), then allow them once (Gatekeeper, below).", "Haz que tu DAW busque plug-ins nuevos (abajo) y permítelos una vez (Gatekeeper, abajo)."),
+        ("Copy the .clap bundles from CLAP into a CLAP folder, and the .vst3 bundles from VST3 into a VST3 folder (in Finder, Go → Go to Folder… opens one):", "Copia los paquetes .clap de CLAP a una carpeta CLAP, y los paquetes .vst3 de VST3 a una carpeta VST3 (en Finder, Ir → Ir a la carpeta… abre una):"),
+        ("Let your DAW look again for new plug-ins (below), then allow them once (see “Not code-signed yet”).", "Haz que tu DAW busque plug-ins nuevos (abajo) y permítelos una vez (mira «Aún sin firma de código»)."),
     ]),
     ("hosts", &[
         ("REAPER: Options → Preferences → Plug-ins → CLAP or VST → Re-scan.", "REAPER: Options → Preferences → Plug-ins → CLAP o VST → Re-scan."),

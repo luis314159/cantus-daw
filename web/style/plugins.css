@@ -14,7 +14,7 @@
 .pl-inst { margin-top: 1.8rem; padding: 1rem 1.2rem; border-radius: 8px; background: var(--mist); color: var(--ink-2); }
 .pl-inst b { color: var(--strong); }
 .pl-cols { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: clamp(1.4rem, 4vw, 3rem); margin-top: 1.4rem; }
-.pl-steps { margin: 0; padding-left: 1.3rem; display: grid; gap: 1.1rem; color: var(--ink); }
+.pl-steps { margin: 0; padding-left: 1.3rem; display: grid; align-content: start; gap: 1.1rem; color: var(--ink); }
 .pl-steps > li::marker { font-weight: 600; color: var(--accent-text); }
 .pl-folders { margin: 0.8rem 0 0; display: grid; gap: 0.7rem; }
 .pl-folders > div { padding: 0.8rem 1rem; border-radius: 8px; background: var(--paper-2); box-shadow: 0 0 0 1px var(--line); }
@@ -42,3 +42,8 @@
 .pl-sys label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pl-get .hash-sum { user-select: all; }
 .pl-hear .up-ab { margin-bottom: 1.6rem; }
+/* The card's link colour (.dl-before a) is not the button's, nor the list's layout (.dl-before ul, li). */
+.dl-before .pl-get .btn-primary { color: var(--accent-ink); }
+.dl-before .pl-others { gap: 0.45rem; }
+.dl-before .pl-others li { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; font-size: 1rem; }
+.pl-page a.unit-card { text-decoration: none; }
