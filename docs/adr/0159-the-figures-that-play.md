@@ -427,6 +427,15 @@ occluding capsules in its live painter.
         lies behind.
       - *The raster tests depth first* (`Raster::fill`): a sample that would not be written
         skips the neck's test, the colour and the grain — the same picture, less work.
+      - *The table at the pass's end*: `arcus_hand_table`'s rule breaks 82 → 40 (the thumb
+        22 → 12, `PALM_WIDE` 19 → 8, the knuckles 19 → 11, the index's base 16 → 7),
+        penetration 32 → 29 cases (the worst skin 2.8 → 3.2 mm), `blend_check --mid` 342 →
+        345 points. Her hand is turned edge-on only in part (the facing on the reach and
+        high cases 0.70–0.97 → 0.65–0.91 on the violin): the high rows' own rules and the
+        body hold LM near the broadside pose; the handoff's first item.
+      - *Cost* (one run, a loaded machine): High's live arms +7.2 / +8.2 ms at 100 % and
+        +19.7 / +22.5 at 200 % (her / him; pass 6 +6.3 / +7.0 and +15.2 / +21.6). The
+        owner's rule stands: render cost never gates the look.
   - `Eyes` — **the realistic figures' eyes, closed or open**, a machine preference
     (`Settings::figure_eyes`, Settings ▸ Appearance under *Figure detail*; amendment,
     2026-11-25, the owner liked them closed: "parecían concentrados o disfrutando de la

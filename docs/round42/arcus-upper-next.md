@@ -1738,3 +1738,51 @@ the first round's caches, `fig2\`/`fig3\` the installed figures with each packed
 - *The slit*: `arcus_draw_flesh.rs::FOLD_GRAZE` (High draws the slightly turned-away hand
   patches into the depth raster).
 - *Budget*: `Raster::fill` tests depth first (same picture).
+- *The table at the end of pass 7* (`assets/figures/left_hand.bin` from
+  `F:\projects\daw-r42\tmp\hands7\s12\`'s caches: two `blend_fix.py --rules` rounds over
+  the rows behind the breaks, then her violin and viola rows at the 9th and 12th semitone
+  with the facing hinge, `--keep=1.0`). `arcus_hand_table` (release, these assets): **rule
+  breaks 82 → 40** — the thumb against the index's base 22 → 12 (10 of those by the new
+  rule's reach: tips in the heel's curve; the 12 left are tips out on the E side, mostly her
+  viola and his viola at +12/+14), `PALM_WIDE` 19 → 8, knuckles over 3.4 cm 19 → 11, the
+  index's base out from the E edge 16 → 7; **penetration 32 → 29 cases**, the worst skin
+  2.8 → 3.2 mm (his viola's forearm at +17); `blend_check.py --mid` 342 → 345 points over
+  the slack (the same).
+- *Edge-on: only in part.* Her back's facing on the reach and high gate cases moved from
+  0.70–0.97 to 0.65–0.91 (her violin; the viola hardly): the high rows' own residuals
+  (`upper_len`, `palm_way`, `hand_up`, the thumb's) cost hundreds to thousands there and the
+  turned starts that LM finds go into the body's shoulder (her violin's 2-2-9 turned to
+  facing 0.6 went 1.5 mm in at its blends). The outline's width came down mostly by the thumb
+  under the neck, not by the turn. A real edge-on hand high up needs those rows re-posed
+  from a different start (the hand along the rib, as crop-02), not LM from the broadside
+  pose — the next step for item 1.
+- *The cello case of `arcus_hold`* (reached now, red since before pass 3): Vector Cello Woman
+  at [312.4, 160.9], a sample of her upper arm behind the cello's body (`by_neck` false,
+  local (7.3, 91.8, −17.0)). The live pixel is the neck's own orange varnish (239, 116, 45),
+  the baked picture's darker brown there: the live neck's stamp and the bake disagree at the
+  neck's edge — the instrument's drawing, not the figure (the shot:
+  `F:\projects\daw-r42\tmp\hands7\holdshot\`). Left for the instrument's owner; not ours.
+- *Sheets*: 400 % `F:\projects\daw-r42\tmp\hands7\z8\` (before = pass 6's z6c, after = pass
+  7, with crop-02/08/11). Not sent on: high up her hand turned a little and the slit at its
+  ulnar edge is gone, third and first look as in pass 6 — not yet the edge-on hand of crop-02.
+- *Budget* (`arcus_hold_budget --ignored`, `CANTUS_BUDGET_ONLY=violin,Woman,Man`, release,
+  one run on a machine loaded by three other builders): High's live arms +7.2 / +8.2 ms at
+  100 % and +19.7 / +22.5 ms at 200 % (her / him; pass 6 +6.3 / +7.0 and +15.2 / +21.6, also
+  loaded); Light +1.8 / +2.3 and +1.9 / +2.4. The fold patches (`FOLD_GRAZE` 0.15; at 0.35 the
+  200 % cost read +24 / +29) add work; `Raster::fill`'s depth-first test takes some back. Not
+  measured on an idle machine.
+
+**Gates at the end of pass 7** (release, the installed assets): green `arcus_hand_form`
+(nails, proportions, no dark specks), `arcus_hand_shape`, `arcus_scene`, `scene_identity`,
+`figure_contract`, `kit_lint`, clippy `-D warnings` on cantus-ui (lib, `arcus_hold`,
+`arcus_hand_table`), rustfmt on the touched files. Red: `arcus_hand_table` (40 rules, 29
+cases into the instrument, above) and `arcus_hold::the_left_hand_passes_behind_the_neck`
+on the cello's neck stamp (above; Vector Violin Man passes).
+
+**Open after pass 7, in order**: (1) her hand edge-on high up and on the reach rows — re-pose
+those rows from a start along the rib (crop-02), then `blend_fix.py --rules`; (2) the 12
+thumb tips on the E side and the 11 knuckle rows at +14, mostly the violas (her arm on the
+viola high up: `upper_len` and `hand_up` fight the rules there); (3) the index's base on the
+E side at +1 (7, the A and E strings; `index_out` weight 40 brought her viola's in at the
+cost of the hand-to-neck angle — `hand_neck` weight 3 holds both); (4) the cello's neck stamp
+against the bake (the instrument's owner); (5) the budget on an idle machine.
