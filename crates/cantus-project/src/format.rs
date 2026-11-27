@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 87; // r42: 87 Arcus's fiddler as its own switch (`player.fiddle`, ADR 0166, arcus-classical), 86 Tympanum's model 2, the drums' onset (ADR 0124's seventh amendment, tympanum-real), 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 88; // r42: 88 Chorda's voicing by hand (`voicing.*`, ADR 0098's eighth amendment, chorda-presets), 87 Arcus's fiddler as its own switch (`player.fiddle`, ADR 0166, arcus-classical), 86 Tympanum's model 2, the drums' onset (ADR 0124's seventh amendment, tympanum-real), 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -360,6 +360,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_84_to_85, // r42 fiddle — Arcus's strings under one bow (ADR 0164)
     migrate_85_to_86, // r42:tympanum-real — Tympanum's model 2 (ADR 0124, seventh amendment)
     migrate_86_to_87, // r42 arcus-classical — Arcus's fiddler as its own switch (ADR 0166)
+    migrate_87_to_88, // r42:chorda-presets — Chorda's voicing by hand (ADR 0098, eighth amendment)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1361,6 +1362,15 @@ fn migrate_86_to_87(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 88 (round 42, ADR 0098's eighth amendment): Chorda's voicing by hand (`voicing.*`,
+/// model 2's hammers, strings, board, action, microphones and tone over the shipped voicing).
+/// Absent — every older song — reads each control's default, the shipped voicing to the bit,
+/// so nothing is written; an older build drops them and plays the song as voiced.
+// r42:chorda-presets
+fn migrate_87_to_88(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1910,7 +1920,9 @@ mod tests {
         // the colour too.
         assert_eq!(chorda("v85.cantus").1, 0.6);
         assert_eq!(chorda("v86.cantus").1, 0.6);
-        assert_eq!(chorda("v87.cantus"), (true, 0.6));
+        assert_eq!(chorda("v87.cantus").1, 0.6);
+        // r42:chorda-presets — nor 87 (88).
+        assert_eq!(chorda("v88.cantus"), (true, 0.6));
         assert_eq!(chorda("v83.cantus").1, 0.0);
     }
 
@@ -1939,8 +1951,8 @@ mod tests {
                 .expect("the Arcus track");
             (report.integrity_verified, spec)
         };
-        // (r42 arcus-classical: the newest, 87, keeps them with its integrity verified)
-        let (ok, s) = arcus("v87.cantus");
+        // (r42 arcus-classical, chorda-presets: the newest, 88, keeps them, its integrity verified)
+        let (ok, s) = arcus("v88.cantus");
         assert!(ok);
         let keys = [
             "bow.pair",
@@ -1957,7 +1969,7 @@ mod tests {
         let got: Vec<f32> = keys.iter().map(|k| s.get(k)).collect();
         assert_eq!(got, vec![1.0, 0.6, 0.6, 1.0, 0.7, 1.2, 1.0, 1.0, 1.0, 1.0]);
         // r42:tympanum-real — the older files (85, 86) are migrated and keep them all the same.
-        for f in ["v85.cantus", "v86.cantus"] {
+        for f in ["v85.cantus", "v86.cantus", "v87.cantus"] {
             let (_, m) = arcus(f);
             let them: Vec<f32> = keys.iter().map(|k| m.get(k)).collect();
             assert_eq!(them, got, "{f}");
@@ -1990,6 +2002,7 @@ mod tests {
                 })
                 .expect("the Arcus track")
         };
+        assert_eq!(fiddle("v88.cantus"), (0.8, 1.0));
         assert_eq!(fiddle("v87.cantus"), (0.8, 1.0));
         assert_eq!(fiddle("v85.cantus"), (1.0, 1.0));
         assert_eq!(fiddle("v83.cantus"), (0.0, 0.0));
@@ -2021,11 +2034,12 @@ mod tests {
             (report.integrity_verified, got)
         };
         let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
-        let (ok, new) = models(&read("v87.cantus"));
+        let (ok, new) = models(&read("v88.cantus"));
         assert!(ok);
         assert_eq!(new, vec![2.0, 2.0], "the plain and the hybrid Tympanum");
-        // (r42 arcus-classical: 86 no longer the newest, its model 2 kept)
+        // (r42 arcus-classical, chorda-presets: 86 and 87 no longer the newest, model 2 kept)
         assert_eq!(models(&read("v86.cantus")).1, new);
+        assert_eq!(models(&read("v87.cantus")).1, new);
         for f in ["v68.cantus", "v71.cantus", "v85.cantus"] {
             let (_, old) = models(&read(f));
             assert!(
@@ -2039,6 +2053,35 @@ mod tests {
         assert_ne!(cut, text);
         let (_, cut) = models(&cut);
         assert!(cut.iter().all(|m| *m == 1.0), "{cut:?}");
+    }
+
+    /// r42:chorda-presets — Schema 88 (ADR 0098's eighth amendment): the fixture's Chorda keeps
+    /// its voicing by hand; every older file (84) has none, and each control reads its default
+    /// (the shipped voicing).
+    #[test]
+    fn schema_88_keeps_chordas_voicing_by_hand() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let chorda = |name: &str| {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            let report = parse(&text, true).unwrap();
+            let t = report
+                .file
+                .project
+                .tracks
+                .into_iter()
+                .find(|t| t.name == "Chorda")
+                .expect("Chorda");
+            let n = t.instrument.native().expect("a native Chorda").clone();
+            (report.integrity_verified, n)
+        };
+        let (verified, n) = chorda("v88.cantus");
+        assert!(verified);
+        assert_eq!(n.get("voicing.felt_bass"), -0.35);
+        assert_eq!(n.get("voicing.formant_hz"), 480.0);
+        assert_eq!(n.get("voicing.top_hz"), 8_000.0);
+        let (_, old) = chorda("v84.cantus");
+        assert!(!old.is_stored("voicing.felt_bass") && !old.is_stored("voicing.top_hz"));
+        assert_eq!(old.get("voicing.formant_hz"), 600.0);
     }
 
     /// r42 arcus-expr — Schema 83 (ADR 0162): the fixture's second note keeps its bow start,

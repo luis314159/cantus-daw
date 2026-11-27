@@ -616,3 +616,75 @@ C "a mid that gives it away … but both sound real". `docs/round42/chorda-c18.m
 |---|---|---|---|
 | Every other unit's goldens, model 1, every earlier voicing (beta.14's, candidate 16's, the technician's, the unison pass's, candidate 17's) | 0 | 0 | pinned, held |
 | Model 2 at its default (the pinned 0.5 s phrase), against candidate 17 | 0.0870 | 0.01385 (−37.2 dBFS) | the phrase's RMS 0.2191 → 0.2178 (−0.05 dB); new pin `0xb19b_545c_67c3_0ee9`; candidate 17 named and pinned (`MODEL_2_C17`, `0x9fe3_49b2_b228_bc8f`) |
+
+## Amended by the voicing by hand and the character presets (round 42, `chorda-presets`, schema 88 — no `DSP_VERSION` change)
+
+The owner (2026-11-26): character presets for Chorda — *a very dark one, a very imposing one,
+and so on* — each still a real instrument; and *"el usuario debe poder mover cada uno de los
+parámetros a mano"*. `docs/round42/chorda-presets.md` has every number.
+
+### 15. The voicing, a player's controls over the technician's
+
+The shipped voicing (`Voicing`, candidate 18) stays the technician's: fitted key by key against
+two recorded grands, its per-key tables (partials, levels, couplings, tunings) its base, never
+knobs. Over it, `chorda::user::UserVoicing` is what a player moves, in a musician's terms, 22
+controls as parameters `voicing.*` (schema 88), each a scale, an offset or a value over the
+technician's number:
+
+| Group | Controls (`voicing.*`) | Chorda's own controls shown with them |
+|---|---|---|
+| Hammers | `felt_bass`, `felt_treble` (−1 … 1: the felt at A0 and C8 ×4^x, as `hardness` scales the whole), `mass` | `hardness` |
+| Strings | `decay_bass`, `decay_mid`, `decay_treble`, `hf` (the overtones' sustain), `hf_spread` (its spread by register), `uneven` (the unison's hammer-weight, skew and loss scatters), `polar` (the second polarisation) | `decay`, `unison` |
+| Soundboard and case | `formant_hz`, `formant_db`, `formant_q` (the bass formant) | `body`, `coupling` (the bridge), `sympathy` |
+| Action | `knock`, `knock_tone` (its band, octaves), `key_return`, `damper` (the dampers' strength: their hold ÷), `damper_bass`, `damped` (the floor a damped note ends at, dB) | `noise` |
+| Microphones | `itd` (the arrival-time spread) | `persp`, `width`, `lid`, `room`, `roomsize` |
+| Tone | `top_hz` (the top roll-off), `amount` (each key's own partial voicing, scaling its table) | `tilt`, `colour` |
+
+1. **Neutral to the bit.** Every control's default leaves its number untouched
+   (`UserVoicing::over` copies the voicing while all are neutral; a moved control touches only
+   its own numbers). A value-control (`formant_*`, `damped`, `top_hz`) whose stored value equals
+   its default plays the voicing's own number (`None`), so a default that is not an `f32` exactly
+   (the roll-off's 11 059.2 Hz) is still the shipped one. No sample of any render moved: no
+   `DSP_VERSION` change, every pin held.
+2. **The audio thread may move them.** Nothing allocates: the voices read the voicing at their
+   next strike, the two filters a control reaches (the bass formant in `Registers`, the top
+   roll-off) take new coefficients with their states kept (`Registers::set_formant`,
+   `TopRoll::retune`), a filter switched off is cleared (rest still comes). So each is
+   automatable, modulatable and MIDI-learnable as every other parameter, and each change is one
+   `SetInstrumentValue` (its exact inverse; the undo fuzz's `round42_voicing_command`).
+3. **Not exposed**: the keyboard's design (`bass_b`, `treble_b`, the octaves, `tune`): a design
+   is made off the audio thread and the tuning passes rest on it (`stretch` and `stiffness` are
+   the player's there); the body's responses (`Body::new` allocates); the per-key tables.
+4. **The advanced voicing** is the second page of Chorda's Edit view (a switch at the top of
+   both pages, *Parts · Advanced voicing*; a fifth header segment cut the instrument's name in
+   Spanish at the narrowest window). It shows the six
+   groups as cards, each with its picture drawn from the voicing itself — the technician's
+   number dashed, the one set over it (the felt and the sustain across the keyboard, the
+   formant's and the roll-off's responses, the dampers' hold, each key's arrival time).
+
+### 16. Character presets
+
+Eight factory presets (`chorda.preset.v_*`, tag *Voiced character*) reach a character with the
+voicing by hand and Chorda's own controls — Dark Felt, Imposing Concert, Bright Pop, Intimate
+Close, Upright Parlour, Vintage Honky-Tonk, Jazz Club Grand, Cinematic Felt — each fitted where a
+free recording of its kind exists (CC0 / CC BY: the Upright Piano KW and the Old Piano FB,
+FreePats, CC0; the bitKlavier Grand's Piano Bar and Stage Lid images, CC BY 4.0; the Salamander,
+CC BY 3.0) on the features that define a character (spectral tilt, the attack's brightness and
+its climb with velocity, the decay by register, the unison's beating, the bass weight;
+`tools/chorda-voicing/probes/presets/features.py`). No free felt piano was found (CC0 or CC BY):
+Dark Felt and Cinematic Felt are set by ear against the grands' soft layers, and say so.
+
+### What the tests hold (eighth amendment)
+
+| What | Test |
+|---|---|
+| Every control at its default leaves the voicing to the bit; each alone touches it | `cantus-dsp` `chorda::tests_user::every_control_at_its_default_leaves_the_voicing_to_the_bit` |
+| A unit with every control at its default plays the shipped bits; moved and back, the same | `tests_user::a_unit_with_every_control_at_its_default_plays_the_shipped_bits` |
+| Each control moves the sound, finite and under full scale | `tests_user::each_control_moves_the_sound` |
+| All moved: every block size and thread count; idle as new; rest; the filters moved on a ringing unit | `tests_user::every_control_moved_…`, `the_formant_and_the_top_move_on_a_ringing_unit_without_a_break` |
+| A new Chorda's controls are neutral; the value-controls' defaults are the shipped numbers | `cantus-engine` `inst::chorda::tests::the_voicing_controls_defaults_are_the_shipped_voicing` |
+| Every control grouped once and automatable | `cantus-core` `inst::chorda::tests::every_voicing_control_is_grouped_once_and_automatable` |
+| Undo and redo among the others (single, batched as a preset, refused elsewhere) | `cantus-core` `undo_invariants::chordas_voicing_by_hand_undoes_and_redoes_among_the_others` |
+| Schema 88 keeps the voicing; every older file reads the defaults | `cantus-project` `format::tests::schema_88_keeps_chordas_voicing_by_hand` |
+| Through the app: a character preset applied, the Voicing view's knob dragged by the pointer, rendered by the engine; undone, the bits return | `cantus-ui` `chorda_presets_e2e` |
+| Every preset inside its level window | `cantus-ui` `preset_render` |

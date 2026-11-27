@@ -73,6 +73,10 @@ pub mod colour;
 #[path = "chorda_voicing.rs"]
 pub mod voicing;
 
+// Round 42 (`chorda-presets`): the voicing a player moves by hand over the shipped one.
+#[path = "chorda_user.rs"]
+pub mod user;
+
 #[path = "chorda_registers.rs"]
 pub mod registers;
 
@@ -115,6 +119,10 @@ mod tests_voicing4;
 #[cfg(test)]
 #[path = "chorda_tests_voicing5.rs"]
 mod tests_voicing5;
+
+#[cfg(test)]
+#[path = "chorda_tests_user.rs"]
+mod tests_user;
 
 #[cfg(test)]
 #[path = "chorda_tunekit.rs"]

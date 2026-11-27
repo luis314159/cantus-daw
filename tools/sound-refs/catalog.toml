@@ -884,7 +884,7 @@ tools = ["crates/cantus-ui/examples/chorda_compare (install|render <downloads>)"
 packs = ["salamander-grand-piano"]
 content = "content"
 install = "bash tools/build/slot.sh cargo run --release -p cantus-ui --example chorda_compare -- install {dir}"
-ignore = ["content/.staging/*", "content/.downloads/*", "content/bitklavier-*"]
+ignore = ["content/.staging/*", "content/.downloads/*", "content/bitklavier-*", "content/upright-piano-kw/*", "content/old-piano-fb/*"]
 [set.origins.pack]
 kind = "pack"
 match = ["content/salamander-grand-piano/*"]
@@ -901,11 +901,30 @@ use = "ship-credit"
 tools = ["crates/cantus-ui/examples/chorda_pianos (<content-root> = $CANTUS_REFS/piano/content)"]
 packs = ["bitklavier-grand-stage-lid-ortf", "bitklavier-grand-piano-bar"]
 content = "content"
-ignore = ["content/salamander-*", "content/.staging/*", "content/.downloads/*", "content/.stream-cache/*"]
+ignore = ["content/salamander-*", "content/upright-piano-kw/*", "content/old-piano-fb/*", "content/.staging/*", "content/.downloads/*", "content/.stream-cache/*"]
 install = "CHORDA_INSTALL={packs} bash tools/build/slot.sh cargo run --release -p cantus-ui --example chorda_pianos -- {work}/chorda-pianos {content} --measure"
 [set.origins.pack]
 kind = "pack"
 match = ["content/bitklavier-*"]
+
+[[set]]
+id = "piano-character"
+dir = "piano"
+shared_dir = true
+title = "Two recorded pianos of other kinds Chorda's character presets are fitted against (round 42, chorda-presets): a Kawai upright in a living room and an old Francis Bacon player piano (honky-tonk)"
+urls = ["https://github.com/freepats/upright-piano-KW", "https://github.com/freepats/old-piano-FB", "https://freepats.zenvoid.org/Piano/honky-tonk-piano.html"]
+version = "the manifest's (UprightPianoKW-20220221, old-piano-FB 2020-04-01)"
+licence = "CC0-1.0"
+terms = "CC0 1.0 (FreePats: Gonzalo and Roberto; Piotr Barcz)"
+use = "ship-credit"
+tools = ["tools/chorda-voicing/probes/presets (render.sh, features.py, fit.py: `kw=pack:upright-piano-kw:upright`, `fb=pack:old-piano-fb:old-piano`)"]
+packs = ["upright-piano-kw", "old-piano-fb"]
+content = "content"
+install = "CHORDA_INSTALL={packs} bash tools/build/slot.sh cargo run -p cantus-ui --example chorda_pianos -- {work}/pack-install {content} --measure"
+ignore = ["content/salamander-*", "content/bitklavier-*", "content/.staging/*", "content/.downloads/*", "content/.stream-cache/*", "stream-cache/*"]
+[set.origins.pack]
+kind = "pack"
+match = ["content/upright-piano-kw/*", "content/old-piano-fb/*"]
 
 # ============================================================ by hand only
 

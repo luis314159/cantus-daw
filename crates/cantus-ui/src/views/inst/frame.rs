@@ -194,6 +194,7 @@ fn view_index(v: View) -> usize {
         View::Edit => 1,
         View::Matrix => 2,
         View::Mixer => 0, // r40:chorda-src — only where the kind has a mixer (`MIXER_VIEWS`)
+        View::Voicing => 1, // r42:chorda-presets — Edit's second page (Chorda's)
     }
 }
 
@@ -229,6 +230,9 @@ fn views_of(kind: InstrumentKind, v: View) -> (&'static [Src<'static>], usize) {
         let i = TYMPANUM_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&TYMPANUM_VIEWS[..], i)
     } else if has_mixer(kind) {
+        // r42:chorda-presets — Chorda's voicing is a page of its Edit (the switch at the
+        // view's top): the header keeps four, Edit lit for both.
+        let v = if v == View::Voicing { View::Edit } else { v };
         let i = MIXER_ORDER.iter().position(|x| *x == v).unwrap_or(0);
         (&MIXER_VIEWS[..], i)
     } else {
@@ -545,6 +549,11 @@ fn shell_body(
         View::Mixer if !has_mixer(spec.kind) => View::Play,
         // r40:integration — Tympanum has no Edit view: shown as its Kit.
         View::Edit if spec.kind == InstrumentKind::AcousticDrums => View::Play,
+        // r42:chorda-presets — the voicing view is Chorda's: another kind shows its Edit.
+        View::Voicing if spec.kind != InstrumentKind::Chorda => match spec.kind {
+            InstrumentKind::AcousticDrums => View::Play,
+            _ => View::Edit,
+        },
         v => v,
     };
     // r42 fix4-narrow — below the room a view was laid out for, it scrolls instead of
@@ -572,6 +581,12 @@ fn shell_body(
                 .show(&mut view, |ui| {
                     at_least(ui, s, least.x, |ui| body(app, ui, track, spec, s))
                 });
+        }
+        // r42:chorda-presets — Chorda's voicing by hand: its groups' cards, scrolled.
+        View::Voicing => {
+            egui::ScrollArea::vertical()
+                .id_salt(("inst-voicing", track.0))
+                .show(&mut view, |ui| chorda::voicing(app, ui, track, spec, s));
         }
         View::Matrix => {
             egui::ScrollArea::vertical()
@@ -1238,6 +1253,8 @@ pub fn write_readout(v: f32, unit: &str, b: &mut String) {
         "st" => write!(b, "{v:+.1} st"),
         "ct" => write!(b, "{v:+.0} ct"),
         "%" => write!(b, "{:.0} %", v * 100.0),
+        // r42:chorda-presets — Chorda's knock tone, in octaves.
+        "oct" => write!(b, "{v:+.1} oct"),
         "" if v.abs() >= 100.0 => write!(b, "{v:.0}"),
         "" => write!(b, "{v:.2}"),
         u => write!(b, "{v:.2} {u}"),
