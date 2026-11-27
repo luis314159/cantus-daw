@@ -200,7 +200,7 @@ Verified here, on the built site (Trunk, 216 pages pre-rendered):
   - In the whole xtask run, `package::ci_tests::every_file_a_test_or_the_build_reads_runs_ci_when_it_changes`
     fails on `tools/soundlab/subjects/arcus-cello/subject.json` (commit 95898ce72, already in
     `r42/integration`, not this branch's).
-- **Screenshots:** `F:\projects\daw-r42	mp\site-plugins\` — `now\` is the real state,
+- **Screenshots:** `F:\projects\daw-r42\tmp\site-plugins\` — `now\` is the real state,
   `live-preview\` uses made-up facts.
 
 
