@@ -114,10 +114,12 @@ fn main() {
     };
     wasm_bindgen_futures::spawn_local(async move {
         // The units' long text first, so the app's first render says what the page says —
-        // and on the plug-in pages their files' facts and text (round 42).
+        // and on a plug-in page its body (round 42, `pages::plugins`).
         unit_text::load().await;
-        if matches!(page.route, route::Route::Plugins | route::Route::Plugin(_)) {
-            plugins::load().await;
+        match page.route {
+            route::Route::Plugins => pages::plugins::preload(page.lang, None).await,
+            route::Route::Plugin(f) => pages::plugins::preload(page.lang, Some(f)).await,
+            _ => {}
         }
         let y = win.scroll_y().unwrap_or(0.0);
         root.set_inner_html("");

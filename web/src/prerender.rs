@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use crate::app::{App, AppProps};
 use crate::head;
-use crate::route::Page;
+use crate::route::{Page, Route};
 
 const HEAD_OPEN: &str = "<!--page-head-->";
 const HEAD_CLOSE: &str = "<!--/page-head-->";
@@ -362,10 +362,21 @@ pub fn run(args: &[String]) -> Result<(), String> {
     let text = dist.join(crate::unit_text::URL.trim_start_matches('/'));
     std::fs::write(&text, crate::unit_text::json())
         .map_err(|e| format!("{}: {e}", text.display()))?;
-    // The plug-in pages' files and text, which only those pages fetch (plugins.rs, round 42).
-    let plug = dist.join(crate::plugins::URL.trim_start_matches('/'));
-    std::fs::write(&plug, crate::plugins::json())
-        .map_err(|e| format!("{}: {e}", plug.display()))?;
+    // Each plug-in page's body, which that page fetches (pages/plugins.rs, round 42).
+    for &page in &pages {
+        let file = match page.route {
+            Route::Plugins => None,
+            Route::Plugin(f) => Some(f),
+            _ => continue,
+        };
+        let part =
+            dist.join(crate::pages::plugins::part_url(page.lang, file).trim_start_matches('/'));
+        if let Some(dir) = part.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        std::fs::write(&part, crate::pages::plugins::parts_json(page.lang, file))
+            .map_err(|e| format!("{}: {e}", part.display()))?;
+    }
     let extra = static_pages(&dist);
     let map = dist.join("sitemap.xml");
     std::fs::write(&map, head::sitemap(&lastmod, &extra))

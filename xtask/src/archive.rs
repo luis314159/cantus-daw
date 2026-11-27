@@ -42,13 +42,13 @@ pub fn walk(dir: &Path) -> Vec<Entry> {
 
 /// Write `entries` into a new zip at `out`, each under `top/` when `top` is not empty.
 pub fn zip(out: &Path, top: &str, entries: &[Entry]) {
-    zip_modes(out, top, entries, &|_| false);
+    zip_modes(out, top, entries, &|_| None);
 }
 
-/// [`zip`], with the entries `exec` names (by their name inside the archive, before `top/`)
-/// marked executable (0755) for the systems that read the mode (round 42: a Mac bundle's
-/// `Contents/MacOS/` program, a Linux plug-in's library).
-pub fn zip_modes(out: &Path, top: &str, entries: &[Entry], exec: &dyn Fn(&str) -> bool) {
+/// [`zip`], with each entry's Unix mode as `mode` says from its name inside the archive (before
+/// `top/`), for the systems that read it (round 42: a Mac bundle's `Contents/MacOS/` program and
+/// a Linux plug-in's library 0755); `None` leaves the zip crate's default.
+pub fn zip_modes(out: &Path, top: &str, entries: &[Entry], mode: &dyn Fn(&str) -> Option<u32>) {
     use zip::write::SimpleFileOptions;
     if let Some(dir) = out.parent() {
         std::fs::create_dir_all(dir).unwrap();
@@ -68,11 +68,12 @@ pub fn zip_modes(out: &Path, top: &str, entries: &[Entry], exec: &dyn Fn(&str) -
         };
         let bytes =
             std::fs::read(&e.src).unwrap_or_else(|err| panic!("read {}: {err}", e.src.display()));
-        // The zip crate's own default (0644) for the rest: the archives made before stay as they were.
-        let o = if exec(&e.name) {
-            opts.unix_permissions(0o755)
-        } else {
-            opts
+        // `None`: the zip crate's own default, so the archives made before stay as they were.
+        let o = match mode(&e.name) {
+            // Unix, wherever it is written: on Windows the zip crate writes DOS attributes,
+            // which carry no mode, and an unzip on a Mac or on Linux would drop the bit.
+            Some(m) => opts.unix_permissions(m).system(zip::System::Unix),
+            None => opts,
         };
         z.start_file(name, o).expect("zip entry");
         z.write_all(&bytes).expect("zip write");

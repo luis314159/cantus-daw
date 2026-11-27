@@ -8,19 +8,17 @@
 //! the zips (0.1.0-beta.18 is the first meant to), every button is shown disabled with a note,
 //! never a link that would answer 404.
 //!
-//! Neither the files' facts nor the longer text are compiled into the WebAssembly (its budget
-//! is 250 KB gzipped, `tools/wasm_budget.py`): the pre-renderer writes them to `/plugins.json`
-//! and into the pages' HTML, and the browser fetches that file only on these pages (`load`).
+//! None of it is compiled into the WebAssembly (its budget is 250 KB gzipped,
+//! `tools/wasm_budget.py`): the pre-renderer writes each page, and each page's body as a part
+//! the browser fetches (`pages::plugins`), so the browser needs only the systems' names here.
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::lang::Lang;
 use crate::platform::Os;
 
 /// Where every link points: the latest release's file of that name (ADR 0048 §7).
+#[cfg(not(target_arch = "wasm32"))]
 pub const DOWNLOADS: &str = "https://github.com/luis314159/cantus-daw/releases/latest/download/";
-
-/// Where the pre-renderer writes the facts and the text, and the browser reads them.
-#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-pub const URL: &str = "/plugins.json";
 
 /// A system the plug-ins are built for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -31,8 +29,10 @@ pub enum Sys {
 }
 
 impl Sys {
+    #[cfg(not(target_arch = "wasm32"))]
     pub const ALL: [Sys; 3] = [Sys::Windows, Sys::Linux, Sys::Mac];
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// The system's part of the file names (`cantus_update::release::Target::platform`).
     pub fn platform(self) -> &'static str {
         match self {
@@ -42,6 +42,7 @@ impl Sys {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn name(self) -> &'static str {
         match self {
             Sys::Windows => "Windows",
@@ -60,6 +61,7 @@ impl Sys {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// What it runs on, in a few words.
     pub fn needs(self, l: Lang) -> &'static str {
         match self {
@@ -75,6 +77,7 @@ impl Sys {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// The command that prints a file's SHA-256.
     pub fn hash_cmd(self) -> &'static str {
         match self {
@@ -84,6 +87,7 @@ impl Sys {
         }
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     /// The folders each standard is read from — (standard, for you, for everyone). The same
     /// as the zips' README (`xtask/src/plugin_zips.rs`) and the installer's.
     pub fn folders(self) -> [(&'static str, &'static str, &'static str); 2] {
@@ -120,6 +124,7 @@ impl Sys {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// One effect's zip for a system: `Cantus-plugin-aequalis-windows-x64.zip`.
 pub fn zip_name(slug: &str, sys: Sys) -> String {
     format!(
@@ -128,6 +133,7 @@ pub fn zip_name(slug: &str, sys: Sys) -> String {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Every effect in one zip for a system: `Cantus-plugins-all-windows-x64.zip`.
 pub fn all_name(sys: Sys) -> String {
     format!(
@@ -136,6 +142,7 @@ pub fn all_name(sys: Sys) -> String {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// One file of the release, as the pages show it.
 #[derive(Clone, PartialEq, Debug)]
 pub struct Got {
@@ -147,6 +154,7 @@ pub struct Got {
     pub sha256: String,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The release's file `name`, linked through `releases/latest/download/`, or `None` while
 /// the release the site was built against does not hold it.
 pub fn file(name: &str) -> Option<Got> {
@@ -159,6 +167,7 @@ pub fn file(name: &str) -> Option<Got> {
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Every effect at once for `sys`: the zip with all; on Windows, while the release has none
 /// yet, the plug-ins zip every Windows release has carried beside the installer (versioned,
 /// linked by its own address, as the download page links the portable zip).
@@ -184,11 +193,6 @@ fn facts(name: &str) -> Option<(u64, String)> {
         .iter()
         .find(|f| f.name == name)
         .map(|f| (f.size, f.sha256.to_string()))
-}
-
-#[cfg(target_arch = "wasm32")]
-fn facts(name: &str) -> Option<(u64, String)> {
-    browser::facts(name)
 }
 
 /// The pages' longer text: `(key, paragraphs)`, compiled only natively; the browser reads
@@ -252,20 +256,15 @@ pub const TEXT: &[(&str, &[(&str, &str)])] = &[
 ];
 
 /// The `i`-th paragraph of `key`, or `None` past its last one.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn text(key: &str, i: usize, l: Lang) -> Option<String> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        browser::text(key, i as u32, l)
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        TEXT.iter()
-            .find(|p| p.0 == key)
-            .and_then(|p| p.1.get(i))
-            .map(|&(en, es)| l.t(en, es).to_string())
-    }
+    TEXT.iter()
+        .find(|p| p.0 == key)
+        .and_then(|p| p.1.get(i))
+        .map(|&(en, es)| l.t(en, es).to_string())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Every paragraph of `key`.
 pub fn paras(key: &str, l: Lang) -> Vec<String> {
     (0..).map_while(|i| text(key, i, l)).collect()
@@ -279,130 +278,6 @@ impl Sys {
             Sys::Linux => "linux",
             Sys::Mac => "mac",
         }
-    }
-}
-
-/// The JSON the browser reads: `{"files":{"<name>":[size,"sha"],…},"text":{"<key>":[["en","es"],…],…}}`.
-#[cfg(feature = "ssr")]
-pub fn json() -> String {
-    fn s(t: &str) -> String {
-        let mut o = String::from("\"");
-        for c in t.chars() {
-            match c {
-                '"' => o.push_str("\\\""),
-                '\\' => o.push_str("\\\\"),
-                '\n' => o.push_str("\\n"),
-                c => o.push(c),
-            }
-        }
-        o.push('"');
-        o
-    }
-    let files: Vec<String> = crate::release::REL_PLUGINS
-        .iter()
-        .map(|f| format!("{}:[{},{}]", s(f.name), f.size, s(f.sha256)))
-        .collect();
-    let text: Vec<String> = TEXT
-        .iter()
-        .map(|(key, paras)| {
-            let p: Vec<String> = paras
-                .iter()
-                .map(|&(en, es)| format!("[{},{}]", s(en), s(es)))
-                .collect();
-            format!("{}:[{}]", s(key), p.join(","))
-        })
-        .collect();
-    format!(
-        "{{\"files\":{{{}}},\"text\":{{{}}}}}\n",
-        files.join(","),
-        text.join(",")
-    )
-}
-
-#[cfg(target_arch = "wasm32")]
-mod browser {
-    use std::cell::{Cell, RefCell};
-
-    use wasm_bindgen::{JsCast, JsValue};
-
-    use crate::lang::Lang;
-
-    thread_local! {
-        static DATA: RefCell<JsValue> = const { RefCell::new(JsValue::UNDEFINED) };
-        static ASKED: Cell<bool> = const { Cell::new(false) };
-    }
-
-    fn at(path: &[&str]) -> Option<JsValue> {
-        DATA.with(|d| {
-            let mut v = d.borrow().clone();
-            for k in path {
-                v = js_sys::Reflect::get(&v, &(*k).into()).ok()?;
-                if v.is_undefined() {
-                    return None;
-                }
-            }
-            Some(v)
-        })
-    }
-
-    pub fn facts(name: &str) -> Option<(u64, String)> {
-        let v = at(&["files", name])?;
-        let size = js_sys::Reflect::get_u32(&v, 0).ok()?.as_f64()? as u64;
-        let sha = js_sys::Reflect::get_u32(&v, 1).ok()?.as_string()?;
-        Some((size, sha))
-    }
-
-    pub fn text(key: &str, i: u32, l: Lang) -> Option<String> {
-        let v = js_sys::Reflect::get_u32(&at(&["text", key])?, i).ok()?;
-        let col = match l {
-            Lang::En => 0,
-            Lang::Es => 1,
-        };
-        js_sys::Reflect::get_u32(&v, col).ok()?.as_string()
-    }
-
-    pub fn loaded() -> bool {
-        DATA.with(|d| !d.borrow().is_undefined())
-    }
-
-    /// Fetches the file once; on any failure the pages show their buttons disabled and no
-    /// longer text.
-    pub async fn load() {
-        use wasm_bindgen_futures::JsFuture;
-        if loaded() || ASKED.with(|a| a.replace(true)) {
-            return;
-        }
-        let got: Option<JsValue> = async {
-            let win = web_sys::window()?;
-            let resp: web_sys::Response = JsFuture::from(win.fetch_with_str(super::URL))
-                .await
-                .ok()?
-                .dyn_into()
-                .ok()?;
-            if !resp.ok() {
-                return None;
-            }
-            JsFuture::from(resp.json().ok()?).await.ok()
-        }
-        .await;
-        if let Some(v) = got {
-            DATA.with(|d| *d.borrow_mut() = v);
-        }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-pub use browser::load;
-
-/// Whether the facts and text are here (natively they always are).
-pub fn loaded() -> bool {
-    #[cfg(target_arch = "wasm32")]
-    {
-        browser::loaded()
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        true
     }
 }
 
@@ -460,17 +335,5 @@ mod tests {
             assert_eq!(paras(&format!("steps-{sys}"), Lang::Es).len(), 3);
             assert!(!paras(&format!("unsigned-{sys}"), Lang::En).is_empty());
         }
-    }
-
-    #[cfg(feature = "ssr")]
-    #[test]
-    fn the_json_holds_the_text_and_every_file() {
-        let j = json();
-        assert!(j.starts_with("{\"files\":{"));
-        for f in crate::release::REL_PLUGINS {
-            assert!(j.contains(&format!("\"{}\":[{},", f.name, f.size)));
-        }
-        assert!(j.contains("\"licence\":[[\"Free software under the GPL-3.0-or-later"));
-        assert_eq!(j.matches('{').count(), j.matches('}').count());
     }
 }

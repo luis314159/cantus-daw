@@ -78,7 +78,7 @@ fn every_effect_has_a_stable_plain_zip_name_on_every_system() {
         // Plain names GitHub keeps as they are, with no version: `releases/latest/download/`.
         assert!(
             n.bytes()
-                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'.'),
+                .all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b)),
             "{n}"
         );
         assert!(!n.contains(v), "{n} names a version");
@@ -140,8 +140,9 @@ fn a_mac_zip_holds_both_formats_runnable_and_the_texts() {
     for i in 0..z.len() {
         let e = z.by_index(i).unwrap();
         let mode = e.unix_mode().unwrap_or(0o644) & 0o777;
-        let runs = e.name().contains("/Contents/MacOS/");
-        assert_eq!(mode, if runs { 0o755 } else { 0o644 }, "{}", e.name());
+        let name = e.name().expect("a name in UTF-8").to_string();
+        let runs = name.contains("/Contents/MacOS/");
+        assert_eq!(mode, if runs { 0o755 } else { 0o644 }, "{name}");
     }
     let mut readme = String::new();
     std::io::Read::read_to_string(

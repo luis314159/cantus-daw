@@ -240,7 +240,9 @@ pub fn write(
                 std::process::exit(1);
             }
         }
-        archive::zip_modes(&out.join(name), top, &entries, &|n| is_exec(t, n));
+        archive::zip_modes(&out.join(name), top, &entries, &|n| {
+            Some(if is_exec(t, n) { 0o755 } else { 0o644 })
+        });
     };
     for d in plugins {
         let name = release::plugin_zip_name(d.slug, t);

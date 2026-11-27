@@ -8,20 +8,29 @@
 //! **Drawn as HTML, not as components** (round 42): as Yew components these pages put the
 //! WebAssembly 12 KB over its 250 KB budget, and nearly all of them is text. The pages are
 //! written as strings (the same function in the pre-renderer and in the browser) and inserted
-//! as they are; only the players are components. The system is a radio group (Windows, Linux,
+//! as they are; only the players are components. The browser does not carry those functions:
+//! the pre-renderer writes each page's body as a part (`/plugin-parts/<lang>/<page>.json`)
+//! that the page fetches. The system is a radio group (Windows, Linux,
 //! macOS) whose choice shows that system's card and steps by CSS alone (`plugins.css`), so the
 //! static page works before the app runs; the app then ticks the visitor's own system.
 
+#[cfg(not(target_arch = "wasm32"))]
 use std::fmt::Write;
 
 use yew::prelude::*;
 
 use crate::fx::AbPlayer;
 use crate::lang::{use_lang, Lang};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::nav::href;
-use crate::plugins::{self, paras, Got, Sys};
+use crate::plugins::Sys;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::plugins::{self, paras, Got};
+#[cfg(not(target_arch = "wasm32"))]
 use crate::release::megabytes;
-use crate::units::{pic_lang, shade_now, Unit};
+use crate::units::Unit;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::units::{pic_lang, shade_now};
 use crate::units_data::EFFECTS;
 
 /// The effects exported as plug-ins, in the site's order.
@@ -29,6 +38,7 @@ fn effects() -> impl Iterator<Item = &'static Unit> {
     EFFECTS.iter().filter(|u| u.plugin)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Text for HTML: `&`, `<`, `>` and `"` escaped.
 fn esc(t: &str) -> String {
     t.replace('&', "&amp;")
@@ -37,6 +47,7 @@ fn esc(t: &str) -> String {
         .replace('"', "&quot;")
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// One of the site's line icons (`icons.rs`), as HTML.
 fn icon(d: &str) -> String {
     format!(
@@ -44,12 +55,14 @@ fn icon(d: &str) -> String {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 const ARROW: &str = "M12 4v12M6 11l6 6 6-6M5 20h14";
 
 fn raw(s: String) -> Html {
     Html::from_html_unchecked(AttrValue::from(s))
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The radio group that picks the system; the first is ticked in the static page.
 fn picker(l: Lang) -> String {
     let mut o = format!(
@@ -69,6 +82,7 @@ fn picker(l: Lang) -> String {
     o + "</div>"
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// A button, live only with the release's file, its size, what it runs on and its SHA-256.
 fn get(l: Lang, sys: Sys, file: Option<Got>) -> String {
     let label = format!("{} {}", l.t("Download for", "Descargar para"), sys.name());
@@ -103,6 +117,7 @@ fn get(l: Lang, sys: Sys, file: Option<Got>) -> String {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// The head of both pages on the lapis — where you are, what it is — and the download card,
 /// one per system (`card`).
 fn band(l: Lang, unit: Option<&Unit>, card: &dyn Fn(Sys) -> String) -> String {
@@ -163,6 +178,7 @@ fn band(l: Lang, unit: Option<&Unit>, card: &dyn Fn(Sys) -> String) -> String {
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// Installing, the unsigned files, the licence and the whole DAW, one block per system.
 fn notes(l: Lang) -> String {
     let gh = crate::top::GITHUB;
@@ -235,6 +251,7 @@ fn notes(l: Lang) -> String {
     o
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// `/plugins/`'s body: the head with the zip with all, every effect's card, the notes.
 fn index_html(l: Lang) -> String {
     let mut o = band(l, None, &|s| get(l, s, plugins::all(s)));
@@ -271,6 +288,7 @@ fn index_html(l: Lang) -> String {
     o + &notes(l)
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 /// An effect's card for `sys`: its button, the other systems, the zip with all.
 fn effect_card(l: Lang, u: &Unit, sys: Sys) -> String {
     let mut o = get(l, sys, plugins::file(&plugins::zip_name(u.file, sys)));
@@ -322,54 +340,132 @@ fn use_own_system(ready: bool) {
     });
 }
 
-/// The facts and text are here: at once natively and on a first load of these pages (main.rs
-/// waits for them); after a move from another page, once `/plugins.json` has arrived.
-#[hook]
-fn use_ready() -> bool {
-    let ready = use_state(plugins::loaded);
-    {
-        let ready = ready.clone();
-        use_effect_with((), move |_| {
-            #[cfg(target_arch = "wasm32")]
-            if !*ready {
-                wasm_bindgen_futures::spawn_local(async move {
-                    plugins::load().await;
-                    ready.set(plugins::loaded());
-                });
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            let _ = ready;
-        });
-    }
-    *ready
+/// A page's body around its players, `(top, bottom)`: the index's (`file` `None`) or an
+/// effect's. Made here natively; the browser fetches it from [`part_url`].
+#[cfg(not(target_arch = "wasm32"))]
+pub fn parts(l: Lang, file: Option<&str>) -> (String, String) {
+    let Some(u) = file.and_then(|f| effects().find(|u| u.file == f)) else {
+        return (index_html(l), String::new());
+    };
+    effect_parts(l, u)
 }
 
-/// `/plugins/`: every effect, all at once, and how to install them.
-#[function_component(PluginsIndex)]
-pub fn plugins_index() -> Html {
-    let l = use_lang().lang;
-    let ready = use_ready();
-    use_own_system(ready);
-    html! { <div class="pl-page">{ raw(index_html(l)) }</div> }
+/// Where the pre-renderer writes a page's parts: `/plugin-parts/en/index.json`,
+/// `/plugin-parts/es/aequalis.json` (`["top","bottom"]`).
+pub fn part_url(l: Lang, file: Option<&str>) -> String {
+    format!(
+        "/plugin-parts/{}/{}.json",
+        l.code(),
+        file.unwrap_or("index")
+    )
+}
+
+/// The parts as JSON, for the pre-renderer.
+#[cfg(feature = "ssr")]
+pub fn parts_json(l: Lang, file: Option<&str>) -> String {
+    fn s(t: &str) -> String {
+        let mut o = String::from("\"");
+        for c in t.chars() {
+            match c {
+                '"' => o.push_str("\\\""),
+                '\\' => o.push_str("\\\\"),
+                '\n' => o.push_str("\\n"),
+                c => o.push(c),
+            }
+        }
+        o.push('"');
+        o
+    }
+    let (top, bottom) = parts(l, file);
+    format!("[{},{}]\n", s(&top), s(&bottom))
+}
+
+#[cfg(target_arch = "wasm32")]
+mod browser {
+    use std::cell::RefCell;
+
+    // A list, not a map: a HashMap would bring its hasher into the WebAssembly (its budget).
+    thread_local! {
+        static GOT: RefCell<Vec<(String, (String, String))>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub fn cached(url: &str) -> Option<(String, String)> {
+        GOT.with(|g| {
+            g.borrow()
+                .iter()
+                .find(|(u, _)| u == url)
+                .map(|(_, p)| p.clone())
+        })
+    }
+
+    /// Fetches a page's parts once; on a failure the page shows its players only.
+    pub async fn load(url: String) {
+        use wasm_bindgen_futures::JsFuture;
+        if cached(&url).is_some() {
+            return;
+        }
+        let got: Option<(String, String)> = async {
+            let resp = crate::tryit::fetch(&url).await?;
+            let v = JsFuture::from(resp.json().ok()?).await.ok()?;
+            Some((
+                js_sys::Reflect::get_u32(&v, 0).ok()?.as_string()?,
+                js_sys::Reflect::get_u32(&v, 1).ok()?.as_string()?,
+            ))
+        }
+        .await;
+        if let Some(p) = got {
+            GOT.with(|g| g.borrow_mut().push((url, p)));
+        }
+    }
+}
+
+/// The first load of a plug-in page waits for its parts (`main.rs`), so the app's first
+/// render is the static page's.
+#[cfg(target_arch = "wasm32")]
+pub async fn preload(l: Lang, file: Option<&str>) {
+    browser::load(part_url(l, file)).await;
+}
+
+/// This page's parts: natively at once, in the browser once fetched (empty until then).
+#[hook]
+fn use_parts(l: Lang, file: Option<&'static str>) -> (String, String) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        parts(l, file)
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let url = part_url(l, file);
+        let got = use_state(|| browser::cached(&url));
+        {
+            let got = got.clone();
+            use_effect_with(url, move |url| {
+                if got.is_none() {
+                    let url = url.clone();
+                    wasm_bindgen_futures::spawn_local(async move {
+                        browser::load(url.clone()).await;
+                        got.set(browser::cached(&url));
+                    });
+                }
+            });
+        }
+        (*got).clone().unwrap_or_default()
+    }
 }
 
 #[derive(Properties, PartialEq)]
 pub struct PluginProps {
-    /// The effect's `units_data` `file`: its plug-in's slug.
-    pub file: AttrValue,
+    /// The effect's `units_data` `file` (its plug-in's slug); `None` for `/plugins/`.
+    #[prop_or_default]
+    pub file: Option<&'static str>,
 }
 
-/// `/plugins/<effect>/`: its download per system, its picture, its sound, how to install it.
-#[function_component(PluginPage)]
-pub fn plugin_page(p: &PluginProps) -> Html {
-    let l = use_lang().lang;
-    let ready = use_ready();
-    use_own_system(ready);
+/// An effect's page around its players: the head and its card, its picture and what it does;
+/// then the notes and the previous and the next.
+#[cfg(not(target_arch = "wasm32"))]
+fn effect_parts(l: Lang, u: &Unit) -> (String, String) {
     let list: Vec<&'static Unit> = effects().collect();
-    let Some(i) = list.iter().position(|u| u.file == p.file.as_str()) else {
-        return html! {};
-    };
-    let u = list[i];
+    let i = list.iter().position(|x| x.file == u.file).unwrap_or(0);
     let (prev, next) = (
         list[(i + list.len() - 1) % list.len()],
         list[(i + 1) % list.len()],
@@ -402,24 +498,39 @@ pub fn plugin_page(p: &PluginProps) -> Html {
         pager(prev, l.t("← Previous", "← Anterior")),
         pager(next, l.t("Next →", "Siguiente →"))
     );
+    (top, bottom)
+}
+
+/// `/plugins/` (every effect, all at once) and `/plugins/<effect>/` (its download per system,
+/// its picture, its sound): the parts, and an effect's players between them. One component for
+/// both (the WebAssembly's budget).
+#[function_component(PluginPage)]
+pub fn plugin_page(p: &PluginProps) -> Html {
+    let l = use_lang().lang;
+    let u = p.file.and_then(|f| effects().find(|u| u.file == f));
+    let (top, bottom) = use_parts(l, u.map(|u| u.file));
+    use_own_system(!top.is_empty());
+    let hear = u.filter(|u| u.ab.is_some() || crate::tryit::has(u.file)).map(|u| {
+        html! {
+            <div class="section pl-hear"><div class="wrap">
+                if let Some((file, song)) = u.ab {
+                    <div class="up-ab">
+                        <h2 class="h4">{ l.t("Hear it, with and without", "Escúchalo, con y sin") }</h2>
+                        <AbPlayer key={file} file={file} song={song} />
+                    </div>
+                }
+                if crate::tryit::has(u.file) {
+                    <crate::tryit::TryIt key={u.file} unit={AttrValue::from(u.file)} />
+                }
+            </div></div>
+        }
+    });
     html! {
-        <article class="unit-full pl-page">
+        <div class="unit-full pl-page">
             { raw(top) }
-            if u.ab.is_some() || crate::tryit::has(u.file) {
-                <div class="section pl-hear"><div class="wrap">
-                    if let Some((file, song)) = u.ab {
-                        <div class="up-ab">
-                            <h2 class="h4">{ l.t("Hear it, with and without", "Escúchalo, con y sin") }</h2>
-                            <AbPlayer key={file} file={file} song={song} />
-                        </div>
-                    }
-                    if crate::tryit::has(u.file) {
-                        <crate::tryit::TryIt key={u.file} unit={AttrValue::from(u.file)} />
-                    }
-                </div></div>
-            }
+            { hear.unwrap_or_default() }
             { raw(bottom) }
-        </article>
+        </div>
     }
 }
 
