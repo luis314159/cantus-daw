@@ -1734,7 +1734,9 @@ fn clear_of_the_body(
             // the body — under its top's level, by its ribs — the band goes under too, if
             // `collar_rib` says so: kept there, the Drawn picture may sort it among the ribs'
             // cells.)
-            let s = if z < d.arch + rib {
+            // (The jacket's cloth there — the painted tie's flare, the jacket's collar —
+            // always: kept, the Drawn picture drew it as dark wedges by the knot.)
+            let s = if z < d.arch + rib || !shirt {
                 1.0
             } else {
                 smooth_k((off_neck(*p) - keep) / ramp)
