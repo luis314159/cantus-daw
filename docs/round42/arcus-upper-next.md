@@ -1725,7 +1725,7 @@ the first round's caches, `fig2\`/`fig3\` the installed figures with each packed
 - *`blend_fix.py --rules`*: `rule_check.HOLD`'s hinges on the gate's cases a row's blends
   make and on the row's own stop up to the 12th semitone; on the reach and high rows the
   back's facing held to 0.6 (`FACING_MOST`; the table's 0.85–0.92), the palm's way 20° freer
-  (`PALM_FREE_REACH`, `Pose.palm_free`), starts turned ±25° about the hand's length
+  (`PALM_FREE_REACH`, `Pose.palm_free`), starts turned ±25° and ±45° about the hand's length
   (`TURN_STARTS`); a row is kept only if its skin and blends go no deeper than before
   (`KEEP_SLACK`). Rows that cost thousands (her viola at 9 and 12: `upper_len`, `palm_way`,
   `hand_up` fight there — her arm on the viola high up) move little: LM from the old pose.

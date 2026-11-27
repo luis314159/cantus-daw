@@ -397,7 +397,7 @@ occluding capsules in its live painter.
       - *Her hand edge-on on the reach and high rows* (crop-02, crop-11): the back's facing
         held to 0.6 at most on those rows' own poses (the table's read 0.85–0.92 there,
         broadside), the palm's way 20° freer, each row started too from the hand turned
-        ±25° about its length. The palm's width is unchanged (`KNUCKLE_SPREAD` as pass 6).
+        ±25° and ±45° about its length. The palm's width is unchanged (`KNUCKLE_SPREAD` as pass 6).
       - *`KNUCKLES_UP` stays −1.6 … 3.4 cm high up.* No photograph shows a hand past the
         neck's heel; the highest (crop-02 and ref-02 at the body's shoulder, crop-11 in third)
         put the knuckles at or under the fingerboard's top, never over it, so the first
@@ -421,7 +421,7 @@ occluding capsules in its live painter.
         stylised tubes' clearance does not reach the skinned hand's breadth).
         `CANTUS_HOLD_SHOT=<dir>` keeps a failing case's shot.
       - *High draws a hand patch whose flat triangle turns a little away* (`FOLD_GRAZE`
-        0.35, the cosine) into the depth raster: a fold's curved patch can still bulge
+        0.15, the cosine) into the depth raster: a fold's curved patch can still bulge
         toward the eye; culled, it opened the thin dark slit at her hand's ulnar edge high
         up (the web between the ring and the little finger). The samples' depths keep what
         lies behind.
