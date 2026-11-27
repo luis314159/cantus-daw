@@ -451,3 +451,31 @@ Not run: the WSL Linux check, the whole workspace suite.
 Then re-render the previews (`tools/tympanum-real/pipeline.py`, `preview.py`, `report.py`; the
 work folder `F:\projects\cantus-work\tympanum-real`, the report's text
 `tools/tympanum-real/informe-r42.md`).
+
+## 10. At the integration (2026-11-27): the two reds, fixed in the model
+
+The whole Windows suite on `r42/integration` ran this branch's last two commits' checks for the
+first time; two were red, both in the model (no merge touched Pulsus).
+
+- **A drum struck while it rings** (`onset_tests::a_model_6_drum_struck_while_it_rings_never_loses_level_on_average`):
+  the studio rack tom (table 6) came out 2.56 dB under the same hit at rest on average.
+  d8d3b6cd5 had turned the cymbals' re-strike bloom off for model 6's drums; turning it back on
+  changed nothing (a second after its last hit a drum rings far under the bloom's 10 dB). The
+  loss was in the bands: a kick's or a tom's low bands (`split`) are few and narrow, and over
+  a stroke's first 80 ms their level is the noise's draw as much as the envelope's — the same
+  hit drawn on other noise came out +1.9, −0.8, −1.3 and +1.7 dB. A fresh piece always began
+  on one draw (the one `LAW6` was measured on); a re-struck one on whatever its noise had
+  reached. Now every model 6 kick and tom stroke starts its bands on that draw
+  (`FRESH_NOISE`): the same stroke sounds the same struck fresh or ringing, and the law holds
+  stroke by stroke. The test: kick +0.15, snare +0.14, tom +0.41 dB on average (all above
+  −0.5). The bloom is back for model 6's drums.
+- **The jazz ride at 127 under its 112** (`tympanum_e2e`, seed 1, −3.5 dB): the law was right
+  (+6.9 dB from 112 to 127); the table's stick burst was not — the jazz ride's 110 take bursts
+  0.50, its 127 take 0.18 (`pulsus_measured.bin`), and the burst rules a ride's first 80 ms
+  from 96 up, so the 127 stroke fell under the 112 as the burst's noise was drawn. For a
+  `model` 2 instance a layer's burst is now at least every softer layer's of its state: the
+  ride grows 112 → 127 by +8.0, +3.3 and +6.4 dB on the three seeds.
+
+The law test over both kits, every piece and the three seeds: no step falls (the engine's own
+render, as `tympanum_e2e` strikes them). Model 1 (`model` 1, model 5) is untouched — both
+changes are model 6's (`gen` ≥ 6).

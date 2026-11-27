@@ -172,7 +172,11 @@ fn band_hp_hz(t: &Table) -> f32 {
 /// floor tom (its soft strokes' 3-8 kHz lost the low bands' skirts and with them their
 /// flatness, cue 14: 0.45 → 0.39 against DRSKit's 0.45); not a kick (its skirts are part of
 /// the groove's 4-8 kHz, cue 15) nor a snare.
-fn split(t: &Table) -> bool {
+/// A fresh piece's band noise and its other side's, where they start (r42 integration: and
+/// where a model 6 kick's or tom's start at every stroke, `Object::hit`).
+pub(crate) const FRESH_NOISE: (u32, u32) = (0x2545_F491, 0x6C8E_9CF5);
+
+pub(crate) fn split(t: &Table) -> bool {
     t.drum && matches!(t.id, 6 | 7 | 22..=24)
 }
 
@@ -532,9 +536,10 @@ impl Bank {
         // when the ring is as loud as the hit; none 10 dB under it). A hat's plates do not
         // carry over (a closed stroke chokes them).
         let mut h = *h;
-        // (model 6: a drum's head does not cascade — its re-strike is the push on the moving
-        // head, `onset::strike_modes`; the bloom moved a tom's 96 into its law's dip)
-        if !t.hat && !(t.drum && h.gen >= 6) {
+        // (r42 integration: a model 6 drum too — the bloom is no longer turned off for it; the
+        // law e2e's drums, a second apart, ring under its 10 dB, and a re-struck tom kept its
+        // level once its bands' noise was the hit's own draw, `Object::hit`)
+        if !t.hat {
             let ring: f32 = o.bg.iter().map(|g| g * g).sum();
             if ring > 0.0 {
                 let d = 10.0 * math::log10(ring) - level_at(t, h.vel);
@@ -622,8 +627,8 @@ impl Object {
             stick_len: 0,
             stick: [0.0; 2],
             knock: [0.0; 2],
-            noise: Noise(0x2545_F491),
-            noise_s: Noise(0x6C8E_9CF5),
+            noise: Noise(FRESH_NOISE.0),
+            noise_s: Noise(FRESH_NOISE.1),
             vary: Noise(0x9E37_79B9),
             burst_s: Noise(0x3C6E_F372),
             age: 0,

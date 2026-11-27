@@ -1,7 +1,7 @@
 //! A measured piece's strike and its render, sample by sample (see `pulsus_measured.rs`).
 
 use super::super::shape::Noise;
-use super::{Bank, Layer, Object, Strike, Table, BP_MS, CTRL, MAX_SLOTS, NB, NBP};
+use super::{split, Bank, Layer, Object, Strike, Table, BP_MS, CTRL, FRESH_NOISE, MAX_SLOTS, NB, NBP};
 use crate::math;
 use std::f32::consts::{LN_10, PI, TAU};
 
@@ -361,6 +361,20 @@ fn blend(t: &'static Table, h: &Strike) -> ([(&'static Layer, f32); 4], f32) {
     (w, offset)
 }
 
+/// r42 integration — the largest stick burst of `l` and every softer layer of its state
+/// (`l.stick[0]` for a layer found in none).
+fn burst_floor(t: &Table, l: &Layer) -> f32 {
+    t.states
+        .iter()
+        .find(|st| st.layers.iter().any(|x| std::ptr::eq(x, l)))
+        .map_or(l.stick[0], |st| {
+            st.layers
+                .iter()
+                .filter(|x| x.vel <= l.vel)
+                .fold(l.stick[0], |m, x| m.max(x.stick[0]))
+        })
+}
+
 impl Object {
     /// Add a hit: a slot for its bands, its modes into the ringing bank, its stick.
     pub(super) fn hit(&mut self, t: &'static Table, h: &Strike, sr: f32) {
@@ -380,6 +394,18 @@ impl Object {
         let sws = [w[0].1 + w[1].1, w[2].1 + w[3].1];
         let two = sws[0] > 0.0 && sws[1] > 0.0;
         self.vary = Noise::from_seed(h.seed ^ 0x5DEE_CE66_D1CE_4E5B);
+        if six && split(t) {
+            // r42 integration (model 6): a kick's or a tom's bands start on the draw a fresh
+            // piece starts on. Their low bands (`split`) are few and narrow: over a stroke's
+            // first 80 ms their level is the noise's draw as much as the envelope's (±2 dB from
+            // one draw to another). A fresh piece always began on the same draw — the one the
+            // level law (`LAW6`) was measured on — and a re-struck one on whatever the noise had
+            // reached: the studio rack tom 2.6 dB under its fresh self on average, and a law
+            // step a drawn hit could undo. Every stroke on the measured draw: the law holds
+            // stroke by stroke, and a ringing head only adds its ring.
+            self.noise = Noise(FRESH_NOISE.0);
+            self.noise_s = Noise(FRESH_NOISE.1);
+        }
         // The slot: a free one, or the quietest.
         let si = (0..MAX_SLOTS)
             .find(|&i| !self.slots[i].on)
@@ -616,7 +642,17 @@ impl Object {
         // The stick: a burst shorter the harder, and its knock.
         let mut st = [0.0f32; 2];
         for (l, x) in w.iter() {
-            st[0] += x * l.stick[0];
+            // r42 integration (a `model` 2 instance, `gen` 6): a harder stroke never clicks
+            // softer — a layer's burst at least every softer layer's of its state. The jazz
+            // ride's 110 take bursts 0.50 and its 127 take 0.18 (`pulsus_measured.bin`): the
+            // burst ruled its first 80 ms from 96 up, so at 127 it fell under 112 by up to
+            // 3.5 dB as the burst's noise was drawn. Model 1 keeps each take's own.
+            let burst = if h.gen >= 6 {
+                burst_floor(t, l)
+            } else {
+                l.stick[0]
+            };
+            st[0] += x * burst;
             st[1] += x * l.stick[1];
         }
         self.stick = [
