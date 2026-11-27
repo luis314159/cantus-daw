@@ -88,7 +88,8 @@ def main():
         if "mics" in n:
             p.append("<h3>7. Imagen de micrófonos: cercano, aéreos, sala (mf)</h3>"
                      f"<img src='{pid}/micros.png' alt='micrófonos'>")
-            p.append(table([[k, x.get("close", "—"), x.get("oh", "—"), x.get("room", "—")] for k, x in n["mics"].items()],
+            mic = lambda x, m: "—" if x.get(m) is None or x[m] < -300 else x[m]  # noqa: E731
+            p.append(table([[k, mic(x, "close"), mic(x, "oh"), mic(x, "room")] for k, x in n["mics"].items()],
                            ["nivel de los primeros 300 ms (dBFS)", "cercano", "aéreos", "sala"]))
     p.append(f"<h2 id='resumen'>Resumen, de peor a mejor</h2>{v['summary']}")
     p.append("<p><small>Grabadas: DRSKit (DrumGizmo, CC BY 4.0); Big Rusty Drums, Gogodze Phu II, Virtuosity "

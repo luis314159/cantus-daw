@@ -133,8 +133,9 @@ def t30(y, fs):
 
 
 def env_db(y, fs, ms=100):
-    h = max(1, int(0.0005 * fs))
-    e = np.sqrt(np.convolve(y ** 2, np.ones(h) / h, mode="same"))[: int(ms / 1000 * fs)]
+    h = max(1, int(0.002 * fs))
+    a = np.abs(signal.hilbert(y[: int((ms + 20) / 1000 * fs)]))
+    e = np.convolve(a, np.ones(h) / h, mode="same")[: int(ms / 1000 * fs)]
     return 20 * np.log10(e + 1e-12)
 
 
@@ -334,7 +335,8 @@ def main():
                 a.set_xlim(40, 16000)
                 a.set_ylim(-50, 0)
                 a.grid(alpha=0.3)
-                a.legend(fontsize=6)
+                if a.get_legend_handles_labels()[0]:
+                    a.legend(fontsize=6)
             plt.tight_layout()
             plt.savefig(d / "micros.png", dpi=72)
             plt.close()
