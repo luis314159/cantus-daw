@@ -270,7 +270,7 @@ desastre"*. Hence §8.
 
 **Open:**
 
-1. **The pivot (§8)**: rounds 43–44.
+1. **The plan (§8, revised)**: realistic modelled flagship kits, rounds 43–44; recorded kits a supported second family.
 2. **The modelled family's onset**: model 6's half-sine is 3–5× shorter than the measured 3–8
    ms contact. Its next step is a Hunt–Crossley stick on the modal head, with the energy-driven
    glide and air loading (§8 (c)).
@@ -290,112 +290,143 @@ desastre"*. Hence §8.
 7. **The commercial comparison** and the blind kits (§2, §8).
 8. Catalogue: `drums-dg` and `drums-packs` are not `record`ed (`fetch.py record` once on disk).
 
-## 8. The pivot: sample-first flagship kits (plan, 2026-11-26)
+## 8. The plan after this round: realistic generated kits (2026-11-26, revised)
 
-**Why.** The owner heard every Tympanum preview, the modelled Studio and Jazz kits before and
-after this round's level law: *"todo era un desastre, no se parece nada a algo real"*. Better
-numbers (13.7 and 25.7 weighted outside-range, from 23.2 and 38.1) did not make them sound
-real; the recorded kits played through Tympanum's own loader in the same previews (DRSKit, Big
-Rusty, Virtuosity, Gogodze, Aasimonster) are real by construction. Every commercial drum
-instrument that sounds real (Superior Drummer 3, SSD 5.5, Addictive Drums 2, BFD3) is a
-multi-mic, multi-velocity, round-robin **sample** engine. Model 6 (§9) is finished as an
-interim and kept, but not polished further.
+**What the owner wants.** After hearing every preview he said *"todo era un desastre, no se
+parece nada a algo real"*, and of model 6's rock *"suena horroroso"*. On the plan he said: *"La
+idea es que Tympanum sean sonidos generados (aunque permita sonidos grabados)"*. Tympanum's
+identity is a **generated, modelled drummer**:
 
-**(a) The flagship kits are sample-first**, built from the best CC0 / CC BY multi-mic kits.
-Every candidate is already in the content manifest (ADR 0030: each downloads on demand, none in
-the repository) and already plays through Tympanum's loader:
+- **The flagship kits are the modelled ones**, made realistic by physics.
+- **The recorded kits stay supported** (the loader, every mic, bleed, rooms) and remain **the
+  references** a modelled piece is measured against. They are not the flagship sound.
+
+The physics behind each choice is `research/instruments-next/drums-physics-survey.md`
+(`r42/drums-research`, 499435d9c). The measure is the element-by-element analysis
+(`tools/tympanum-real/elements.py`; the owner's page `analisis-elementos/index.html`): every
+piece inside the recorded kits' spread on spectrum, decay, partials, take-to-take variation and
+mic image.
+
+### 8.1 What the analysis says is wrong, and what the physics prescribes, per element
+
+**Kick.**
+- *Wrong:* no highs after the attack. From 1 to 16 kHz the studio kick sits 12–39 dB under
+  the darkest recording; in practice it is a low sine.
+- *Fix:* refit the kick table's bands to DRSKit's recording. Then a **Hunt–Crossley beater** (a
+  mass meeting the head through a nonlinear damped contact) with the measured **3–8 ms**
+  contact, replacing model 6's 0.8–1.8 ms half-sine (Avanzini & Rocchesso 2001; the
+  non-iterative scheme of Ducceschi et al. 2021). Add a real **front/back head coupling through
+  the air**: the two heads' lowest modes split into close pairs and beat (the survey's §3.3).
+
+**Snare.**
+- *Wrong:* hollow at 500–800 Hz (5–7 dB under), and a ~200 Hz tone ringing 1.2–1.3 s against
+  0.3–1.0 s in the recordings (the "boing").
+- *Fix:* both are table refits.
+- *Wires:* a **cheap stochastic collision** driven by the snare-side head's displacement over a
+  threshold (a one-sided contact gating a noise bank), reached through the air cavity's lag.
+  This is the survey's §5.3 cheaper model; the NESS-class simulation is far from real time.
+- *Ghost notes are mostly wires:* the wires' share must rise as the stroke softens, as four of
+  seven recorded snares show.
+
+**Toms.**
+- *Wrong:* +12 dB at 100 Hz (studio rack tom); −6 to −8 dB at 6–10 kHz (studio floor tom).
+- *Fix:* table refits, plus **per-mode air loading** (the air's mass lowers the modes with
+  nodal diameters; the shell's air stiffens the round ones) and the **energy-driven pitch
+  glide** (Avanzini, Marogna & Bank, JASA 2012) in place of the fitted per-layer glide.
+- *Strike position* by each **Bessel mode's shape at the point**, `J_m(j_mn r/a)`, not a band
+  tilt.
+
+**Hats, ride and crash.**
+- *Hats and crash:* remove the 100–200 Hz lows (hats +6 to +9 dB; the crash's boom +7 to +11
+  dB), probably other mics' bleed baked into the tables.
+- *The cascade:* a real-time stand-in for von Kármán wave turbulence, which full simulation
+  cannot fit for a kit. Either modes plus an energy-driven spectral migration (energy moved
+  upward at a rate set by the plate's energy), or a time-varying noise shaped by the plate's
+  energy.
+- *Ride:* the **bell's ping** (the 1 kHz note, now 10 dB short) and a **sustained ride body of
+  7–10 s** (the studio ride's lows die in 0.3–3 s).
+- *Hat:* **two plates with continuous openness**: their contact sets how much of each plate's
+  ring the other chokes, and the "chick" (1.3–2.5 kHz, now 4–6 dB short) is that contact.
+
+**Variation.**
+- *From physical causes*, not drawn noise: strike position, velocity, stick angle and the
+  head's state, each varying by the amounts the recordings' take-to-take statistics measure
+  (third-octave levels, f0 in cents, onset timing). Kept inside the recordings' 1.4–2.0 dB.
+- Model 6's hat click fixed per stroke is the interim answer to drawn-noise variation.
+
+**The stick.**
+- *Its own ring:* modes near 0.4, 1.0, 1.7 and 2.7 kHz for about 100 ms.
+- *Its secondary contacts:* the bumps as the head's wave returns from the rim (the survey's
+  §4.1–4.5).
+
+**Stays sampled even in the modelled kits:** rimshots, cross-stick, rolls and brush sweeps.
+No simulation literature beats the recordings for these (the survey's §0.3).
+
+### 8.2 The recorded kits: a supported second family
+
+The candidates, all in the content manifest (ADR 0030: on demand, none in the repository), already
+playing through Tympanum's loader, and the references for §8.1:
 
 | kit | licence | mics | snare: layers x round robins (counted in its files) | other articulations | installed |
 |---|---|---|---|---|---|
-| Virtuosity Drums (jazz, Austin McMahon) | CC0 1.0 | 6-7 positions: kick, snare, overheads, ribbon over the kit, room, lo-fi, perc | centre 36 single strikes; off-centre 36; rimshot 12; cross-stick 16; muted 16; half-open 16; buzz, flam, roll | ride, flat ride, crash, hats, two toms, kick, snare wires off | 1 470 MB |
-| DRSKit (rock/pop, DRSDrums) | CC BY 4.0 | 13 (kick front/back, snare top/bottom, three toms, hat, ride, OH pair, amb pair) | about 26 DrumGizmo power levels a piece (one strike each, picked by power) | snare rim, rest, hat openness | 1 887 MB (`drskit-tympanum`) |
-| Big Rusty Drums (1980s rock) | CC0 1.0 | close (top/bottom) + overhead per piece | centre 10 x 4; brushes 8 x 4; dig 5 x 4; stir 4 x 4; flutter, release | rimshot, sidestick, edge, mallets, damped/undamped kick, a stack | 707 MB |
-| Unruly Drums (indie, wires on every drum) | CC0 1.0 | top, bottom, OH L/R | about 8 layers x 4 round robins, sticks and brushes | hat in six openings, wires on/off on every drum | 796 MB |
-| Gogodze Phu II (1970s funk/soul) | CC0 1.0 | 7 on every piece (front SM-55, overhead, kick, snare, side, retro, window) | centre 24 (about 6 x 4), edge 20, side 16 | hat in five openings, three deadened toms | 484 MB |
-| MuldjordKit 3 (metal/rock) | CC BY 4.0 | 15 | DrumGizmo power levels | two kicks, three rack toms, rides, china | 2 722 MB |
-| CrocellKit (metal) | CC BY 4.0 | 15 | DrumGizmo power levels | two kicks | 5 911 MB |
-| The Aasimonster 2.1 (death metal) | CC BY 4.0 | 16 | DrumGizmo power levels | chinas, zilbel | about 1 700 MB built |
-| Swirly Drums, dry (brushes) | CC0 1.0 | summed files | brushed hits, digs, stirs, flutters | cajon, darbouka, djembe | 341 MB |
-| Frankensnare (12 snares) | CC0 1.0 | (per snare) | sticks, brushes, rimshots, muted | sympathetic snares (a kick buzzing six snares) | 359 MB |
+| Virtuosity Drums (jazz) | CC0 1.0 | 6-7 positions: kick, snare, overheads, ribbon over the kit, room, lo-fi, perc | centre 36 single strikes; off-centre 36; rimshot 12; cross-stick 16; muted 16; half-open 16; buzz, flam, roll | ride, flat ride, crash, hats, two toms, kick, snare wires off | 1 470 MB |
+| DRSKit (rock/pop) | CC BY 4.0 | 13 | about 26 DrumGizmo power levels a piece | snare rim, rest, hat openness | 1 887 MB |
+| Big Rusty Drums (1980s rock) | CC0 1.0 | close (top/bottom) + overhead per piece | centre 10 x 4; brushes 8 x 4; dig 5 x 4; stir 4 x 4 | rimshot, sidestick, edge, mallets, a stack | 707 MB |
+| Unruly Drums (indie) | CC0 1.0 | top, bottom, OH L/R | about 8 layers x 4, sticks and brushes | hat in six openings, wires on/off on every drum | 796 MB |
+| Gogodze Phu II (1970s funk/soul) | CC0 1.0 | 7 on every piece | centre 24 (about 6 x 4), edge 20, side 16 | hat in five openings | 484 MB |
+| MuldjordKit 3 / CrocellKit / The Aasimonster (metal) | CC BY 4.0 | 15 / 15 / 16 | DrumGizmo power levels | two kicks, chinas | 2 722 / 5 911 / about 1 700 MB |
+| Swirly Drums dry (brushes), Frankensnare (12 snares, sympathetic) | CC0 1.0 | summed / per snare | brushed hits, digs, stirs / sticks, brushes, rimshots | — | 341 / 359 MB |
 
-Proposed flagship set: **Studio** = DRSKit (credited), **Jazz** = Virtuosity (CC0), **Vintage** =
-Gogodze Phu II, **Rock 80s** = Big Rusty, **Indie / Brushes** = Unruly with Swirly's brushes,
-**Metal** = MuldjordKit (Aasimonster or Crocell as alternatives): the same kits the grooves
-already compare against, so every measure of this round carries over.
+The loader already has DrumGizmo and SFZ multi-mic kits; one take shared by every mic;
+velocity layers; round robin without repeats; each mic its own strip; the bleed matrix;
+continuous hat openness; per-piece tune, damp and level; the kit's own room or Aula; streaming.
 
-What the loader **already supports** (ADR 0124; `cantus_core::inst::tympanum_hits`, the engine's
-`rec` voice): DrumGizmo XML and SFZ multi-mic kits; one take per hit shared by every mic (no mic
-plays a different strike); velocity layers with SFZ curves or DrumGizmo power; a round robin
-drawn per hit with `vary` (never the take before); each mic a named output with its own strip
-(ADR 0123); the piece x mic bleed matrix (`b{p}.{m}.db/inv/on`, off unloads that cell);
-continuous hat openness crossfading the recorded openings (CC4); the foot's chick; per-piece
-tune (resampled, cents), damp (an envelope), level and mute; the kit's own room or one of
-Cantus's (Aula); streaming from disk.
+What it gains, after the modelled family's work, because these serve both families:
 
-What is **missing** for "beats the commercial ones":
+1. **A velocity join by spectral morphing**: one take's spectrum morphed toward the
+   neighbouring layer's, never two takes summed (the root of model 5's kick at 96 under its 80;
+   the survey's §8.5). The same rule joins a modelled kit's tables.
+2. **A measured variation layer**: each kit's take statistics reduced to a few components, one
+   draw per hit shared by every microphone, inside the recordings' 1.4–2.0 dB (§8.4). The same
+   statistics drive the modelled variation of §8.1.
+3. Sympathetic snare buzz and tom resonance **only where the kit differs from its recording**
+   (Clifford, Lindsay Smith & Reiss, DAFx 2012).
+4. Retune and damp by **modal decomposition** (Kirby & Sandler 2020).
+5. Curated key maps, brush taps and sweeps, mixes, and light editions.
 
-1. **A velocity join by spectral morphing** (today a hit picks one layer): one take, its
-   spectrum (a tilt and its band levels) morphed toward the neighbouring layer's, fitted per layer
-   pair — never two takes summed, which is what can cancel (the root of model 5's kick at 96 under
-   its 80); the physics says brightness changes smoothly with velocity (the survey's §8.5).
-2. **A measured variation layer** on top of the round robins: each kit's own take-to-take
-   statistics (third-octave levels, f0 in cents, onset timing, a position tilt) reduced to a few
-   components; one draw per hit, shared by every microphone (bleed stays coherent), kept inside the
-   recordings' 1.4–2.0 dB (the survey's §8.4) — the "infinite round robin", measured, not a free
-   random draw.
-3. **Articulations everywhere**: a curated key map per flagship kit (rimshot, cross-stick, edge,
-   off-centre, buzz, hat openings, ride bell and edge, chokes), and **brushes**: taps from the
-   brush layers; sweeps (Big Rusty's stir, Unruly, Swirly) as held notes, looped and shaped by
-   velocity and a controller (§5; `brushes.py`'s first measures: a brush tap rises over 6–16 ms
-   against a stick's 3 ms, peaks at 6–22 ms, its wires 9–12 dB under the whole; a stir is
-   seconds long, centred at 3–5.7 kHz).
-4. **Strike position as a morph** between sampled positions (Virtuosity's centre and off-centre,
-   Gogodze's centre and edge): a continuous `pos` crossfading the two with one draw.
-5. **Sympathetic snare buzz and tom resonance, only where the kit differs from its recording**
-   (a piece retuned, damped, muted or swapped — otherwise it is already in the recording): each
-   piece's modal bank driven by the other pieces' dry lanes (Clifford, Lindsay Smith & Reiss,
-   DAFx 2012, whose listeners could not tell it from the real thing).
-8. **Retune and damp by modal decomposition** (Kirby & Sandler 2020): a sampled drum split into
-   its modes and a residual; only the modes are retuned, re-damped and glided, the stick, the
-   wires and the room stay as recorded.
-6. **Curated mixes**: each flagship kit's default mic balance, bleed and room set by ear against
-   its library's own demos, saved as the kit's preset.
-7. **Size**: a light edition per flagship kit (close + OH + room, FLAC, about 400 MB or less)
-   beside the full one.
+### 8.3 How we prove it
 
-**(b) Modelling only where it beats samples**: retuning and damping a sampled drum (8; today a
-resample and an envelope), variation beyond the round robins (2), sympathetic buzz (5), strike
-position (4), the room (present: Aula and the modelled rooms). Never the whole sound of a kit
-called realistic. **Rimshots, cross-stick, rolls and brush sweeps stay sampled**, and no
-physical cymbal or physical hi-hat is built (von Kármán plates are out of real time for a kit;
-the survey's §0.3).
+1. **A blind ABX of each modelled piece** against the recorded kits of its kind (the kick
+   against DRSKit's, Big Rusty's, Virtuosity's and Gogodze's kicks, and so on, at pp, mf and
+   ff). Done when listeners are at chance, piece by piece.
+2. **The element analysis inside the recorded spread**: no third-octave band more than 3 dB
+   outside, the decay per octave and the partials within the recordings' range, the
+   take-to-take variation inside 1.4–2.0 dB.
+3. Then a MUSHRA on the nine Groove MIDI grooves against the recorded kits and the commercial
+   instruments the owner can install (MODO DRUM CS, SSD 5.5 free, BFD Player, EZdrummer or
+   Superior trials).
 
-**(c) The modelled kits stay** as a separate, honestly named family (*Modelled* or *Synth*;
-Studio Maple and Jazz Birch named so in the picker), offered as playable and tunable drums,
-not as recordings. Their next onset is a real contact: a **Hunt–Crossley stick on the modal
-head** at the measured 3–8 ms (Avanzini & Marogna 2010, with the non-iterative scheme of
-Ducceschi et al. 2021), the **energy-driven pitch glide** (Avanzini, Marogna & Bank, JASA 2012)
-and **per-mode air loading** — replacing model 6's half-sine.
+### 8.4 Where it fits
 
-The physics behind each choice is `research/instruments-next/drums-physics-survey.md`
-(`r42/drums-research`, 499435d9c).
+**Round 42 (now):** model 6 as an interim (schema 86), this plan, the measures and tools
+(`onset.py`, `elements.py`, `brushes.py`, the survey).
 
-**How we prove it beats the commercial ones, blind.** (1) An ABX kit per flagship kit against
-its own recorded original played straight (no crossfade, no variation): Tympanum's version must
-be indistinguishable on single hits (ABX at chance) and preferred on grooves (fewer identical
-repeats, smoother dynamics). (2) A MUSHRA on the nine Groove MIDI grooves with the recorded kit
-as hidden reference and the commercial instruments the owner can install (MODO DRUM CS, SSD 5.5
-free, BFD Player, EZdrummer or Superior trials, Addictive Drums trial) rendering the same MIDI at
-one loudness (`tools/soundlab`). (3) The measures of §3 (`compare.py`, `grooves.py`): every
-feature inside the recorded range, the take-to-take variation in the recordings' 1.4–2.0 dB.
+**Round 43, the modelled flagship's realism:**
+- the table refits the analysis names (kick highs; snare hollow and ring; tom, hat and crash
+  lows; ride bell and body);
+- the Hunt–Crossley stick and beater at 3–8 ms, with the stick's ring and secondary contacts;
+- the kick's coupled heads;
+- the stochastic wire collision;
+- per-mode air loading and the energy glide;
+- the per-piece ABX kit, and the element analysis rerun after each change.
 
-**Where it fits.** Round 42 (now): this plan; model 6 as an interim (kept: schema 86); the
-measures and tools. **Round 43**: the spectral velocity morph (1), the measured variation layer
-(2), the flagship key maps and mixes (3 without sweeps, 6), the picker's two families (c), the
-light editions (7) and the ABX kit: what turns "real by construction" into Tympanum's default.
-**Round 44**: sympathetic buzz and tom resonance (5), retune and damp by decomposition (8), the
-position morph (4), brush sweeps as sampled loops, the modelled family's Hunt–Crossley onset, and
-the MUSHRA against the commercial instruments on the owner's machine.
+**Round 44:**
+- the cymbals' cascade approximation and the hat as two plates;
+- strike position by Bessel shapes;
+- physical variation from the take statistics;
+- then the second family's spectral layer morph, measured variation layer, sympathetic buzz
+  and decomposition retune;
+- the MUSHRA.
 
 ## 9. Where the session stopped (2026-11-26)
 

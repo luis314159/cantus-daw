@@ -534,7 +534,7 @@ variation, at least 12 dB from 16 to 127), `a_table_without_its_burst_and_every_
 `every_modelled_piece_grows_with_the_velocity_through_the_app` (cantus-ui `tympanum_e2e`, through
 `CantusApp::assemble`).
 
-## Seventh amendment (round 42, `tympanum-real`): model 6, a drum's onset; the pivot to sampled flagship kits
+## Seventh amendment (round 42, `tympanum-real`): model 6, a drum's onset; realistic generated kits next
 
 **Context.** Measured against eight recorded kits (sixth amendment), model 5's drums started
 every mode at full amplitude at the strike. On top came an early part fitted to the first 80
@@ -601,18 +601,27 @@ element-by-element analysis (`elements.py`) names measurable causes in the table
 
 Wires, the cymbals' wash and the hats' rub are chaotic noises a model matches only on average.
 
-**Decision 2: Tympanum's flagship kits become sample-first** (`docs/round42/tympanum-real.md`
-§8; built in rounds 43–44):
+**Decision 2, as the owner corrected it: Tympanum stays a generated drummer.** He said: *"La idea
+es que Tympanum sean sonidos generados (aunque permita sonidos grabados)"*.
 
-- **The kits**: DRSKit, Virtuosity, Gogodze Phu II, Big Rusty, Unruly and MuldjordKit, with
-  every velocity layer and round robin, their mics and bleed.
-- **What the loader gains**: a velocity crossfade between adjacent layers of one round-robin
-  slot with correlation-corrected equal power, seeded variation beyond the round robins,
-  curated articulation maps, brushes, a strike-position morph and sympathetic buzz.
-- **Modelling only where it beats samples.**
-- **The modelled kits** remain as their own, honestly named family.
-
-Model 6 stays as that family's current voice, and is not polished further.
+- **The flagship kits are the modelled ones**, made realistic by physics. The method follows
+  the drums physics survey; the measure is the element-by-element analysis
+  (`docs/round42/tympanum-real.md` §8). Its parts:
+  - the table refits the analysis names;
+  - a Hunt–Crossley stick and beater at the measured 3–8 ms, with the stick's ring and
+    secondary contacts;
+  - the kick's coupled heads;
+  - a stochastic wire collision driven by the snare-side head;
+  - per-mode air loading and the energy-driven glide;
+  - Bessel strike position;
+  - a real-time cascade approximation for the cymbals, and the hat as two plates;
+  - variation from physical causes, measured from the recordings' take statistics.
+- **Rimshots, cross-stick, rolls and brush sweeps stay sampled.**
+- **The recorded kits remain** a supported second family and the references. The loader's
+  spectral layer morph and measured variation layer serve both families.
+- **The proof:** a blind ABX per modelled piece against the recorded kits of its kind, and the
+  element analysis inside the recorded spread.
+- **Model 6** is the modelled family's current voice, until round 43's contact model.
 
 **What the tests hold** (cantus-dsp `pulsus_measured_onset_tests.rs`):
 - a crash plays model 6 as model 5, to the bit;

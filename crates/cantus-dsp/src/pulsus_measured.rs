@@ -532,7 +532,9 @@ impl Bank {
         // when the ring is as loud as the hit; none 10 dB under it). A hat's plates do not
         // carry over (a closed stroke chokes them).
         let mut h = *h;
-        if !t.hat {
+        // (model 6: a drum's head does not cascade — its re-strike is the push on the moving
+        // head, `onset::strike_modes`; the bloom moved a tom's 96 into its law's dip)
+        if !t.hat && !(t.drum && h.gen >= 6) {
             let ring: f32 = o.bg.iter().map(|g| g * g).sum();
             if ring > 0.0 {
                 let d = 10.0 * math::log10(ring) - level_at(t, h.vel);
