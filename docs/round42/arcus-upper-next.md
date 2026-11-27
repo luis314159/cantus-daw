@@ -1802,9 +1802,10 @@ crop-02 — study only, outside the repository).
 - *The facing on pass 7's gate cases* (`rule_check.py --all`): her violin +12 0.65–0.89,
   +14 0.78–0.91; her viola +12 0.81–0.91, +14 0.86–0.90. The app's eye in the neck's frame
   is (0.84, 0.07, 0.54) (x the E side, y toward the scroll, z the fingerboard's normal): it
-  sees the E side more than the top, as crop-02's camera does (its rib band against the
-  top's breadth reads about the same angle), so the photograph's turn is the hand's, not
-  the camera's.
+  sees the E side more than the top, roughly as crop-02's camera does (the E rib's band
+  over the upper bout's breadth reads ~0.3 in ref-02 and ~0.28 from our eye — a rough
+  measure by eye on the photograph), so the photograph's turn is the hand's, not the
+  camera's.
 - *`edge_probe.py`* (new): one row solved again as `blend_fix.py --rules` solves it with
   the facing held at `--facing` (weight 1 000), from the table's pose and from `--rib=N`
   frames built along the instrument (the knuckle line level and along the neck so the
