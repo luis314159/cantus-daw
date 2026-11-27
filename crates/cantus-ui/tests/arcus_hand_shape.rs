@@ -287,7 +287,11 @@ fn bounds(woman: bool) -> Bounds {
 /// in, at most a few millimetres out over the hypothenar).
 const LOBE: f32 = 0.19;
 /// How far from the little finger's knuckle toward the wrist the lobe is read (r42
-/// integration: short of the wrist's cuff).
+/// integration: short of the wrist's cuff). The last tenth, the wrist's join with the cuff,
+/// stays measured: by [`BULGE`] here (the edge's sagitta over the whole knuckle-to-wrist
+/// line, the forearm's first bone's points included — no lobe of skin bows out past the cuff
+/// line), and the cuff itself by `arcus_figure_specks`'
+/// `no_skin_shows_through_or_under_her_bow_sleeve`.
 const LOBE_REACH: f32 = 0.9;
 const BULGE: f32 = 4.0;
 

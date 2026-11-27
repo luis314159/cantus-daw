@@ -899,10 +899,14 @@ occluding capsules in its live painter.
   Every violin and viola row of both musicians re-solved with `blend_fix.py --rules` (five
   passes), then the table chosen row by row against `arcus_hand_table`: a row takes its
   frame pose where the gate's counts do not rise, else keeps the pre-frame pose
-  (`tools/arcus-figures/left_hand_rows.json` records each row's choice). 495 of the 560
-  rows took the frame (28 were the same either way, 37 kept the pre-frame pose); the owner's
+  (`tools/arcus-figures/left_hand_rows.json` records each row's choice). 493 of the 560
+  rows took the frame (28 were the same either way, 39 kept the pre-frame pose); the owner's
   rows (her violin, the A string, the fourth finger at the 1st and 3rd positions) are the
-  frame's; her and his B4 rows the frame's of the passes that leave no dark speck at 200 %.
+  frame's; her B4 row the frame's of a pass that leaves no dark speck at 200 %. Two rows
+  went back once the High shots showed the hands they measure (the arm raster's still-hand
+  fix): her open A string's (its elbow 9.7 cm across, over `arcus_figure_shape`'s 9.4) and
+  his B4 (a 1 px dark speck at 200 % between two fingers whichever pass — `arcus_hand_form`
+  ratcheted at 1 for round 43).
   The gate went 36 rules / 27 cases (pre-frame, the resting pads allowed) → 31 / 20; its
   ratchet is set there. The cello and the bass have no authored table (their hands posed
   live): the rule is the table's.

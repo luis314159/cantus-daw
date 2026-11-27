@@ -2248,15 +2248,25 @@ bare velvet and wool 9–10).
   `F:\projects\daw-r42\tmp\integration\frame\` (five passes' caches, `pass1`–`pass4`,
   `run_frame*.sh`), the row choice by `F:\projects\daw-r42\tmp\integration\choose_rows.py`
   (the gate per row) and `try_rows.py` (the B4 rows against the shape and form gates).
-  `tools/arcus-figures/left_hand_rows.json` names each row's choice: 495 frame, 37 pre-frame,
-  28 the same. Round 43 continues from the 37 (the rows whose frame pose broke a rule or went
+  `tools/arcus-figures/left_hand_rows.json` names each row's choice: 493 frame, 39 pre-frame,
+  28 the same. Round 43 continues from the 39 (the rows whose frame pose broke a rule or went
   into the instrument): the knuckle rule high up and the stopping pads at 1–2.4 mm were most
   of it.
 - **Ratchets** (the owner's figure work is round 43's — the musicians to 100 %):
   `arcus_hand_table` at 31 rules / 20 cases (the target none: the edge-on hand high up, a
   rig decision first — pass 8's a, b or c; the thumb tips on the E side; the knuckle rows at
-  +14), `arcus_figure_specks`' stray gate at 145 (the target none: Drawn's far collar band,
+  +14), `arcus_figure_specks`' stray gate at 150 (the target none: Drawn's far collar band,
   her Drawn neck dot, the bow hand's strays at the earlier camera — polish6's Open 0–4).
+  `arcus_hand_form`'s dark specks at 1 (the target none: his left hand at 200 %, one pixel
+  at the tip of the gap between two fingers where the scroll's varnish shows, whichever
+  pass's B4 row). The stray and speck figures are measured on the High shots as they now
+  are: a still arm's High picture had been drawn in another pass's rectangle (the left hand
+  gone at rest, `arcus_draw_flesh`'s `ras_at`), and a later shot on one context had none of
+  the textures an earlier one sent (`raster::shoot` keeps them now) — the first ratchets,
+  145/146 and none, were taken on missing hands.
+- **For round 43**: solve the realistic figures' table under the app's Stage camera —
+  `left_hand.py`'s dump and `arcus_hand_table` take `bowed_draw::camera(.., Room::Studio)`
+  (8° elevation) while a realistic figure under concert light is shown on the stage (6°).
 - **Fixed at the integration**: `hidden_by_neck` hides a cello's or a bass's arm by the
   neck's drawn cross-section (`bowed_head::neck_profile`; the box-wide ellipse was 1.25 cm
   deeper than the drawn back and the picture's background showed at the neck's edge); the
