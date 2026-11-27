@@ -56,9 +56,10 @@ const ROWS: [&[(usize, f32)]; 4] = [
 pub const VOICING_H: f32 =
     (24.0 + 8.0 + NOTE + 8.0) + 4.0 * (24.0 + 1.0 + DISPLAY + 8.0 + BODY + 8.0) + 4.0 * 4.0;
 
-/// Whether `n` cells fit side by side at the smallest size in a card `w` wide.
+/// Whether `n` cells fit side by side at their own size (the editor's M, whose labels and
+/// values hold whole) in a card `w` wide: else the row stacks its cards.
 fn fits(n: usize, w: f32, s: &Style) -> bool {
-    let need = cell::size(KnobSize::S).x * s.k * n as f32 + s.s(2.0) * n.saturating_sub(1) as f32;
+    let need = cell::size(KnobSize::M).x * s.k * n as f32 + s.s(2.0) * n.saturating_sub(1) as f32;
     need + s.s(20.0) <= w
 }
 

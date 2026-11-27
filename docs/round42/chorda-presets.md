@@ -45,7 +45,7 @@ Each still a real instrument: nothing over the model, only its voicing and Chord
 | Imposing Concert | concert, black | harder hammers, more mass, longer bass, a stronger, lower formant (520 Hz +14 dB), a wider pair, uneven unisons, a large room | the Salamander (Yamaha C5) and the bitKlavier Stage Lid ORTF (Steinway D) |
 | Bright Pop | grand, white | hard treble felt, overtones longer, the top open (16 kHz), the low formant (120 Hz), compressed dynamics, close mics | the Salamander (close pair) |
 | Intimate Close | parlour, black | the action heard (knock, key return), a wide close pair, a soft top (5 kHz), a small room | the bitKlavier Piano Bar and the Upright Piano KW |
-| Upright Parlour | upright, walnut | short stiff strings (stiffness 130 %), short middle and treble, open unisons (6 ct, uneven), no bass weight (the formant −12 dB at 150 Hz), the case over the top (2 kHz) | the Upright Piano KW (Kawai upright, at the pianist's head) |
+| Upright Parlour | upright, walnut | soft felt (−70 %, the treble −80 %), short stiff strings (stiffness 130 %), short middle and treble, open unisons (6 ct, uneven), no bass weight (the formant −12 dB at 150 Hz), the case over the top (2 kHz) | the Upright Piano KW (Kawai upright, at the pianist's head) |
 | Vintage Honky-Tonk | upright, rosewood | the widest unisons (8 ct, uneven, a strong second polarisation), hard hammers, compressed dynamics, a short treble, a thin bass, a loud action, bright | the Old Piano FB (Francis Bacon player piano) |
 | Jazz Club Grand | grand, walnut | a slightly softer treble, the knock and the noise present, the lid half open, close mics, a small room | the bitKlavier Piano Bar |
 | Cinematic Felt | concert, black | soft felt, the top round (6 kHz), long treble, much sympathy, a large room far away | no free recording of its kind: the shipped Chorda |
@@ -66,14 +66,16 @@ fundamental's envelope around its line), the bass weight (30 – 250 Hz against 
 2.5 dB, its climb 3 dB, decay 25 %, beat 1 dB, bass 2 dB — under the two grands' own
 differences). The Old Piano FB was sampled at one velocity: its climb (0 dB) is no measure.
 
-**37 of 47 checks inside.** What stays out:
+**36 of 47 checks inside.** What stays out:
 - **The unison's beat** (5 presets): Chorda's unisons were tuned beatless on purpose (the unison
   pass, `DSP_VERSION` 11, after the owner's ear); the measure reads 1.4 – 2.2 dB where the
   recordings read 2.7 – 5.1 even with the unevenness and the detune raised. A recording's noise
   floor under a fast decay reads as beating too (the KW).
 - **The Upright Parlour's attack brightness**: the KW's mezzo-forte is its soft layer of two
   (−41.6 dB over 2 kHz); Chorda's top roll-off at its lowest (2 kHz, 12 dB/oct) reaches −27.
-  Its tilt, decays, velocity climb and bass weight are inside.
+  Its tilt, decays and velocity climb are inside; its bass weight is 1.2 dB over the span: the
+  closest that keeps it inside its level window (`preset_render`: at its loudest gain, 12 dB, a
+  board quieter than 0.9 left it 10 LU under).
 - **Bright Pop and Jazz Club's attack** by 0.1 – 1.7 dB, and their climb with velocity: Bright
   Pop's compressed dynamics (a pop piano's) narrow it.
 - **The Honky-Tonk's treble decay**: 0.34 s against 0.24 (+ 0.06 tolerance); the treble's own
@@ -121,14 +123,14 @@ differences). The Old Piano FB was sampled at one velocity: its climb (0 dB) is 
 ## v_upright (v_upright) against kw
 | feature | preset | references | span ± tolerance | |
 |---|---|---|---|---|
-| tilt | -7.52 | -7.75 | -8.35 … -7.15 | in |
-| bright | -27.13 | -41.58 | -44.08 … -39.08 | OUT |
-| bright_vel | 13.57 | 13.29 | 10.29 … 16.29 | in |
-| decay_bass | 2.84 | 3.50 | 2.62 … 4.38 | in |
-| decay_mid | 0.80 | 0.76 | 0.57 … 0.95 | in |
-| decay_treble | 0.24 | 0.26 | 0.20 … 0.33 | in |
-| beat | 2.02 | 5.14 | 4.14 … 6.14 | OUT |
-| bass | -1.35 | -2.92 | -4.92 … -0.92 | in |
+| tilt | -8.17 | -7.75 | -8.35 … -7.15 | in |
+| bright | -29.06 | -41.58 | -44.08 … -39.08 | OUT |
+| bright_vel | 15.06 | 13.29 | 10.29 … 16.29 | in |
+| decay_bass | 3.34 | 3.50 | 2.62 … 4.38 | in |
+| decay_mid | 0.92 | 0.76 | 0.57 … 0.95 | in |
+| decay_treble | 0.28 | 0.26 | 0.20 … 0.33 | in |
+| beat | 1.30 | 5.14 | 4.14 … 6.14 | OUT |
+| bass | 0.24 | -2.92 | -4.92 … -0.92 | OUT |
 
 ## v_honky (v_honky) against fb
 | feature | preset | references | span ± tolerance | |
@@ -178,7 +180,7 @@ differences). The Old Piano FB was sampled at one velocity: its climb (0 dB) is 
 | beat | 3.76 | — | — | |
 | bass | 3.69 | — | — | |
 
-37 of 47 inside
+36 of 47 inside
 
 </details>
 
