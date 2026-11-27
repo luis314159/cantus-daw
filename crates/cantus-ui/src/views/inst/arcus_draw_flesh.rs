@@ -45,9 +45,24 @@ struct ArmMesh {
     /// r42:arcus-hand — High's hand: whether each triangle is the hand's skin or a nail
     /// (every corner on the hand's or the fingers' bones), drawn as a curved patch.
     fine: Vec<bool>,
+    /// r42:arcus-polish — per triangle, a bit for each edge (corner k to k + 1) that a fine
+    /// patch draws curved: only where the triangle beyond it is a fine patch too (a curved
+    /// edge against a flat neighbour opened pixel cracks the jacket or the instrument showed
+    /// through: dark dots across the back of his hand).
+    curved: Vec<u8>,
     /// r42:arcus-hand — each vertex's detail (luminance, red) for the hand: the figure's,
     /// with the nails' free edges paler and the knuckles a little redder.
     vdet: Vec<[f32; 2]>,
+    /// r42:arcus-polish2 — how much of each vertex follows the live arm (1) rather than
+    /// staying where the bake put it (0, the arm at rest): the bow arm's band round the
+    /// shoulder, where the live arm fades into the baked body, is the baked body's own surface
+    /// until the arm is drawn opaque, then turns with the arm. Faded over the body in the
+    /// live pose, the band's triangles stood off the baked shoulder (the arm at rest there)
+    /// as dark and grey shards round her shoulder's seam (the owner's review of sheet v11).
+    live: Vec<f32>,
+    /// r42:arcus-polish2 — the sleeve's vertices (only a sleeve's cloth touches them): they
+    /// follow the forearm, never the hand.
+    sleeve: Vec<bool>,
 }
 
 /// r42:arcus-upper — the arm at a level of detail: 0 the full one (High), 1 and 2 Light's
@@ -132,6 +147,8 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let mut map = vec![u16::MAX; n];
     let mut verts = Vec::new();
     let mut alpha = Vec::new();
+    let mut live = Vec::new();
+    let mut sleeve = Vec::new();
     let mut tris = Vec::new();
     let mut stuff = Vec::new();
     let mut upper = Vec::new();
@@ -151,6 +168,8 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
                 map[i] = verts.len() as u16;
                 verts.push(full.verts[i]);
                 alpha.push(full.alpha[i]);
+                live.push(full.live[i]);
+                sleeve.push(full.sleeve[i]);
             }
             map[i]
         });
@@ -185,6 +204,7 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
     let fine = vec![false; tris.len()];
     let vdet = verts.iter().map(|&g| fig.detail[g as usize]).collect();
     let seam = seams(fig, &verts, &edges);
+    let curved = vec![0; tris.len()];
     ArmMesh {
         verts,
         tris,
@@ -195,7 +215,10 @@ fn lod(fig: &Figure, s: usize, full: &ArmMesh, cell: (f32, f32)) -> ArmMesh {
         seam,
         weld,
         fine,
+        curved,
         vdet,
+        live,
+        sleeve,
     }
 }
 
@@ -304,8 +327,30 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         })
         .collect();
     let weld = weld_of(fig, &verts);
+    // (The band round each shoulder: the bake's surface below the arm's share where the live
+    // arm turns opaque — `bowed_human::ARM_COVERS`, where the bake leaves the bow arm's out —,
+    // turning with the arm over [`BAND_TURN`] of share above it. The left arm's too: its
+    // armpit's corners, pulled between the chest and the raised arm, stood out as spikes
+    // under his upper arm beside the frog, the owner's review of sheet v11.)
+    let live: Vec<f32> = verts
+        .iter()
+        .map(|&g| {
+            let t = ((side_share(g as usize) - hu::ARM_COVERS) / BAND_TURN).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        })
+        .collect();
+    // (A sleeve's vertex: every triangle round it is the sleeve's cloth.)
+    let mut sleeve = vec![true; verts.len()];
+    for (t, st) in tris.iter().zip(&stuff) {
+        if !matches!(st, Stuff::Velvet | Stuff::Wool) {
+            for &i in t {
+                sleeve[i as usize] = false;
+            }
+        }
+    }
     let (fine, vdet) = hand_detail(fig, s, &verts, &tris, &stuff);
     let seam = seams(fig, &verts, &edges);
+    let curved = curved_edges(&tris, &fine, &weld);
     ArmMesh {
         verts,
         tris,
@@ -316,9 +361,20 @@ fn build_arm(fig: &Figure, s: usize) -> ArmMesh {
         seam,
         weld,
         fine,
+        curved,
         vdet,
+        live,
+        sleeve,
     }
 }
+
+/// r42:arcus-polish2 — how far a sleeve's triangle may be drawn out past its size at rest
+/// (an edge's length) before it is taken for a fold's inside.
+const STRETCH_MAX: f32 = 1.9;
+
+/// r42:arcus-polish2 — over how much of the arm's share (above where it turns opaque) the
+/// bow arm's band turns from the bake's place to the arm's.
+const BAND_TURN: f32 = 0.4;
 
 /// r42:arcus-hand — a sleeve's seam closed. The cloth's texture seam split its vertices in
 /// two copies, and the offline thinning collapsed each side on its own, so the two sides of
@@ -493,6 +549,24 @@ fn hand_detail(
                 },
             );
             let bone = bone as usize;
+            // r42:arcus-polish — the back of the hand's faint veins: three soft lines from
+            // the wrist's middle toward the gaps between the knuckles, a little blue under
+            // the skin (the owner's small details, 2026-11-25).
+            if bone == o + hu::HAND {
+                let on_back = (p - wr).norm().dot(back).max(0.0);
+                let mut vein = 0.0f32;
+                for (f1, f2) in [(1usize, 2usize), (2, 3), (3, 4)] {
+                    let a = wr.lerp((kn(f1) + kn(f2)) * 0.5, 0.18);
+                    let b = wr.lerp((kn(f1) + kn(f2)) * 0.5, 0.82);
+                    let ab = b - a;
+                    let tt = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+                    let dd = (p - (a + ab * tt)).len();
+                    vein = vein.max((-(dd / 0.32) * (dd / 0.32)).exp() * (1.0 - tt * 0.5));
+                }
+                let w = vein * on_back.powf(0.5) * VEIN;
+                d = [d[0] * (1.0 - 0.05 * w), d[1] - 0.3 * w];
+                return d;
+            }
             if !(o + hu::finger(0, 0)..=o + hu::finger(4, 2)).contains(&bone) {
                 return d;
             }
@@ -502,9 +576,11 @@ fn hand_detail(
             if nail[i] {
                 // The free edge pale, the bed pink.
                 let edge = ((t - 0.78) / 0.12).clamp(0.0, 1.0);
+                // r42:arcus-polish — and the lunula at its root, a paler crescent.
+                let lunula = (1.0 - ((t - 0.45) / 0.1).clamp(0.0, 1.0)) * (1.0 - edge);
                 d = [
-                    d[0] * (1.0 + 0.16 * edge),
-                    d[1] + 0.25 * (1.0 - edge) - 0.45 * edge,
+                    d[0] * (1.0 + 0.16 * edge + 0.1 * lunula),
+                    d[1] + 0.25 * (1.0 - edge - lunula) - 0.45 * edge - 0.2 * lunula,
                 ];
                 return d;
             }
@@ -520,6 +596,12 @@ fn hand_detail(
             if k <= 1 && bone >= o + hu::finger(1, 0) {
                 let w = near_head * on_back;
                 d = [d[0] * (1.0 - 0.06 * w), d[1] + 0.35 * w];
+            }
+            // r42:arcus-polish — the creases over the middle and the last joints: a narrow
+            // darker band across the finger's back.
+            if k >= 1 && bone >= o + hu::finger(1, 0) {
+                let c = (-(t / 0.07) * (t / 0.07)).exp() * on_back;
+                d = [d[0] * (1.0 - 0.12 * c), d[1] + 0.08 * c];
             }
             d
         })
@@ -542,7 +624,124 @@ struct Scratch {
     /// What the kept skinning was made for, and the arm's middle.
     key: Option<[V3; 8]>,
     mid: V3,
+    /// r42:arcus-polish2 — each triangle's class this frame ([`CLS_FACING`] …), its
+    /// middle's depth, whether the neck hides each corner, and whether the classes were
+    /// made with the neck's test.
+    cls: Vec<u8>,
+    depth: Vec<f32>,
+    hidv: Vec<bool>,
+    cls_hid: bool,
+    /// r42:arcus-polish2 — the outline's way out at each corner (summed over its edges) and
+    /// along each edge (unit, on screen).
+    vout: Vec<egui::Vec2>,
+    eout: Vec<egui::Vec2>,
+    /// r42:arcus-polish2 — each bone as a dual quaternion this frame (none: stretched).
+    dq: Vec<Option<Dq>>,
+    /// r42:arcus-polish2 — the cuffs' edge corners posed, and which corners are skin.
+    ring: Vec<V3>,
+    skin_v: Vec<bool>,
+    /// r42:arcus-polish5 — each corner's broad normal this frame (its neighbours' averaged,
+    /// [`despike`]) and the sums it is made from.
+    broad: Vec<V3>,
+    acc: Vec<V3>,
 }
+
+/// A rigid turn and move as a unit dual quaternion: the real part's (w, x, y, z) and the
+/// dual part's.
+type Dq = ([f32; 4], [f32; 4]);
+
+/// Bone transform `x` as a dual quaternion, unless it stretches its bone.
+fn dual(x: &hu::Xf) -> Option<Dq> {
+    if (x.k - 1.0).abs() > 1e-3 {
+        return None;
+    }
+    let r = &x.rot;
+    // The rotation's matrix: its columns are the images of the axes.
+    let (m00, m01, m02) = (r.x.x, r.y.x, r.z.x);
+    let (m10, m11, m12) = (r.x.y, r.y.y, r.z.y);
+    let (m20, m21, m22) = (r.x.z, r.y.z, r.z.z);
+    let tr = m00 + m11 + m22;
+    let q = if tr > 0.0 {
+        let s = (tr + 1.0).sqrt() * 2.0;
+        [0.25 * s, (m21 - m12) / s, (m02 - m20) / s, (m10 - m01) / s]
+    } else if m00 > m11 && m00 > m22 {
+        let s = (1.0 + m00 - m11 - m22).sqrt() * 2.0;
+        [(m21 - m12) / s, 0.25 * s, (m01 + m10) / s, (m02 + m20) / s]
+    } else if m11 > m22 {
+        let s = (1.0 + m11 - m00 - m22).sqrt() * 2.0;
+        [(m02 - m20) / s, (m01 + m10) / s, 0.25 * s, (m12 + m21) / s]
+    } else {
+        let s = (1.0 + m22 - m00 - m11).sqrt() * 2.0;
+        [(m10 - m01) / s, (m02 + m20) / s, (m12 + m21) / s, 0.25 * s]
+    };
+    let n = (q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]).sqrt();
+    if n < 1e-6 {
+        return None;
+    }
+    let q = q.map(|c| c / n);
+    // p' = at + R(p − head) = R p + t, t = at − R head.
+    let t = x.at - r.apply(x.head);
+    // The dual part: ½ (0, t) q.
+    let d = [
+        -0.5 * (t.x * q[1] + t.y * q[2] + t.z * q[3]),
+        0.5 * (t.x * q[0] + t.y * q[3] - t.z * q[2]),
+        0.5 * (-t.x * q[3] + t.y * q[0] + t.z * q[1]),
+        0.5 * (t.x * q[2] - t.y * q[1] + t.z * q[0]),
+    ];
+    Some((q, d))
+}
+
+/// Vertex `i` of `fig` skinned by its bones' dual quaternions blended (none if a bone it
+/// follows has none).
+fn dq_vertex(fig: &Figure, dq: &[Option<Dq>], i: usize) -> Option<V3> {
+    let w = &fig.bw[i];
+    let first = dq.get(w.first()?.0 as usize).copied().flatten()?;
+    let (mut r, mut d) = ([0.0f32; 4], [0.0f32; 4]);
+    for &(b, x) in w {
+        if x <= 0.0 {
+            continue;
+        }
+        let (q, e) = dq.get(b as usize).copied().flatten()?;
+        // The shorter way round: each turn on the first one's side.
+        let s = if q.iter().zip(first.0).map(|(a, b)| a * b).sum::<f32>() < 0.0 {
+            -x
+        } else {
+            x
+        };
+        for k in 0..4 {
+            r[k] += q[k] * s;
+            d[k] += e[k] * s;
+        }
+    }
+    let n = (r[0] * r[0] + r[1] * r[1] + r[2] * r[2] + r[3] * r[3]).sqrt();
+    if n < 1e-6 {
+        return None;
+    }
+    let (r, d) = (r.map(|c| c / n), d.map(|c| c / n));
+    let p = fig.pos[i];
+    // Rotate p by r, then move by t = 2 d r*.
+    let (w0, v) = (
+        r[0],
+        V3 {
+            x: r[1],
+            y: r[2],
+            z: r[3],
+        },
+    );
+    let rot = p + v.cross(v.cross(p) + p * w0) * 2.0;
+    let t = V3 {
+        x: 2.0 * (-d[0] * r[1] + d[1] * r[0] - d[2] * r[3] + d[3] * r[2]),
+        y: 2.0 * (-d[0] * r[2] + d[1] * r[3] + d[2] * r[0] - d[3] * r[1]),
+        z: 2.0 * (-d[0] * r[3] - d[1] * r[2] + d[2] * r[1] + d[3] * r[0]),
+    };
+    Some(rot + t)
+}
+
+/// A triangle faces the eye (and is drawn: not a shirt's cuff), is a sleeve's inside, lies
+/// behind the neck.
+const CLS_FACING: u8 = 1;
+const CLS_INSIDE: u8 = 2;
+const CLS_BEHIND: u8 = 4;
 
 /// The occluding capsules (ADR 0159: shared by every figure's live limbs).
 pub use crate::scene::figure::live::Capsule;
@@ -557,30 +756,40 @@ thread_local! {
 /// Photographic picture's soft key (wrapped on skin, its light through skin warm in the
 /// terminator), its fill from the camera's side and its ambient, fitted to its bake, through
 /// its exposure and filmic curve.
+#[derive(Clone)]
 pub struct Shading {
     drawn: Option<crate::scene::light::Light>,
     eye: V3,
     key: V3,
     dark: bool,
+    /// r42:arcus-polish3 — the concert light (a realistic figure on the stage) and the
+    /// subject's middle it is aimed at.
+    concert: Option<crate::scene::figure::concert::Concert>,
+    mid: V3,
 }
 
 impl Shading {
     pub fn of(lit: &Lit) -> Shading {
         let photo =
             crate::scene::backend::current() == crate::scene::backend::SceneBackend::PerPixel;
-        let drawn = (!photo).then(|| {
-            crate::scene::light::Light::new(
+        let concert = lit.concert.then(crate::scene::figure::concert::get);
+        let drawn = (!photo).then(|| match &concert {
+            // r42:arcus-polish3 — the Drawn picture's own stage light.
+            Some(c) => crate::scene::light::Light::concert(c, lit.mid, lit.eye),
+            None => crate::scene::light::Light::new(
                 lit.dark,
                 false,
                 crate::scene::geo::v(-90.0, 380.0, 160.0),
                 crate::scene::geo::v(lit.mid.x, 0.0, lit.mid.z),
-            )
+            ),
         });
         Shading {
             drawn,
             eye: lit.eye,
             key: lit.key,
             dark: lit.dark,
+            concert,
+            mid: lit.mid,
         }
     }
 }
@@ -594,6 +803,7 @@ const LUT: usize = 40;
 #[derive(Clone, PartialEq)]
 struct LutKey {
     photo: bool,
+    concert: bool, // r42:arcus-polish3
     dark: bool,
     tone: u8,
     eye: [i32; 3],
@@ -604,8 +814,9 @@ struct LutKey {
 #[derive(Default)]
 struct Luts {
     key: Option<LutKey>,
-    /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1.
-    maps: [Vec<[f32; 3]>; 8],
+    /// Per stuff (by `stuff_slot`): its colours, display-referred 0…1; then the velvet's
+    /// and the wool's without the concert's edge line (r42:arcus-polish6, [`BARE`]).
+    maps: [Vec<[f32; 3]>; 10],
 }
 
 thread_local! {
@@ -624,6 +835,38 @@ fn stuff_slot(st: Stuff) -> usize {
         Stuff::Hair => 6,
         _ => 7,
     }
+}
+
+/// r42:arcus-polish6 — `CANTUS_TUNE`'s `strip_probe_x`, `strip_probe_y` (window points), once.
+fn strip_probe() -> Option<Pos2> {
+    static P: OnceLock<Option<Pos2>> = OnceLock::new();
+    *P.get_or_init(|| {
+        use crate::scene::figure::tune::tune;
+        let (x, y) = (tune("strip_probe_x", -1.0), tune("strip_probe_y", -1.0));
+        (x >= 0.0 && y >= 0.0).then(|| Pos2::new(x, y))
+    })
+}
+
+/// r42:arcus-polish6 — the stuffs whose maps are also made without the concert's edge line
+/// (slots 8 and 9).
+const BARE: [Stuff; 2] = [Stuff::Velvet, Stuff::Wool];
+
+/// A map's colour for the way `n` (bilinear between its cells).
+fn sample(map: &[[f32; 3]], n: V3) -> [f32; 3] {
+    let (u, v) = oct_uv(n);
+    let (fx, fy) = (u * LUT as f32 - 0.5, v * LUT as f32 - 0.5);
+    let (x0, y0) = (fx.floor().max(0.0), fy.floor().max(0.0));
+    let (tx, ty) = ((fx - x0).clamp(0.0, 1.0), (fy - y0).clamp(0.0, 1.0));
+    let (x0, y0) = ((x0 as usize).min(LUT - 1), (y0 as usize).min(LUT - 1));
+    let (x1, y1) = ((x0 + 1).min(LUT - 1), (y0 + 1).min(LUT - 1));
+    let at = |x: usize, y: usize| map[y * LUT + x];
+    let mut c = [0.0f32; 3];
+    for (k, ck) in c.iter_mut().enumerate() {
+        let a = at(x0, y0)[k] * (1.0 - tx) + at(x1, y0)[k] * tx;
+        let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
+        *ck = a * (1.0 - ty) + b * ty;
+    }
+    c
 }
 
 /// The octahedral map's place for a unit vector, and back.
@@ -661,9 +904,25 @@ fn lut_colour(
     n: V3,
     ao: f32,
 ) -> Color32 {
+    with_lut(sh, side, tone, mid, |l| l.colour(st, detail, n, ao))
+}
+
+/// r42:arcus-polish2 — the kept maps borrowed once for many corners (a frame's few thousand
+/// look-ups each took the thread's table, checked its key and let it go: a fifth of the
+/// per-triangle loop).
+struct LutAt<'a> {
+    l: &'a mut Luts,
+    sh: &'a Shading,
+    tone: u8,
+    mid: V3,
+}
+
+/// `f` with arm `side`'s maps for this light, view and middle (emptied when they change).
+fn with_lut<R>(sh: &Shading, side: usize, tone: u8, mid: V3, f: impl FnOnce(&mut LutAt) -> R) -> R {
     let q = |p: V3| [p.x.round() as i32, p.y.round() as i32, p.z.round() as i32];
     let key = LutKey {
         photo: sh.drawn.is_none(),
+        concert: sh.concert.is_some(),
         dark: sh.dark,
         tone,
         eye: q(sh.eye),
@@ -682,32 +941,57 @@ fn lut_colour(
                 m.clear();
             }
         }
+        f(&mut LutAt { l, sh, tone, mid })
+    })
+}
+
+impl LutAt<'_> {
+    /// A corner's colour: its stuff by its normal from the map, its detail and occlusion.
+    fn colour(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32) -> Color32 {
+        self.colour_sized(st, detail, n, ao, 1.0)
+    }
+
+    /// Slot `slot`'s map made if it is not (`bare`: without the concert's edge line).
+    fn fill(&mut self, slot: usize, st: Stuff, bare: bool) {
+        if !self.l.maps[slot].is_empty() {
+            return;
+        }
+        let mut sh = self.sh.clone();
+        if bare {
+            if let Some(c) = sh.concert.as_mut() {
+                c.cloth_rim = 0.0;
+            }
+        }
+        let plain = [1.0, 0.0];
+        let mut map = Vec::with_capacity(LUT * LUT);
+        for j in 0..LUT {
+            for i in 0..LUT {
+                let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
+                let c = colour(&sh, st, self.tone, plain, self.mid, d, 1.0);
+                map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+            }
+        }
+        self.l.maps[slot] = map;
+    }
+
+    /// r42:arcus-polish6 — as [`LutAt::colour`], with `size` how broad the cloth's form is
+    /// at the corner (`figure::cloth::broad`, 0 a button's rim or a fold's lip … 1 a
+    /// sleeve): the concert's back-light line along black cloth's edge in that share (lit in
+    /// full, his cuff buttons' rims read as light rings and his shoulder's fold lips as dots —
+    /// the specks gate's largest group).
+    fn colour_sized(&mut self, st: Stuff, detail: [f32; 2], n: V3, ao: f32, size: f32) -> Color32 {
         let slot = stuff_slot(st);
-        if l.maps[slot].is_empty() {
-            let plain = [1.0, 0.0];
-            let mut map = Vec::with_capacity(LUT * LUT);
-            for j in 0..LUT {
-                for i in 0..LUT {
-                    let d = oct_dir((i as f32 + 0.5) / LUT as f32, (j as f32 + 0.5) / LUT as f32);
-                    let c = colour(sh, st, tone, plain, mid, d, 1.0);
-                    map.push([c.r(), c.g(), c.b()].map(|x| x as f32 / 255.0));
+        self.fill(slot, st, false);
+        let mut c = sample(&self.l.maps[slot], n);
+        if size < 1.0 && self.sh.concert.is_some() {
+            if let Some(bare) = BARE.iter().position(|&s| s == st) {
+                self.fill(8 + bare, st, true);
+                let b = sample(&self.l.maps[8 + bare], n);
+                let k = size.max(0.0);
+                for (ck, bk) in c.iter_mut().zip(b) {
+                    *ck = bk + (*ck - bk) * k;
                 }
             }
-            l.maps[slot] = map;
-        }
-        let map = &l.maps[slot];
-        let (u, v) = oct_uv(n);
-        let (fx, fy) = (u * LUT as f32 - 0.5, v * LUT as f32 - 0.5);
-        let (x0, y0) = (fx.floor().max(0.0), fy.floor().max(0.0));
-        let (tx, ty) = ((fx - x0).clamp(0.0, 1.0), (fy - y0).clamp(0.0, 1.0));
-        let (x0, y0) = ((x0 as usize).min(LUT - 1), (y0 as usize).min(LUT - 1));
-        let (x1, y1) = ((x0 + 1).min(LUT - 1), (y0 + 1).min(LUT - 1));
-        let at = |x: usize, y: usize| map[y * LUT + x];
-        let mut c = [0.0f32; 3];
-        for (k, ck) in c.iter_mut().enumerate() {
-            let a = at(x0, y0)[k] * (1.0 - tx) + at(x1, y0)[k] * tx;
-            let b = at(x0, y1)[k] * (1.0 - tx) + at(x1, y1)[k] * tx;
-            *ck = a * (1.0 - ty) + b * ty;
         }
         // The skin's detail (brows, lips, the knuckles' creases, the nails) and the
         // occlusion.
@@ -721,7 +1005,7 @@ fn lut_colour(
         let k = 0.38 + 0.62 * ao;
         let b = |x: f32| ((x * k).clamp(0.0, 1.0) * 255.0).round() as u8;
         Color32::from_rgb(b(c[0]), b(c[1]), b(c[2]))
-    })
+    }
 }
 
 /// A corner's colour: its stuff lit (`ao`: how much of the light round it reaches, the
@@ -737,7 +1021,7 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         _ => detail,
     };
     if let Some(light) = &sh.drawn {
-        use crate::scene::bowed_draw_tris::{skin_at, skin_tone};
+        use crate::scene::bowed_draw_tris::{skin_at, skin_tone, stage_skin};
         let mat = match st {
             Stuff::Skin | Stuff::Lips | Stuff::Nail => skin_at(&hp::real_skin(tone), skin_detail),
             Stuff::Velvet => {
@@ -757,11 +1041,16 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         };
         let mut c = light.shade(&mat, n, e, p, None, 1.0);
         if matches!(st, Stuff::Skin | Stuff::Lips | Stuff::Nail) {
-            c = skin_tone(&mat, c, ndv);
+            c = if light.concert.is_some() {
+                stage_skin(&mat, c, ndv) // r42:arcus-polish3
+            } else {
+                skin_tone(&mat, c, ndv)
+            };
         }
         if st == Stuff::Velvet {
             let s = hp::VELVET_SHEEN;
-            let k = (1.0 - ndv).powi(2) * 0.55;
+            let g = 1.0 - ndv;
+            let k = g * g * 0.55 + g.powi(5) * 0.6; // r42:arcus-polish
             c = [c[0] + s[0] * k, c[1] + s[1] * k, c[2] + s[2] * k];
         }
         if matches!(st, Stuff::Velvet | Stuff::Wool) {
@@ -770,6 +1059,16 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
             let s = hp::CLOTH_RIM;
             c = [0, 1, 2].map(|i| c[i] * lift + s[i] * rim * 0.8);
         }
+        // r42:arcus-polish3 — the concert's back lights along the edge (as the baked body's).
+        let r = light.rim(n, e)
+            * match st {
+                Stuff::Skin | Stuff::Lips | Stuff::Nail => 0.35,
+                Stuff::Velvet | Stuff::Wool => 0.5,
+                _ => 1.0,
+            };
+        if r > 0.0 {
+            c = [0, 1, 2].map(|i| (c[i] + [1.0, 0.88, 0.72][i] * r).min(1.0));
+        }
         let k = 0.35 + 0.65 * ao;
         return c3(c.map(|x| x * k));
     }
@@ -777,6 +1076,9 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     let lin = |c: crate::kit::skin::scene::C3| {
         c.map(|x| egui::ecolor::linear_f32_from_gamma_u8((x.clamp(0.0, 1.0) * 255.0) as u8))
     };
+    if let Some(c) = &sh.concert {
+        return concert_colour(sh, c, st, tone, skin_detail, p, n, ao, &lin);
+    }
     let l = (sh.key - p).norm();
     let ndl = n.dot(l);
     let skin = matches!(st, Stuff::Skin | Stuff::Lips | Stuff::Nail);
@@ -785,7 +1087,9 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     } else {
         (1.0, 0.42, 0.24, 1.15)
     };
-    let wrap = if skin { 0.45 } else { 0.1 };
+    // (r42:arcus-polish: a narrower wrap on the live skin — the back of the hand lit flat hid
+    // its tendons and knuckles, the coordinator against crop-08's raking light.)
+    let wrap = if skin { 0.25 } else { 0.1 };
     let dif = ((ndl + wrap) / (1.0 + wrap)).max(0.0);
     let fill = (n.dot((e + v3(0.0, 0.25, 0.0)).norm())).max(0.0) * fill_k;
     let amb = amb_k * (0.8 + 0.2 * n.y);
@@ -820,7 +1124,7 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         let t = (dif - ndl.max(0.0)).max(0.0) * key_k * ao;
         rad[0] += albedo[0] * (t * 0.75 + amb * ao * 0.06);
         rad[1] += albedo[1] * (t * 0.16 + amb * ao * 0.015);
-        let front = ndv.powf(2.0) * 0.07 * ao;
+        let front = ndv.powf(2.0) * 0.035 * ao;
         for (i, r) in rad.iter_mut().enumerate() {
             *r += albedo[i] * (key_k + amb) * front;
         }
@@ -836,7 +1140,9 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
     }
     if st == Stuff::Velvet {
         // Velvet's pile catches the light where it turns away.
-        let pile = (1.0 - ndv).powi(2) * 0.28;
+        // (r42:arcus-polish: and a bright rim where it turns fully away — the bake's.)
+        let g = 1.0 - ndv;
+        let pile = g * g * 0.28 + g.powi(5) * 0.42;
         let s = lin(hp::VELVET_SHEEN);
         for (i, r) in rad.iter_mut().enumerate() {
             *r += s[i] * pile * (key_k * dif.max(0.35) + amb);
@@ -852,6 +1158,134 @@ fn colour(sh: &Shading, st: Stuff, tone: u8, detail: [f32; 2], p: V3, n: V3, ao:
         }
     }
     let t = crate::views::inst::chorda::scene::hybrid::raster::tone(rad.map(|x| x * ex), 0.85);
+    let g = |x: f32| egui::ecolor::gamma_u8_from_linear_f32(x);
+    Color32::from_rgb(g(t[0]), g(t[1]), g(t[2]))
+}
+
+/// r42:arcus-polish3 — a corner's colour under the concert light: the bake's shading
+/// (`chorda_scene_px_shade::shade`) for the arm's stuffs — the spot's key (its wrap on skin,
+/// the warm light under skin where it falls off), the audience's fill, the hall's ambient,
+/// the back lights' rim, the black cloth's pile and sheen — through the concert's curve.
+#[allow(clippy::too_many_arguments)]
+fn concert_colour(
+    sh: &Shading,
+    c: &crate::scene::figure::concert::Concert,
+    st: Stuff,
+    tone: u8,
+    skin_detail: [f32; 2],
+    p: V3,
+    n: V3,
+    ao: f32,
+    lin: &dyn Fn(crate::kit::skin::scene::C3) -> [f32; 3],
+) -> Color32 {
+    let e = (sh.eye - p).norm();
+    let ndv = n.dot(e).clamp(0.0, 1.0);
+    let l = (sh.key - p).norm();
+    let ndl = n.dot(l);
+    let skin = matches!(st, Stuff::Skin | Stuff::Lips | Stuff::Nail);
+    let kc = c.key_light();
+    let wrap = if skin { c.skin_wrap } else { 0.0 };
+    let dif = ((ndl + wrap) / (1.0 + wrap)).max(0.0);
+    let (fw, fc) = c.fill_light(sh.mid, sh.eye);
+    let fill = n.dot(fw).max(0.0);
+    let amb = c.ambient();
+    let albedo: [f32; 3] = match st {
+        Stuff::Skin | Stuff::Lips | Stuff::Nail => {
+            let a = lin(rgbf(hp::REAL_SKINS[tone.min(4) as usize]));
+            let a = [0, 1, 2].map(|i| a[i] * 0.48 * SKIN_WARM[i] * c.skin_gain[i]);
+            let (lum, red) = (skin_detail[0].min(1.25), skin_detail[1]);
+            [
+                (a[0] * lum * (1.0 + 0.22 * red)).max(0.0),
+                (a[1] * lum * (1.0 - 0.12 * red)).max(0.0),
+                (a[2] * lum * (1.0 - 0.18 * red)).max(0.0),
+            ]
+        }
+        Stuff::Velvet => lin(hp::VELVET),
+        Stuff::Wool => lin(hp::WOOL),
+        Stuff::Shirt => lin(hp::SHIRT),
+        Stuff::Tie => lin(hp::TIE),
+        Stuff::Hair => lin(hp::HAIR),
+        _ => lin(hp::SHOES),
+    };
+    let backs = c.backs(sh.mid, sh.eye);
+    let mut rad = [0.0f32; 3];
+    for (i, r) in rad.iter_mut().enumerate() {
+        *r = albedo[i] * (kc[i] * dif * ao + fc[i] * fill + amb[i] * ao);
+    }
+    // The back lights along the edge.
+    let mut rim = [0.0f32; 3];
+    for (d, col) in backs {
+        let k = n.dot(d).max(0.0) * (1.0 - ndv).powi(2);
+        for (i, r) in rim.iter_mut().enumerate() {
+            *r += col[i] * k;
+        }
+    }
+    if skin {
+        let t = (1.0 - ndl.max(0.0)) * dif * ao;
+        rad[0] += albedo[0] * (kc[0] * t * c.skin_sss);
+        rad[1] += albedo[1] * (kc[1] * t * c.skin_sss * 0.22);
+        let front = ndv.powf(2.0) * c.skin_front * ao;
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += albedo[i] * (kc[i] + amb[i]) * front + albedo[i] * rim[i] * c.skin_rim * 0.5;
+        }
+        let h = (l + e).norm();
+        let (pw, k) = if st == Stuff::Nail {
+            (60, 0.34)
+        } else {
+            (18, 0.035)
+        };
+        let sp = n.dot(h).max(0.0).powi(pw) * k * ao * (ndl > 0.0) as u8 as f32;
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += kc[i] * sp;
+        }
+    } else {
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += albedo[i] * rim[i] * 0.8;
+        }
+    }
+    if matches!(st, Stuff::Velvet | Stuff::Wool) {
+        // The back lights' line along the cloth's edge (the bake's `cloth_edge`).
+        let g = (1.0 - ndv).powi(3);
+        for (d, col) in backs {
+            let k = n.dot(d).max(0.0) * g * c.cloth_rim;
+            for (i, r) in rad.iter_mut().enumerate() {
+                *r += col[i] * k;
+            }
+        }
+    }
+    // Black cloth: the key's broad sheen along its folds.
+    let cloth = |k: f32| {
+        let h = (l + e).norm();
+        let s =
+            k * n.dot(h).max(0.0).powf(c.cloth_pow) * ndl.max(0.0) * (0.6 + 0.4 * (1.0 - ndv)) * ao;
+        kc.map(|x| x * s)
+    };
+    if st == Stuff::Velvet {
+        let g = 1.0 - ndv;
+        let pile = (g * g * 0.28 + g.powi(5) * 0.42) * c.velvet_pile;
+        let s = lin(hp::VELVET_SHEEN);
+        let sp = cloth(c.velvet_spec);
+        let back: f32 = backs
+            .iter()
+            .map(|(d, _)| n.dot(*d).max(0.0) * g.powi(3))
+            .sum();
+        let rimc = backs[0].1;
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += s[i]
+                * (pile * (kc[i] * dif.max(0.35) + amb[i])
+                    + sp[i]
+                    + rimc[i] * back * c.velvet_back);
+        }
+    }
+    if st == Stuff::Wool {
+        let sp = cloth(c.wool_spec);
+        let g = 1.0 - ndv;
+        let sheen = 0.35 * g.powi(3) * c.wool_sheen;
+        for (i, r) in rad.iter_mut().enumerate() {
+            *r += sp[i] + albedo[i] * (kc[i] + amb[i]) * sheen;
+        }
+    }
+    let t = c.tone(rad);
     let g = |x: f32| egui::ecolor::gamma_u8_from_linear_f32(x);
     Color32::from_rgb(g(t[0]), g(t[1]), g(t[2]))
 }
@@ -957,63 +1391,246 @@ pub fn arm(
         } else {
             arm_setup(fig, am, base, s, aim, v, held, sc, light)
         };
+        // r42:arcus-polish — the tests' measure of the arm from the app's camera.
+        if super::probe::on() {
+            let o = hu::side(s);
+            super::probe::keep(super::probe::Arm {
+                who: who as u8,
+                side: s,
+                shoulder: base.at(o + hu::UPPER1, fig.bones[o + hu::UPPER1].head),
+                elbow: aim.elbow,
+                wrist: aim.wrist,
+                pts: sc.pts.clone(),
+                bone: am
+                    .verts
+                    .iter()
+                    .map(|&g| {
+                        fig.bw[g as usize]
+                            .iter()
+                            .fold(
+                                (0u8, -1.0f32),
+                                |b, &(x, w)| if w > b.1 { (x, w) } else { b },
+                            )
+                            .0
+                    })
+                    .collect(),
+                screen: sc.sp.clone(),
+                scale: sc.pts.iter().map(|&p| v.scale(p)).collect(),
+                tris: am.tris.clone(),
+                skin: {
+                    let mut k = vec![false; am.verts.len()];
+                    for (t, st) in am.tris.iter().zip(&am.stuff) {
+                        if matches!(st, Stuff::Skin | Stuff::Nail) {
+                            for &i in t {
+                                k[i as usize] = true;
+                            }
+                        }
+                    }
+                    k
+                },
+                joints: {
+                    let posed = hu::repose_arm(fig, base, s, aim);
+                    (o + hu::UPPER1..=o + hu::finger(4, 2))
+                        .map(|b| {
+                            let w = posed.at(b, fig.bones[b].head);
+                            (b, v.p(w), w)
+                        })
+                        .collect()
+                },
+            });
+        }
         let eye = v.cam.eye();
+        // r42:arcus-polish — the arm's soft shadow where it crosses in front of the trunk
+        // (once: in the left arm's first pass).
+        if hidden.is_none_or(|h| h.0) {
+            trunk_shadow(b, v, lit, fig, base, aim, &shading, who, s, tone, mid);
+        }
+        // r42:arcus-polish2 — each triangle's facing, whether it is a sleeve's inside and
+        // whether the neck hides it, worked out once a frame: the left arm's second pass
+        // finds them (and the neck's test is made per corner, not per corner of every
+        // triangle).
+        if !(same && sc.cls.len() == am.tris.len() && sc.cls_hid == hidden.is_some()) {
+            sc.cls.clear();
+            sc.depth.clear();
+            sc.hidv.clear();
+            if let Some((_, hid)) = hidden {
+                sc.hidv.extend(sc.pts.iter().map(|&p| hid(p)));
+            }
+            sc.cls_hid = hidden.is_some();
+            let near_side = {
+                let o = hu::side(s);
+                v.cam
+                    .depth(base.at(o + hu::UPPER1, fig.bones[o + hu::UPPER1].head))
+            };
+            for (k, t) in am.tris.iter().enumerate() {
+                let [a, bb, c] = t.map(|i| i as usize);
+                let ctr = (sc.pts[a] + sc.pts[bb] + sc.pts[c]) * (1.0 / 3.0);
+                sc.depth.push(v.cam.depth(ctr));
+                // The figure's triangles are wound outward (MakeHuman's, kept by the
+                // converter).
+                let fnrm = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
+                // r42:arcus-hand — the shirt's cuff stays under the jacket's sleeve: drawn
+                // live its thinned band broke into white specks and jagged teeth against
+                // the wrist (the review, both wrists, both cameras).
+                let facing = fnrm.dot(eye - ctr) > 0.0 && am.stuff[k] != Stuff::Shirt;
+                // r42:arcus-polish2 — a sleeve's triangle the pose drew out to over
+                // [`STRETCH_MAX`] times its length at rest: the crook of a sharply bent
+                // elbow, whose corners the two bones pull apart, poked out of the sleeve
+                // as spikes (his left elbow beside the frog, the owner's review). It lies in
+                // the fold; left out, the sleeve round it closes the view.
+                // (Never in the band round the shoulder, which is drawn out on purpose.)
+                let stretched = matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                    && [a, bb, c].iter().all(|&i| am.live[i] >= 1.0)
+                    && {
+                        let rest = |i: usize, j: usize| {
+                            (fig.pos[am.verts[i] as usize] - fig.pos[am.verts[j] as usize]).len()
+                        };
+                        [(a, bb), (bb, c), (c, a)].iter().any(|&(i, j)| {
+                            (sc.pts[i] - sc.pts[j]).len() > STRETCH_MAX * rest(i, j).max(0.05)
+                        })
+                    };
+                // r42:arcus-polish2 — the band round the bow arm's shoulder turned away: drawn
+                // as cloth's inside (deep in its shade). The bake leaves that band out where
+                // the live arm is opaque; turned away in the arm's pose, the gap showed the
+                // room as a bright pixel by the sleeve (the stray-pixel gate's).
+                // (Only on the shoulder's near side: its far side lies behind the body.)
+                // (The bow arm's only: the bake keeps the left arm's band.)
+                let band_back = !facing
+                    && s == 1
+                    && matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                    && [a, bb, c].iter().any(|&i| am.live[i] < 1.0)
+                    && sc.depth[k] < near_side;
+                if band_back {
+                    let behind = hidden.is_some_and(|(_, hid)| {
+                        am.upper[k] || sc.hidv[a] || sc.hidv[bb] || sc.hidv[c] || hid(ctr)
+                    });
+                    sc.cls
+                        .push(CLS_FACING | CLS_INSIDE | (CLS_BEHIND * behind as u8));
+                    continue;
+                }
+                if !facing || stretched {
+                    sc.cls.push(0);
+                    continue;
+                }
+                // r42:arcus-polish — the inside of a sleeve's open end: near the cloth's
+                // edge, a face turned in toward the forearm's axis is the hem's inside seen
+                // through the opening (lit by the sleeve's rim it read as grey-blue points
+                // beside his bow hand, the review): drawn deep in the sleeve's shade.
+                let inside = matches!(am.stuff[k], Stuff::Velvet | Stuff::Wool)
+                    && t.iter().all(|&i| {
+                        fig.edge
+                            .get(am.verts[i as usize] as usize)
+                            .copied()
+                            .unwrap_or(9.0)
+                            < SLEEVE_INSIDE
+                    })
+                    && {
+                        let ax = aim.wrist - aim.elbow;
+                        let tt = ((ctr - aim.elbow).dot(ax) / ax.dot(ax).max(1e-6)).clamp(0.0, 1.2);
+                        fnrm.dot(ctr - (aim.elbow + ax * tt)) < 0.0
+                    };
+                // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
+                // edge painted in front showed the hand over the neck; painted behind, the
+                // neck's stamp covers just the part it hides.)
+                let behind = hidden.is_some_and(|(_, hid)| {
+                    am.upper[k] || sc.hidv[a] || sc.hidv[bb] || sc.hidv[c] || hid(ctr)
+                });
+                sc.cls
+                    .push(CLS_FACING | (CLS_INSIDE * inside as u8) | (CLS_BEHIND * behind as u8));
+            }
+        }
         sc.front.clear();
         sc.col.clear();
         sc.order.clear();
-        for (k, t) in am.tris.iter().enumerate() {
-            let [a, bb, c] = t.map(|i| i as usize);
-            let ctr = (sc.pts[a] + sc.pts[bb] + sc.pts[c]) * (1.0 / 3.0);
-            // The figure's triangles are wound outward (MakeHuman's, kept by the converter).
-            let fnrm = (sc.pts[bb] - sc.pts[a]).cross(sc.pts[c] - sc.pts[a]);
-            let mut show = fnrm.dot(eye - ctr) > 0.0;
-            // r42:arcus-hand — the shirt's cuff stays under the jacket's sleeve: drawn live
-            // its thinned band broke into white specks and jagged teeth against the wrist
-            // (the review, both wrists, both cameras).
-            if am.stuff[k] == Stuff::Shirt {
-                show = false;
-            }
-            if show {
-                if let Some((want, hid)) = hidden {
-                    // (r42:arcus-hand: behind if any corner is — a triangle across the neck's
-                    // edge painted in front showed the hand over the neck; painted behind, the
-                    // neck's stamp covers just the part it hides.)
-                    let behind = am.upper[k]
-                        || hid(ctr)
-                        || hid(sc.pts[a])
-                        || hid(sc.pts[bb])
-                        || hid(sc.pts[c]);
-                    show = behind == want;
+        with_lut(&shading, s, tone, mid, |lut| {
+            for (k, t) in am.tris.iter().enumerate() {
+                let [a, bb, c] = t.map(|i| i as usize);
+                let cls = sc.cls[k];
+                let mut show = cls & CLS_FACING != 0;
+                let inside = cls & CLS_INSIDE != 0;
+                if show {
+                    if let Some((want, _)) = hidden {
+                        show = (cls & CLS_BEHIND != 0) == want;
+                    }
                 }
-            }
-            sc.front.push(show);
-            let st = am.stuff[k];
-            let mut cc = [Color32::TRANSPARENT; 3];
-            if show {
-                for (j, &i) in [a, bb, c].iter().enumerate() {
-                    // Each corner lit once a frame (a vertex where two stuffs meet, once
-                    // each way).
-                    let (kept_st, kept) = sc.vcol[i];
-                    cc[j] = if kept_st == Some(st) {
-                        kept
-                    } else {
-                        let d = am.vdet[i];
-                        let mut cl = lut_colour(&shading, s, st, tone, d, mid, sc.nrm[i], sc.ao[i]);
-                        if am.alpha[i] < 1.0 {
-                            cl = cl.gamma_multiply(am.alpha[i]);
-                        }
-                        sc.vcol[i] = (Some(st), cl);
-                        cl
-                    };
+                sc.front.push(show);
+                let st = am.stuff[k];
+                let mut cc = [Color32::TRANSPARENT; 3];
+                if show && inside {
+                    // (r42:arcus-polish2: lit as the cloth's own outside a little in shade —
+                    // drawn from the turned-away normal in deep shade, the cuff's inside read
+                    // as a black ring at her bow wrist once the sleeve stopped turning with
+                    // the hand.)
+                    let c = lut.colour(st, [1.0, 0.0], sc.nrm[a], 0.6);
+                    cc = [c; 3].map(|x| {
+                        let k = INSIDE_SHADE;
+                        Color32::from_rgb(
+                            (x.r() as f32 * k) as u8,
+                            (x.g() as f32 * k) as u8,
+                            (x.b() as f32 * k) as u8,
+                        )
+                    });
+                    sc.order.push((sc.depth[k] + 0.02, k as u32));
+                } else if show {
+                    for (j, &i) in [a, bb, c].iter().enumerate() {
+                        // Each corner lit once a frame (a vertex where two stuffs meet, once
+                        // each way).
+                        let (kept_st, kept) = sc.vcol[i];
+                        cc[j] = if kept_st == Some(st) {
+                            kept
+                        } else {
+                            let d = am.vdet[i];
+                            // (r42:arcus-polish6: the edge line by the form's size.)
+                            let size = fig.broad.get(am.verts[i] as usize).copied().unwrap_or(1.0);
+                            let mut cl = lut.colour_sized(st, d, sc.nrm[i], sc.ao[i], size);
+                            if am.alpha[i] < 1.0 {
+                                cl = cl.gamma_multiply(am.alpha[i]);
+                            }
+                            sc.vcol[i] = (Some(st), cl);
+                            cl
+                        };
+                    }
+                    // A shirt's cuff lies inside its sleeve: sorted a little behind it.
+                    let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
+                    sc.order.push((sc.depth[k] + bias, k as u32));
                 }
-                // A shirt's cuff lies inside its sleeve: sorted a little behind it.
-                let bias = if st == Stuff::Shirt { 3.0 } else { 0.0 };
-                sc.order.push((v.cam.depth(ctr) + bias, k as u32));
+                sc.col.push(cc);
             }
-            sc.col.push(cc);
-        }
+        });
         // The outline: an edge between a shown triangle and one not shown (or none).
         let tri_n = am.tris.len() as u32;
+        // r42:arcus-polish2 — each outline corner's way out, the mean of its edges' (by place:
+        // a texture seam's copies are one corner), so neighbouring edges' soft strips meet
+        // mitred: each edge's own strip overlapped its neighbour's at a turn (a brighter dot
+        // on a sleeve's rim light, a darker one on a dark edge) and left a notch on the other
+        // side (the room showing through) — the stray-pixel gate's dotted lines.
+        sc.vout.clear();
+        sc.vout.resize(am.verts.len(), egui::Vec2::ZERO);
+        sc.eout.clear();
+        sc.eout.resize(am.edges.len(), egui::Vec2::ZERO);
+        // r42:arcus-polish6 — `strip_pass_edges` 0 draws no outline between a triangle this
+        // pass draws and one the other pass draws (behind the instrument or the neck, and in
+        // front): studied for the thin light line over her dress under the neckline — not it
+        // (the line stays); 1, the default, as before.
+        let pass_edges = crate::scene::figure::tune::tune("strip_pass_edges", 1.0) > 0.5;
+        let open = |f0: bool, f1: bool, t0: u32, t1: u32| {
+            let facing = |t: u32| t != u32::MAX && sc.cls[t as usize] & CLS_FACING != 0;
+            f0 != f1 && (pass_edges || !(facing(t0) && facing(t1)))
+        };
+        for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
+            let f0 = t0 != u32::MAX && sc.front[t0 as usize];
+            let f1 = t1 != u32::MAX && sc.front[t1 as usize];
+            let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
+            if am.seam[e] || !(open(f0, f1, t0, t1) || seam) {
+                continue;
+            }
+            let o = outline_out(am, sc, e);
+            sc.eout[e] = o;
+            for i in [a, bb] {
+                let w = am.weld[i as usize] as usize;
+                sc.vout[w] += o;
+            }
+        }
         for (e, &(a, bb, t0, t1)) in am.edges.iter().enumerate() {
             let f0 = t0 != u32::MAX && sc.front[t0 as usize];
             let f1 = t1 != u32::MAX && sc.front[t1 as usize];
@@ -1029,7 +1646,7 @@ pub fn arm(
             // shirt's cuff under a sleeve): the cloth's edge feathered over what is next to it,
             // so the cuff reads as a clean edge (triangles meet unsmoothed: a staircase).
             let seam = f0 && f1 && rank(am.stuff[t0 as usize]) != rank(am.stuff[t1 as usize]);
-            if f0 != f1 || seam {
+            if open(f0, f1, t0, t1) || seam {
                 let mid = (sc.pts[a as usize] + sc.pts[bb as usize]) * 0.5;
                 // (r42:arcus-hand: a shirt's edge sorted with its cuff, behind the sleeve and
                 // the wrist — drawn at its own depth it laid white threads over his wrist.)
@@ -1119,8 +1736,13 @@ pub fn arm(
                 if out.dot(inside - pa) > 0.0 {
                     out = -out;
                 }
+                let e = (k - tri_n) as usize;
+                // (r42:arcus-polish: curved only where the patch curves that edge.)
+                let ka = tri.iter().position(|&x| x == a).unwrap_or(0);
+                let kb = tri.iter().position(|&x| x == bb).unwrap_or(0);
+                let ke = if (ka + 1) % 3 == kb { ka } else { kb };
                 if out.length() > 1e-4 {
-                    if fine_n > 1 && am.fine[t] {
+                    if fine_n > 1 && am.fine[t] && am.curved[t] & (1 << ke) != 0 {
                         // Along the patch's curved edge (r42:arcus-hand).
                         let (ia, ib) = (a as usize, bb as usize);
                         let (p0, p1, n0, n1) = (sc.pts[ia], sc.pts[ib], sc.nrm[ia], sc.nrm[ib]);
@@ -1142,13 +1764,203 @@ pub fn arm(
                             prev = q;
                         }
                     } else {
-                        b.edge(pa, pb, corner(a), corner(bb), out);
+                        // (r42:arcus-polish2: mitred with its neighbours.)
+                        let o = sc.eout[e];
+                        let join = |i: u16| {
+                            let m = sc.vout[am.weld[i as usize] as usize];
+                            if m.length() < 1e-3 || o == egui::Vec2::ZERO {
+                                return o;
+                            }
+                            let m = m.normalized();
+                            // (A sharp turn keeps the edge's own way: a long miter spikes —
+                            // and reached past the neck's stamp over a cello's neck.)
+                            let c = m.dot(o);
+                            if c < 0.8 {
+                                o
+                            } else {
+                                m / c
+                            }
+                        };
+                        let px = b.px();
+                        // (r42:arcus-polish2: the strip in its corners' colours drawn halfway
+                        // toward the triangle's inner corner's: a sleeve's rim light is
+                        // brightest exactly on its outline, and its corners alternate there
+                        // between more and less grazing — the strip in their own colours
+                        // drew a dotted bright line a pixel wide along every sleeve.)
+                        let ci = corner(third);
+                        // (r42:arcus-polish4: on cloth the inner corner's own — where a sleeve's
+                        // cap or a cuff button's top turns away under the back light its
+                        // outline's corners flicker between lit and not, and the strip read as
+                        // dotted light lines: her bow shoulder, the tops of his cuff buttons;
+                        // `arcus_figure_specks`.)
+                        let cloth = matches!(am.stuff[t], Stuff::Velvet | Stuff::Wool);
+                        // (Nor on a cloth's tiny contour edges — the tops of his cuff buttons,
+                        // a crease's lip: a strip there is a lone light dot, not an outline.)
+                        let small =
+                            crate::scene::figure::tune::tune("strip_small_px", SMALL_EDGE_PX);
+                        if cloth && (pb - pa).length() < small * px {
+                            continue;
+                        }
+                        let k = if cloth { 1.0 } else { 0.5 };
+                        let (ca, cb) = (lerp_c(corner(a), ci, k), lerp_c(corner(bb), ci, k));
+                        // (r42:arcus-polish6: `CANTUS_TUNE`'s `strip_probe_x`, `_y`, window
+                        // points: every outline strip within 2 points of there printed.)
+                        if let Some(at) = strip_probe() {
+                            let d = pb - pa;
+                            let u = ((at - pa).dot(d) / d.length_sq().max(1e-6)).clamp(0.0, 1.0);
+                            if (pa + d * u - at).length() < 2.0 {
+                                let cls = |t: u32| {
+                                    (t != u32::MAX).then(|| (sc.cls[t as usize], sc.front[t as usize]))
+                                };
+                                eprintln!(
+                                    "strip at {at:?}: side {s} pass {:?} {:?} edge {pa:?}-{pb:?}                                      t0 {:?} t1 {:?} alpha {:.2}/{:.2} live {:.2}/{:.2} colours                                      {ca:?} {cb:?}",
+                                    hidden.map(|h| h.0),
+                                    am.stuff[t],
+                                    cls(t0),
+                                    cls(t1),
+                                    am.alpha[a as usize],
+                                    am.alpha[bb as usize],
+                                    am.live[a as usize],
+                                    am.live[bb as usize],
+                                );
+                            }
+                        }
+                        b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
                 }
             }
         }
     });
 }
+
+/// r42:arcus-polish2 — outline edge `e`'s way out on screen (unit), away from the shown
+/// triangle it belongs to (the one on top where two stuffs meet), as the outline is drawn.
+fn outline_out(am: &ArmMesh, sc: &Scratch, e: usize) -> egui::Vec2 {
+    let (a, bb, t0, t1) = am.edges[e];
+    let shown = |t: u32| t != u32::MAX && sc.front[t as usize];
+    let t = if shown(t0) && shown(t1) {
+        if rank(am.stuff[t0 as usize]) >= rank(am.stuff[t1 as usize]) {
+            t0
+        } else {
+            t1
+        }
+    } else if shown(t0) {
+        t0
+    } else {
+        t1
+    } as usize;
+    let tri = am.tris[t];
+    let third = tri
+        .iter()
+        .find(|&&x| x != a && x != bb)
+        .copied()
+        .unwrap_or(a);
+    let (pa, pb) = (sc.sp[a as usize], sc.sp[bb as usize]);
+    let d = pb - pa;
+    let mut out = egui::vec2(-d.y, d.x);
+    if out.dot(sc.sp[third as usize] - pa) > 0.0 {
+        out = -out;
+    }
+    if out.length() > 1e-4 {
+        out.normalized()
+    } else {
+        egui::Vec2::ZERO
+    }
+}
+
+/// r42:arcus-polish — which of each fine triangle's edges are shared with another fine
+/// triangle (by place: a texture seam's copies count as one), so the patch may curve them.
+fn curved_edges(tris: &[[u16; 3]], fine: &[bool], weld: &[u16]) -> Vec<u8> {
+    let key = |a: u16, b: u16| {
+        let (a, b) = (weld[a as usize], weld[b as usize]);
+        (a.min(b), a.max(b))
+    };
+    let mut count: std::collections::HashMap<(u16, u16), u8> = Default::default();
+    for (t, &f) in tris.iter().zip(fine) {
+        if f {
+            for k in 0..3 {
+                *count.entry(key(t[k], t[(k + 1) % 3])).or_insert(0) += 1;
+            }
+        }
+    }
+    tris.iter()
+        .zip(fine)
+        .map(|(t, &f)| {
+            if !f {
+                return 0;
+            }
+            (0..3).fold(0u8, |m, k| {
+                if count.get(&key(t[k], t[(k + 1) % 3])).copied().unwrap_or(0) >= 2 {
+                    m | (1 << k)
+                } else {
+                    m
+                }
+            })
+        })
+        .collect()
+}
+
+/// r42:arcus-polish — the back of a hand's forms at rest, for the tone per point of High's
+/// patches: the extensor tendons from the wrist's middle to each knuckle a little lighter,
+/// the valleys between the metacarpals a little darker, each base knuckle's top lighter with
+/// a soft shade round it — light and shade only (the mesh, a centimetre a vertex there, holds
+/// no such relief; the light comes from the upper front, so ridges read lighter).
+struct Relief {
+    wr: V3,
+    heads: [V3; 4],
+    back: V3,
+}
+
+impl Relief {
+    fn of(fig: &Figure, s: usize) -> Relief {
+        let o = hu::side(s);
+        let kn = |f: usize| fig.bones[o + hu::finger(f, 0)].head;
+        let wr = fig.bones[o + hu::HAND].head;
+        let mut back = (kn(1) - kn(4)).cross((kn(2) + kn(3)) * 0.5 - wr).norm();
+        if (back.x < 0.0) == (s == 0) {
+            back = back * -1.0;
+        }
+        Relief {
+            wr,
+            heads: [kn(1), kn(2), kn(3), kn(4)],
+            back,
+        }
+    }
+
+    /// The luminance factor at `p` (rest, cm).
+    fn at(&self, p: V3) -> f32 {
+        let mut near = f32::MAX;
+        let mut knuckle = 0.0f32;
+        let mut on_back = 0.0f32;
+        let mut along = 0.0f32;
+        for &h in &self.heads {
+            let a = self.wr.lerp(h, 0.2);
+            let ab = h - a;
+            let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+            let q = p - (a + ab * t);
+            let up = q.dot(self.back);
+            let lat = (q - self.back * up).len();
+            if lat < near {
+                near = lat;
+                on_back = (up / 0.6).clamp(0.0, 1.0);
+                along = t;
+            }
+            let dk = (p - h).len();
+            knuckle = knuckle
+                .max((-((dk - 0.2) / 0.45).powi(2)).exp() * (q.dot(self.back) > 0.0) as u8 as f32);
+        }
+        if on_back <= 0.0 {
+            return 1.0;
+        }
+        let ridge = (-(near / 0.22) * (near / 0.22)).exp();
+        let valley = 1.0 - (-(near / 0.5) * (near / 0.5)).exp();
+        let span = smooth01((along - 0.05) / 0.25) * (1.0 - smooth01((along - 0.9) / 0.15));
+        1.0 + on_back * (span * (RELIEF.0 * ridge - RELIEF.1 * valley) + RELIEF.2 * knuckle)
+    }
+}
+
+/// The tendons' lift, the valleys' shade, the knuckles' lift (luminance shares).
+const RELIEF: (f32, f32, f32) = (0.1, 0.13, 0.08);
 
 /// r42:arcus-hand — High's hand patches: a thinned triangle's edge (cm) and the px a
 /// patch's small triangle may take on screen; at most this many cuts a side.
@@ -1203,6 +2015,11 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
     });
     let textured = st == Stuff::Skin && uv.iter().all(|u| u[0] >= 0.0);
     let det = t.map(|i| am.vdet[i]);
+    // r42:arcus-polish — the back of the hand's forms (the owner: "a puffy, featureless
+    // dome… no tendon, metacarpal or knuckle definition"), per point from where it lies at
+    // rest.
+    let rest = t.map(|i| fc.fig.pos[am.verts[i] as usize]);
+    let relief = (st == Stuff::Skin).then(|| Relief::of(fc.fig, fc.side));
     let ao = t.map(|i| sc.ao[i]);
     let mut pts = [Pos2::ZERO; 15];
     let mut cols = [Color32::TRANSPARENT; 15];
@@ -1211,17 +2028,52 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
         for j in 0..=(n - i) {
             let (w1, w2) = (j as f32 / n as f32, i as f32 / n as f32);
             let w0 = 1.0 - w1 - w2;
-            let q = p[0] * (w0 * w0 * w0)
-                + p[1] * (w1 * w1 * w1)
-                + p[2] * (w2 * w2 * w2)
-                + (b210 * (w0 * w0 * w1)
-                    + b120 * (w0 * w1 * w1)
-                    + b201 * (w0 * w0 * w2)
-                    + b021 * (w1 * w1 * w2)
-                    + b102 * (w0 * w2 * w2)
-                    + b012 * (w1 * w2 * w2))
-                    * 3.0
-                + b111 * (6.0 * w0 * w1 * w2);
+            // r42:arcus-polish — a point on an edge is worked out the same way from either
+            // triangle (from the edge's lower-numbered end; straight against a flat
+            // neighbour): two ways of summing it differed in the last bit and left pixel
+            // cracks between the patches.
+            let on_edge = if i == 0 {
+                Some((0usize, 1usize, w1))
+            } else if i + j == n {
+                Some((1, 2, w2))
+            } else if j == 0 {
+                Some((2, 0, w0))
+            } else {
+                None
+            };
+            let q = if let Some((ka, kb, sa)) = on_edge {
+                let curved = am.curved[k] & (1 << ka) != 0;
+                let (ka, kb, s_) = if am.weld[t[ka]] > am.weld[t[kb]]
+                    || (am.weld[t[ka]] == am.weld[t[kb]] && t[ka] > t[kb])
+                {
+                    (kb, ka, 1.0 - sa)
+                } else {
+                    (ka, kb, sa)
+                };
+                let (pa, pb) = (p[ka], p[kb]);
+                if curved {
+                    let (ca, cb) = (e(ka, kb), e(kb, ka));
+                    let u = 1.0 - s_;
+                    pa * (u * u * u)
+                        + ca * (3.0 * u * u * s_)
+                        + cb * (3.0 * u * s_ * s_)
+                        + pb * (s_ * s_ * s_)
+                } else {
+                    pa * (1.0 - s_) + pb * s_
+                }
+            } else {
+                p[0] * (w0 * w0 * w0)
+                    + p[1] * (w1 * w1 * w1)
+                    + p[2] * (w2 * w2 * w2)
+                    + (b210 * (w0 * w0 * w1)
+                        + b120 * (w0 * w1 * w1)
+                        + b201 * (w0 * w0 * w2)
+                        + b021 * (w1 * w1 * w2)
+                        + b102 * (w0 * w2 * w2)
+                        + b012 * (w1 * w2 * w2))
+                        * 3.0
+                    + b111 * (6.0 * w0 * w1 * w2)
+            };
             let nq = (nn[0] * w0 + nn[1] * w1 + nn[2] * w2).norm();
             let mut d = [
                 det[0][0] * w0 + det[1][0] * w1 + det[2][0] * w2,
@@ -1231,6 +2083,9 @@ fn fine_tri(b: &mut Brush, fc: &FineCtx, sc: &Scratch, am: &ArmMesh, k: usize, n
                 let u = uv[0][0] * w0 + uv[1][0] * w1 + uv[2][0] * w2;
                 let vt = uv[0][1] * w0 + uv[1][1] * w1 + uv[2][1] * w2;
                 d[0] *= crate::scene::figure::cards::skin_detail(u, vt);
+            }
+            if let Some(r) = &relief {
+                d[0] *= r.at(rest[0] * w0 + rest[1] * w1 + rest[2] * w2);
             }
             let a = ao[0] * w0 + ao[1] * w1 + ao[2] * w2;
             let at = row(i) + j;
@@ -1349,6 +2204,436 @@ fn occlusion(
     }
 }
 
+/// r42:arcus-polish — the sleeve gathered in the elbow's crook (the owner, 2026-11-25:
+/// folds at the inner elbow; "the arm must read as an arm, with a visible elbow"): round
+/// the bent elbow, on the side the arm folds toward, the normals swung to and fro along the
+/// arm (soft folds about [`FOLD_CM`] apart) and their creases shaded, as deep as the elbow
+/// is bent. The hand's skin is never touched.
+fn elbow_folds(fig: &Figure, posed: &Posed, s: usize, am: &ArmMesh, sc: &mut Scratch) {
+    let o = hu::side(s);
+    let at = |b: usize| posed.at(o + b, fig.bones[o + b].head);
+    let (sh, el, wr) = (at(hu::UPPER1), at(hu::FORE1), at(hu::HAND));
+    let (u, f) = ((sh - el).norm(), (wr - el).norm());
+    // 0 straight … 1 bent square or more.
+    let bend = ((u.dot(f) + 1.0) * 1.2).clamp(0.0, 1.0);
+    if bend < 0.05 {
+        return;
+    }
+    let crook = (u + f).norm();
+    for (j, &g) in am.verts.iter().enumerate() {
+        let hand: f32 = fig.bw[g as usize]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + hu::HAND && (*b as usize) <= o + hu::finger(4, 2))
+            .map(|x| x.1)
+            .sum();
+        if hand > 0.3 {
+            continue;
+        }
+        let d = sc.pts[j] - el;
+        let (a, b) = (d.dot(u), d.dot(f));
+        // Along the arm from the elbow: + up the upper arm, − down the forearm.
+        let t = if a >= b { a } else { -b };
+        let near = 1.0 - smooth01((t.abs() - 2.0) / 5.0);
+        let n = sc.nrm[j];
+        let inside = n.dot(crook).max(0.0).powf(0.7);
+        let w = bend * near * inside * (1.0 - hand / 0.3);
+        if w < 0.02 {
+            continue;
+        }
+        let ph = t / FOLD_CM * std::f32::consts::TAU + 0.6 * (t * 0.9).sin();
+        let ax = if t >= 0.0 { u } else { -f };
+        sc.nrm[j] = (n + ax * (0.75 * w * ph.sin())).norm();
+        sc.ao[j] *= 1.0 - 0.45 * w * (-ph.cos()).max(0.0).powi(2);
+    }
+}
+
+/// r42:arcus-polish3 — the sleeve as cloth, not a tube (the owner, 2026-11-25: "toma nota
+/// de los detalles de la ropa"; the concert photographs): driven by the pose,
+///
+/// - **the shoulder's pull lines**: as the upper arm rises from hanging, the sleeve's cloth is
+///   drawn from the shoulder's top toward the armpit — a few long diagonal folds on the upper
+///   arm's first third, as deep as the arm is raised;
+/// - **the cuff's slack**: the sleeve's cloth gathered over the last few centimetres before
+///   the wrist (a sleeve is longer than the forearm it hangs on), soft ripples around it.
+///
+/// Normals swung and their creases shaded, as [`elbow_folds`]; the hand's skin untouched.
+fn sleeve_drape(fig: &Figure, posed: &Posed, s: usize, am: &ArmMesh, sc: &mut Scratch) {
+    let o = hu::side(s);
+    let at = |b: usize| posed.at(o + b, fig.bones[o + b].head);
+    let (sh, el, wr) = (at(hu::UPPER1), at(hu::FORE1), at(hu::HAND));
+    let up = (el - sh).norm();
+    let down = v3(0.0, -1.0, 0.0);
+    // 0 hanging … 1 raised level or higher.
+    let raised = ((1.0 - up.dot(down)) * 1.1).clamp(0.0, 1.0);
+    let (ul, fl) = ((el - sh).len().max(1.0), (wr - el).len().max(1.0));
+    let fa = (wr - el) * (1.0 / fl);
+    for (j, &g) in am.verts.iter().enumerate() {
+        let hand: f32 = fig.bw[g as usize]
+            .iter()
+            .filter(|(b, _)| (*b as usize) >= o + hu::HAND && (*b as usize) <= o + hu::finger(4, 2))
+            .map(|x| x.1)
+            .sum();
+        if hand > 0.3 {
+            continue;
+        }
+        let keep = 1.0 - hand / 0.3;
+        let p = sc.pts[j];
+        let n = sc.nrm[j];
+        // The shoulder's pull lines: along the upper arm's first 40 %, folds running from
+        // the shoulder's top round toward the armpit (a diagonal across the arm).
+        let t = (p - sh).dot(up) / ul;
+        if raised > 0.1 && t > -0.05 && t < 0.45 {
+            let side = up.cross(down).norm();
+            let round = (p - sh - up * (t * ul)).norm();
+            let a = round.dot(side).atan2(round.dot(down));
+            let ph = a * 3.0 + t * ul / PULL_CM * std::f32::consts::TAU;
+            let w = raised * smooth01(t / 0.08) * (1.0 - smooth01((t - 0.25) / 0.2)) * keep;
+            let ax = side * ph.cos() + up * ph.sin();
+            sc.nrm[j] = (n + ax * (0.4 * w * ph.sin())).norm();
+            sc.ao[j] *= 1.0 - 0.3 * w * (-ph.cos()).max(0.0).powi(2);
+        }
+        // The cuff's slack: soft ripples over the last centimetres before the wrist.
+        let tw = (wr - p).dot(fa);
+        if (-0.5..SLACK_CM).contains(&tw) {
+            let w = (1.0 - smooth01(tw / SLACK_CM)) * smooth01((tw + 0.5) / 1.0) * keep;
+            let round = (p - wr + fa * tw).norm();
+            let ph = tw / 1.6 * std::f32::consts::TAU + 1.3 * round.dot(down);
+            sc.nrm[j] = (sc.nrm[j] + fa * (0.45 * w * ph.sin())).norm();
+            sc.ao[j] *= 1.0 - 0.25 * w * (-ph.cos()).max(0.0).powi(2);
+        }
+    }
+}
+
+/// r42:arcus-polish3 — how far apart the shoulder's pull lines lie along the arm, and how far
+/// up from the wrist the cuff's slack gathers (cm).
+const PULL_CM: f32 = 5.0;
+const SLACK_CM: f32 = 7.0;
+
+/// r42:arcus-polish — the shadow an arm lays on the trunk it crosses in front of (the
+/// owner, 2026-11-25: "wherever an arm crosses the torso, a contact shadow"): the trunk as
+/// three capsules (the hips, the spine, the chest, posed as baked, a little inside the
+/// figure's own surface). The arm is taken as its three pieces (the upper arm, the forearm,
+/// the hand, each a capsule of the sleeve's or the hand's girth); at a few points along each
+/// the trunk is looked for behind it along the eye's ray ([`SHADOW_REACH`] cm), and the
+/// piece is cast along the key's way onto it as a soft band — darker the closer the arm
+/// lies, wider and softer the farther (the key is a softbox: its penumbra grows with the
+/// distance), clear at its sides and wherever the trunk is not behind (never over the room).
+/// (r42:arcus-polish2: drawn from the pieces, not from every one of the arm's triangles —
+/// the frame budget: the triangles' shadow cost the violinists about a millisecond.)
+#[allow(clippy::too_many_arguments)]
+fn trunk_shadow(
+    b: &mut Brush,
+    v: &View,
+    lit: &Lit,
+    fig: &Figure,
+    base: &Posed,
+    aim: &ArmAim,
+    sh: &Shading,
+    who: Who,
+    s: usize,
+    tone: u8,
+    mid: V3,
+) {
+    if fig.bones.is_empty() {
+        return;
+    }
+    // (r42:arcus-polish6: `CANTUS_TUNE`'s `arm_shadow_reach`, `arm_shadow_depth` while
+    // studied — the forearm's shadow on her chest over the neckline.)
+    let (reach, depth) = {
+        use crate::scene::figure::tune::tune;
+        (
+            tune("arm_shadow_reach", SHADOW_REACH),
+            tune("arm_shadow_depth", SHADOW_DEPTH),
+        )
+    };
+    let at = |k: usize| base.at(k, fig.bones[k].head);
+    // The trunk's half width at the chest, from the shoulders' joints.
+    let r = (at(hu::side(0) + hu::UPPER1) - at(hu::side(1) + hu::UPPER1)).len() * 0.29;
+    let caps = [
+        (at(hu::HIPS), at(hu::SPINE), r * 1.05),
+        (at(hu::SPINE), at(hu::CHEST), r * 0.95),
+        (at(hu::CHEST), at(hu::NECK), r),
+    ];
+    let inside = |p: V3| {
+        caps.iter().any(|&(a, c, rr)| {
+            let ab = c - a;
+            let t = ((p - a).dot(ab) / ab.dot(ab).max(1e-6)).clamp(0.0, 1.0);
+            (p - (a + ab * t)).len() < rr
+        })
+    };
+    let eye = v.cam.eye();
+    // How far behind `p` (along the eye's ray) the trunk is, if within reach.
+    let gap = |p: V3| {
+        let ray = (p - eye).norm();
+        (1..=SHADOW_STEPS)
+            .map(|k| reach * k as f32 / SHADOW_STEPS as f32)
+            .find(|&d| inside(p + ray * d))
+    };
+    let deep = lut_colour(
+        sh,
+        s,
+        Stuff::Velvet,
+        tone,
+        [1.0, 0.0],
+        mid,
+        v3(0.0, -1.0, 0.0),
+        0.0,
+    );
+    let shoulder = at(hu::side(s) + hu::UPPER1);
+    let knuckles = aim
+        .hand
+        .map_or(aim.wrist + (aim.wrist - aim.elbow) * 0.35, |h| {
+            h.fingers[1][0]
+        });
+    // The pieces' girths (cm, as radii): a slim woman's velvet sleeve, a man's jacket.
+    let girth = if who == Who::Man {
+        [5.6, 4.6, 3.0]
+    } else {
+        [4.2, 3.4, 2.6]
+    };
+    // Each piece's strength along it: halved where two meet (their bands overlap at the
+    // elbow and the wrist), the hand's fading out toward the knuckles.
+    const MEET: [f32; 5] = [0.5, 1.0, 1.0, 1.0, 0.5];
+    const HAND: [f32; 5] = [0.5, 1.0, 0.85, 0.45, 0.0];
+    let pieces = [
+        (shoulder, aim.elbow, girth[0], MEET),
+        (aim.elbow, aim.wrist, girth[1], MEET),
+        (aim.wrist, knuckles, girth[2], HAND),
+    ];
+    const N: usize = 5;
+    for (p0, p1, rad, taper) in pieces {
+        let ax = p1 - p0;
+        if ax.len() < 0.5 {
+            continue;
+        }
+        let mut rows = [[(Pos2::ZERO, Color32::TRANSPARENT); 3]; N];
+        let mut any = false;
+        for (j, row) in rows.iter_mut().enumerate() {
+            let c = p0 + ax * (j as f32 / (N - 1) as f32);
+            let l = (lit.key - c).norm();
+            // Across the piece as the eye sees it.
+            let side = ax.cross(c - eye).norm();
+            let g = gap(c);
+            let Some(g) = g else {
+                let q = v.p(c - l * reach * 0.5);
+                let w = side * (rad * 1.2);
+                *row = [
+                    (v.p(c - w - l * reach * 0.5), Color32::TRANSPARENT),
+                    (q, Color32::TRANSPARENT),
+                    (v.p(c + w - l * reach * 0.5), Color32::TRANSPARENT),
+                ];
+                continue;
+            };
+            any = true;
+            let k = (1.0 - g / reach).clamp(0.0, 1.0) * depth * taper[j];
+            // The penumbra widens with the gap.
+            let w = side * (rad * (0.9 + 0.06 * g));
+            // A side whose ray finds no trunk is drawn in (the band ends at the trunk's edge,
+            // not over the room).
+            let cast = |o: V3| {
+                let o = if gap(c + o).is_some() { o } else { o * 0.35 };
+                v.p(c + o - l * g)
+            };
+            let (pl, pc, pr) = (cast(-w), v.p(c - l * g), cast(w));
+            // The middle's strength, clear at both sides (a soft band).
+            *row = [
+                (pl, Color32::TRANSPARENT),
+                (pc, deep.gamma_multiply(k)),
+                (pr, Color32::TRANSPARENT),
+            ];
+        }
+        if !any {
+            continue;
+        }
+        for j in 1..N {
+            let (a, c) = (rows[j - 1], rows[j]);
+            for (x, y) in [(0usize, 1usize), (1, 2)] {
+                b.shaded_tri([a[x].0, a[y].0, c[y].0], [a[x].1, a[y].1, c[y].1]);
+                b.shaded_tri([a[x].0, c[y].0, c[x].0], [a[x].1, c[y].1, c[x].1]);
+            }
+        }
+    }
+}
+
+/// How far behind an arm (cm) the trunk may be for its shadow to fall on it, in how many
+/// steps that is looked along, and the shadow's opacity where the arm touches.
+const SHADOW_REACH: f32 = 9.0;
+const SHADOW_STEPS: usize = 3;
+const SHADOW_DEPTH: f32 = 0.42;
+
+/// r42:arcus-polish — how far in from a sleeve's edge (cm) its inside is drawn, and how
+/// deep its shade is (of the cloth's own colour facing away).
+const SLEEVE_INSIDE: f32 = 2.5;
+const INSIDE_SHADE: f32 = 0.72;
+
+/// r42:arcus-polish — how strongly the back of the hand's veins show.
+const VEIN: f32 = 0.8;
+
+/// How far apart the elbow's folds lie (cm).
+const FOLD_CM: f32 = 2.4;
+
+fn smooth01(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
+/// r42:arcus-polish4 — a cloth contour edge shorter than this on screen (px) has no outline
+/// strip.
+const SMALL_EDGE_PX: f32 = 1.6;
+
+/// r42:arcus-polish4 — the raised bow arm's shoulder cap as a raised arm's is (the
+/// `arcus_figure_shape` gate: her bow-arm deltoid 11.3 cm across, sleeved, where her left
+/// one is 9.5 and ref-04's bare raised arm measures 8–9 cm against her bow hand's breadth):
+/// skinning turns the cap's skin round the joint as one rigid piece, so the more the arm is
+/// lifted from hanging the more the cap bulges out round the turn — a pad. A corrective, as
+/// pose-space shapes are (Lewis, Cordner and Fong 2000): over the upper arm's first part
+/// the skin is drawn in toward the arm's axis by a share that grows as the arm is lifted past
+/// 40° from hanging; nothing at the shoulder's band (where the live arm meets the bake) nor
+/// past the upper arm's middle.
+struct Deltoid {
+    sh: V3,
+    way: V3,
+    len: f32,
+    k: f32,
+    bones: [usize; 3],
+}
+
+/// The most the cap is drawn in (a share of its distance to the axis), and the lifts (°
+/// from hanging) over which it comes in.
+const DELTOID: [f32; 3] = [0.3, 25.0, 65.0];
+
+/// r42:arcus-polish4 — a bent elbow as a bent elbow is: dual-quaternion skinning keeps the
+/// volume round a joint by swelling it as it bends (Kavan et al. 2007, the bulging), and the
+/// sleeves made finer for their creases showed it — her bent elbows 9.5–9.8 cm across the
+/// crook, sleeved, against 8.2–9.0 before (`arcus_figure_shape`). Round the elbow the skin is
+/// drawn in toward the joint by a share that grows with the bend past 30°.
+struct Elbow {
+    at: V3,
+    k: f32,
+    bones: [usize; 3],
+}
+
+/// The most a bent elbow is drawn in, and the bends (°) over which it comes in.
+const ELBOW: [f32; 3] = [0.16, 30.0, 100.0];
+
+/// [`ELBOW`], or `CANTUS_ELBOW="most,from,to"` while finding it (read once; unset in the app).
+fn elbow_numbers() -> [f32; 3] {
+    static E: OnceLock<[f32; 3]> = OnceLock::new();
+    *E.get_or_init(|| {
+        std::env::var("CANTUS_ELBOW")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 3).then(|| [v[0], v[1], v[2]])
+            })
+            .unwrap_or(ELBOW)
+    })
+}
+
+impl Elbow {
+    fn of(fig: &Figure, posed: &Posed, s: usize) -> Option<Elbow> {
+        let o = hu::side(s);
+        let (u1, f1, h) = (o + hu::UPPER1, o + hu::FORE1, o + hu::HAND);
+        let (b1, bf, bh) = (fig.bones.get(u1)?, fig.bones.get(f1)?, fig.bones.get(h)?);
+        let sh = posed.xf[u1].apply(b1.head);
+        let el = posed.xf[f1].apply(bf.head);
+        let wr = posed.xf[h].apply(bh.head);
+        let (a, b) = ((el - sh).norm(), (wr - el).norm());
+        let bend = a.dot(b).clamp(-1.0, 1.0).acos().to_degrees();
+        let [most, from, to] = elbow_numbers();
+        let k = most * smooth01((bend - from) / (to - from).max(1.0));
+        (k > 1e-4).then_some(Elbow {
+            at: el,
+            k,
+            bones: [o + hu::UPPER2, f1, o + hu::FORE2],
+        })
+    }
+
+    fn corrected(&self, fig: &Figure, i: usize, p: V3) -> V3 {
+        let share: f32 = fig.bw[i]
+            .iter()
+            .filter(|(b, _)| self.bones.contains(&(*b as usize)))
+            .map(|(_, w)| *w)
+            .sum();
+        let q = p - self.at;
+        let d = q.len();
+        // Within about 7 cm of the joint, most at it.
+        let near = 1.0 - smooth01((d - 3.0) / 4.0);
+        let k = self.k * near * share.min(1.0);
+        if k <= 0.0 {
+            return p;
+        }
+        p - q * k
+    }
+}
+
+/// [`DELTOID`], or `CANTUS_DELTOID="most,from,to"` while finding it (a tuning aid, read once,
+/// as `CANTUS_SHRUG`; unset in the app).
+fn deltoid_numbers() -> [f32; 3] {
+    static D: OnceLock<[f32; 3]> = OnceLock::new();
+    *D.get_or_init(|| {
+        std::env::var("CANTUS_DELTOID")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 3).then(|| [v[0], v[1], v[2]])
+            })
+            .unwrap_or(DELTOID)
+    })
+}
+
+impl Deltoid {
+    fn of(fig: &Figure, posed: &Posed, s: usize) -> Option<Deltoid> {
+        // (The bow arm only: the left arm is lifted forward under the violin, and its cap
+        // measures as an arm's — 9.4–9.5 cm.)
+        if s != 1 {
+            return None;
+        }
+        let o = hu::side(s);
+        let (u1, f1) = (o + hu::UPPER1, o + hu::FORE1);
+        let (b1, bf) = (fig.bones.get(u1)?, fig.bones.get(f1)?);
+        let sh = posed.xf[u1].apply(b1.head);
+        let el = posed.xf[f1].apply(bf.head);
+        let len = (el - sh).len();
+        if len < 1.0 {
+            return None;
+        }
+        let way = (el - sh) * (1.0 / len);
+        // The lift from hanging (0° straight down).
+        let lift = (-way.y).clamp(-1.0, 1.0).acos().to_degrees();
+        let [most, from, to] = deltoid_numbers();
+        let k = most * smooth01((lift - from) / (to - from).max(1.0));
+        (k > 1e-4).then_some(Deltoid {
+            sh,
+            way,
+            len,
+            k,
+            bones: [o + hu::CLAV, u1, o + hu::UPPER2],
+        })
+    }
+
+    fn corrected(&self, fig: &Figure, i: usize, p: V3) -> V3 {
+        let share: f32 = fig.bw[i]
+            .iter()
+            .filter(|(b, _)| self.bones.contains(&(*b as usize)))
+            .map(|(_, w)| *w)
+            .sum();
+        if share <= 0.0 {
+            return p;
+        }
+        let q = p - self.sh;
+        let t = q.dot(self.way) / self.len;
+        // (The cap only: by the upper arm's middle the arm is its own — 7.4 cm there with a
+        // reach to 0.62, against 8.2 without.)
+        let along = smooth01((t + 0.02) / 0.2) * (1.0 - smooth01((t - 0.24) / 0.18));
+        let k = self.k * along * share.min(1.0);
+        if k <= 0.0 {
+            return p;
+        }
+        p - (q - self.way * q.dot(self.way)) * k
+    }
+}
+
 /// Skin arm `s`, its normals, its occlusion; clear the kept colours. Returns the arm's
 /// middle (where its light is taken).
 #[allow(clippy::too_many_arguments)]
@@ -1368,8 +2653,49 @@ fn arm_setup(
     sc.pts.clear();
     sc.nrm.clear();
     sc.sp.clear();
-    for &i in &am.verts {
-        let p = posed.vertex(fig, i as usize);
+    // r42:arcus-polish2 — the arm's own bones as dual quaternions (none for a bone the pose
+    // stretches: a finger's phalanx), so a vertex the shoulder's or the elbow's bones share
+    // turns round the joint instead of being averaged through it: linear blending drew the
+    // raised bow arm's shoulder in toward the joint on top and out underneath — broad, a
+    // pad (the owner's review). Kavan, Collins, Žára and O'Sullivan 2007.
+    sc.dq.clear();
+    sc.dq.extend(posed.xf.iter().map(dual));
+    let o = hu::side(s);
+    let hand = o + hu::HAND..=o + hu::finger(4, 2);
+    let deltoid = Deltoid::of(fig, &posed, s); // r42:arcus-polish4
+    let elbow = Elbow::of(fig, &posed, s); // r42:arcus-polish4
+    for (j, &i) in am.verts.iter().enumerate() {
+        // r42:arcus-polish2 — a sleeve's cuff follows the forearm: the share of the hand's
+        // bones in the hem's weights turned it with the wrist into spikes and a jagged end
+        // (his left sleeve, the owner's review of sheet v11).
+        let mut p = if am.sleeve[j]
+            && fig.bw[i as usize]
+                .iter()
+                .any(|(b, _)| hand.contains(&(*b as usize)))
+        {
+            let q = fig.pos[i as usize];
+            fig.bw[i as usize]
+                .iter()
+                .fold(V3::default(), |acc, &(b, w)| {
+                    let b = if hand.contains(&(b as usize)) {
+                        o + hu::FORE2
+                    } else {
+                        b as usize
+                    };
+                    acc + posed.xf[b.min(hu::BONES - 1)].apply(q) * w
+                })
+        } else {
+            dq_vertex(fig, &sc.dq, i as usize).unwrap_or_else(|| posed.vertex(fig, i as usize))
+        };
+        if let Some(d) = &deltoid {
+            p = d.corrected(fig, i as usize, p);
+        }
+        if let Some(e) = &elbow {
+            p = e.corrected(fig, i as usize, p);
+        }
+        if am.live[j] < 1.0 {
+            p = base.vertex(fig, i as usize).lerp(p, am.live[j]);
+        }
         sc.pts.push(p);
         sc.sp.push(v.p(p));
     }
@@ -1395,11 +2721,120 @@ fn arm_setup(
     } else {
         occlusion(fig, &posed, s, am, held, sc);
     }
+    cuff_shadow(fig, am, sc);
+    elbow_folds(fig, &posed, s, am, sc);
+    sleeve_drape(fig, &posed, s, am, sc); // r42:arcus-polish3
+    despike(am, sc, v.cam.pos); // r42:arcus-polish5
     sc.vcol.clear();
     sc.vcol.resize(n, (None, Color32::TRANSPARENT));
     sc.mid = sc.pts.iter().fold(V3::default(), |a, &p| a + p) * (1.0 / n.max(1) as f32);
     sc.mid
 }
+
+/// r42:arcus-polish5 — a sleeve's small forms against the light along its edge (the specks
+/// gate's strays, most of them: each of his cuff buttons ringed by single light pixels, the
+/// lip at a crease's end on his bow shoulder): the back lights' line and the rim follow how
+/// far a corner turns from the eye, and a button's side or a crease's lip turns fully away
+/// over a centimetre while the sleeve round it faces the eye — one corner grazing among
+/// facing ones, a dot of edge light where no edge is. A sleeve corner that grazes the eye
+/// by more than its neighbourhood does (its broad normal, the normals averaged over
+/// [`DESPIKE_PASSES`] rings) takes the broad one instead, by how much more (over
+/// [`DESPIKE`]): the button keeps its outline and its top, the sleeve's real edge (where
+/// the broad normal grazes too) keeps its light, the creases their shading.
+fn despike(am: &ArmMesh, sc: &mut Scratch, eye: V3) {
+    use crate::scene::figure::tune::tune;
+    let (g0, g1) = (tune("despike_g0", DESPIKE.0), tune("despike_g1", DESPIKE.1));
+    let passes = tune("despike_passes", DESPIKE_PASSES as f32) as usize;
+    if g1 <= g0 || passes == 0 {
+        return;
+    }
+    let n = sc.nrm.len();
+    let mut broad = std::mem::take(&mut sc.broad);
+    let mut acc = std::mem::take(&mut sc.acc);
+    broad.clear();
+    broad.extend_from_slice(&sc.nrm);
+    for _ in 0..passes {
+        acc.clear();
+        acc.resize(n, V3::default());
+        for t in &am.tris {
+            let [a, b, c] = t.map(|i| am.weld[i as usize] as usize);
+            let sum = broad[a] + broad[b] + broad[c];
+            acc[a] = acc[a] + sum;
+            acc[b] = acc[b] + sum;
+            acc[c] = acc[c] + sum;
+        }
+        for (i, q) in broad.iter_mut().enumerate() {
+            let a = acc[am.weld[i] as usize];
+            if a.len() > 1e-6 {
+                *q = a.norm();
+            }
+        }
+    }
+    for (i, b) in broad.iter().enumerate().take(n) {
+        if !am.sleeve[i] {
+            continue;
+        }
+        let e = (eye - sc.pts[i]).norm();
+        let g = b.dot(e) - sc.nrm[i].dot(e);
+        let t = ((g - g0) / (g1 - g0)).clamp(0.0, 1.0);
+        let k = t * t * (3.0 - 2.0 * t);
+        if k > 0.0 {
+            sc.nrm[i] = (sc.nrm[i] + (*b - sc.nrm[i]) * k).norm();
+        }
+    }
+    sc.broad = broad;
+    sc.acc = acc;
+}
+
+/// r42:arcus-polish5 — how much more than its neighbourhood a sleeve corner may turn from
+/// the eye (in the cosine) before it takes the broad normal, and by how much it takes it
+/// whole; over how many rings the broad normal is averaged.
+const DESPIKE: (f32, f32) = (0.25, 0.55);
+const DESPIKE_PASSES: usize = 3;
+
+/// r42:arcus-polish2 — the sleeve's end lays a soft shadow on the wrist under it (the
+/// coordinator: "the sleeve's end meets the wrist softly … a contact shadow on the skin"):
+/// each skin corner near the sleeve's edge (posed: the cuff's ring of cloth corners at its
+/// edge) takes a little less of the light round it, the nearer the more.
+fn cuff_shadow(fig: &Figure, am: &ArmMesh, sc: &mut Scratch) {
+    sc.ring.clear();
+    let mut skin = std::mem::take(&mut sc.skin_v);
+    skin.clear();
+    skin.resize(am.verts.len(), false);
+    for (t, st) in am.tris.iter().zip(&am.stuff) {
+        for &i in t {
+            let i = i as usize;
+            if matches!(st, Stuff::Velvet | Stuff::Wool) {
+                if am.sleeve[i] && fig.edge.get(am.verts[i] as usize).is_some_and(|&e| e < 0.1) {
+                    sc.ring.push(sc.pts[i]);
+                }
+            } else if *st == Stuff::Skin {
+                skin[i] = true;
+            }
+        }
+    }
+    if !sc.ring.is_empty() {
+        let (depth, reach) = CUFF_SHADOW;
+        for (i, &k) in skin.iter().enumerate() {
+            if !k {
+                continue;
+            }
+            let p = sc.pts[i];
+            let d = sc
+                .ring
+                .iter()
+                .map(|&q| (q - p).len())
+                .fold(f32::MAX, f32::min);
+            if d < reach * 2.0 {
+                sc.ao[i] *= 1.0 - depth * (-(d / reach) * (d / reach)).exp();
+            }
+        }
+    }
+    sc.skin_v = skin;
+}
+
+/// How much light the sleeve's end takes from the skin under it, and over how far (cm).
+const CUFF_SHADOW: (f32, f32) = (0.32, 0.9);
 
 /// The left arm's aim from the hand's pose.
 pub fn left_aim(lp: &super::hand::LeftPose) -> ArmAim {

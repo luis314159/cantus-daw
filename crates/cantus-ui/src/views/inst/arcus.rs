@@ -25,6 +25,7 @@ mod presets;
 mod upper_presets; // r42:arcus-upper
 
 pub use draw::hand; // r42:arcus-upper
+pub use draw::probe; // r42:arcus-polish
 pub use draw::picture_for_tests;
 
 /// The factory presets: the cello's and the bass's, then the violin's and the viola's. // r42:arcus-upper

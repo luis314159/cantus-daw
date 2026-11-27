@@ -44,6 +44,7 @@ fn stick_rig(who: Who) -> (PlayRig, V3, V3) {
             Hand::Grip(grip(0.78), v(0.0, -1.0, 0.0) + right * 0.5),
         ],
         occluders: Vec::new(),
+        shrug: [0.0; 2],
     };
     (rig, a, b)
 }
@@ -105,7 +106,7 @@ fn a_standing_figure_holds_a_stick_from_the_contract_alone() {
         // Baked as a picture's mesh, as an instrument's figure is.
         let mut m = cantus_ui::scene::bowed_mesh::Mesh::default();
         let (pts, nrm) = hu::skin(fig, &posed);
-        hu::emit(&mut m, fig, &pts, &nrm, who, 1, 7);
+        hu::emit(&mut m, fig, &pts, &nrm, who, 1, 7, &[]);
         let tris: usize = m.tris.iter().map(|(_, t)| t.idx.len()).sum();
         assert!(tris > 10_000, "{who:?}: {tris} triangles baked");
     }

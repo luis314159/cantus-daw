@@ -129,7 +129,13 @@ const FINGER_R: [f32; 4] = [0.8, 0.82, 0.78, 0.68];
 /// The neck's depth under the fingerboard's top, cm (what the stamp and the hidden test
 /// take it as).
 pub fn neck_depth(d: &Dims) -> f32 {
-    0.06 * d.body + 0.6
+    // (r42:arcus-polish2: the neck as drawn now — `bowed_head::NECK_DEEP`'s middle.)
+    if d.held {
+        let (a, b) = crate::scene::bowed_head::NECK_DEEP;
+        0.5 * (a + b) * d.body / 35.6
+    } else {
+        0.06 * d.body + 0.6
+    }
 }
 
 /// Where the left hand plays for `l`: the fingerboard's top under its first finger (`a`),

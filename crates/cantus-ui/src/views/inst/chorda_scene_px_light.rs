@@ -205,6 +205,11 @@ pub struct Rig {
     /// r42:arcus-upper — the room behind softer (a realistic figure's picture reads as a
     /// photograph: a portrait lens's shallow focus); 0 for every other picture.
     pub soft_bg: f32,
+    /// r42:arcus-polish3 — a realistic figure on the concert stage: the concert light's
+    /// numbers (its skin, hair and cloth, its tone curve, its hall's blur), and its fill from
+    /// the audience's side (the way toward it, its light); `None` for every other picture.
+    pub concert: Option<crate::scene::figure::concert::Concert>,
+    pub dfill: Option<(V3, Lin)>,
 }
 
 pub fn inside(o: &[(f32, f32)], x: f32, z: f32) -> bool {
@@ -230,6 +235,9 @@ impl Rig {
         let mut e = [0.0f32; 3];
         for pn in &self.panels {
             e = ladd(e, pn.irradiance(p, n));
+        }
+        if let Some((d, c)) = self.dfill {
+            e = ladd(e, lscale(c, n.dot(d).max(0.0)));
         }
         for l in &self.lamps {
             let d = l.p - p;

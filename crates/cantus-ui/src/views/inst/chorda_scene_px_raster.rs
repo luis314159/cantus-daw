@@ -453,6 +453,9 @@ enum Grain {
     Skin,
     /// r42:arcus-hair — an eye: its uv the place in its texture (`uv2`).
     Eye,
+    /// r42:arcus-polish — a figure's velvet: its uv its edge's distance and its fold (from
+    /// the fold's coordinates in `uv2`, `figure::cloth::fold`).
+    Cloth,
 }
 
 fn grain_of(geo: &Geo, t: &Tri) -> Grain {
@@ -461,6 +464,7 @@ fn grain_of(geo: &Geo, t: &Tri) -> Grain {
         Tex::Card(k) => Grain::Card(k),
         Tex::Skin => Grain::Skin,
         Tex::Eye => Grain::Eye,
+        Tex::Velvet => Grain::Cloth,
         _ => Grain::Uv,
     }
 }
@@ -510,6 +514,10 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
         let u2 = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
         let v2 = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
         uv[0] *= crate::scene::figure::cards::skin_detail(u2, v2);
+    } else if grain == Grain::Cloth {
+        let code = v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2;
+        let at = v[0].uv2[1] * b0 + v[1].uv2[1] * b1 + v[2].uv2[1] * b2;
+        uv[1] = crate::scene::figure::cloth::fold(code, at);
     }
     // dP/du from the triangle's uv.
     let (du1, dv1) = (v[1].uv[0] - v[0].uv[0], v[1].uv[1] - v[0].uv[1]);
@@ -559,7 +567,14 @@ fn place(cam: &Camera, t: &Tri, sx: f32, sy: f32, grain: Grain) -> (V3, V3, [f32
                 _ => tg,
             };
             let along = if along.len() > 1e-9 { along } else { a1 };
-            return (pw, n, [detail, 1.0], along.norm());
+            // (r42:arcus-polish2: and its degrees in from the hairline, for the roots'
+            // shade — `uv2`'s, as the feather reads it; far inside where it has none.)
+            let line = if v[0].uv2[1] > 0.5 {
+                v[0].uv2[0] * b0 + v[1].uv2[0] * b1 + v[2].uv2[0] * b2
+            } else {
+                90.0
+            };
+            return (pw, n, [detail, line], along.norm());
         }
     }
     (pw, n, uv, tg.norm())
@@ -1051,6 +1066,10 @@ fn lines(
 /// stand's mast is 3–6 pixels wide in the kit's picture).
 const THIN_PX: f32 = 8.0;
 
+/// r42:arcus-polish2 — how wide on screen (pixels) an instrument's string is drawn evenly
+/// across (its round averaged over the pixel), not as a lit tube.
+const WIRE_PX: f32 = 2.5;
+
 /// The rods `cam` sees thinner than [`THIN_PX`] (and long beside their width).
 fn thin_rods(geo: &Geo, cam: &Camera) -> Vec<Rod> {
     geo.rods
@@ -1213,7 +1232,14 @@ fn tubes(
                         let u = u.clamp(-0.995, 0.995);
                         (across * u + side * (1.0 - u * u).sqrt()).norm()
                     };
-                    let u = (sd / hw).clamp(-1.0, 1.0);
+                    // r42:arcus-polish2 — a string a pixel or two wide: the pixel sees most
+                    // of its round, so it is shaded nearer the round's middle (the edges'
+                    // share below) and only its coverage falls off across — shaded from the
+                    // pixel's place across, a slanted string turned bright where it crossed
+                    // a pixel's middle and dark between: a dashed line.
+                    let wire = wpx < WIRE_PX && geo.wires.contains(&s.rod.m);
+                    let fill = if wire { wpx / WIRE_PX } else { 1.0 };
+                    let u = ((sd / hw) * fill).clamp(-1.0, 1.0);
                     let du = 1.0 / hw;
                     let n = n_at(u);
                     let n2 = if u + du <= 1.0 {
@@ -1242,6 +1268,8 @@ fn tubes(
                     // where it turns away), its mirror bright down the middle.
                     let c = if m.kind == Kind::Metal {
                         let e = 1.0 - 0.6 * super::mat::smooth(0.55, 1.0, u.abs());
+                        // (A whole sub-pixel string's dark edges, averaged: 0.135 of it.)
+                        let e = e * (1.0 - 0.135 * (1.0 - fill));
                         lscale(c, e)
                     } else {
                         c
@@ -1585,21 +1613,21 @@ pub fn bake(
                             1.0
                         };
                         let given = refl_at(x as f32, y as f32, tr.m, n, z);
-                        let mut c = shade(
-                            rig,
-                            m,
-                            eye,
-                            p,
-                            n,
-                            V3::default(),
-                            tg,
-                            uv,
-                            fp,
-                            ao,
-                            &vis,
-                            trace,
-                            given,
-                        );
+                        // r42:arcus-polish6 — a cloth's turn a pixel (its back lights' edge
+                        // line by its form's size, `px_shade::edge_size`).
+                        let turn = if matches!(m.tex, Tex::Velvet | Tex::Wool) {
+                            let c = (ss as f32) * 0.5;
+                            normal_turn(
+                                &scam,
+                                tr,
+                                x as f32 * ss as f32 + c,
+                                y as f32 * ss as f32 + c,
+                            ) * ss as f32
+                        } else {
+                            V3::default()
+                        };
+                        let mut c =
+                            shade(rig, m, eye, p, n, turn, tg, uv, fp, ao, &vis, trace, given);
                         if let (Some(mc), Tex::Floor) = (mirror, m.tex) {
                             let v = (eye - p).norm();
                             let f = 0.04 + 0.96 * (1.0 - v.y.abs()).powi(5);
@@ -1642,7 +1670,9 @@ pub fn bake(
                                 n,
                                 depth[k],
                             );
-                            let turn = if m.kind == Kind::Metal {
+                            let turn = if m.kind == Kind::Metal
+                                || matches!(m.tex, Tex::Velvet | Tex::Wool)
+                            {
                                 normal_turn(&scam, tr, sx as f32 + 0.5, sy as f32 + 0.5)
                             } else {
                                 V3::default()
@@ -1733,9 +1763,18 @@ pub fn bake(
                 let c = colr[y * w + x];
                 let (u, v) = (x as f32 / w as f32 - 0.5, y as f32 / h as f32 - 0.47);
                 let r = (u * u * 1.6 + v * v * 2.2).sqrt();
-                let vig = 1.0 - 0.38 * ((r - 0.38) / 0.55).clamp(0.0, 1.0).powf(1.6);
                 let dither = (noise(x as f32 * 0.73, y as f32 * 0.91, 7) - 0.5) / 255.0;
-                let t = tone(c.map(|v| v * vig * ex), sat);
+                // r42:arcus-polish3 — the concert's own curve and vignette.
+                let t = match &rig.concert {
+                    Some(cc) => {
+                        let vig = 1.0 - cc.vig * ((r - 0.30) / 0.6).clamp(0.0, 1.0).powf(1.4);
+                        cc.tone(c.map(|v| v * vig))
+                    }
+                    None => {
+                        let vig = 1.0 - 0.38 * ((r - 0.38) / 0.55).clamp(0.0, 1.0).powf(1.6);
+                        tone(c.map(|v| v * vig * ex), sat)
+                    }
+                };
                 let to8 = |t: f32| {
                     ((egui::ecolor::gamma_u8_from_linear_f32(t) as f32 / 255.0 + dither)
                         .clamp(0.0, 1.0)
@@ -1763,7 +1802,10 @@ fn post(rig: &Rig, cam: &Camera, col: &mut [Lin], pdepth: &[f32], w: usize, h: u
     let far_end = rig.focus_far;
     let mut far = col.to_vec();
     // r42:arcus-upper — behind a realistic figure: a wider blur, reached sooner.
-    let (radius, ramp) = if rig.soft_bg > 0.0 {
+    // (r42:arcus-polish3: the concert hall farther out of focus, `Concert::blur`.)
+    let (radius, ramp) = if let Some(cc) = &rig.concert {
+        (((cam.k / 300.0 * cc.blur) as usize).clamp(2, 24), 0.22)
+    } else if rig.soft_bg > 0.0 {
         (((cam.k / 300.0) as usize).clamp(2, 9), 0.22)
     } else {
         (((cam.k / 700.0) as usize).clamp(1, 4), 0.6)

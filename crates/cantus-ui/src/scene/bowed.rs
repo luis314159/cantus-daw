@@ -484,7 +484,12 @@ pub fn board_z(d: &Dims, y: f32) -> f32 {
 
 /// The fingerboard's cross radius (its top is an arc across, flatter than the bridge's).
 pub fn board_r(d: &Dims) -> f32 {
-    d.board_w.1 * 1.15
+    // (r42:arcus-polish2: a violin's 42 mm, a viola's in proportion — 49 had been drawn.)
+    if d.held {
+        4.2 * d.body / 35.6
+    } else {
+        d.board_w.1 * 1.15
+    }
 }
 
 /// The fingerboard's width at y.

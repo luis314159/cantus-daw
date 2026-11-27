@@ -32,6 +32,9 @@ pub const SHEEN: Srgb = [255, 250, 240];
 pub const TROUSERS: C3 = srgb(30, 30, 34);
 pub const SHOES: C3 = srgb(16, 14, 14);
 pub const HAIR: C3 = srgb(58, 38, 28);
+/// r42:arcus-polish4 — the realistic man's hair: a dark brown, near black in the shade, as
+/// the concert photographs' men's (ref-06, ref-10); the stylised musician keeps [`HAIR`].
+pub const HAIR_DARK: C3 = srgb(46, 35, 29);
 /// The face's few strokes: the closed eyes, the brows, the smile; the cheeks' warmth.
 pub const FEATURE: C3 = srgb(70, 44, 34);
 pub const BLUSH: C3 = srgb(226, 132, 118);
@@ -54,7 +57,9 @@ pub const WOOL: C3 = srgb(30, 31, 36);
 /// light catches dark cloth.
 pub const CLOTH_RIM: C3 = srgb(150, 152, 170);
 pub const SHIRT: C3 = srgb(232, 232, 228);
-pub const TIE: C3 = srgb(30, 36, 64);
+/// (r42:arcus-polish4: a richer navy that holds its form under the concert key — at 30, 36,
+/// 64 the knot read near black, a smear; the coordinator.)
+pub const TIE: C3 = srgb(40, 50, 96);
 pub const HAIR_FAIR: C3 = srgb(204, 178, 134);
 /// r42:arcus-upper — fair brows: a light brown, darker than the blonde (the owner's review).
 pub const BROW_FAIR: C3 = srgb(122, 92, 64);

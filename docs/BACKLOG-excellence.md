@@ -1541,6 +1541,32 @@ parked strips, the master) is the next step: the same exactness test over the st
   *Done when* the stereo fuzz-into-muff board costs no more than 0.25 of a core with the same
   sound, and Fragor's budget goes back to the tenth-plus Arca rule it had.
 
+**The realistic figures' frame cost** (r42:arcus-polish2, 2026-11-25; the owner: "No te
+preocupes por los tiempos, luego optimizamos o hacemos configurable" — the look first; High
+is the default, Light and Auto the fast paths, ADR 0159 "The polish's cost"). Arcus's Play
+view with the realistic violinist at High costs about +4 ms a frame at 100 % and +5.5 ms at
+200 % over the instrument alone (release, `arcus_hold_budget`, a loaded machine), against
++0.7–1.0 ms at Light. Where it went, per frame (her violin, High; `probe::times`, the timing
+probe this round used and took out):
+  - the hand's curved patches (`fine_tri`): 1.3–2.0 ms at 100 %, 2.7–3.3 ms at 200 % — 834 /
+    1 850 patches, every point lit, textured and toned on its own though each is shared
+    with a neighbour (a per-frame cache of the corners' and the edges' points is
+    arcus-hands' — round 42, in flight);
+  - the per-triangle loop (facing, the neck's test, each corner's colour): ~1.0 ms — the
+    left arm's two passes now share their classes and the lighting table is borrowed once
+    (r42:arcus-polish2);
+  - skinning, normals, the creases' occlusion: ~1.0 ms for both arms (the occlusion's 20
+    capsules against every hand corner: a bounding test per capsule is the next lever);
+  - tessellation of the arms' meshes: ~0.5 ms;
+  - the arm's shadow on the trunk: 0.45 ms drawn per triangle, now a few soft bands from the
+    arm's three pieces (~0.02 ms).
+
+  *Next levers*: the patch cache above; cache the arm's skinning across frames while its
+  joints move less than a pixel; the occlusion's capsules culled by distance; draw the
+  sleeves (half the triangles) from a coarser mesh at High too, keeping the hand's.
+  *Done when* High costs within 2 ms of the instrument alone at 100 % and 200 % on the
+  owner's machine, with the look unchanged (the sheets compared pixel by pixel).
+
 ## 4c. A recording mode for high performance (requested 2026-10-10)
 
 *The owner: "a partial pre-render of every channel that feeds the master — audio, instruments,

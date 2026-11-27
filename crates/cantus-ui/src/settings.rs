@@ -301,6 +301,10 @@ pub struct Settings {
     /// them so) or open. A preference of this machine; a file without it reads Closed.
     #[serde(default)]
     pub figure_eyes: crate::scene::figure::Eyes,
+    /// r42:arcus-polish2 — how the realistic figures are lit: Concert (the default, the
+    /// stage) or Studio. A preference of this machine; a file without it reads Concert.
+    #[serde(default)]
+    pub figure_light: crate::scene::figure::Lighting,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -442,6 +446,7 @@ impl Default for Settings {
             arcus_finger_was: None,                  // r42:arcus-upper
             figure_quality: Default::default(),      // r42:arcus-upper
             figure_eyes: Default::default(),         // r42:arcus-hand
+            figure_light: Default::default(),        // r42:arcus-polish2
         }
     }
 }

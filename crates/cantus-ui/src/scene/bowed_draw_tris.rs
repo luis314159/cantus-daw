@@ -7,7 +7,7 @@
 
 use super::bowed::Bowed;
 use super::bowed_mesh::{Mesh, Role};
-use super::display::{Paint, Part};
+use super::display::{Layer, Paint, Part};
 use super::prims::Ctx;
 use crate::kit::skin::scene::{hold as hp, Mat, C3};
 
@@ -25,16 +25,30 @@ pub fn skin_at(base: &Mat, d: [f32; 2]) -> Mat {
 
 /// A hair corner's albedo: soft streaks across its strands, blended into the skin's
 /// `scalp` colour at the hairline (`d[0]`: 0 at the hairline, 1 inside it).
-fn hair_at(base: &Mat, d: [f32; 2], scalp: C3) -> Mat {
+fn hair_at(base: &Mat, d: [f32; 2], scalp: C3, short: bool) -> Mat {
     let across = d[0];
+    // r42:arcus-polish4 — his (`short`): broader value bands along the combing (the
+    // coordinator: one smooth shell), and his short sides' roots with more of the skin.
+    let bands = if short { 2.0 } else { 1.0 };
     let k = 0.9
-        + 0.07 * (across * 2.1).sin()
-        + 0.05 * (across * 5.3 + 1.7).sin()
+        + 0.07 * bands * (across * 2.1).sin()
+        + 0.05 * bands * (across * 5.3 + 1.7).sin()
         + 0.04 * (across * 13.0 + 0.4).sin();
-    let e = d[1].clamp(0.0, 1.0).powf(0.6);
+    // r42:arcus-polish2 — the edge blends over the first third of the band only, and into
+    // the hair's own deeper roots with a little of the skin (blended into the skin over the
+    // whole band, her hairline read as a pale pink stripe across the temple — the owner's
+    // review of the Drawn picture).
+    let e = (d[1] / 0.35).clamp(0.0, 1.0).powf(0.6);
+    let root: C3 = if short {
+        std::array::from_fn(|i| base.albedo[i] * 0.45 + scalp[i] * 0.5)
+    } else {
+        std::array::from_fn(|i| base.albedo[i] * 0.62 * 0.7 + scalp[i] * 0.3)
+    };
+    // The roots a little deeper for a while in from the edge.
+    let deep = 1.0 - 0.16 * (1.0 - (d[1] / 0.6).clamp(0.0, 1.0));
     Mat {
         albedo: std::array::from_fn(|i| {
-            (scalp[i] + (base.albedo[i] * k - scalp[i]) * e).clamp(0.0, 1.0)
+            (root[i] + (base.albedo[i] * k * deep - root[i]) * e).clamp(0.0, 1.0)
         }),
         ..*base
     }
@@ -66,6 +80,36 @@ pub fn skin_tone(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
     c
 }
 
+/// r42:arcus-polish3 — skin under the concert stage's spot: as [`skin_tone`], but only the
+/// very brightest eased (eased from the middle up, a face full in the spot read flat and
+/// pale: the modelling is the spot's, its lit side must stay bright).
+pub fn stage_skin(mat: &Mat, shaded: C3, ndv: f32) -> C3 {
+    let lum = |c: C3| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    let a = mat.albedo;
+    let k = lum(shaded) / lum(a).max(1e-3);
+    // r42:arcus-polish4 — the stage's skin in its own hue (`Concert::d_skin`, its value
+    // kept): the drawn face read a pale beige beside the photographs' warm peach.
+    let g = crate::scene::figure::concert::get().d_skin;
+    let ga = [a[0] * g[0], a[1] * g[1], a[2] * g[2]];
+    let a = ga.map(|x| x * lum(a) / lum(ga).max(1e-4));
+    let glow = 0.02 + (1.0 - ndv).powi(2) * 0.08;
+    let mut c = [
+        a[0] * (k + glow),
+        a[1] * (k + glow * 0.45),
+        a[2] * (k + glow * 0.25),
+    ];
+    let l = lum(c);
+    if l > 0.78 {
+        let e = (0.78 + (l - 0.78) * 0.3) / l;
+        c = c.map(|x| x * e);
+    }
+    let top = c[0].max(c[1]).max(c[2]);
+    if top > 0.97 {
+        c = c.map(|x| x * 0.97 / top);
+    }
+    c
+}
+
 fn add(c: C3, d: C3, k: f32) -> C3 {
     [
         (c[0] + d[0] * k).min(1.0),
@@ -74,8 +118,8 @@ fn add(c: C3, d: C3, k: f32) -> C3 {
     ]
 }
 
-/// Draw `m`'s triangles through `c`.
-pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
+/// Draw `m`'s triangles through `c`; `cover` the instrument's faces on screen.
+pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover]) {
     let cam = c.cam;
     // The skin's colour, which the hair's edge blends into.
     let scalp = m
@@ -86,7 +130,73 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             _ => None,
         })
         .unwrap_or(hp::real_skin(0).albedo);
+    // r42:arcus-polish5 — whether a shirt triangle lies over a held instrument's outline
+    // (`bowed_human::clear_of_the_body` marks its corners): every corner (`drawn_beside_any`
+    // 1: any). How the Drawn picture takes them (`drawn_beside_mode`): 0 leaves every such
+    // triangle out (pass 5: the Drawn collar went under the chin rest, the neck met the tie
+    // on the violin's side); 1 sorts them farther by `drawn_beside` (it uncovered the
+    // shirt's shaded front under the collar's point as dark shards by the knot).
+    // r42:arcus-polish6 — 2 (the default): each sorted by its own middle, as every other
+    // triangle of the figure is, and kept out of the instrument's faces on screen (`cover`):
+    // sorted by their middles alone they drew white stripes between the chin rest's cells;
+    // kept out of them, the band runs from the knot to where the instrument covers it
+    // whatever the sort says.
+    let any = super::figure::tune::tune("drawn_beside_any", 0.0) > 0.5;
+    let mode = super::figure::tune::tune("drawn_beside_mode", BESIDE_MODE);
+    let leave_out = mode < 0.5;
+    let keep_out = mode > 1.5;
+    // r42:arcus-polish6 — `CANTUS_TUNE`'s `probe_x`, `probe_y` (points): every triangle drawn
+    // over that place printed (its role, depth, corners' colours) — to find what drew a
+    // stray pixel.
+    let probe = {
+        let (x, y) = (
+            super::figure::tune::tune("probe_x", -1.0),
+            super::figure::tune::tune("probe_y", -1.0),
+        );
+        (x >= 0.0 && y >= 0.0 && !c.mirror).then(|| egui::pos2(x, y))
+    };
+    // r42:arcus-polish6 — mode 2: the collar's band over a held instrument is a layer of its
+    // own, drawn after every op of the picture (`Layer::Front`), kept out of the chin rest's
+    // faces (`cover`) and of the figure's own skin, tie and hair nearer than it — sorted
+    // among the instrument's cells by their middles it lost to the top's grain lines and the
+    // ribs' cells (stripes, shards), as the Photographic picture never does. Its place on
+    // screen first, so only the figure's triangles near it are kept for the keep-out.
+    let region = keep_out.then(|| {
+        let mut r = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        for (role, t) in &m.tris {
+            if *role != Role::Shirt || t.uv.len() != t.pts.len() {
+                continue;
+            }
+            for (p, uv) in t.pts.iter().zip(&t.uv) {
+                if uv[0] == super::bowed_human::BESIDE_BODY {
+                    let s = cam.p(*p);
+                    r = (r.0.min(s.x), r.1.min(s.y), r.2.max(s.x), r.3.max(s.y));
+                }
+            }
+        }
+        (r.0 - 4.0, r.1 - 4.0, r.2 + 4.0, r.3 + 4.0)
+    });
+    let near_region = |bx: (f32, f32, f32, f32)| {
+        region.is_some_and(|r| bx.0 <= r.2 && r.0 <= bx.2 && bx.1 <= r.3 && r.1 <= bx.3)
+    };
+    let overlap = |a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)| {
+        a.0 <= b.2 + 1.0 && b.0 <= a.2 + 1.0 && a.1 <= b.3 + 1.0 && b.1 <= a.3 + 1.0
+    };
+    type Face = ((f32, f32, f32, f32), Vec<egui::Pos2>, f32);
+    let mut band: Vec<(Vec<egui::Pos2>, Paint, f32)> = Vec::new();
+    let mut nearer: Vec<Face> = Vec::new();
     for (role, t) in &m.tris {
+        let marked = |i: usize| {
+            t.uv.get(i)
+                .is_some_and(|u| u[0] == super::bowed_human::BESIDE_BODY)
+        };
+        let beside = |c: [usize; 3]| {
+            if any {
+                c.iter().any(|&i| marked(i))
+            } else {
+                c.iter().all(|&i| marked(i))
+            }
+        };
         // r42:arcus-upper — the cards are the Photographic picture's (this one draws no
         // texture; the hair's shell and the painted brows stand for them).
         if matches!(role, Role::Card(_) | Role::Scalp(_)) {
@@ -118,6 +228,12 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             if inside && !two_sided {
                 continue;
             }
+            if leave_out && *role == Role::Shirt && t.uv.len() == t.pts.len() && {
+                let m = |i: usize| t.uv[i][0] == super::bowed_human::BESIDE_BODY;
+                m(i0) || m(i1) || m(i2)
+            } {
+                continue;
+            }
             c.keep_facet(&q, fnrm, &base, 1.0);
             let mut cols = [[0.0f32; 3]; 3];
             for (k, &i) in [i0, i1, i2].iter().enumerate() {
@@ -127,31 +243,213 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
                 let mat = match role {
                     Role::Skin(_) => skin_at(&base, t.detail[i]),
                     Role::Hair | Role::HairFair | Role::Shell(_) => {
-                        hair_at(&base, t.detail[i], scalp)
+                        hair_at(&base, t.detail[i], scalp, *role == Role::Shell(1))
                     }
                     _ => base,
                 };
                 let mut col = c.light.shade(&mat, n, vv, p, None, 1.0);
                 let ndv = n.dot(vv).clamp(0.0, 1.0);
+                if matches!(role, Role::HairFair | Role::Shell(_)) {
+                    // r42:arcus-polish2 — the underlayer: hair turned down lies in its own
+                    // shade (her Drawn hair read as one flat yellow cap).
+                    let under = 1.0 - 0.3 * ((0.25 - n.y) / 0.9).clamp(0.0, 1.0);
+                    col = col.map(|x| x * under);
+                }
                 if warm {
-                    col = skin_tone(&mat, col, ndv);
+                    col = if c.light.concert.is_some() {
+                        stage_skin(&mat, col, ndv) // r42:arcus-polish3
+                    } else {
+                        skin_tone(&mat, col, ndv)
+                    };
                 }
                 if inside {
                     col = col.map(|x| x * 0.6);
+                }
+                if matches!(role, Role::Shirt | Role::Tie) {
+                    // r42:arcus-polish2 — the shade under the collar's and lapels' edges.
+                    let k = t.detail[i][0].clamp(0.3, 1.2);
+                    col = col.map(|x| x * k);
                 }
                 if *role == Role::Velvet {
                     // Velvet: its pile catches the light where it turns away.
                     col = add(col, hp::VELVET_SHEEN, (1.0 - ndv).powi(2) * 0.55);
                 }
+                // r42:arcus-polish3 — the concert's back lights: a clean warm line along
+                // the edges that turn toward them (the hair, the shoulders, the face's
+                // edge), as a stage photograph's rim.
+                let rim = c.light.rim(n, vv);
+                if rim > 0.0 && !inside {
+                    let k = match role {
+                        Role::Skin(_) => 0.35,
+                        Role::Velvet | Role::Wool => 0.5,
+                        // r42:arcus-polish4 — his dark hair takes the varnish's rim already
+                        // (`Light::shade`): more read as a bright cap's rim over the crown.
+                        Role::Shell(1) => 0.25,
+                        _ => 1.0,
+                    };
+                    col = add(col, [1.0, 0.88, 0.72], rim * k);
+                }
                 cols[k] = col;
             }
-            c.p.at(cam.depth(ctr), Part::Bowed);
+            // r42:arcus-polish4 — the hair's shell a little nearer than the skin it lies on:
+            // at its thin edge the two lie within a millimetre and, sorted by their middles,
+            // the skin's triangles painted over the hair in places (his crown's and temples'
+            // light flecks in the Drawn picture).
+            let bias = if matches!(role, Role::Shell(_)) {
+                SHELL_BIAS
+            } else if *role == Role::Shirt && !inside && !keep_out && beside([i0, i1, i2]) {
+                // r42:arcus-polish5 — the collar's band where it passes under a held
+                // instrument: behind the chin rest and the ribs (`clear_of_the_body`).
+                -super::figure::tune::tune("drawn_beside", BESIDE_BIAS)
+            } else {
+                0.0
+            };
+            c.p.at(cam.depth(ctr) - bias, Part::Bowed);
             let sp = c.sps(&q);
+            if let Some(at) = probe {
+                if super::geo::inside(&sp, at) {
+                    eprintln!(
+                        "probe ({:.1}, {:.1}): {role:?} depth {:.2} (bias {bias:.2}) inside \
+                         {inside} corners {:?} colours {:?} marked {}",
+                        at.x,
+                        at.y,
+                        cam.depth(ctr),
+                        sp,
+                        cols,
+                        marked(i0) || marked(i1) || marked(i2)
+                    );
+                }
+            }
+            if keep_out && *role == Role::Shirt && (marked(i0) || marked(i1) || marked(i2)) {
+                // (Only the band kept where it is — every corner over the outline and none
+                // tucked: a triangle with a corner pressed under the back is a sliver
+                // reaching down over the jacket and the varnish, white shards in its layer;
+                // under the back, it is left out.)
+                let kept = |i: usize| marked(i) && t.uv[i][1] <= 0.0;
+                if !inside && !c.mirror && kept(i0) && kept(i1) && kept(i2) {
+                    band.push((sp.clone(), gradient(&sp, &cols), cam.depth(ctr)));
+                }
+                continue;
+            }
+            if keep_out
+                && !inside
+                && matches!(
+                    role,
+                    Role::Skin(_) | Role::Tie | Role::Hair | Role::HairFair | Role::Shell(_)
+                )
+            {
+                let bx = super::geo::bbox(&sp);
+                if near_region(bx) {
+                    // (Grown, as the chin rest's faces: the seams between them let the band
+                    // through as a grid over the tie.)
+                    let g = super::bowed_draw::grown(&sp, 0.6);
+                    nearer.push((super::geo::bbox(&g), g, cam.depth(ctr)));
+                }
+            }
             // Overlapping a little more than a pixel: no seam grid on a light theme.
             c.p.poly(sp.clone(), gradient(&sp, &cols), 1.0, 1.0);
+            // (Not over the hair's edge band, where it blends into its roots: light strands
+            // there read as white dashes along the hairline.)
+            let edge = [i0, i1, i2].iter().any(|&i| t.detail[i][1] < 0.45);
+            // (r42:arcus-polish4: his too — combed straight back, the strands' lines run
+            // from the hairline over the crown.)
+            if !inside && !edge && matches!(role, Role::HairFair | Role::Shell(_)) {
+                strand_lines(c, &sp, [i0, i1, i2].map(|i| t.detail[i][0]), &cols);
+            }
         }
     }
+    // r42:arcus-polish6 — the band's own layer (above).
+    for (sp, paint, depth) in band {
+        let bx = super::geo::bbox(&sp);
+        let out: Vec<Vec<egui::Pos2>> = cover
+            .iter()
+            .filter(|(b, _)| overlap(*b, bx))
+            .map(|(_, o)| o.clone())
+            .chain(
+                nearer
+                    .iter()
+                    .filter(|(b, _, d)| *d < depth - BAND_NEARER && overlap(*b, bx))
+                    .map(|(_, o, _)| o.clone()),
+            )
+            .collect();
+        c.p.at(depth, Part::Bowed);
+        c.p.on(Layer::Front);
+        if out.is_empty() {
+            c.p.poly(sp, paint, 1.0, 1.0);
+        } else {
+            c.p.poly_out(sp, paint, 1.0, 1.0, out);
+        }
+    }
+    c.p.on(Layer::Objects);
 }
+
+/// r42:arcus-polish2 — her hair's drawn strands (the owner: "a few drawn strand lines,
+/// hatches … in the Drawn look's own style: clean vector shapes"): over each triangle of
+/// her hair, fine lines where its strands' across coordinate passes a strand's (every
+/// [`STRAND_STEP`], unevenly), so they run as the hair is combed — back from the hairline
+/// over the head, wound round the bun — each a shade deeper or lighter than the hair under
+/// it, half seen.
+fn strand_lines(c: &mut Ctx, sp: &[egui::Pos2], across: [f32; 3], cols: &[C3; 3]) {
+    use super::display::Cap;
+    let (lo, hi) = (
+        across.iter().copied().fold(f32::MAX, f32::min),
+        across.iter().copied().fold(f32::MIN, f32::max),
+    );
+    if hi - lo < 1e-4 || hi - lo > 40.0 * STRAND_STEP {
+        return;
+    }
+    let mean: C3 = std::array::from_fn(|k| (cols[0][k] + cols[1][k] + cols[2][k]) / 3.0);
+    let mut s = (lo / STRAND_STEP).ceil();
+    while s * STRAND_STEP <= hi {
+        let a = s * STRAND_STEP;
+        // Its crossings of the triangle's three edges.
+        let mut ends = [egui::Pos2::ZERO; 2];
+        let mut n = 0;
+        for e in 0..3 {
+            let (i, j) = (e, (e + 1) % 3);
+            let (u, v) = (across[i], across[j]);
+            if (u - a) * (v - a) < 0.0 && n < 2 {
+                let t = (a - u) / (v - u);
+                ends[n] = sp[i] + (sp[j] - sp[i]) * t;
+                n += 1;
+            }
+        }
+        if n == 2 {
+            // Each strand its own: deeper or lighter, some faint (a hash of its number).
+            let h = ((s as i32).wrapping_mul(1_103_515_245).wrapping_add(12_345) >> 8) & 255;
+            let light = h % 3 == 0;
+            let k = if light { 1.22 } else { 0.66 };
+            let col: C3 = mean.map(|x| (x * k).min(1.0));
+            let op = 0.4 + 0.3 * ((h >> 2) % 4) as f32 / 3.0;
+            let w = if light { 0.45 } else { 0.6 };
+            c.p.line(ends[0], ends[1], w, Paint::Solid(col), Cap::Butt, op);
+        }
+        s += 1.0;
+    }
+}
+
+/// r42:arcus-polish4 — how much nearer the hair's shell sorts than its own depth (cm).
+const SHELL_BIAS: f32 = 0.6;
+
+/// r42:arcus-polish5 — how much farther the collar's band over a held instrument's outline
+/// sorts (cm), in `drawn_beside_mode` 1.
+const BESIDE_BIAS: f32 = 1.5;
+
+/// r42:arcus-polish6 — how the Drawn picture takes the collar's band over a held
+/// instrument's outline: 0, left out (as pass 5). Mode 2 — the band kept where it is as a
+/// layer of its own over the picture, kept out of the chin rest's faces and of the figure's
+/// nearer skin, tie and hair — is built and studied (`drawn_beside_mode=2`): the triangles
+/// whose every corner is kept are too few to make the band, and those with a tucked corner
+/// are slivers reaching over the jacket and the varnish; still open.
+const BESIDE_MODE: f32 = 0.0;
+
+/// r42:arcus-polish6 — the band's layer: a triangle of the figure nearer than a band
+/// triangle by this much (cm) keeps the band out of it.
+const BAND_NEARER: f32 = 0.3;
+
+/// How far apart (in the hair's across coordinate: about three degrees round the
+/// head) her drawn strands lie.
+const STRAND_STEP: f32 = 0.5;
 
 /// The linear gradient that matches three corner colours best: along the way the
 /// brightness changes, from the darkest-projecting corner's colour to the brightest's.

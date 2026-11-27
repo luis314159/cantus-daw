@@ -6,6 +6,7 @@
 //! a realistic figure is baked, and kept. A card is `who × 3 + kind` (hair 0, brows 1,
 //! lashes 2).
 
+use crate::scene::bowed_human::asset;
 use std::sync::OnceLock;
 
 static PNGS: [&[u8]; 6] = [
@@ -113,6 +114,18 @@ fn half(l: &Level) -> Level {
     Level { w, h, texels }
 }
 
+/// r42:arcus-polish4 — the textures' file names, so `CANTUS_FIGURE_DIR` serves them too
+/// while the figures are built (`bowed_human::asset`; unset in the app).
+static PNG_NAMES: [&str; 6] = [
+    "woman_hair.png",
+    "woman_brow.png",
+    "woman_lash.png",
+    "man_hair.png",
+    "man_brow.png",
+    "man_lash.png",
+];
+static SKIN_NAMES: [&str; 2] = ["woman_skin.png", "man_skin.png"];
+
 static SKINS: [&[u8]; 2] = [
     include_bytes!("../../../assets/figures/woman_skin.png"),
     include_bytes!("../../../assets/figures/man_skin.png"),
@@ -130,8 +143,9 @@ pub fn skin_detail(u: f32, v: f32) -> f32 {
     let t = TEX.get_or_init(|| {
         SKINS
             .iter()
-            .map(|b| {
-                let c = decode(b, false)?;
+            .zip(SKIN_NAMES)
+            .map(|(b, name)| {
+                let c = decode(&asset(name, b), false)?;
                 Some((c.w, c.h, c.levels[0].texels.iter().map(|t| t[0]).collect()))
             })
             .collect()
@@ -165,8 +179,10 @@ pub fn feather(who: u8, line: f32) -> f32 {
     if who == 0 {
         smooth(-6.0, 2.0, line)
     } else {
-        // (His short hair's edge is its cards' own, as it read well on sheet v8.)
-        1.0
+        // (His short hair's edge thins over a narrower ramp — a groomed hairline; r42:
+        // arcus-polish2: his cards' own edge read as jagged teeth at 200 %; r42:arcus-polish3:
+        // a little wider again, the scalp's broken edge under it — the coordinator: a cap.)
+        smooth(-4.0, 1.5, line)
     }
 }
 
@@ -199,6 +215,22 @@ pub struct HairLook {
     /// deeper hair in the gaps between the cards (his short cards leave wide ones, and a
     /// scalp as light as his hair read as pale patches over the crown).
     pub scalp: f32,
+    /// r42:arcus-polish — how strong the tonal streaks along the strands are, and how much
+    /// of the back light (the rim that tells the hair from the room) it takes.
+    pub streaks: f32,
+    pub rim: f32,
+    /// r42:arcus-polish2 — the broad sections' share in the streaks, how deep the darker
+    /// ones go (1 as the fine streaks), how much deeper the underlayer reads, the sheen's
+    /// tint (linear gains: warm on dark brown) and how broken along the strands it is.
+    pub sections: f32,
+    pub lowlight: f32,
+    pub under: f32,
+    pub warm: [f32; 3],
+    pub broken: f32,
+    /// r42:arcus-polish2 — how much deeper the roots read by the hairline, how much lighter
+    /// the lengths toward the crown.
+    pub roots: f32,
+    pub ends: f32,
 }
 
 /// `who`'s (0 her, 1 him) hair. His short hair runs every way (its curls' way changes
@@ -206,21 +238,54 @@ pub struct HairLook {
 /// that suits her blonde read on him as pale glossy blotches, so his stays faint.
 pub fn hair_look(who: u8) -> HairLook {
     if who == 0 {
+        // (r42:arcus-polish: a little deeper, so her blonde holds its strands against the
+        // light Paper room, with streaks and the back light along its edge.)
         HairLook {
-            albedo: 0.6,
-            shine: (60.0, 0.3),
-            sheen: (10.0, 0.25),
+            albedo: 0.52,
+            shine: (70.0, 0.34),
+            sheen: (9.0, 0.3),
             detail: 1.0,
-            scalp: 0.57,
+            scalp: 0.5,
+            streaks: 1.0,
+            rim: 1.6,
+            sections: 0.0,
+            lowlight: 1.0,
+            under: 0.38,
+            warm: [1.0, 1.0, 1.0],
+            broken: 0.45,
+            roots: 0.3,
+            ends: 0.08,
         }
     } else {
-        HairLook {
-            albedo: 1.0,
-            shine: (60.0, 0.004),
-            sheen: (12.0, 0.006),
-            detail: 0.35,
+        // (r42:arcus-polish: a soft sheen band now his strands are combed one way in the
+        // light, `px_shade::strands` — stronger, his dark hair read grey; his locks' streaks.)
+        // (r42:arcus-polish2: the band narrow, warm and broken — the owner on sheet v11: a
+        // grey sheet then, too faint to read once lowered.)
+        // (r42:arcus-polish4: `short04`, combed straight back — its strands run one way, so
+        // their detail shows, though its crossing layers read as a weave above 0.3; a dark
+        // brown, less red — ref-06.)
+        // (r42:arcus-polish5: his numbers under study, `CANTUS_TUNE`'s `his_*` — read once,
+        // this is asked per pixel. The weave at 200 % was the tonal streaks' fine noise over
+        // the crossing cards, not the maps: streaks 0.9 → 0.15, broken 0.7 → 0.2, detail
+        // 0.3 → 0.2 — the strands' way still reads, the crosshatch is gone.)
+        use super::tune::tune;
+        static HIS: OnceLock<HairLook> = OnceLock::new();
+        *HIS.get_or_init(|| HairLook {
+            albedo: tune("his_albedo", 1.0),
+            shine: (60.0, tune("his_shine", 0.32)),
+            sheen: (22.0, tune("his_sheen", 0.2)),
+            detail: tune("his_detail", 0.2),
             scalp: 0.55,
-        }
+            streaks: tune("his_streaks", 0.15),
+            rim: tune("his_rim", 2.0), // (r42:arcus-polish4: 1.4 — the top's outline read as a hard cap)
+            sections: tune("his_sections", 0.2),
+            lowlight: 1.0,
+            under: tune("his_under", 0.25),
+            warm: [1.05, 1.0, 0.94],
+            broken: tune("his_broken", 0.2),
+            roots: 0.12,
+            ends: 0.0,
+        })
     }
 }
 
@@ -235,9 +300,27 @@ pub fn scalp_cover(who: u8, line: f32, across: f32) -> f32 {
         // jagged staircase at 200 %, the coordinator's review.)
         smooth(-3.5, 2.5, line + wave)
     } else {
-        1.0
+        // (r42:arcus-polish2: his thins as well, over a narrower, less uneven edge.)
+        // (r42:arcus-polish3: short hairs breaking the edge — fine, uneven tufts over a wider
+        // ramp, so his hairline is hair, not a cap's rim; the coordinator's review.)
+        let wave = (across * 9.0).sin() * 0.5
+            + (across * 2.7 * 9.0).sin() * 0.45
+            + (across * 7.3 * 9.0 + 1.1).sin() * 0.6
+            + (across * 15.1 * 9.0 + 2.3).sin() * 0.5;
+        // (r42:arcus-polish4: the short sides under the longer top a little sparser — the
+        // skin through them, as a short cut's sides and nape show it; ref-06.)
+        smooth(-4.5, 2.0, line + wave)
     }
 }
+
+/// r42:arcus-polish4 — how much his short sides' hair covers the skin, `line` degrees in from
+/// his hairline: the scalp's colour drawn toward the skin's by the rest (a short cut's sides
+/// and nape, ref-06). A colour, not a coverage: a coverage's dither read as a grid.
+pub fn side_cover(line: f32) -> f32 {
+    SIDE_COVER + (1.0 - SIDE_COVER) * smooth(4.0, 18.0, line)
+}
+
+const SIDE_COVER: f32 = 0.75;
 
 static EYES: [&[u8]; 2] = [
     include_bytes!("../../../assets/figures/woman_eye.png"),
@@ -302,7 +385,12 @@ pub fn eye(uv: [f32; 2]) -> [f32; 3] {
 pub fn card(k: u8) -> Option<&'static Card> {
     static CARDS: OnceLock<Vec<Option<Card>>> = OnceLock::new();
     CARDS
-        .get_or_init(|| PNGS.iter().map(|b| decode(b, true)).collect())
+        .get_or_init(|| {
+            PNGS.iter()
+                .zip(PNG_NAMES)
+                .map(|(b, name)| decode(&asset(name, b), true))
+                .collect()
+        })
         .get(k as usize)?
         .as_ref()
 }
@@ -486,7 +574,8 @@ mod tests {
         use super::{feather, scalp_cover, thin};
         assert_eq!(feather(0, 10.0), 1.0);
         assert_eq!(feather(0, -10.0), 0.0);
-        assert_eq!(feather(1, -30.0), 1.0);
+        assert_eq!(feather(1, 10.0), 1.0);
+        assert_eq!(feather(1, -10.0), 0.0);
         let mut last = 0.0;
         for i in 0..=40 {
             let f = feather(0, -8.0 + i as f32 * 0.3);

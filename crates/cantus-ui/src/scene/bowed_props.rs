@@ -97,11 +97,13 @@ pub(super) fn chair_top(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
             1.4,
         );
     }
+    // (r42:arcus-polish: a slimmer rail, its edge rounded by the light — at 13 cm tall it
+    // read beside the violinists as a flat brown slab, the owner's review.)
     block(
         m,
         Role::Chair,
-        local(0.0, 79.0, -21.5),
-        v(19.5, 6.5, 1.1),
+        local(0.0, 82.0, -21.5),
+        v(19.0, 3.6, 0.9),
         yaw,
     );
     rod(
@@ -110,6 +112,47 @@ pub(super) fn chair_top(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
         local(-19.0, 14.0, 17.0),
         local(19.0, 14.0, 17.0),
         0.9,
+    );
+}
+
+/// r42:arcus-polish3 — a realistic player's concert chair, its seat's top at `top`: black
+/// steel legs, a padded black seat and a padded back (the photographs' orchestra chair, in
+/// place of the walnut chair the owner read as a stool beside the stage's violinists).
+pub(super) fn concert_chair(m: &mut Mesh, at: V3, yaw: f32, top: f32) {
+    let dy = top - SEAT_TOP;
+    let (s, co) = yaw.sin_cos();
+    let local = |x: f32, y: f32, z: f32| {
+        at + v(
+            x * co + z * s,
+            if y > 0.0 { y + dy } else { y },
+            -x * s + z * co,
+        )
+    };
+    block(
+        m,
+        Role::Trousers,
+        local(0.0, 44.6, 0.0),
+        v(22.5, 3.0, 21.0),
+        yaw,
+    );
+    for (x, z) in [(-19.0, 17.0), (19.0, 17.0), (-19.0, -17.0), (19.0, -17.0)] {
+        rod(m, Role::Shoes, local(x, 0.0, z), local(x, 41.0, z), 1.2);
+    }
+    for x in [-17.5f32, 17.5] {
+        rod(
+            m,
+            Role::Shoes,
+            local(x, 41.0, -18.5),
+            local(x * 1.02, 84.0, -23.0),
+            1.1,
+        );
+    }
+    block(
+        m,
+        Role::Trousers,
+        local(0.0, 72.0, -22.5),
+        v(20.0, 12.0, 2.4),
+        yaw,
     );
 }
 

@@ -190,15 +190,62 @@ pub const VIOLA_HALF: [&[(f32, f32)]; 3] = [
 /// player's right), seated height. The world: x to the viewer's right, y up, z toward the
 /// viewer; the player faces the viewer.
 pub fn held(d: &Dims) -> Pose {
-    let ey = TOWARD.norm();
-    let up = UP.norm();
+    held_along(d, TOWARD, UP, V3::default())
+}
+
+/// r42:arcus-polish2 — how a realistic violinist holds it (the owner: "ese brazo aún se ve
+/// raro"; the coordinator's measure of `refs-violin`): its scroll a little under level, not
+/// 18° over it — side views (ref-38, ref-39) put the scroll 0–9° under the chin's end, the
+/// front-left ones (ref-24, ref-26, ref-28) under it too —, its top turned ~35° toward the
+/// E side as before (inside the photographs' 30–45°), the end button where it was, at the
+/// neck, so the chin keeps its rest. Held this way the bow arm hangs from a relaxed
+/// shoulder with its elbow a visible corner and the left elbow comes down under the violin
+/// (`tests/arcus_arm_pose.rs`). The stylised musician and the mannequin keep `held`.
+pub fn held_real(d: &Dims) -> Pose {
+    let (toward, up, shift) = held_tuned().unwrap_or((REAL_TOWARD, UP, V3::default()));
+    held_along(d, toward, up, shift)
+}
+
+/// The realistic violinists' body's way: the first's turned down to 3° under level.
+pub const REAL_TOWARD: V3 = V3 {
+    x: 0.85,
+    y: -0.05,
+    z: 0.40,
+};
+
+fn held_along(d: &Dims, toward: V3, up: V3, shift: V3) -> Pose {
+    let ey = toward.norm();
+    let up = up.norm();
     let ez = (up - ey * up.dot(ey)).norm();
     let ex = ey.cross(ez);
-    // The instrument's middle (the body's end and the scroll's) over the room's middle.
+    // The end button at the player's neck (r42:arcus-polish2: kept where it was when the
+    // body's way turns, so the chin stays on its rest): from the instrument's middle over the
+    // room's middle along the first way.
     let half = 0.5 * (d.body + d.neck + d.pegbox);
-    let o = v(0.0, HEIGHT, 0.0) - ey * half;
+    let o = v(0.0, HEIGHT, 0.0) - TOWARD_FIRST.norm() * half + shift;
     Pose { o, ex, ey, ez }
 }
+
+/// For finding the realistic violinists' hold (`CANTUS_HELD` = the body's way, the top's way and the end button's
+/// shift, nine numbers): a tuning aid, read once.
+fn held_tuned() -> Option<(V3, V3, V3)> {
+    use std::sync::OnceLock;
+    static H: OnceLock<Option<(V3, V3, V3)>> = OnceLock::new();
+    *H.get_or_init(|| {
+        let s = std::env::var("CANTUS_HELD").ok()?;
+        let n: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        (n.len() == 9).then(|| {
+            (
+                v(n[0], n[1], n[2]),
+                v(n[3], n[4], n[5]),
+                v(n[6], n[7], n[8]),
+            )
+        })
+    })
+}
+
+/// The body's way the end button was first placed by (round 42's): the button stays put.
+const TOWARD_FIRST: V3 = TOWARD;
 
 /// The body's way, end button to scroll (the player's left is the viewer's right).
 pub const TOWARD: V3 = V3 {

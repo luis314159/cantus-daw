@@ -64,6 +64,9 @@ pub struct Play<'a> {
     /// r42:arcus-upper — the figures' hands drawn at the light level (`figure::Quality`).
     pub light: bool,
     pub accent: Color32, // r42:arcus-upper
+    /// r42:arcus-polish3 — a realistic figure on the concert stage (its arms lit by the
+    /// concert's spot, as the picture is).
+    pub concert: bool,
 }
 
 fn c(s: [u8; 3]) -> Color32 {
@@ -546,6 +549,12 @@ fn bow(b: &mut Brush, v: &View, pl: &Play, contact: V3, i: usize) -> (V3, V3, V3
         one(b, -sign * 1.3 * speed * k, 0.24);
     }
     one(b, 0.0, 1.0);
+    // r42:arcus-polish — the tests' record of where the bow was drawn.
+    if super::probe::on() {
+        let frog = base - dir * (at * hair + 8.0);
+        let tip = base + dir * ((1.0 - at) * hair + 2.0);
+        super::probe::keep_bow(v.p(frog), v.p(tip), v.scale(base));
+    }
     (base - dir * (at * hair), dir, n) // r42:arcus-upper
 }
 
@@ -619,7 +628,12 @@ fn marker_at(b: &mut Brush, v: &View, pl: &Play, at: V3, size: f32) {
 /// the instrument's middle, in the theme's mood.
 fn figure_light(v: &View, pl: &Play, s: &Style) -> super::lit::Lit {
     let d = pl.b.dims();
-    let mut lit = super::lit::Lit::round(v, pl.rig.pose.at(0.0, d.body * 0.5, 0.0), s.t.dark);
+    let mut lit = super::lit::Lit::round(
+        v,
+        pl.rig.pose.at(0.0, d.body * 0.5, 0.0),
+        s.t.dark,
+        pl.concert,
+    );
     // r42:arcus-upper — Light: the stylised limbs in half the strips.
     if pl.light {
         lit.strips /= 2;

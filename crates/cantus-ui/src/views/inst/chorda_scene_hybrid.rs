@@ -14,6 +14,8 @@ pub mod bowed;
 pub mod gear;
 #[path = "chorda_scene_px_geo.rs"]
 pub mod geo;
+#[path = "chorda_scene_px_hall.rs"]
+pub mod hall; // r42:arcus-polish3
 #[path = "chorda_scene_px_kit.rs"]
 pub mod kit;
 #[path = "chorda_scene_px_light.rs"]
@@ -262,6 +264,94 @@ fn rig(room: Room, evening: bool, m: &Mood, pl: &Place, eye: V3, built: room::Bu
         focus_far: pl.far,
         eye,
         soft_bg: 0.0,
+        concert: None, // r42:arcus-polish3
+        dfill: None,   // r42:arcus-polish3
+    }
+}
+
+/// r42:arcus-polish3 — the concert light round a realistic figure on the stage
+/// (`figure::concert`): the key a small stage spot from the audience's side, high, its pool
+/// round the subject at `aim` (cm) and the hall left in the dark; a weak fill from the
+/// audience; the two back lights as rims (and their faces, seen in the varnish's edge); the
+/// hall's warm dark ambient; the concert's exposure and curve (`raster`). The camera at
+/// `eye_cm` (cm; `eye` the same in metres); `far` the focus's end.
+fn concert_rig(
+    c: &crate::scene::figure::concert::Concert,
+    aim: crate::scene::geo::V3,
+    eye_cm: crate::scene::geo::V3,
+    eye: V3,
+    far: f32,
+    built: room::Built,
+) -> Rig {
+    use crate::scene::figure::concert::warmth;
+    let (pos, focus) = (geo::of(c.key_pos(aim, eye_cm)), geo::of(aim));
+    let dist = (focus - pos).len().max(0.5);
+    let r = c.key_r / 100.0;
+    let cone = (
+        (r * c.key_feather / dist).atan().cos(),
+        (r / dist).atan().cos(),
+    );
+    let key = Key {
+        pos,
+        aim: (focus - pos).norm(),
+        focus,
+        cone,
+        e0: c.key_light(),
+        size: c.key_size / 100.0,
+    };
+    let dir = |w: crate::scene::geo::V3| v3(w.x, w.y, w.z);
+    let up = v3(0.0, 1.0, 0.0);
+    let side = (c.key_size / 50.0).max(0.05);
+    let mut panels = vec![Panel::toward(
+        pos,
+        focus,
+        side,
+        side,
+        v3(1.0, 0.0, 0.0),
+        lscale(warmth(c.key_warm), c.key_face),
+        0.0,
+    )
+    .soft(0.3)];
+    let backs = c.backs(aim, eye_cm);
+    for (w, col) in backs {
+        let at = focus + dir(w) * 5.0;
+        let k = col[0].max(1e-3) / c.back_e.max(1e-3);
+        panels.push(
+            Panel::toward(
+                at,
+                focus,
+                0.5,
+                0.5,
+                up,
+                lscale(warmth(c.back_warm), c.back_face * k),
+                0.0,
+            )
+            .soft(0.3),
+        );
+    }
+    panels.extend(built.panels);
+    let (fw, fc) = c.fill_light(aim, eye_cm);
+    let amb = c.ambient();
+    Rig {
+        key,
+        key_panel: Some(0),
+        panels,
+        sky: amb,
+        ground: lscale(amb, 0.6),
+        void: lscale(lin3([0.30, 0.24, 0.18]), 0.004 * c.hall),
+        rims: backs.iter().map(|&(w, col)| (dir(w), col)).collect(),
+        lamps: built.lamps,
+        room: built.env,
+        plate: None,
+        haze: [0.0; 3],
+        haze_k: 0.0,
+        evening: true,
+        exposure: c.exposure,
+        focus_far: far,
+        eye,
+        soft_bg: 1.0,
+        concert: Some(*c),
+        dfill: Some((dir(fw), fc)),
     }
 }
 
@@ -515,17 +605,25 @@ fn bake_view(
             }
             let cam = camera_of(&sc, ppp);
             let mid = crate::scene::bowed_hold::pose(b, hd).at(0.0, d.body * 0.5, 0.0); // r42:arcus-upper
-            let built = room::build(
-                &mut g,
-                view.room,
-                (mid.x, mid.z),
-                view.look,
-                sc.pos.z,
-                view.dark,
-                m.glow,
-            );
+            // r42:arcus-polish3 — a realistic figure on the stage: the concert hall and its
+            // light (`figure::concert`).
+            let real = crate::scene::bowed_human::who(hd.hold).is_some();
+            let concert = (real && view.room == crate::scene::Room::Stage)
+                .then(crate::scene::figure::concert::get);
+            let built = match &concert {
+                Some(c) => hall::build(&mut g, (mid.x, mid.z), (sc.pos.x, sc.pos.z), c),
+                None => room::build(
+                    &mut g,
+                    view.room,
+                    (mid.x, mid.z),
+                    view.look,
+                    sc.pos.z,
+                    view.dark,
+                    m.glow,
+                ),
+            };
             let split = g.tris.len();
-            bowed::build(&mut g, b, hd); // r42:arcus-upper
+            bowed::build_lit(&mut g, b, hd, concert.as_ref()); // r42:arcus-polish3
                                          // Its two microphones, by the photographic gear.
             let km = kit::KitMats::new(
                 &mut g,
@@ -550,11 +648,20 @@ fn bake_view(
                 },
                 far: far_of(&cam, &pts),
             };
-            let mut r = rig(view.room, view.dark, &m, &pl, cam.eye, built);
+            let mut r = match &concert {
+                Some(c) => concert_rig(c, mid, sc.pos, cam.eye, pl.far, built),
+                None => rig(view.room, view.dark, &m, &pl, cam.eye, built),
+            };
             // r42:arcus-upper — behind a realistic figure the room goes soft, as behind a
             // portrait.
-            if crate::scene::bowed_human::who(hd.hold).is_some() {
+            if real && concert.is_none() {
                 r.soft_bg = 1.0;
+                // r42:arcus-polish — a portrait's back light: the cool rim that tells her
+                // hair, the shoulders and the arms from the room (the owner, 2026-11-25:
+                // "lit flat"), stronger by day, where the room behind is light.
+                for rim in &mut r.rims {
+                    rim.1 = lscale(rim.1, if view.dark { 1.7 } else { 2.2 });
+                }
             }
             raster::bake(&g, split, &r, &cam, w, h, q, threads)
         }

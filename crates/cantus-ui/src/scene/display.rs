@@ -127,11 +127,14 @@ pub enum Cap {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Shape {
     /// A filled polygon; `seam` a stroke of its own paint that closes the hairline gaps
-    /// between adjacent facets; `clip` a polygon it is clipped to.
+    /// between adjacent facets; `clip` a polygon it is clipped to; `out` polygons it is
+    /// kept out of (r42:arcus-polish6: the collar's band never over the instrument that
+    /// lies on it, whatever their sort).
     Poly {
         pts: Vec<Pos2>,
         seam: f32,
         clip: Option<Vec<Pos2>>,
+        out: Vec<Vec<Pos2>>,
     },
     Line {
         a: Pos2,
@@ -235,6 +238,28 @@ impl List {
                 pts,
                 seam,
                 clip: None,
+                out: Vec::new(),
+            },
+            paint,
+            op,
+        );
+    }
+
+    /// r42:arcus-polish6 — a polygon kept out of `out`'s polygons (their union).
+    pub fn poly_out(
+        &mut self,
+        pts: Vec<Pos2>,
+        paint: Paint,
+        op: f32,
+        seam: f32,
+        out: Vec<Vec<Pos2>>,
+    ) {
+        self.push(
+            Shape::Poly {
+                pts,
+                seam,
+                clip: None,
+                out,
             },
             paint,
             op,
@@ -247,6 +272,7 @@ impl List {
                 pts,
                 seam: 0.0,
                 clip: Some(clip),
+                out: Vec::new(),
             },
             paint,
             op,

@@ -780,3 +780,724 @@ Clippy (`-p cantus-ui --all-targets -D warnings`) clean; `arcus_hand_table`, `ar
 5. A pixel gate for silhouette strays on the full pictures at both cameras: not written
    (the full tiles were checked by eye; the causes found were fixed in the geometry).
 6. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+
+
+## arcus-polish (2026-11-25): the musicians' polish toward 100 %
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from r42/integration
+a61af28dc. The owner's three polish lists of 2026-11-25 (above, arcus-hand's Open 4) and,
+mid-session, the coordinator's reorder: **the left hand first** (the owner on sheet v10: "la
+mano aún sale algo tosca o gorda"). ADR 0159 amended ("The polish").
+
+**How to look at a figure while building it** (new): `build_figures.py <mh data> <assets>
+<folder>` then `lids.py --dir=<folder>`, and run `shoot_arcus` with
+`CANTUS_FIGURE_DIR=<folder>` — the app reads the `.fig` and the lids from there (no compile:
+45 s a figure instead of ~10 min). The MakeHuman sources on this machine:
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-src\mh\makehuman\data` and
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys` (a temp folder — copy them somewhere
+durable before a clean-up; the converter reproduced the committed figures byte for byte).
+
+**Done** (what changed and where; the measures):
+1. *The left hand.* A render with each corner coloured by its bone (a debug switch during
+   the session, taken out) showed the lobe from under the neck to the wrist is the **hand
+   bone's skin** — the palm's pad and heel seen from below (the camera is 5° up) and its
+   ulnar edge —, not the thumb (hidden by the neck, as in the photographs) and not High's
+   PN patches (Light, no patches, the same outline). Fixed: the palm's own side drawn in
+   toward the metacarpals offline (`build_figures.py::slim_hand`, `PALM_VOLAR` 0.45, the back
+   0.9); at load `bowed_human::thumb_web` (mirrored `hand_rig.py::thumb_web`): the ulnar
+   edge drawn in (`EDGE_IN` 0.5), the web past the index drawn in and 60 % handed to the
+   thumb's first bone; the middle and the little fingers slimmer (`FINGER_EXTRA`); High's
+   patches tone the back of the hand with tendons, metacarpal valleys and knuckles per point
+   (`Relief`); the live skin's wrap narrower (0.45 → 0.25) and the camera-side fill halved,
+   so the back of the hand is modelled, not flat; patch edges canonical (`curved_edges`:
+   the dark crack dots on his hand). Gate `tests/arcus_hand_shape.rs` (the app's own arm
+   through `views::inst::arcus::probe`): the lobe's share of the back of the hand (before
+   0.21/0.23 her violin/viola, 0.21/0.18 him; after 0.17/0.17, 0.18/0.16; gate ≤ 0.19),
+   the edge's sagitta ≤ 4 mm (the photographs ≤ ~3 mm against the fingerboard), breadth and
+   thickness at the MCPs within an adult's, fingers under a ceiling.
+2. *Her arms and shoulders* (`shape_arms`, `ARM_GIRTH`, `SHOULDER_SLOPE` 1.5, `SHOULDER_IN`
+   0.5; the dress's puff 0.1, the sleeves' ease 0.18). `measure_arms.py`: her sleeve's
+   upper arm 28.3 → 26.9 cm, elbow 25.6 → 23.2, forearm top 24.6 → 23.4; joints unchanged.
+   Gate `tests/arcus_figure_shape.rs` (silhouette widths across each arm from the app's
+   camera, cm at depth, a woman's and a man's in a jacket, and the taper).
+3. *Neck and neckline*: tones (cooler, paler, the notch, under the jaw), relief (the
+   sternocleidomastoids, collarbones, notch), the V edge's contact shadow and the velvet's
+   edge roll (`figure::cloth`).
+4. *The dress*: velvet rim at grazing angles and back light, waist folds
+   (`cloth_folds` + `cloth::fold`), the live sleeves' folds in the elbow's crook, the arm's
+   shadow on the trunk it crosses (`trunk_shadow`).
+5. *Light*: a portrait's back light for a realistic figure (rim ×1.7 night, ×2.2 day).
+6. *Ears*: tilted back 15°, warmer and redder (MakeHuman's ear-flap target as the mask),
+   the conchae's occlusion traced at rest (`cavities`).
+7. *Hair*: tonal streaks, shifted Kajiya–Kay lobes, her blonde toward ash and deeper (0.52),
+   his combed sheen band.
+8. *Faces*: **the pale vertical streak was the room's tall strip softboxes in the skin's
+   mirror** (meant for the pianos' lacquer) — skin now mirrors no softbox and has a key
+   sheen of its own (`px_shade::skin_sheen`); jaw cooler; his beard's shadow; cavities.
+9. *His suit*: `Tex::Wool` (heather, twill, edge roll), the skin under a cloth's edge
+   sunk (`cloth::sink`: the collar's sawtooth), the contact shadows; the sleeve hem's inside
+   drawn in shade (the grey-blue points by his bow hand were the hem's inward faces lit by
+   the sleeve's rim).
+10. *Small*: lunulae, joint creases, faint veins; the chair's back rail slimmer.
+11. *The stray-pixel gate* `tests/arcus_figure_specks.rs`: both figures, violin and viola,
+    both cameras, both themes, both looks (32 shots); the subject's mask rasterised from the
+    baked mesh, the live arms (probe) and the bow; strays (groups darker or lighter than
+    every pixel touching them, on smooth surroundings) outside the grown mask (≤ 30 px) or on
+    the figure's skin and clothes shrunk by 3 px (≤ 3 px) fail.
+
+**Gates** (this session, release): `arcus_hold` 7/7, `arcus_scene`, `scene_identity`
+(Chorda's and Tympanum's pictures unchanged), `figure_contract`, `kit_lint`,
+`arcus_hand_shape` (new), `arcus_hand_table` (after keeping the wrist's crease out of the
+palm's thinning — the first build pinched her wrist under the palm, the table's
+palm-to-wrist rule caught it); `figure::cloth`'s unit tests. Two new gates are written
+and **ignored with their reason** until the next session finishes them:
+`arcus_figure_shape` (her left forearm finds no points in its slab from the probe's joints
+— a measuring bug to find) and `arcus_figure_specks` (40 strays at this state: e.g. her
+violin at (399, 324) in every look, (151, 287) and (418, 312) from the earlier camera, his
+(319, 325) and (253, 334) — `CANTUS_SPECKS_DIR=<folder>` saves every shot to look; each is
+a real speck to fix or a feature to tell apart). The frame budget and clippy: see the end of
+this section.
+
+**Open** (honest list for the next session, in the order the owner will see them):
+1. *The hand's proportion* (the coordinator, after the first sheet): the lobe is smaller but
+   the change reads modest at 200 %; what still reads "gordo" is the back of the hand facing
+   the camera with fingers curled tight and low. Raise the MCPs (knuckles higher over the
+   board), flex the PIPs less, arches higher and longer within the rules (tips ≤ 30°,
+   parallel), and **re-solve the table rows for first position** (`left_hand.py solve`, its
+   rules in `left_hand.py`; not done this session). Her middle and little fingers measured
+   1.9 / 1.8 cm at the PIP before `FINGER_EXTRA`; tighten `arcus_hand_shape`'s finger
+   ceilings to her ≤ 1.8 / 1.5, him ≤ 2.1 / 1.7 once re-measured on the new figures.
+2. *His sleeve at the bow hand*: the grey-blue points by the frog persist from the new
+   camera (the hem's inward faces rule did not catch them — `fig.edge` near his jacket's hem
+   may not reach them; colour them per triangle by `fig.edge` in a debug render), and the
+   room shows through the gap between his wrist and sleeve (the shirt's cuff is hidden;
+   drawing it again broke into specks in arcus-hand). The coordinator saw a black ring and
+   spike at his wrist on the first `polish-hand1` sheet: that was the first "inside" version
+   (back faces near the edge), replaced by the inward-faces rule — re-check his viola too.
+3. *Aliasing at 200 %*: the strings drawn as dashed white lines along the fingerboard and
+   hard stair-steps at the fingertips and the strings' crossings — the live layer at 200 %
+   (`Brush::segment` is coverage-correct for thin lines; look at how the strings and the
+   neck's stamp are drawn), not investigated.
+4. *The raking key on the back of the hand*: the live skin's wrap and camera fill were
+   reduced; a key that rakes across the back so the tendon relief reads is not done.
+5. *Hair*: the bun as twisted strands, flyaways and baby hairs at the hairline — not done.
+6. *Faces*: the closed lids' crease and lash shadows not specifically drawn (the cavities'
+   occlusion darkens the eyes' corners); the violin's shadow on the neck is the bake's own.
+7. *His collar and tie*: thickness and the knot's folds not modelled (the collar's skin is
+   sunk under it and shaded).
+8. *Small*: the bow hand's fingers touching the stick, rosin dust, fabric seams — not done.
+9. *Hand table item 11* (palm outline 1.4–1.63 × the wrist high up; tips ~29°) — not done.
+10. *Arm widths*: `arcus_figure_shape` measures from the posed joints (the probe's); his
+    bounds allow a suit's sleeve. The woman's deltoid/upper arm read 9–10 cm sleeved; the
+    bow arm's shoulder still reads broad from the new camera (linear skinning at the raised
+    shoulder) — a corrective shape or dual-quaternion skinning for the shoulder is the
+    next lever.
+11. The WSL Linux check (`tools/wsl/check.sh`) not run this session.
+
+**The owner's review of sheet v11 (2026-11-25, through the coordinator) — the next
+iteration, in this order:**
+1. *His hair*: the sheen read as a grey, helmet-like sheet over his crown. After the sheet
+   his lobes were lowered (`hair_look(1)`: shine 0.012, sheen 0.018) and his primary tinted
+   by his hair (`px_shade::strands`) — **not yet looked at**; the band should be narrow,
+   broken along the strands, warm; keep the dark roots and the breakup.
+2. *Her shoulder*: jagged dark shards at the top of the bow-side shoulder (round the seam),
+   and the velvet's sheen there faceted (polygonal) — smooth its normals or raise its
+   tessellation (the live shoulder band and the bake's). The stray-pixel gate is the check.
+3. *His bow arm*: the dark shard under the elbow beside the frog (before and after) and his
+   left sleeve's jagged end at the wrist. Gate: the stray-pixel gate.
+4. *Her hair* still yellow-flat at 100 %: roots and underlayer, tonal bands, the twisted bun
+   (item 6) — the streaks and the ash tint alone did not carry it.
+5. *The hands at 100 %*: dark speckles and jaggies on both left hands in the full tiles, the
+   bow hands small and unclear — the antialiasing at 100 % as well as 200 %.
+
+**Frame budget and clippy at the end of the session**: `arcus_hold_budget` (release, 
+loaded machine) **failed**: High violinists +3.65 / +5.04 ms (her, 100 / 200 %), +4.51 / +5.77 
+(him), over the 4.0 / 4.5 ceilings; his cello Light 200 % +1.00 at its 1.0 ceiling (numbers in 
+ADR 0159). The trunk shadow's steps were halved afterwards, unmeasured. `arcus_hand_table` 
+fails one rule ("Woman Viola string 3 +1: the palm 4.3 cm wide at its middle, the wrist 2.9"): 
+the offline palm thinning (`build_figures.py::slim_hand`, `PALM_VOLAR`) narrows the wrist from 
+the camera — handed to the arcus-hands builder, who now owns the hands. Clippy 
+(`-p cantus-ui --all-targets -D warnings`): one finding fixed (`cloth::contact`'s loop), 
+re-run at the session's end (see the final commit).
+
+## arcus-polish2 (2026-11-25): the musicians' polish, pass 2
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from bffb9f682. The
+owner: "the musicians can still look much, much better"; then "no te preocupes por los
+tiempos, luego optimizamos o hacemos configurable" (the look first); on sheet v12 "ese brazo
+aún se ve raro"; beside ref-04/06/10: a thinner neck, a camera "like the girl's", a concert
+light. ADR 0159 amended ("The polish, pass 2", "Optimise later"). Sheets: v13
+(`docs/round42/arcus-upper/sheet-v13-polish2/`, before the hold/neck/camera/light), and
+beside photographs in `F:\projects\daw-r42\tmp\polish2-arms\arms1.png` (the hold) and
+`F:\projects\daw-r42\tmp\polish2-light\concert-vs-studio.png` (all of it) — never committed.
+
+**Commits for the hands' re-solve**: the hold 03888c909, the neck 01c32794e, the camera
+d630eb474 (each its own commit); the Concert light 02e2400cb.
+
+**How to tune without rebuilding** (a release build of cantus-ui took 20–37 minutes with three
+builders on the machine): `CANTUS_HELD="tx,ty,tz,ux,uy,uz,dx,dy,dz"` (the realistic
+violinists' hold), `CANTUS_ARM_POLE_BOW` / `CANTUS_ARM_POLE_LEFT="down,right,forward"` (the
+left one is ignored for the realistic figures: their left elbow is the table's), read once a
+process by `shoot_arcus` and the tests; `arcus_arm_pose -- --ignored --nocapture` prints the
+arms' screen angles along the stroke.
+
+**Done**:
+1. *Frame budget*: profiled, then stopped by the owner's decision (BACKLOG §4b "The realistic
+   figures' frame cost": the profile and the levers; the fine_tri cache is arcus-hands').
+   Kept: the trunk's shadow from the arm's three pieces, the lighting table borrowed once a
+   loop, the left arm's passes sharing their classes. `arcus_hold_budget`'s ceilings are the
+   last measure plus a quarter. `arcus_figure_auto` (new): Light draws the coarse arms, Auto
+   steps down on long frames and back.
+2. *Shoulders*: the band keeps the bake's surface until the live arm is opaque
+   (`BAND_TURN`, `ARM_COVERS` 0.38) — her bow-side shards gone in both looks; dual-quaternion
+   live arms; the bow band's turned-away faces as the cloth's inside.
+3. *Sleeves*: they follow the forearm (no twist with the wrist); the cuff's inside lit as the
+   sleeve's own (no black ring); `cuff_shadow` on the wrist; over-stretched sleeve triangles
+   outside the band left out (the left elbow's points by the frog: not yet confirmed gone).
+4. *Antialiasing*: the live outline mitred (miters capped) and its strip softened toward the
+   inner corner; strings even in both looks (`Geo::wires`, `WIRE_PX`, `TubeOpts::flat`).
+5. *Hair*: hers along the strands (roots, underlayer, lighter lengths; the isotropic sections
+   were tried and taken out), her loose hairs (`Role::Wisp`); his warm broken band and
+   feathered hairline; Drawn: no pink hairline stripe, a deeper underlayer, strand lines.
+6. *Details*: the tie knot, the suit's part lines smoothed, the shade under cloth edges and
+   `Tex::Shirt`, the matte tie; the lids' crease, lash line and lash shadow; gold earrings;
+   rosin dust; cloth edge rolls over a centimetre.
+7. *The hold, the neck, the camera, the light* (ADR 0159): the scroll 3° under level with the
+   end button pinned; the luthier's neck; the camera from chest height; Concert (the stage)
+   the realistic figures' default, Studio an option (Settings ▸ Appearance ▸ Light).
+8. *Gates*: `arcus_figure_shape` measures by the mesh's crossings and is on (passes);
+   `arcus_figure_specks` is on (red, below); `arcus_arm_pose` (new) is written and ignored
+   with its reason (Open 1); `figure_contract`, `arcus_figure_auto` pass.
+
+**Gates at the end** (build 11 = 02e2400cb; the final cleanup commit only removes the timing
+probes and debug tints and sets the budget's ceilings): `figure_contract` ✓,
+`arcus_figure_auto` ✓, `arcus_figure_shape` ✓; `arcus_hold` 5/7 — "Violin Man 12 st: elbow
+49°" (the left-hand table, to be re-solved on the new hold) and "Vector Cello Woman: the
+figure shows over the instrument" (a live outline strip past the cello's neck stamp: the
+miters are now capped — re-run); `arcus_hand_shape` "Woman violin: finger 3 0.28 cm" (the
+hands' re-solve on the new neck and camera); `arcus_figure_specks` 47 strays with the new
+composition — the dotted sleeve outlines (about 5), the Drawn stage's spot reflections on
+the violin's top inside the arms' mask (about 4: the mask counts arm triangles the violin
+hides — mask them by depth), the hands' creases (about 7, arcus-hands'), grey one-pixel dots
+on her neck in Drawn; `arcus_hold_budget` not re-run after the last changes (the ceilings
+were raised by decision); `arcus_scene`, `scene_identity`, `kit_lint` not run this session
+(Chorda's and Tympanum's pictures should be untouched: every change is gated to the bowed
+subject or the realistic figures); clippy: see the final commit.
+
+**Open** (in the order the owner will see them):
+1. *The bow hand's height*: at 0.3 of the bow the hand sits 1.6–2.5 upper arms over its elbow
+   on screen (the photographs: level), over the shoulder nearer the frog — the strings stand
+   higher over the bow shoulder than a player's. Next lever: the skeleton's shoulder and
+   collarbone heights (`bowed_figure::skeleton`), then `arcus_arm_pose` on.
+2. *The left elbow*: the left-hand table's (arcus-hands' re-solve on 03888c909/01c32794e/
+   d630eb474).
+3. *Concert's tuning*: Drawn's spot reflections on the violin read as blotches; Paper is a dim
+   stage; the chair stool on a stage. Compare with ref-04/06/10 again after the re-solve.
+4. *The stray-pixel gate* (above). His left cuff's jagged end may remain (hem ring geometry:
+   a smoothed hem ring at load is the next lever).
+5. *Collar thickness* (the collar is painted on the suit's surface: needs a modelled band)
+   and *fabric seams* (`cloth::fold`'s seam code has no data) — not done.
+6. The WSL Linux check (`tools/wsl/check.sh`) not run.
+
+**The light against ref-04/06/10 — my view for the next builder** (the owner on the Concert
+sheet: "aún le falta lo de la luz, compara con las imágenes reales"). Concert is `Room::Stage`
+as it was built for the pianos; nothing in it was tuned for the figures. What it lacks:
+1. *A directional key*: the photographs' key comes high and from the side (stage spots), so
+   faces, necks and arms have a lit side and a shadow side with a soft terminator; ours lights
+   the face nearly frontally — flat, pale. Move the key higher and to the figure's right
+   (camera left), narrower, warmer; drop the fill to about a quarter.
+2. *A rim/back light*: in every reference the hair, the shoulders and the violin's edge glow
+   against the dark; ours barely separates them (the realistic rim ×1.7/2.2 is tuned for
+   Studio). A back light from above-behind, strong on hair and velvet.
+3. *Real cast shadows*: the violin's shadow on her neck and chest, the bow arm's on the body,
+   the chin on the rest — the bake's shadow map should carry them under a hard-ish key; the
+   live arms' trunk shadow is a soft band only.
+4. *The hall*: the references show a dark warm hall with soft bokeh (other players, lights);
+   ours is a flat dark curtain with one brown band and a stool — replace the stool and give
+   the background a little warm, out-of-focus structure.
+5. *The varnish*: deep red-amber with sharp specular streaks from the spots; ours reads
+   orange and flat, and in Drawn the spots make white blotches on the top.
+6. *Contrast*: deeper blacks with the velvet's and the wool's sheen kept; warmer skin
+   (ours pale); Paper's Concert currently a dim grey stage.
+
+## arcus-polish3 (2026-11-25): the concert light, his face, the clothes
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 4ac9aa779. The
+owner beside three concert photographs: "Aún le falta lo de la luz, compara con las imágenes
+reales"; on iteration 1: "Va mejor, sigue mejorando la luz y la ropa; el hombre puede mejorar
+mucho sus rasgos, hazlos más masculinos, y toma nota de los detalles de la ropa". ADR 0159
+amended ("The polish, pass 3: the concert light").
+
+**Sheets** (never committed, the photographs beside): iteration 1
+`F:\projects\daw-r42\tmp\polish3\a10\sheet.png`, iteration 2 `…\polish3\m4\sheet.png` and his
+face `…\polish3\man_face_200.png`; the final ones are listed in the session's report.
+`tools/arcus-figures/light_sheet.py <before> <after> <refs> <out>` makes them (both figures,
+Night Photographic and Drawn, Paper as the whole window, the photographs beside, the
+measures on each tile); `light_measure.py refs <dir>` / `shot <png> <who>` the numbers.
+
+**How to tune without rebuilding**: `CANTUS_CONCERT="key_az=-40,exposure=1.2,…"` — every
+number of `figure::concert::Concert` (the key's place, size, light, warmth and pool; the fill;
+the two back lights; skin, hair and cloth; the curve, grade and vignette; the hall, its
+orchestra's wash, its bokeh and blur; the varnish; the Drawn stage's `d_*`). Arrays as `a/b/c`.
+`CANTUS_SHRUG="left,right"` the shoulders' raise (cm). His face: `build_figures.py … --only=man`
+into a folder and `CANTUS_FIGURE_DIR` (the skin texture, `man_skin.png`, is compiled in: the
+stubble needs a build).
+
+**Done**:
+1. *The concert light* (`scene/figure/concert.rs`, `chorda_scene_hybrid::concert_rig`, the
+   shade's `cc` branches, `raster`'s concert curve and blur, `arcus_draw_flesh::concert_colour`
+   for the live arms): a small high stage spot from the audience's side, a weak fill, two
+   back lights (rims, and a line along black cloth's edge, `cloth_edge`), the cloth's sheen
+   along its folds (`cloth_spec`), skin's narrower wrap and warm grade, a red-amber varnish,
+   its own filmic S-curve. Measured against ref-04/06/10 (below).
+2. *The hall* (`chorda_scene_px_hall.rs`, `scene/hall.rs`): the wood wall in pools, the
+   orchestra on four risers (half in white shirts), stands and their lamps, the stage floor's
+   warm pools off to the sides, the hall's lights as bokeh; Drawn in soft shapes. Chorda's and
+   Tympanum's stage untouched. The black concert chair (`bowed_props::concert_chair`).
+3. *Drawn*: `Light::concert` (a softer terminator, the back lights' line `Light::rim`, one soft
+   varnish highlight and a deeper amber, no strip-light blotches), `stage_skin`.
+4. *The bow arm*: `PlayRig::shrug` / `bowed_human::SHRUG` (6 cm, the bow side): the hand at the
+   frog 0.63–0.78 upper arms over the elbow (was 1.65–2.46); `arcus_arm_pose` split — the bow
+   arm's test on, the left arm's ignored for arcus-hands' table re-solve.
+5. *The neck heel* (da0ad2fc2, its own commit for arcus-hands): the depth kept to 1.8 cm from
+   the body.
+6. *His face* (`build_figures.py` FACE["male"], `beard_field`, `uv_field`, the stubble in
+   `skin_texture`, the Adam's apple in `relief`; his hair shorter at the sides; his hairline
+   broken by fine tufts, `cards::scalp_cover`/`feather`); `man_skin.png` now 2048² (0.8 MB).
+7. *The sleeve as cloth* (`arcus_draw_flesh::sleeve_drape`): the shoulder's pull lines as the
+   arm rises, the cuff's slack — driven by the pose.
+8. *The light-measure gate* (`tests/arcus_light_measure.rs`, the bands from the photographs,
+   the dark clothes' silhouette below the face included).
+
+**Concert clothing, studied** (the owner, 2026-11-25: "toma nota de los detalles de la
+ropa"; ref-04, ref-06, ref-10 and the rest of `refs-violin`, study only). What real concert
+clothing shows, against what the figures have:
+
+| detail | the photographs | ours | |
+|---|---|---|---|
+| The elbow crook's diagonal folds and the inner elbow's compression folds | every bent sleeve (ref-06 both arms) | `elbow_folds`: normals swung and creases shaded round the crook, as deep as the elbow bends | have |
+| The shoulder's pull lines when the bow arm is raised | ref-06, ref-10: long diagonals from the shoulder's top toward the armpit | `sleeve_drape` (polish3): a few diagonal folds on the upper arm's first third, as deep as the arm is raised | new |
+| Sleeves as fabric with slack, not tubes | the cuff end gathers over the wrist (ref-06's shirt, ref-10's jacket) | `sleeve_drape`: the cuff's slack, soft ripples over the last 7 cm | new (normals only: the silhouette is still the mesh's) |
+| Sheen along the folds under a spot | ref-06's black shirt: a pale line on every crest | `cloth_spec` (wool and velvet, the key's broad lobe) and `cloth_edge` (the back lights' line along the edge), Photographic and the live arms | new |
+| Seams: the shoulder seam, the sleeve's set-in seam, the side seams | ref-10's jacket: the set-in seam reads as a soft ridge | none (`cloth::fold` has no seam data) | lack |
+| A shirt's button line and placket; the jacket's buttons, lapel roll and pocket flaps | ref-06 (placket and buttons), ref-10 (lapel roll, one button) | the lapel's rolled edge (`EDGE_ROLL_CM`), the shade under the lapels; no buttons, no placket, no pockets | lack |
+| The collar's thickness and roll; the tie's knot dimple and drape | ref-10 (open collar), formal photographs (knot dimple) | the collar painted on the suit's surface with the shade under its points; a four-in-hand knot without a dimple | partial |
+| Cuffs with an edge and a thickness | ref-06's rolled cuffs, ref-10's shirt cuff past the jacket's | the sleeve's end shading the wrist (`cuff_shadow`), the shirt's cuff a band of `Shirt`; no thickness | partial |
+| Fabric texture and sheen: wool's weave, the shirt's sateen along folds, velvet's pile | everywhere | wool's heather and twill (`Tex::Wool`), velvet's pile and back light (`Tex::Velvet`), poplin's unevenness (`Tex::Shirt`); no sateen sheen on the shirt | mostly |
+| Her dress: the neckline's edge, its waist, the skirt's fall | concert gowns: a finished neckline edge, a fitted waist, the skirt's long folds | the neckline's edge roll, the waist's gathered folds (`WAIST_FOLDS`), the long skirt (`bowed_human_skirt`) | have |
+
+Next, by impact: (1) the jacket's buttons and the shirt's placket and buttons as small modelled
+parts on the figure (the man's chest reads flat without them); (2) the collar as a modelled band
+with a thickness and the tie's dimple; (3) the cuffs as short tubes with an edge; (4) the
+set-in sleeve seam and the shoulder seam as a soft ridge in the figure's mesh.
+
+**Gates at the end** (build 6 = 9f0eaafcd's tree, release): `arcus_light_measure` ✓ (her face
+0.36, his 0.25; R/B 3.6 / 4.1; sides 2.5 / 2.3; face over the hall 20 / 14; contrast 2054 /
+2425; the silhouette and the edges far over their floors), `kit_lint` ✓, `figure_contract` ✓,
+`arcus_scene` ✓, `scene_identity` ✓, `arcus_figure_auto` ✓, `arcus_arm_pose` ✓ (the bow arm;
+the left arm's test ignored for arcus-hands), clippy `-D warnings` on cantus-ui ✓.
+`arcus_figure_shape` ✗ — her bow arm's deltoid 11.4 cm against 7.5–10.5; not pass 3's: the
+polish2 binary of 19:54 and `CANTUS_SHRUG=0,0` give the same 11.5 (decide on realism: if the
+photographs say a velvet sleeve's cap is 11.4 cm across there, re-baseline with the measure in
+the commit, else fix the band's shape). `arcus_hold` ✗ on arcus-hands' two (the left table's
+"Violin Man 12 st: elbow 49°", the Vector Cello Woman strip). `arcus_figure_specks` ✗ 62, all
+on the figure, none in the room (the hall is clean): most round the bow hand in the earlier
+camera's Photographic shots (arcus-hands'); mine: light dots at her right shoulder's edge
+(Woman Viola camera (115, 273)), a speck on the velvet ((335, 355)), the Drawn neck dot
+((192, 277)). `arcus_hold_budget` ✗ by p95 on Light (+1.4–1.75 ms, the man and her cello) with
+three builds on the machine; High's violinists +9–10 ms at 200 % (ceiling 11): re-measure idle
+(the owner: cost does not gate the look). The neck heel (da0ad2fc2) is not yet seen from the
+side against a luthier's profile.
+
+**Open — the coordinator's list after iteration 3** (in this order):
+1. *The Drawn violin*: the deeper amber reads as flat saturated orange; the photographs'
+   varnish is red-brown with darker flames and a specular ridge along the arching — less
+   saturation, value variation across the plates (`Light::shade`'s concert lacquer branch
+   multiplies the colour by `[1.0, 0.8, 0.62]`: start there).
+2. *His hair*: still a helmet with a hard hairline (and in Drawn a bright rim and white flecks
+   on the crown). A new hair proxy with volume and strand direction (the top swept back,
+   longer on top than the sides as ref-06), a soft broken edge at the temples and the nape
+   (MakeHuman's CC0 `short01/03/04` are in the system assets pack; only `short02` is
+   extracted on this machine).
+3. *Her skin*: the face, neck and neckline too uniform and pale-pink beside ref-04's warm skin
+   — warmth and the redness under the skin at the ears, the nose and the knuckles, the
+   clavicles' and the sternum's form (`relief`'s `RELIEF["female"]`), less matte uniformity;
+   her bun reads as a carved shell — strands and flyaways at its outline.
+4. *The clothes* (the owner asked twice): the study's lacking items — real folds at the elbow
+   crook and the armpit in the geometry, his lapel's edge, buttons and placket, a modelled
+   collar, the tie's knot and dimple, the cuffs' thickness, the seams; her sleeve's end must
+   not lose itself into the body.
+5. *Specks*: the three above that are mine and the flecks in his hair.
+6. `arcus_figure_shape`'s deltoid (above), the budget's idle re-measure, the WSL Linux check.
+
+## arcus-polish4 (2026-11-26): toward concert photographs
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 4f9e99efe. The
+integrator's review of pass 3's sheets, in order: the Drawn varnish, his hair, her skin, the
+clothing, the specks, the deltoid gate. ADR 0159 amended ("The polish, pass 4"). The
+left hand and `arcus_hold`'s left-arm items are arcus-hands' (not touched here; the hand
+geometry code in `build_figures.py` is unchanged).
+
+**How to look without rebuilding** (new): `CANTUS_FIGURE_DIR` now serves the cards' and the
+skin's textures too (`<who>_hair.png`, `_brow`, `_lash`, `_skin`), not only the `.fig` and
+the lids — a new hair proxy is looked at in `shoot_arcus` without a compile. The Drawn
+varnish and skin are `Concert` numbers (`d_varnish`, `d_flame`, `d_edge`, `d_ridge`,
+`d_ridge_pow`, `d_plate`, `d_mottle`, `d_skin`), tunable by `CANTUS_CONCERT`. The MakeHuman
+system assets on this machine now also hold `hair/short01`, `short03`, `short04`
+(`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys`, extracted from `sys.zip`).
+
+**Done** (where; the measures):
+1. *The Drawn varnish* (`Light::shade`'s concert branch; `bowed_draw::plate_rows`): red-brown
+   (`d_varnish` 0.92/0.42/0.32 over the wood), the flames twice as strong (`d_flame` 2.0, and
+   0.2 of the flat colour, was 0.45), deeper where the arching turns from the eye (`d_edge`
+   0.45), a specular ridge (`d_ridge` 0.4, `d_ridge_pow` 28), the plates darker toward
+   their edges (`d_plate` 0.35) with a slow mottle of wear (`d_mottle` 0.12).
+2. *His hair*: MakeHuman's CC0 `short04` (`HIS_HAIR`; `short02` before), its cards lifted into
+   a combed-back top (`his_volume`, `HIS_VOLUME` 1.7 cm at the front of the crown) and
+   feathered away below `HIS_TOP_LINE` (the sides and the nape short: the scalp there, its
+   colour drawn toward the skin's near the hairline, `cards::side_cover`); `HAIR_DARK`
+   (46, 35, 29) for his cards, scalp and Drawn shell, `HairLook` detail 0.4 (higher, the
+   crossing card layers read as a weave at 200 %); loose tips at the top's outline
+   (`his_tips`, `Role::WispDark`, Photographic). Drawn: the shell's top with the volume
+   (`thick`), the sides short and deeper (`blend`, `hair_at(.., short)`: roots with more of
+   the skin, broader value bands along the combing), its temples' edge cut into tufts
+   (`hair_shell(.., wave)`), sorted 0.6 cm nearer than the skin (`SHELL_BIAS`: the skin's
+   triangles had painted the light flecks through it), its rim 0.25.
+3. *Her skin*: `skin_gain` 1.0/0.92/1.04, `skin_sss` 0.5, no wrap or camera fill (her face
+   R/B 4.2 → 3.8, its sides 2.0 → 2.2; ref-04 2.9 and 3.3; his R/B 4.4, sides 2.8); the
+   Drawn stage skin's hue `d_skin` 1.0/0.92/0.88 (its value kept); `tones`: her neck no
+   longer cooled, a flush over the breastbone, a mottle over the neck and chest, the ears
+   redder (0.48); the nose's tip warmer; the knuckles' and joints' red ×2 (colour only);
+   `RELIEF` collarbones 0.4/0.3, notch 0.6, `STERNUM` (0.22 cm deep, 1.3 wide, 7 long).
+   Her bun a rope of two twisted locks (`torus(.., rope=0.12, turns=3, dense=9)`) and up to
+   12 loose hairs at its outline (`BUN_WISPS`).
+4. *Clothing*: the sleeves subdivided once (`subdivide`, a red-green split so nothing
+   cracks; cloth is no longer thinned) and creased (`sleeve_wrinkles`: slanted rings cut in
+   round the elbow's crook, 0.45 cm deep, 2.6 cm apart, deepest on the crook's side; drag
+   folds from the armpit) — the creases cut in only, so the silhouette stays the arm's;
+   finer, his sleeves keep the suit's own three cuff buttons (the thinning had flattened
+   them; the front's two buttons and the pocket flaps were always the suit's); edges with a
+   thickness (`hem`): her cuffs (0.3 cm + 0.12 flare: her sleeve's end no longer thins onto
+   the skin), his jacket's edge over the shirt (the lapels, the sleeves' hems over the
+   shirt's cuffs, `HEM_JACKET`) and the shirt collar's edge over the jacket (`HEM_COLLAR`);
+   the tie's blade under the knot with its dimple (`tie_knot`, `DIMPLE`) and a neater knot
+   (the wrap's fold faint, the upper corners going in under the collar's points); the
+   cloth's sheen duller (`velvet_spec` 0.06, `wool_spec` 0.035, `cloth_rim` 0.28); in Drawn
+   his shirt and tie sorted 0.8 cm farther (the collar's far point drew white shards over
+   the violin). The bodice smoothed further over the bust (`BUST_SMOOTH`: a small crescent
+   of its form showed in the Drawn sheen — modesty).
+5. *Specks*: on cloth the live outline strip takes its triangle's inner corner's colour
+   (was halfway: the dotted light line on her bow shoulder) and none is drawn on a cloth
+   contour edge under 1.6 px (`SMALL_EDGE_PX`: the tops of his cuff buttons each drew a
+   lone light dot); his sleeves smoothed after they are made finer (`soften`, `SOFTEN` 10:
+   the suit's cuff buttons rounder — their sharp tops each caught the back light on one
+   pixel).
+6. *The tie, modelled whole* (`bowed_human::tie_knot`; the coordinator twice: a navy blob
+   with white flecks): the knot a smooth tapered trapezoid (1.9 → 3.0 cm, 3 cm tall, its
+   wrap a soft crest, not a crease) and the blade following the shirt down from the knot's
+   foot (the suit's tie vertices' middle a centimetre at a time), widening 3.6 → 7.6 cm,
+   with one dimple under the knot and a pointed end, never narrower than the suit's painted
+   tie under it (up to 1.2 × its own shape, `REACH_MOST`); the painted tie region becomes
+   jacket cloth under it (its staircase edges and the navy fragments at the collar are gone).
+   The shirt's points inside a held violin's or viola's body (and the jacket's cloth over
+   its top: the painted tie flared there too) are pressed flat and tucked under its back
+   (`clear_of_the_body`, `TUCK` 0.4 cm): the collar's far point stood through the lower
+   bout — the white wedge in Photographic, the shards in Drawn; culled (an earlier build)
+   the collar was half a band. The knot by value (the coordinator, at 400 % a navy smear):
+   `hp::TIE` (40, 50, 96) with silk's faint sheen; the knot's top face lit, its underside
+   in shade, a darker rim, its cast shadow and a crease on the blade under it.
+7. *The deltoid, decided by realism* — the geometry was wrong, not the band: her bow-arm
+   cap measured 11.4/11.6 cm (violin/viola) against her left arm's 9.5 (the same cap at
+   rest) and ref-04's raised bare arm, 8–9 cm against her bow hand's breadth (~7.5 cm): the
+   rigid turn of skinning bulged the lifted cap. `arcus_draw_flesh::Deltoid` (a pose-space
+   corrective, the bow arm only: up to 0.3 of the radial distance over the upper arm's first
+   quarter, as the arm lifts 25° → 65° from hanging): 10.3 / 10.4. `Elbow` (both arms: the
+   bent joint's dual-quaternion swelling, which the finer sleeves revealed — 9.5–9.8 cm —
+   drawn in up to 0.16 as it bends 30° → 100°). `CANTUS_DELTOID` / `CANTUS_ELBOW` tune both
+   while measuring.
+8. *Her V neckline's point higher* (`V_DEPTH` 11 cm, was 15): the bow forearm crosses her
+   chest, and the V's point showed under it as a skin diamond that read as the arm through
+   the sleeve (the coordinator, on the hands builder's bow-hand sheet); modesty too. The new
+   test `arcus_figure_specks::no_skin_shows_through_or_under_her_bow_sleeve` (her bow arm at
+   the frog, the middle and the tip, violin and viola, both looks): no skin-coloured pixel
+   inside the live sleeve's outline (drawn in by 2 px; the hand and the bow left out) and at
+   most two in a 12 px band under it, shot at 200 % (`SLEEVE_PPP`).
+
+**Gates at the end** (build 14 of this session, release, the committed figures):
+`arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
+`scene_identity` ✓ (Chorda's and Tympanum's pictures unchanged), `arcus_figure_auto` ✓,
+`arcus_arm_pose` ✓ (the bow arm; the left arm's ignored for arcus-hands), the new
+`no_skin_shows_through_or_under_her_bow_sleeve` ✓; clippy `-D warnings` on cantus-ui ✓
+(on 271600266). Build 15 (271600266): the same, `arcus_figure_specks` 200 strays. `arcus_figure_shape` ✗ on its taper rule only — "Woman violin/viola arm
+1: no elbow": her bent bow elbow 9.2 cm across the crook against the upper arm's middle
+8.3/8.6 (the deltoid 10.3/10.4 and every width in its band; the viola's failed the same rule
+before this pass, 9.8 against 8.7). `arcus_figure_specks`' stray count ~250: the largest
+group is a row of single light pixels along the tops of his three cuff buttons (now kept,
+see Done 4) in every shot of his bow forearm — not the outline strip (left out on tiny
+edges, no change) but the buttons' own shading; then the bow hand's (arcus-hands') and his
+bow shoulder's edge; her Drawn neck dot (192, 277) is not the earrings (tested without them)
+— most likely a decal of the violin (a grain line or the purfling) sorted over the skin
+beside the lower bout. `arcus_hold_budget` not re-measured: the machine was never idle
+(three builders' builds the whole session; a build took 35–70 minutes).
+
+**Open** (in the order the owner will see them):
+1. *The collar band on the violin's side* (the coordinator's review of iteration 4, first):
+   the far collar must stay a continuous band round the neck, pressed flat and its point
+   tucked under the lower bout / chin rest. `clear_of_the_body` tucks every shirt point
+   inside the body's outline up to 4 cm over its arching — and that slab still takes the
+   visible part of the far band beside the knot (the neck's skin meets the tie on the
+   violin's side in `sheet-it5`). Next: tuck only the point (the shirt points farther than
+   ~2 cm from the neck's surface, or under the arching's top + 1 cm), keep the band, and
+   drape the tucked part along the back rather than moving it straight under (a fold at the
+   edge, not a stretched wall). The knot: by value now (its top lit, the underside and the
+   blade under it in its shade, a darker rim, the crease and dimple; `hp::TIE` a richer
+   navy with silk's sheen) — the coordinator asked to see it at 400 % under the Concert key
+   once the collar reads; the near collar point lying over the knot's corner is not
+   modelled.
+2. *His Photographic hair*: the crossing card layers still read as a fine weave at 200 %
+   (detail 0.3); the top's outline still nearly a smooth cap — the tips (`his_tips`) barely
+   read against the dark room. A groomed hair texture of our own (strands one way, no
+   crossing layers) is the next lever.
+3. *The specks gate* (above): give the cuff buttons a broader, softer highlight (their
+   tops' normals bent toward the sleeve's) or tell the gate a button from a stray; find the
+   Drawn neck dot (capture the Drawn primitives at that pixel).
+4. *The taper rule on a bent bow elbow* (above): decide by the photographs whether a cut
+   square to the upper arm through a bent crook may be wider than the upper arm's middle
+   (it is in ref-06's bent sleeves), or draw the crook in further (`ELBOW` up to 0.45 makes
+   it pass, but pinches it).
+5. *The new sleeve test*: it holds "no skin inside the bow sleeve" at the frog, middle and
+   tip; run against the old figure (V 15 cm) its 12 px band under the sleeve did not flag
+   the neckline's point at the editor's 100 % — widen the band or shoot at 200 %.
+6. *Seams*: the set-in sleeve seam and the shoulder seam (`cloth::fold`'s seam code reads
+   `[20 + depth, across]` on velvet; nothing writes it yet, and wool does not read it).
+7. `arcus_hold_budget` on an idle machine; the WSL Linux check (`tools/wsl/check.sh`).
+
+**Sheets** (never committed; the photographs beside): `F:\projects\daw-r42\tmp\polish4\`
+`sheet-it1\`, `sheet-it2\`, `sheet-it3\`, `sheet-it4\` (the last: `sheet-100.png`, the 200 %
+crops, `knot-collar-400-base-vs-now.png`, `her-bow-forearm-v-neck-200.png`). The crop and
+sheet scripts were session tools (the scratchpad), not committed: `light_sheet.py` makes the
+whole-picture sheet.
+
+## arcus-polish5 (2026-11-26): the collar, the specks, the measures
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from a1ecf5033. The
+integrator's list after sheet-it5, in order. ADR 0159 amended ("The polish, pass 5"). The
+left hand and the hand geometry code in `build_figures.py` are arcus-hands' (untouched).
+
+**How to look without rebuilding** (new): `CANTUS_TUNE="name=value,…"` (`scene::figure::tune`)
+sets any number under study for a process — `collar_keep`, `collar_ramp`, `collar_top`,
+`collar_tuck`, `collar_drape`, `collar_rib`, `collar_log` (prints the neck's radius and the
+corners tucked); `knot_w1`, `knot_lap`, `knot_lap_u0/u1/v0`, `knot_lap_gap`; `despike_g0/g1`,
+`despike_passes`; `small_part`, `strip_small_px`; `tips_n/p/len/lift/r`; `his_albedo`,
+`his_shine`, `his_sheen`, `his_detail`, `his_streaks`, `his_sections`, `his_under`,
+`his_rim`, `his_broken`; `drawn_skip` (a bit each: 1 the Drawn decals, 2 patches, 4 the
+figures' triangles, 8 polygons, 16 rods — to find what drew a stray pixel). `shoot_arcus
+--scales=2 --ppp=2` shoots the window at 400 %. `build_figures.py`: `CANTUS_SEAM=h,half,lean,
+groove` (the jacket's seams).
+
+**Done** (where; the measures):
+1. *The far collar band* (`bowed_human::clear_of_the_body`): the band round the neck stays
+   whole; only the point goes under a held violin's or viola's back. A shirt corner inside
+   the body's outline is tucked by how far it lies past the neck's surface (the neck's axis
+   posed, its radius the middle distance of its skin — 5.7 cm on him): within `COLLAR_KEEP`
+   (3 cm) kept, tucked fully `COLLAR_RAMP` (0.5) further; the instrument claims corners
+   only up to `COLLAR_TOP` (2 cm, was 4) over its top's highest point. Studied with
+   `CANTUS_TUNE` (keep 2.2 → still half a collar; 4–7 → the point lay over the varnish as a
+   wedge; top 0.5–2 against 4). In Drawn the band's corners over the outline are marked
+   (`BESIDE_BODY` in their `uv`) and sorted 1.5 cm farther (`bowed_draw_tris`,
+   `BESIDE_BIAS`) — sorted by their own middles they drew white stripes between the chin
+   rest's cells, sorted farther they uncovered dark shards by the knot — and by default
+   (`drawn_beside_mode` 0) left out: the Drawn knot is clean, but its far band goes under
+   the chin rest as before (the neck meets the tie on that side in Drawn; Open 0b). The
+   knot's top is 3.6 cm (was 3.0). The collar's points lifted onto the knot (`KNOT_LAP`) are
+   off by default (`KNOT_LAP_ON` 0, `knot_lap=1` to study): single corners lifted left a
+   white curl over the knot's top-left at 400 % (the coordinator on sheet6).
+2. *The sleeve test* (`no_skin_shows_through_or_under_her_bow_sleeve`): it could never fail
+   — each shot after the first drew the live arms over an empty picture (a run of frames
+   keeps only the textures it uploaded; the baked body is uploaded once per scene), so no
+   neckline was ever under the sleeve. Now a new scene each shot, three frames, the bow
+   also at the figure's start (0.2, 0.3, 0.4), the band under the forearm's sleeve only,
+   and only skin the forearm cuts off counts (a patch under `SLEEVE_PATCH`, 2500 px at
+   100 %: the old V's point ~955; her neckline running on up past the arm ~15 000).
+   `CANTUS_SLEEVE_DIR` saves the shots. **It fails on the old figure (V 15 cm) — and on the
+   new one too**: at the figure's start the new V's point still shows under the forearm,
+   smaller (a patch of ~240–750 px at 100 %, 0.2–0.3 of the bow). `V_DEPTH` below 11 does
+   not move it (8, 6.5 and 4 gave the same patch: the point there is set by something else
+   in `dress` — the bodice's smoothing or the cut's line). Not ignored: the figure needs the
+   fix (the neckline's point higher or covered at the start), not the test.
+3. *Specks*: his cuff buttons' rings are not the live outline's strips (`strip_small_px`
+   and a no-outline flag for small separate pieces changed nothing), not the shirt's cuff
+   through a crack (the cuff made wool: the same), not the corners' normals (`despike` at any
+   strength: the same) — a pixel-wide light ring at 400 %; still open. `despike` kept (a
+   sleeve corner grazing the eye more than its neighbourhood takes its broad normal). Her
+   Drawn neck dot (192, 277) is the figure's own triangles in the Drawn picture
+   (`drawn_skip=4` removes it; the violin's decals, patches, polygons and rods do not; not
+   the tailgut either — tried and reverted): still open.
+4. *The taper rule on a bent elbow* (`tests/arcus_figure_shape.rs`): decided by ref-04 —
+   her bare bow arm bent about 75°, cut square to the upper arm at the elbow, runs along the
+   forearm's start out to the measure's 6 cm: 1.07–1.12 × the upper arm's middle (the
+   figure's bow elbow 1.07–1.11, bent 75–85°). Past 45° of bend the elbow may be up to 1.2 ×
+   the middle (`BENT`, `BENT_MOST`), straighter it must stay under it; the report prints
+   each arm's bend. Re-baselined, no geometry pinched.
+5. *His Photographic hair*: the weave was the tonal streaks' fine noise over the crossing
+   cards, not the maps (the maps' detail flattened, coverage hardened, the detail smoothed
+   along the strands: the weave stayed) — `his_streaks` 0.9 → 0.15, `his_broken` 0.7 →
+   0.2, `his_detail` 0.3 → 0.2; the top's outline broken by more, longer, thicker tips
+   (`HIS_TIPS` 90 → 250, `TIPS`: 0.35 of the crown's corners, × 1.2 long, × 2 thick).
+6. *Seams* (`build_figures.py::seams`, his jacket only): a soft ridge round each armhole
+   (where the arm's share of the weights crosses one half) and along each shoulder's top,
+   0.22 cm (`SEAM`; 0.4 a lump in the outline, 0.13 invisible). Her velvet has none: on her
+   raised shoulder the ridge rippled the outline. `man.fig` regenerated (0aa2d8f1e).
+
+**Open** (in the order the owner will see them):
+0b. *The far collar band in Drawn* (the coordinator on sheet6, next): stop sorting it among
+   the chin rest's cells — draw its visible part (from the knot to where the chin rest
+   covers it) as its own layer after the chin rest's cells, clipped to the instrument's
+   silhouette, or shorten the chin rest's claim to its own footprint. The marked triangles
+   (`BESIDE_BODY` in a shirt corner's `uv`) are the band's; `drawn_beside_mode=1` sorts them
+   instead of leaving them out. Send the next 400 % pair when both styles read as a whole
+   collar with a clean knot.
+0c. *His hair*: tone down the few bright single-strand streaks on the crown (the tips lying
+   on the hair catch the back light — they read as scratches); `tips_*` and `his_*` tune
+   them without a build.
+0. *Her V's point under the bow forearm at the figure's start* (the sleeve test, above,
+   fails on it): find what sets the point's height in `dress` now that `V_DEPTH` no longer
+   moves it, then raise it clear of the forearm at 0.2–0.3 of the bow (or close the V there).
+1. *His cuff buttons' light rings* (Photographic only, the specks gate's largest group):
+   `CANTUS_CONCERT=cloth_rim=0` removes them — they are the concert's back-light line along
+   black cloth's edge (`cloth_edge`, the live arm's `concert_colour` and the bake's
+   `px_shade::cloth_edge`) on each button's steep rim; ruled out: the live outline's strips
+   (`strip_small_px`), the shirt's cuff through a crack, the corners' normals (`despike`).
+   Next: weaken the line where the normal turns fast over a pixel (a button's rim, a
+   crease's lip — his bow shoulder's dots are the same line on a fold), keeping it on the
+   arm's true silhouette.
+2. *Her Drawn neck dot* (192, 277): the figure's own triangles in the Drawn picture
+   (`CANTUS_TUNE=drawn_skip=4` removes it; the violin's decals, patches, polygons and rods
+   do not). A sliver triangle's gradient on her neck, most likely; capture the triangles
+   covering that pixel next.
+3. *His hair* at 400 %: the tips read as fine straight strokes over the crown where they lie
+   on the hair (not only at the outline); a groomed hair texture of our own is still the
+   larger lever.
+4. *Seams*: his jacket's only (a soft ridge); her velvet none.
+5. `arcus_hold_budget` on an idle machine (never idle this session: three to four builds
+   at once, a release build 31–55 minutes); the WSL Linux check.
+
+**Gates** (build 5, release, the committed figures; build 6 = the same plus Drawn's leave-out, the sleeve test's patch rule; the last commit's two defaults — the lap off, the ramp 0.5 — looked at through `CANTUS_TUNE` on build 6, not rebuilt):
+`arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
+`scene_identity` ✓ (Chorda's and Tympanum's pictures unchanged), `arcus_figure_auto` ✓,
+`arcus_arm_pose` ✓ (the bow arm; the left arm's ignored for arcus-hands),
+`arcus_figure_shape` ✓ (the bend-aware taper rule; it failed before this pass). The sleeve
+test ✗ on purpose (above: the new figure's V point at the start). `arcus_figure_specks` ✗
+185 strays (was 200), none in the room, 115 of them from the earlier camera (the bow hand's,
+arcus-hands', and the varnish's rosin dots); mine: the cuff buttons' rings, his bow
+shoulder's fold-lip dots (both the concert's `cloth_rim` line, Open 1), her Drawn neck dot
+(Open 2).
+
+**Sheets** (never committed; the photographs not beside — study only):
+`F:\projects\daw-r42\tmp\polish5\sheet7\` (the committed defaults; `sheet6\` the lap on; `sheet5\` the hair) — `collar-100.png` (before | after, Photographic
+over Drawn, the picture at 100 %), `collar-400.png` (the knot and both collar points at
+400 %), `his-hair-200.png` (before | after at 200 %). Before = this branch's binary with
+`CANTUS_TUNE` set to pass 4's numbers. The sheet script was a session tool (the
+scratchpad): `shoot_arcus --hold=man --only=violin-play-+-night --scales=1` and
+`--scales=2 --ppp=2`, the picture cropped at (8, 60)–(600, 490) and the knot at
+(158, 192)–(262, 282) of the 100 % window.
+
+## arcus-polish6 (2026-11-26/27): the neckline, the edge line, the far band
+
+Branch `r42/arcus-polish` (worktree `F:\projects\daw-r42\arcus-polish`), from 89243a276. The
+coordinator's list after sheet7, in order, with the coordinator's rulings mid-pass. ADR 0159
+amended ("The polish, pass 6"). The left hand and the hand geometry code in
+`build_figures.py` are arcus-hands' (untouched).
+
+**The MakeHuman inputs** (new, and why pass 5's V trials were void): the system assets in
+`C:\Users\luis1\AppData\Local\Temp\claude\mh-dl\sys` had lost their `skins` and `clothes`
+(a temp folder); `build_figures.py` failed halfway, left its out folder empty, and
+`CANTUS_FIGURE_DIR` read the embedded figure in silence — so `V_DEPTH` 8, 6.5 and 4 "gave
+the same patch". The assets the converter reads are now extracted durably in
+`F:\projects\daw-r42\tmp\mh-sys` (from `mh-dl\sys.zip`: `skins/young_caucasian_*`,
+`clothes/shoes04`, `clothes/male_elegantsuit01`, `eyes`, `eyebrows`, `eyelashes`, `hair`,
+`packs`); the data folder is still `C:\Users\luis1\AppData\Local\Temp\claude\mh-src\mh\makehuman\data`
+(copy it somewhere durable before a clean-up). `build_figures.py` checks every input before
+any work and exits naming what is missing (`NEEDED`, `check_inputs`); `CANTUS_FIGURE_DIR`
+says on stderr when a file is not in its folder and the embedded one is read. With the
+committed inputs the converter reproduces `woman.fig` and her lids byte for byte (V 11).
+`CANTUS_V_DEPTH` sets `V_DEPTH` for a run.
+
+**Done** (where; the measures):
+1. *Her V neckline* (`build_figures.py::V_DEPTH` 11 → 7; `woman.fig`, `woman_lids.bin`
+   regenerated): with the real figure, `V_DEPTH` moves the point — the sleeve test's patch at
+   the frog 1096 px at 200 % (V 11), 631 (6), 324 (4), 25/0 (2). The coordinator: keep a
+   moderate V (the dress's design; ref-04), seen under the forearm it reads as the neckline,
+   not as a hole. Sheets `tmp\polish6\sheet-v\neckline-{photo,drawn}-{100,200}.png` (old V 15
+   over new V 7 at the frog, 0.2, the middle and the tip).
+2. *The sleeve test* (`no_skin_shows_through_or_under_her_bow_sleeve`) fails only on islands:
+   a patch of skin under the forearm that is not the chest region (the picture's largest
+   patch of skin), that dark cloth frames (`SLEEVE_RING` 0.6 of the pixels round it darker
+   than `SLEEVE_DARK`), at least `SLEEVE_THIN` 4 px across (the viola's lit lower edge line
+   was a 56 × 6 strip) and at least `SLEEVE_ISLAND` 500 px at 100 % (the whole patch). It
+   reports every island's size. V 7: islands of 119–410 px (the sliver at the frog and 0.2)
+   — passes; the old V 15 (`CANTUS_FIGURE_DIR` = `tmp\polish5\oldfig`): 638–2121 px at
+   0.05–0.3, both styles, both instruments — fails.
+3. *The back lights' edge line on small steep forms* (the specks gate's largest group): its
+   share is the cloth's form's size — on the live arm per vertex (`figure::cloth::broad`, the
+   radius of curvature at rest from the normals' turn along the cloth's edges, eased from 0 at
+   0.8 cm to 1 at 2.0, `cloth::EDGE_SMALL`; the concert's colour from a second map without the
+   line, `LutAt::colour_sized`, slots 8–9), in the bake per sample (`px_shade::edge_size`: the
+   footprint over the normal's turn and its slope, `normal_turn` now taken for velvet and
+   wool). His cuff buttons' rings and the shoulder's fold-lip dots are gone; the gate 185 →
+   147 strays on the final build (`rim_r0`, `rim_r1` tune it).
+4. *His crown's bright single strands* (`bowed_human::TIPS` thickness 2.0 → 1.2,
+   `px_bowed::TIP_ALBEDO` 2.4 → 1.6, `tip_albedo` tunable): the tips over the hair are faint
+   strands; the outline stays broken.
+5. *Tunables added*: `knot_lap_ru`, `_rv`, `_h0`, `_hr` (the lift's ramps, soft now);
+   `drawn_beside_mode` 2 (below); `probe_x`, `probe_y` (every Drawn figure triangle over a
+   point, printed); `strip_probe_x`, `_y` and `strip_pass_edges` (the live outline strips);
+   `arm_shadow_reach`, `arm_shadow_depth` (the forearm's shadow on the trunk);
+   `contact_depth`, `contact_sigma` (the skin's shade at a cloth's edge).
+
+**Open** (in the order the owner will see them):
+0. *The far collar band in Drawn* (`drawn_beside_mode`, default 0 = pass 5: the neck meets
+   the tie on the violin's side). Tried this pass: (a) the band sorted by its middles and
+   kept out of the instrument's faces on screen (`Shape::Poly`'s `out`, a mask): the band
+   then lost to the stretched jacket triangles the tuck leaves (`Wool`, nearer by ~1.5 cm at
+   the knot's right) — nothing showed; (b) nearer by 0.5–4 cm and kept out of the chin rest's
+   ebony only: it showed, striped by the top's grain decals (sorted just nearer than the
+   top's nearest cell) and in shards; (c) a layer of its own (`Layer::Front`) kept out of the
+   chin rest and the figure's nearer skin, tie and hair (grown 0.6 pt): with every marked
+   triangle, white shards ran down past the knot over the jacket and the varnish (a triangle
+   with a tucked corner is a sliver); with only the band kept where it is (every corner
+   untucked, `uv[1]` now carries the tuck), too few triangles are left to make a band.
+   Next: draw the band from the Photographic picture's own pixels for that patch, or tuck by
+   whole triangles (a triangle tucked when its middle is), so the kept band has clean edges.
+0b. *The collar's points over the knot* (`knot_lap=1`): with the softer ramps the white curl
+   is still there (the collar point's own jagged tip lifted onto the knot); off.
+1. *The thin white diagonal line on her dress under the neckline* (every picture, both
+   styles, the same place at every bow position, about (257, 315) of the 100 % window): a
+   live arm's cloth outline strip — `strip_small_px=1000` removes it; `drawn_skip` of every
+   kind does not (not the bake); not a strip between the two passes (`strip_pass_edges=0`
+   leaves it). `strip_probe_x/_y` did not catch it at the window's or the picture's
+   coordinates — find the space `sc.sp` is in, then which arm and edge.
+2. *Her Drawn neck dot* (192, 277): not a sort (a velvet bias of 0.4–2 cm leaves it): no
+   figure triangle covers that point but the dress's (`probe_x/_y`) — a hole between skin
+   triangles (a T-junction of the dress's cut, `build_figures.py::cut`) through which the
+   velvet behind shows. Next: weld the cut's T-junctions, or a wider seam on skin.
+3. *The neckline's edge and the forearm's shadow* (the coordinator: hem thickness and outline
+   where the dress meets the skin, the forearm's cast shadow on the chest): the tunables
+   above change nothing on her — her bake takes the skin from its texture, not from the
+   contact detail, and the trunk shadow does not reach there. Bake work; not started.
+4. `arcus_figure_specks` 147 strays (185 before; none in the room); most are the earlier camera's
+   bow hand (arcus-hands').
+5. `arcus_hold_budget` on an idle machine; the WSL Linux check.
+
+**Gates** (the final build, release, the committed figures — `woman.fig` at V 7):
+`arcus_light_measure` ✓, `kit_lint` ✓, `figure_contract` ✓, `arcus_scene` ✓,
+`scene_identity` ✓, `arcus_figure_auto` ✓, `arcus_arm_pose` ✓ (the left arm's ignored for
+arcus-hands), `arcus_figure_shape` ✓, the sleeve test ✓ on V 7 and ✗ on the old V 15 (as it
+must), `arcus_figure_specks` ✗ 147 (Open 4), clippy `-D warnings` on cantus-ui ✓.
+
+**Sheets** (never committed; `F:\projects\daw-r42\tmp\polish6\`): `sheet-v\` (the
+neckline), `sheet6\` (before = 89243a276's binary, after = this pass's final build:
+`man-100.png`, `man-400.png` — the collar and the knot; `woman-100.png`, `woman-400.png` —
+the neckline; `his-hair-200.png`). The sheet script: the scratchpad's `sheet6.py <before>
+<after> <out>` (shots from `shoot_arcus --hold=man|woman --only=violin-play-+-night
+--scales=1` and `--scales=2 --ppp=2`).

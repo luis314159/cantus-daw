@@ -51,8 +51,10 @@ fn test_camera() -> Option<(V3, V3, f32)> {
 }
 
 /// r42:arcus-hand — a realistic figure holding a violin or a viola: the camera's azimuth
-/// (degrees) and its height over the room's own (degrees).
-pub const REAL_HELD_VIEW: (f32, f32) = (-20.0, -3.0);
+/// (degrees) and its height over the room's own (degrees). (r42:arcus-polish2: from the
+/// audience at about chest height, as ref-04 is taken — the owner: "like the girl's": 8°
+/// under the room's, 2° under level on the stage; the azimuth kept, square to the neck.)
+pub const REAL_HELD_VIEW: (f32, f32) = (-20.0, -8.0);
 
 /// r42:arcus-hand — design sheets only: another view for the realistic violinists (the
 /// earlier one beside the new, `shoot_arcus --view=4,7`). Never set by the app.
@@ -213,7 +215,9 @@ pub fn material(b: Bowed, r: Role) -> Mat {
         // r42:arcus-upper — never drawn in this picture (`bowed_draw_tris` leaves them out).
         Role::Card(_) | Role::Scalp(_) => hp::flat(hp::LASH),
         Role::Shell(0) => hp::hair(hp::HAIR_FAIR),
-        Role::Shell(_) => hp::hair(hp::HAIR),
+        Role::Shell(_) => hp::hair(hp::HAIR_DARK), // r42:arcus-polish4
+        Role::Wisp => hp::hair(hp::HAIR_FAIR),
+        Role::WispDark => hp::hair(hp::HAIR_DARK), // r42:arcus-polish4
     }
 }
 
@@ -230,6 +234,23 @@ fn bias(r: Role) -> f32 {
 /// The wood's figure at a cell (its grain coordinates, cm): the spruce top's slow
 /// variation (its fine grain is drawn as lines over it), the maple's flame across its
 /// length.
+/// r42:arcus-polish4 — a plate's ring count when `p` is one of the body's two plates (the
+/// top, the back: the rings from the outline in to the middle — the first patch's layout),
+/// else none.
+fn plate_rows(m: &Mesh, r: Role, p: &super::bowed_mesh::Patch) -> Option<usize> {
+    let first = &m.patches.first()?.1;
+    (matches!(r, Role::Top | Role::Maple)
+        && p.rows > 2
+        && p.rows == first.rows
+        && p.cols == first.cols)
+        .then_some(p.rows)
+}
+
+fn smooth01(x: f32) -> f32 {
+    let t = x.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
 fn figure(r: Role, m: &Mat, uv: [f32; 2]) -> f32 {
     match r {
         Role::Top => 1.0 + m.figure * 0.35 * (uv[1] * 0.21 + 0.6 * (uv[0] * 0.05).sin()).sin(),
@@ -364,14 +385,22 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             at[i] = at[i].min(at[i - 1]) - 0.002;
         }
     }
+    // r42:arcus-polish5 — `CANTUS_TUNE`'s `drawn_skip` (a bit each: 1 the decals, 2 the
+    // patches, 4 the figures' triangles, 8 the polygons, 16 the rods) leaves a kind out, to
+    // find what drew a stray pixel. Unset: everything.
+    let skip = super::figure::tune::tune("drawn_skip", 0.0) as u32;
+    // r42:arcus-polish6 — the instrument's faces turned to the camera, on screen (and their
+    // boxes): the collar's band that passes under it is kept out of them
+    // (`bowed_draw_tris::draw`).
+    let mut cover: Vec<Cover> = Vec::new();
     for (d, &a) in dec.iter().zip(&at) {
-        if a < f32::MAX {
+        if a < f32::MAX && skip & 1 == 0 {
             c.p.at(a - 0.01, Part::Bowed);
             c.p.poly(d.pts.clone(), d.paint.clone(), d.op, 0.0);
         }
     }
     for (role, p) in &m.patches {
-        if *role == Role::Purfling {
+        if *role == Role::Purfling || skip & 2 != 0 {
             continue;
         }
         let mat = material(b, *role);
@@ -413,8 +442,24 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             );
             let na = (p.nrm[cell[0]] + p.nrm[cell[1]]).norm();
             let nb = (p.nrm[cell[3]] + p.nrm[cell[2]]).norm();
-            let ca = c.light.shade(&mat, na, c.view(ea), ea, None, g);
-            let cb = c.light.shade(&mat, nb, c.view(eb), eb, None, g);
+            let mut ca = c.light.shade(&mat, na, c.view(ea), ea, None, g);
+            let mut cb = c.light.shade(&mat, nb, c.view(eb), eb, None, g);
+            // r42:arcus-polish4 — on the concert stage a plate's varnish is not one value:
+            // darker toward its edges (the varnish pooled by the purfling, the edge's wear
+            // dark), lighter over the arching, a slow mottle of wear across it (ref-04/06).
+            if let (Some(cc), Some(rows)) = (&c.light.concert, plate_rows(m, *role, p)) {
+                let r = cell[0] / p.cols;
+                let at = |row: usize, uv: [f32; 2]| {
+                    let k = row as f32 / (rows - 1).max(1) as f32;
+                    let edge = 1.0 - cc.d_plate * (1.0 - smooth01(k / 0.55));
+                    let mottle = (uv[0] * 0.33 + 1.3).sin() * (uv[1] * 0.21 + 0.4).sin()
+                        + 0.5 * (uv[0] * 0.71 - uv[1] * 0.37 + 2.1).sin();
+                    edge * (1.0 + cc.d_mottle * mottle)
+                };
+                let (ua, ub) = (p.uv[cell[0]], p.uv[cell[3]]);
+                ca = super::light::scale(ca, at(r, ua));
+                cb = super::light::scale(cb, at(r + 1, ub));
+            }
             c.p.at(cam.depth(ctr) - bi, Part::Bowed);
             let sp = c.sps(&q);
             let (pa, pb) = (cam.p(ea), cam.p(eb));
@@ -426,12 +471,27 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             // A figure's fine cells overlap a little more, so no seam grid shows on its
             // dark hair and cloth. // r42:arcus-upper
             let seam = if figure_role(*role) { 1.1 } else { 0.45 }; // r42:arcus-upper
+            if *role == Role::Ebony {
+                let g = grown(&sp, COVER_GROW);
+                cover.push((super::geo::bbox(&g), g));
+            }
             c.p.poly(sp, paint, 1.0, seam);
         }
     }
-    super::bowed_draw_tris::draw(c, b, m); // r42:arcus-upper
     for (role, poly) in &m.polys {
-        if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) {
+        if poly.pts.len() < 3 || *role != Role::Ebony {
+            continue;
+        }
+        if cam.facing(super::geo::centre(&poly.pts), poly.n) {
+            let sp = grown(&c.sps(&poly.pts), COVER_GROW);
+            cover.push((super::geo::bbox(&sp), sp));
+        }
+    }
+    if skip & 4 == 0 {
+        super::bowed_draw_tris::draw(c, b, m, &cover); // r42:arcus-upper
+    }
+    for (role, poly) in &m.polys {
+        if poly.pts.len() < 3 || matches!(role, Role::Hole | Role::Cut) || skip & 8 != 0 {
             continue;
         }
         let ctr = super::geo::centre(&poly.pts);
@@ -446,6 +506,11 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
         c.p.poly(sp, Paint::Solid(col), 1.0, 0.3);
     }
     for (role, rod) in &m.rods {
+        // (r42:arcus-polish2: her loose hairs are the Photographic picture's: drawn as
+        // tubes a point wide they were wires.)
+        if matches!(role, Role::Wisp | Role::WispDark) || skip & 16 != 0 {
+            continue;
+        }
         let mat = material(b, *role);
         let len = (rod.b - rod.a).len();
         // Long rods (the strings, the endpin) in pieces, each sorted by its own middle.
@@ -458,6 +523,9 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh) {
             c.p.at(cam.depth((a + e) * 0.5) - bias(*role), Part::Bowed);
             let mut o = NS;
             o.minw = if matches!(role, Role::Steel | Role::Wound | Role::Silk(_)) {
+                // (r42:arcus-polish2: a string one even colour while thinner than a
+                // point and a half — its gradient across dotted it.)
+                o.flat = 1.5;
                 0.55
             } else {
                 1.0
@@ -513,6 +581,13 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
         )
     };
     cam.fit(&points(b, h), fb, st.frame.margin, st.frame.anchor); // r42:arcus-upper
+                                                                  // r42:arcus-polish3 — a realistic figure on the stage: the concert's own light and hall
+                                                                  // (`figure::concert`), the stage dark in either theme.
+    let concert =
+        (stage && super::bowed_human::who(h.hold).is_some()).then(super::figure::concert::get);
+    if let Some(cc) = &concert {
+        light = Light::concert(cc, mid, cam.eye());
+    }
     let mesh = mesh_for(b, h); // r42:arcus-upper
     let mut list = List::default();
     let lod = if st.size.x.min(st.size.y) * st.ppp < 200.0 {
@@ -522,7 +597,10 @@ pub fn bowed_scene(b: Bowed, h: Holder, st: &Stage) -> Built {
     };
     let info = {
         let mut c = Ctx::new(cam, light, &mut list, lod);
-        rooms::build(&mut c, st.room, v(mid.x, 0.0, mid.z), st.look)
+        match &concert {
+            Some(cc) => super::hall::concert(&mut c, mid, cam.eye(), cc), // r42:arcus-polish3
+            None => rooms::build(&mut c, st.room, v(mid.x, 0.0, mid.z), st.look),
+        }
     };
     let y0 = cam.p(v(0.0, 0.0, mid.z)).y;
     list.mirror_fade = Some((y0 - 30.0, y0 + st.size.y * 0.45));
@@ -620,6 +698,33 @@ fn wall_shadow(c: &mut Ctx, mesh: &Mesh, wall_z: f32) {
     c.p.on(Layer::Objects);
 }
 
+/// r42:arcus-polish6 — an instrument's face on screen and its box (min x, min y, max x,
+/// max y): the chin rest's (its ebony: the cup, its lip, its foot; the tailpiece beside it),
+/// which the collar's band passes under.
+pub type Cover = ((f32, f32, f32, f32), Vec<Pos2>);
+
+/// r42:arcus-polish6 — how far (points) a chin rest's face is grown for the band's keep-out:
+/// its cells' own seams close the hairline gaps between them, and the band showed through
+/// them as threads.
+const COVER_GROW: f32 = 0.6;
+
+/// `pts` moved out from their middle by `d` (points).
+pub fn grown(pts: &[Pos2], d: f32) -> Vec<Pos2> {
+    let n = pts.len().max(1) as f32;
+    let c = pts.iter().fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2()) / n;
+    pts.iter()
+        .map(|p| {
+            let v = p.to_vec2() - c;
+            let l = v.length();
+            if l < 1e-4 {
+                *p
+            } else {
+                (c + v * ((l + d) / l)).to_pos2()
+            }
+        })
+        .collect()
+}
+
 /// r42:arcus-upper — a surface of the figure that holds the instrument (not the
 /// instrument's, nor the room's).
 fn figure_role(r: Role) -> bool {
@@ -643,5 +748,7 @@ fn figure_role(r: Role) -> bool {
             | Role::Lash
             | Role::Nail(_)
             | Role::Shell(_)
+            | Role::Wisp
+            | Role::WispDark
     )
 }

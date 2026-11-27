@@ -141,6 +141,10 @@ pub fn pose(b: Bowed, h: Holder) -> Pose {
         let rise = if b == Bowed::Viola { 66.0 } else { 70.0 };
         return standing(d, rise, 16.0, 10.0);
     }
+    // r42:arcus-polish2 — the realistic violinists hold it as the photographs do.
+    if d.held && matches!(h.hold, Hold::Woman | Hold::Man) {
+        return super::bowed_upper::held_real(d);
+    }
     Pose::of(b)
 }
 
@@ -246,7 +250,8 @@ pub fn left_arm(b: Bowed, h: Holder) -> Option<Arm> {
         let body = super::bowed_human::rest_body(b, w);
         let (upper, fore) = super::bowed_human::arm_lengths(fig, 0);
         let pole = if b.dims().held {
-            sk.down + sk.r * 0.45 + sk.f * 0.15
+            let [d, r, f] = pole_tuned(0).unwrap_or(LEFT_POLE);
+            sk.down * d + sk.r * r + sk.f * f
         } else {
             -sk.r * 1.2 + sk.down * 1.0 - sk.f * 0.15
         };
@@ -300,7 +305,8 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
             // The bow arm forward in front of the body, the elbow low (the owner's
             // reference, sheet v7).
             pole: if b.dims().held {
-                sk.down * 12.0 + sk.r * 18.0 + sk.f * 8.0
+                let [d, r, f] = pole_tuned(1).unwrap_or(BOW_POLE);
+                sk.down * d + sk.r * r + sk.f * f
             } else {
                 sk.r * 0.6 + sk.down * 2.0 + sk.f * 0.6
             },
@@ -366,6 +372,29 @@ pub fn arm(b: Bowed, h: Holder) -> Option<Arm> {
         reach: None,
         who: None,
     })
+}
+
+/// r42:arcus-polish2 — where a realistic violinist's elbows fall (the pole's share of the
+/// figure's down, right and forward). The owner on sheet v12: "ese brazo aún se ve raro" —
+/// the bow arm out to the side at the shoulder's height read as one long sausage from a
+/// big shoulder cap, the left elbow out past the violin like a wing. The photographs
+/// (`tests/arcus_arm_pose.rs`): the bow arm's upper arm hangs down and forward from a
+/// relaxed shoulder, the elbow a visible corner at about the hand's height; the left
+/// elbow under the violin, the upper arm sloping down to it.
+const BOW_POLE: [f32; 3] = [8.0, 24.0, 6.0];
+const LEFT_POLE: [f32; 3] = [1.0, 0.45, 0.15];
+
+/// For finding the poles (`CANTUS_ARM_POLE_LEFT` / `CANTUS_ARM_POLE_BOW`, "down,right,
+/// forward"): a tuning aid, read once.
+fn pole_tuned(side: usize) -> Option<[f32; 3]> {
+    use std::sync::OnceLock;
+    static P: OnceLock<[Option<[f32; 3]>; 2]> = OnceLock::new();
+    let read = |k: &str| {
+        let s = std::env::var(k).ok()?;
+        let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        (v.len() == 3).then(|| [v[0], v[1], v[2]])
+    };
+    P.get_or_init(|| [read("CANTUS_ARM_POLE_LEFT"), read("CANTUS_ARM_POLE_BOW")])[side]
 }
 
 /// Where the elbow of a two-bone arm from `s` to `w` falls (lengths `a`, `b`), bent toward

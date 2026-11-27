@@ -373,7 +373,14 @@ fn main() {
                     Shell::new(("inst", t.0)).set_scale(&ctx, k);
                     let size = views::inst::editor_size(InstrumentKind::BowedString) * k;
                     let path = dir.join(format!("arcus-{tag}.png"));
-                    shoot(&ctx, size, 1.0, 8, Some(&path), |ui| {
+                    // r42:arcus-polish5 — `--ppp=2`: the window shot at twice its pixels as
+                    // well (`--scales=2 --ppp=2`: the picture at 400 %, for the knot's crops).
+                    let ppp = args
+                        .iter()
+                        .find_map(|a| a.strip_prefix("--ppp="))
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(1.0f32);
+                    shoot(&ctx, size, ppp, 8, Some(&path), |ui| {
                         views::inst::window_in(&mut app, ui)
                     });
                     println!("{}", path.display());

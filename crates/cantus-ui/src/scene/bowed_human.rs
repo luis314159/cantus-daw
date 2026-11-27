@@ -132,6 +132,13 @@ pub struct Figure {
     /// r42:arcus-hair — a hair card vertex's degrees in from the hairline (negative: out
     /// over the skin; `build_figures.py::line_lum`): the bake feathers the cards there.
     pub line: Vec<f32>,
+    /// r42:arcus-polish — a cloth vertex's distance (cm) to its cloth's edge
+    /// (`figure::cloth::edges`; `EDGE_FAR` for skin and the rest).
+    pub edge: Vec<f32>,
+    /// r42:arcus-polish6 — how broad a cloth vertex's form is at rest, 0 (small and steep:
+    /// a cuff button's rim, a fold's lip) … 1 (`figure::cloth::broad`): the concert's
+    /// back-light line along black cloth's edge takes that share.
+    pub broad: Vec<f32>,
 }
 
 /// Which figure.
@@ -146,6 +153,30 @@ static MAN: &[u8] = include_bytes!("../../assets/figures/man.fig");
 
 static WOMAN_LIDS: &[u8] = include_bytes!("../../assets/figures/woman_lids.bin");
 static MAN_LIDS: &[u8] = include_bytes!("../../assets/figures/man_lids.bin");
+
+/// r42:arcus-polish — a figure's asset: the embedded bytes, or, while the figures are being
+/// built (`CANTUS_FIGURE_DIR` names a folder `tools/arcus-figures/build_figures.py` wrote),
+/// that folder's file of the same name, read once — so a rebuilt figure is looked at in
+/// `shoot_arcus` without compiling the app again (DEVELOPING §4). Unset in the app.
+///
+/// r42:arcus-polish6 — never silently: a folder named that lacks the file is said on stderr
+/// (pass 5's trials read the embedded figure from an empty folder the converter had left).
+pub(crate) fn asset(name: &str, embedded: &'static [u8]) -> std::borrow::Cow<'static, [u8]> {
+    let Some(d) = std::env::var_os("CANTUS_FIGURE_DIR") else {
+        return std::borrow::Cow::Borrowed(embedded);
+    };
+    let path = std::path::Path::new(&d).join(name);
+    match std::fs::read(&path) {
+        Ok(b) => std::borrow::Cow::Owned(b),
+        Err(e) => {
+            eprintln!(
+                "CANTUS_FIGURE_DIR: {} not read ({e}); the embedded {name} instead",
+                path.display()
+            );
+            std::borrow::Cow::Borrowed(embedded)
+        }
+    }
+}
 
 /// r42:arcus-hand — `CLID`, a `u16` version (1), a `u32` count, then per moved vertex its
 /// `u32` index and its offset at rest (three `i16` at 0.001 cm): the lids closed over the
@@ -172,8 +203,8 @@ pub fn lids(w: Who) -> &'static [(u32, V3)] {
     static W: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
     static M: OnceLock<Vec<(u32, V3)>> = OnceLock::new();
     match w {
-        Who::Woman => W.get_or_init(|| parse_lids(WOMAN_LIDS)),
-        Who::Man => M.get_or_init(|| parse_lids(MAN_LIDS)),
+        Who::Woman => W.get_or_init(|| parse_lids(&asset("woman_lids.bin", WOMAN_LIDS))),
+        Who::Man => M.get_or_init(|| parse_lids(&asset("man_lids.bin", MAN_LIDS))),
     }
 }
 
@@ -184,13 +215,28 @@ pub fn figure(w: Who) -> &'static Figure {
     let read = |b: &[u8], k: usize| {
         let mut f = parse(b).unwrap_or_default();
         knuckle_fix(&mut f, HAND_SCALE[k], PALM_SLIM[k]);
+        // r42:arcus-polish — the thumb's web and thenar.
+        if f.bones.len() >= BONES {
+            for s in 0..2 {
+                thumb_web(&mut f, s);
+            }
+        }
         smooth_tie(&mut f);
+        smooth_borders(&mut f);
         lift_suit(&mut f);
+        // r42:arcus-polish — where the clothes meet the skin: the cloth's edges, the
+        // skin's contact shadow.
+        super::figure::cloth::sink(&mut f);
+        f.edge = super::figure::cloth::edges(&f);
+        f.broad = super::figure::cloth::broad(&f); // r42:arcus-polish6
+        super::figure::cloth::contact(&mut f);
+        // r42:arcus-polish2 — the shade under a collar's, a lapel's edge.
+        super::figure::cloth::under_edges(&mut f);
         f
     };
     match w {
-        Who::Woman => W.get_or_init(|| read(WOMAN, 0)),
-        Who::Man => M.get_or_init(|| read(MAN, 1)),
+        Who::Woman => W.get_or_init(|| read(&asset("woman.fig", WOMAN), 0)),
+        Who::Man => M.get_or_init(|| read(&asset("man.fig", MAN), 1)),
     }
 }
 
@@ -256,6 +302,66 @@ fn smooth_tie(fig: &mut Figure) {
         }
     }
 }
+
+/// r42:arcus-polish2 — the lines where the suit's parts meet (the shirt's edge against the
+/// lapel, the tie's against the shirt) drawn smooth: the converter told them apart per
+/// triangle, so each line ran along the triangles' edges in a zigzag — teeth down the
+/// lapel and the collar in both pictures (the owner's review). Each vertex on such a line
+/// with two neighbours along it is drawn toward their middle a few times (at most
+/// [`BORDER_MOVE`] cm from where it was), its copies with it.
+fn smooth_borders(fig: &mut Figure) {
+    use std::collections::HashMap;
+    let suit = |s: Stuff| matches!(s, Stuff::Tie | Stuff::Shirt | Stuff::Wool);
+    let w = |i: u16| fig.weld.get(i as usize).copied().unwrap_or(i as u32) as usize;
+    let mut by_edge: HashMap<(usize, usize), Vec<Stuff>> = HashMap::new();
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if !suit(*s) {
+            continue;
+        }
+        for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+            let (a, b) = (w(a), w(b));
+            by_edge.entry((a.min(b), a.max(b))).or_default().push(*s);
+        }
+    }
+    let mut nb: HashMap<usize, Vec<usize>> = HashMap::new();
+    for (&(a, b), st) in &by_edge {
+        if st.len() == 2 && st[0] != st[1] {
+            nb.entry(a).or_default().push(b);
+            nb.entry(b).or_default().push(a);
+        }
+    }
+    let start: HashMap<usize, V3> = nb.keys().map(|&i| (i, fig.pos[i])).collect();
+    let mut pos: HashMap<usize, V3> = start.clone();
+    for _ in 0..BORDER_PASSES {
+        let mut next = pos.clone();
+        for (&i, ns) in &nb {
+            if ns.len() != 2 {
+                continue;
+            }
+            let m = (pos[&ns[0]] + pos[&ns[1]]) * 0.5;
+            let p = pos[&i] * 0.5 + m * 0.5;
+            let d = p - start[&i];
+            next.insert(
+                i,
+                if d.len() > BORDER_MOVE {
+                    start[&i] + d.norm() * BORDER_MOVE
+                } else {
+                    p
+                },
+            );
+        }
+        pos = next;
+    }
+    for i in 0..fig.pos.len() {
+        if let Some(p) = pos.get(&(fig.weld.get(i).copied().unwrap_or(i as u32) as usize)) {
+            fig.pos[i] = *p;
+        }
+    }
+}
+
+/// How many times the suit's lines are smoothed, and how far a vertex on one may move (cm).
+const BORDER_PASSES: usize = 4;
+const BORDER_MOVE: f32 = 0.7;
 
 /// r42:arcus-hand — the suit a little further off the skin: his collar's edge showed the
 /// neck's skin through it in a sawtooth (the review, from the new camera). Every vertex of
@@ -330,6 +436,98 @@ fn slim_palm(fig: &mut Figure, s: usize, k: f32) {
         }
         *p = *p + mv;
     }
+}
+
+/// r42:arcus-polish — the first web space and the thenar made a hand's, not a mitten's (the
+/// owner, 2026-11-25, sheet v10's left hand: "aún sale algo tosca o gorda"; the coordinator:
+/// one big convex lobe from under the neck to the wrist, "like a mitten's thumb pocket"). The
+/// app's own render with each corner coloured by its bone showed the lobe was the hand
+/// bone's skin on the thumb's side of the index's metacarpal: MakeHuman weights the web and
+/// the thenar to the wrist and the metacarpals, so when the thumb goes under the neck that
+/// flesh stays out. Each such vertex (its weight mostly the hand's, past the index's line
+/// toward the thumb by `r`, between the wrist and the knuckles) is drawn in across by
+/// [`WEB_IN`] of `r`, and hands [`WEB_TO_THUMB`] of its hand weight (by how far out it lies)
+/// to the thumb's first bone, so the thenar goes with the thumb. The bones do not move.
+/// `tools/arcus-figures/hand_rig.py::thumb_web` does the same for the table's tools.
+pub const WEB_IN: f32 = 0.45;
+pub const WEB_TO_THUMB: f32 = 0.6;
+/// How much of its overhang past the little finger's line the palm's ulnar edge keeps
+/// drawn in.
+pub const EDGE_IN: f32 = 0.5;
+
+fn thumb_web(fig: &mut Figure, s: usize) {
+    let o = side(s);
+    let wr = fig.bones[o + HAND].head;
+    let (ix, lt) = (
+        fig.bones[o + finger(1, 0)].head,
+        fig.bones[o + finger(4, 0)].head,
+    );
+    let along_end = (fig.bones[o + finger(2, 0)].head + fig.bones[o + finger(3, 0)].head) * 0.5;
+    let along = (along_end - wr).norm();
+    let len = (along_end - wr).len().max(1e-3);
+    let across = {
+        let a = ix - lt;
+        (a - along * a.dot(along)).norm()
+    };
+    let line = (ix - wr).dot(across);
+    let ulnar = (lt - wr).dot(across);
+    let hb = (o + HAND) as u8;
+    let tb = (o + finger(0, 0)) as u8;
+    for (p, w) in fig.pos.iter_mut().zip(fig.bw.iter_mut()) {
+        let wh: f32 = w.iter().filter(|e| e.0 == hb).map(|e| e.1).sum();
+        if wh < 0.4 {
+            continue;
+        }
+        let d = *p - wr;
+        let t = d.dot(along) / len;
+        // The palm's other edge, past the little finger's line: the hypothenar and the
+        // heel drawn in too (seen from the audience it is the hand's edge toward the
+        // violin's body — the lobe the bone-coloured render showed between the fingers'
+        // bases and the wrist).
+        let ru = ulnar - d.dot(across);
+        // (Not at the wrist's crease: drawn in there, the wrist read pinched under the palm
+        // — arcus_hand_table's palm-to-wrist rule.)
+        if ru > 0.0 && (0.1..1.05).contains(&t) {
+            let ramp = smooth((t - 0.12) / 0.3) * (1.0 - smooth((t - 0.8) / 0.3));
+            *p = *p + across * (ru * EDGE_IN * ramp * wh);
+            continue;
+        }
+        let r = d.dot(across) - line;
+        if r <= 0.0 || !(-0.1..1.05).contains(&t) {
+            continue;
+        }
+        // Fading in from the wrist and out at the knuckles.
+        let ramp = smooth((t + 0.1) / 0.3) * (1.0 - smooth((t - 0.75) / 0.3));
+        *p = *p - across * (r * WEB_IN * ramp * wh);
+        let give = wh * WEB_TO_THUMB * ramp * smooth(r / 1.5);
+        if give < 1e-4 {
+            continue;
+        }
+        let mut all: Vec<(u8, f32)> = w.iter().copied().filter(|e| e.1 > 0.0).collect();
+        for e in all.iter_mut() {
+            if e.0 == hb {
+                e.1 -= give;
+            }
+        }
+        match all.iter_mut().find(|e| e.0 == tb) {
+            Some(e) => e.1 += give,
+            None => all.push((tb, give)),
+        }
+        all.retain(|e| e.1 > 1e-6);
+        all.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        all.truncate(4);
+        let tot: f32 = all.iter().map(|e| e.1).sum();
+        let mut out = [(0u8, 0.0f32); 4];
+        for (k, e) in all.iter().enumerate() {
+            out[k] = (e.0, e.1 / tot);
+        }
+        *w = out;
+    }
+}
+
+fn smooth(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
 }
 
 fn knuckle_fix(fig: &mut Figure, scale: f32, slim: f32) {
@@ -946,7 +1144,29 @@ pub fn arcus_rig(
         legs,
         hands: [hand(0), hand(1)],
         occluders: Vec::new(),
+        // r42:arcus-polish3 — a violinist's shoulders (the bow hand's height, ADR 0159).
+        shrug: if held { shrug() } else { [0.0; 2] },
     }
+}
+
+/// r42:arcus-polish3 — how much a realistic violinist's shoulders are raised (cm, left and
+/// right): the bow shoulder carries the arm so the hand at the frog sits near the elbow's
+/// height (the photographs, `tests/arcus_arm_pose.rs`).
+pub const SHRUG: [f32; 2] = [0.0, 6.0];
+
+/// [`SHRUG`], or `CANTUS_SHRUG="left,right"` for finding it (a tuning aid, read once).
+pub fn shrug() -> [f32; 2] {
+    use std::sync::OnceLock;
+    static S: OnceLock<[f32; 2]> = OnceLock::new();
+    *S.get_or_init(|| {
+        std::env::var("CANTUS_SHRUG")
+            .ok()
+            .and_then(|s| {
+                let v: Vec<f32> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+                (v.len() == 2).then(|| [v[0], v[1]])
+            })
+            .unwrap_or(SHRUG)
+    })
 }
 
 /// The figure posed for the skeleton `s` (the stylised figure's, posed from the
@@ -1065,11 +1285,14 @@ fn covered_by_arm(fig: &Figure, t: &[u16; 3], part: u8) -> bool {
     })
 }
 
-/// How much of a corner's weight is its arm's for the live arm to draw it opaque.
-const ARM_COVERS: f32 = 0.5;
+/// How much of a corner's weight is its arm's for the live arm to draw it opaque (its fade
+/// is whole from 0.38; r42:arcus-polish2: the bake leaves out every bow-arm band triangle
+/// from there — the live band is the bake's surface below it, `arcus_draw_flesh`'s `live`).
+pub const ARM_COVERS: f32 = 0.38;
 
 /// The triangles of `fig` in any of the parts `mask` names, posed as `pts`/`nrm`, added
 /// to `m` a role each.
+#[allow(clippy::too_many_arguments)]
 pub fn emit(
     m: &mut super::bowed_mesh::Mesh,
     fig: &Figure,
@@ -1078,7 +1301,15 @@ pub fn emit(
     who: Who,
     tone: u8,
     mask: u8,
+    lum: &[(u32, f32)],
 ) {
+    // r42:arcus-polish2 — per vertex, a luminance factor on the skin's detail (the lids').
+    let mut shade = vec![1.0f32; if lum.is_empty() { 0 } else { fig.pos.len() }];
+    for &(i, k) in lum {
+        if let Some(s) = shade.get_mut(i as usize) {
+            *s *= k;
+        }
+    }
     use super::bowed_mesh::{Role, Tris};
     let mut out: Vec<(Role, Tris, Vec<u32>)> = Vec::new();
     for (k, t) in fig.tris.iter().enumerate() {
@@ -1121,8 +1352,27 @@ pub fn emit(
                 map[i] = tr.pts.len() as u32;
                 tr.pts.push(pts[i]);
                 tr.nrm.push(nrm[i]);
-                tr.detail.push(fig.detail[i]);
+                // r42:arcus-polish — a cloth's corner: its distance to the cloth's edge (the
+                // roll of a neckline, a cuff, a lapel), its folds' coordinates as its uv.
+                let cloth = matches!(r, Role::Velvet | Role::Wool);
+                // (r42:arcus-polish2: a shirt's or a tie's corner: its luminance — the shade
+                // under a collar's edge — and its edge's distance, `Tex::Shirt`.)
+                let shirting = matches!(r, Role::Shirt | Role::Tie);
+                tr.detail.push(if cloth {
+                    [fig.edge.get(i).copied().unwrap_or(9.0), 0.0]
+                } else if shirting {
+                    [fig.detail[i][0], fig.edge.get(i).copied().unwrap_or(9.0)]
+                } else {
+                    let d = fig.detail[i];
+                    [d[0] * shade.get(i).copied().unwrap_or(1.0), d[1]]
+                });
                 tr.uv.push(match r {
+                    // (None carried: no fold, along the height at rest — what a fold's
+                    // run is laid along, so a fold's corner and its plain neighbour blend.)
+                    _ if cloth => match fig.uv.get(i) {
+                        Some(&uv) if uv[0] >= 10.0 => uv,
+                        _ => [10.0, fig.pos[i].y],
+                    },
                     // (r42:arcus-hair: an eye's place in its texture too.)
                     Role::Skin(_) | Role::Eye | Role::Iris => {
                         fig.uv.get(i).copied().unwrap_or([-1.0, -1.0])
@@ -1156,7 +1406,8 @@ pub fn build(
     if held {
         let hips = posed.at(HIPS, fig.bones[HIPS].head);
         let at = v(hips.x, 0.0, hips.z) - s.f * 6.0;
-        super::bowed_props::chair_top(m, at, s.f.x.atan2(s.f.z), seat);
+        // r42:arcus-polish3 — a concert chair (the walnut one read as a stool).
+        super::bowed_props::concert_chair(m, at, s.f.x.atan2(s.f.z), seat);
     }
     // r42:arcus-hand — the eyes closed (the default) or open.
     let morph = match eyes {
@@ -1164,7 +1415,24 @@ pub fn build(
         super::figure::Eyes::Open => &[],
     };
     let (pts, nrm) = skin_with(fig, &posed, morph);
-    emit(m, fig, &pts, &nrm, who, tone, 1);
+    let lum = lid_shade(who, &pts, eyes);
+    emit(m, fig, &pts, &nrm, who, tone, 1, &lum);
+    if who == Who::Man {
+        tie_knot(m, fig, &pts, &nrm);
+        his_tips(m, fig, &posed, &pts); // r42:arcus-polish4
+    } else {
+        wisps(m, fig, &posed, &pts);
+    }
+    if held {
+        // r42:arcus-polish5 — the neck's axis and radius (its skin's middle distance from
+        // the axis), which the collar's band keeps to.
+        let (n0, n1) = (
+            posed.at(NECK, fig.bones[NECK].head),
+            posed.at(NECK, fig.bones[NECK].tail),
+        );
+        let neck = (n0, n1, neck_radius(fig, &pts, n0, n1));
+        clear_of_the_body(m, b, pose, neck); // r42:arcus-polish4
+    }
     // What the floor's shadow takes: the body's outline points.
     m.shadows.push(
         pts.iter()
@@ -1178,6 +1446,809 @@ pub fn build(
     }
 }
 
+/// r42:arcus-polish2 — the eyelids' shade (the owner's list: "the eyelid crease and lash
+/// shadows for the closed eyes, serene and concentrated"): a closed lid in a photograph
+/// shows a soft crease where it folds under the brow, a dark line where the lashes root,
+/// and the lashes' soft shadow on the lid below them. From the lids' morph (what moves
+/// closes the lid): its first moving band is the crease, its most moved points the margin;
+/// with the eyes closed, the skin just under the margin (posed) takes the lashes' shadow.
+/// (Open, the crease and the lash line stay — an open eye has them too.) Factors on the
+/// skin's luminance detail, per vertex.
+fn lid_shade(who: Who, pts: &[V3], eyes: super::figure::Eyes) -> Vec<(u32, f32)> {
+    let morph = lids(who);
+    let most = morph.iter().map(|m| m.1.len()).fold(0.0f32, f32::max);
+    if most < 1e-4 {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let mut margin = Vec::new();
+    for &(i, d) in morph {
+        let k = d.len() / most;
+        // The crease: a soft dip where the lid starts to move (a band, not a line).
+        let crease = (-((k - LID_CREASE.0) / LID_CREASE.1).powi(2)).exp();
+        // The lash line: the margin's last few millimetres darker.
+        let lash = smooth_k((k - 0.78) / 0.2);
+        let f = (1.0 - LID_DEPTH.0 * crease) * (1.0 - LID_DEPTH.1 * lash);
+        if f < 0.999 {
+            out.push((i, f));
+        }
+        if k > 0.85 {
+            margin.push(i as usize);
+        }
+    }
+    if eyes == super::figure::Eyes::Closed && !margin.is_empty() {
+        // The lashes' shadow just under the margin (the lower lid and the cheek's top).
+        let moved: std::collections::HashSet<u32> = morph.iter().map(|m| m.0).collect();
+        let (lo, hi) = margin.iter().fold(
+            (
+                V3 {
+                    x: f32::MAX,
+                    y: f32::MAX,
+                    z: f32::MAX,
+                },
+                V3 {
+                    x: f32::MIN,
+                    y: f32::MIN,
+                    z: f32::MIN,
+                },
+            ),
+            |(a, b), &i| {
+                let p = pts[i];
+                (
+                    V3 {
+                        x: a.x.min(p.x),
+                        y: a.y.min(p.y),
+                        z: a.z.min(p.z),
+                    },
+                    V3 {
+                        x: b.x.max(p.x),
+                        y: b.y.max(p.y),
+                        z: b.z.max(p.z),
+                    },
+                )
+            },
+        );
+        let reach = LASH_SHADOW.1;
+        for (i, p) in pts.iter().enumerate() {
+            if moved.contains(&(i as u32))
+                || p.x < lo.x - reach
+                || p.x > hi.x + reach
+                || p.y < lo.y - reach
+                || p.y > hi.y + reach
+                || p.z < lo.z - reach
+                || p.z > hi.z + reach
+            {
+                continue;
+            }
+            let d = margin
+                .iter()
+                .filter(|&&j| pts[j].y >= p.y - 0.05)
+                .map(|&j| (pts[j] - *p).len())
+                .fold(f32::MAX, f32::min);
+            if d < reach {
+                let k = 1.0 - LASH_SHADOW.0 * (1.0 - d / reach).powf(1.5);
+                out.push((i as u32, k));
+            }
+        }
+    }
+    out
+}
+
+/// Where on the lid (its share of the most it moves) the crease lies and how wide it is,
+/// how deep the crease's and the lash line's shade go.
+const LID_CREASE: (f32, f32) = (0.12, 0.1);
+const LID_DEPTH: (f32, f32) = (0.16, 0.28);
+/// How deep the lashes' shadow under a closed lid is, and how far down it reaches (cm).
+const LASH_SHADOW: (f32, f32) = (0.22, 0.4);
+
+/// r42:arcus-polish2 — her loose hairs (the owner's list: "a few flyaways and baby hairs at
+/// the hairline"; every photograph of a violinist with tied hair shows them against the
+/// light): short fine baby hairs springing from the front of her hairline and combed back
+/// with the rest, lifting a little off it, and a few longer flyaways leaving the crown in
+/// soft arcs. Rods finer than a pixel (the bake draws them as faint even lines, lit as hair).
+fn wisps(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3]) {
+    use super::bowed_mesh::{Rod, Role};
+    let eyes = (fig.mark("eye.L") + fig.mark("eye.R")) * 0.5;
+    let at = |q: V3| posed.at(HEAD, q);
+    let e = at(eyes);
+    let up = (at(eyes + v(0.0, 1.0, 0.0)) - e).norm();
+    let fwd = (at(eyes + v(0.0, 0.0, 1.0)) - e).norm();
+    // The head's middle: behind the eyes and a little over them.
+    let mid = e - fwd * 8.5 + up * 2.5;
+    // The hair cards' vertices at the hairline and over the crown, posed.
+    let mut line = Vec::new();
+    let mut crown = Vec::new();
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if *s != Stuff::CardHair {
+            continue;
+        }
+        for &i in t {
+            let i = i as usize;
+            let l = fig.line.get(i).copied().unwrap_or(99.0);
+            let p = pts[i];
+            if (-0.5..1.5).contains(&l) && (p - e).dot(fwd) > -6.0 {
+                line.push(i);
+            } else if l > 25.0 && (p - mid).dot(up) > 4.0 {
+                crown.push(i);
+            }
+        }
+    }
+    line.sort_unstable();
+    line.dedup();
+    crown.sort_unstable();
+    crown.dedup();
+    let hash = |i: usize, k: u32| {
+        let x = (i as u32)
+            .wrapping_mul(2_654_435_761)
+            .wrapping_add(k.wrapping_mul(40_503));
+        ((x ^ (x >> 15)).wrapping_mul(2_246_822_519) >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let mut hair = |p0: V3, len: f32, lift: f32, sway: f32, r: f32| {
+        let n = (p0 - mid).norm();
+        // Back over the head and a little up, along its surface.
+        let way = fwd * -1.0 + up * 0.35;
+        let way = (way - n * way.dot(n)).norm();
+        let side = n.cross(way).norm();
+        let pt = |t: f32| {
+            p0 + way * (len * t)
+                + n * (lift * (std::f32::consts::PI * t * 0.8).sin() + 0.04)
+                + side * (sway * t * t)
+        };
+        const SEGS: usize = 5;
+        for k in 0..SEGS {
+            let (a, b) = (k as f32 / SEGS as f32, (k + 1) as f32 / SEGS as f32);
+            m.rods.push((
+                Role::Wisp,
+                Rod {
+                    a: pt(a),
+                    b: pt(b),
+                    r,
+                },
+            ));
+        }
+    };
+    // Baby hairs: one in every few of the hairline's points, short.
+    for (k, &i) in line.iter().enumerate() {
+        if hash(i, 1) > WISPS.0 || k % 2 == 1 {
+            continue;
+        }
+        let len = 0.7 + 1.0 * hash(i, 2);
+        hair(
+            pts[i],
+            len,
+            0.12 + 0.18 * hash(i, 3),
+            (hash(i, 4) - 0.5) * 0.5,
+            WISP_R,
+        );
+    }
+    // Flyaways: a few longer arcs off the crown.
+    let mut n = 0;
+    for &i in &crown {
+        if n >= WISPS.1 || hash(i, 5) > 0.04 {
+            continue;
+        }
+        n += 1;
+        let len = 2.5 + 2.5 * hash(i, 6);
+        hair(
+            pts[i],
+            len,
+            0.5 + 0.7 * hash(i, 7),
+            (hash(i, 8) - 0.5) * 1.6,
+            WISP_R * 0.85,
+        );
+    }
+    // r42:arcus-polish4 — loose hairs at the bun's outline (the coordinator: her bun read as
+    // a carved shell; a twisted chignon always lets a few strands loose round its edge): short
+    // arcs springing off its outer turns, each its own length and lift.
+    let mut bun: Vec<usize> = fig
+        .tris
+        .iter()
+        .zip(&fig.stuff)
+        .filter(|(_, s)| **s == Stuff::Hair)
+        .flat_map(|(t, _)| t.iter().map(|&i| i as usize))
+        .collect();
+    bun.sort_unstable();
+    bun.dedup();
+    if bun.is_empty() {
+        return;
+    }
+    let centre = bun.iter().fold(V3::default(), |a, &i| a + pts[i]) * (1.0 / bun.len() as f32);
+    let far = bun
+        .iter()
+        .map(|&i| (pts[i] - centre).len())
+        .fold(0.0f32, f32::max);
+    let mut n = 0;
+    for &i in &bun {
+        // Only from its outer turns (the outline as it is seen), a few.
+        if n >= BUN_WISPS || (pts[i] - centre).len() < far * 0.78 || hash(i, 9) > 0.05 {
+            continue;
+        }
+        n += 1;
+        hair(
+            pts[i],
+            1.2 + 2.2 * hash(i, 10),
+            0.25 + 0.55 * hash(i, 11),
+            (hash(i, 12) - 0.5) * 2.4,
+            WISP_R * 0.8,
+        );
+    }
+}
+
+/// r42:arcus-polish4 — the shirt's collar where a held instrument's body lies on it (the
+/// coordinator: white shards beside the knot): the collar's far point, under a violin's
+/// lower bout, stood through the body — in the Photographic picture a white wedge over the
+/// varnish, in the Drawn one shards sorted among its cells. A collar under a chin rest is
+/// pressed flat out of sight: its triangles inside the body's outline and within its depth
+/// (a centimetre's margin) are tucked under its back.
+///
+/// r42:arcus-polish5 — only the point (the coordinator on sheet-it5: the neck's skin met the
+/// tie on the violin's side — half a collar): the band round the neck (within
+/// [`COLLAR_KEEP`] of the neck's own surface, the neck's radius measured from its skin) stays
+/// whole where it is, and past it the point goes under the back over [`COLLAR_RAMP`] — a
+/// fold over the body's edge, not the whole far side gone. `neck` the neck's axis posed (its
+/// base, its top) and its radius.
+fn clear_of_the_body(
+    m: &mut super::bowed_mesh::Mesh,
+    b: super::bowed::Bowed,
+    pose: &super::bowed::Pose,
+    neck: (V3, V3, f32),
+) {
+    use super::bowed_mesh::{inside, Role};
+    use super::figure::tune::tune;
+    let d = b.dims();
+    let o = super::bowed::outline(b, 96);
+    // (Its top's side reaching up toward the jaw: the far collar point stood in front of
+    // the lower bout from the camera.)
+    let (top, back) = (
+        d.arch + tune("collar_top", COLLAR_TOP),
+        -(super::bowed::rib(d, d.body * 0.2) + d.arch_back + 1.0),
+    );
+    let (keep, ramp) = (
+        tune("collar_keep", COLLAR_KEEP),
+        tune("collar_ramp", COLLAR_RAMP).max(0.1),
+    );
+    let (tuck, drape) = (tune("collar_tuck", TUCK), tune("collar_drape", 0.0));
+    let rib = tune("collar_rib", COLLAR_RIB);
+    let (n0, n1, r) = neck;
+    let axis = n1 - n0;
+    // How far past the neck's surface a point lies (its distance to the neck's axis, the
+    // segment from its base to its top, less the neck's radius).
+    let off_neck = |p: V3| {
+        let t = ((p - n0).dot(axis) / axis.dot(axis).max(1e-6)).clamp(0.0, 1.0);
+        (p - (n0 + axis * t)).len() - r
+    };
+    let (ex, ey, ez) = (pose.ex, pose.ey, pose.ez);
+    let mut tucked = 0;
+    for (role, t) in m.tris.iter_mut() {
+        // The shirt through the body's whole depth; the jacket's cloth only over its top (the
+        // suit's painted tie, jacket cloth now, flared over the lower bout as well; the
+        // jacket's shoulder under the back stays). Not left out (the coordinator: half a
+        // collar reads wrong at once): pressed flat and tucked under the back, as a player's
+        // collar is under the lower bout — the band stays whole round the neck.
+        let low = match role {
+            Role::Shirt => back,
+            Role::Wool => d.arch - 0.5,
+            _ => continue,
+        };
+        let shirt = *role == Role::Shirt;
+        for (k, p) in t.pts.iter_mut().enumerate() {
+            let q = *p - pose.o;
+            let (x, y, z) = (q.dot(ex), q.dot(ey), q.dot(ez));
+            if !(z < top && z > low && inside(&o, x, y)) {
+                continue;
+            }
+            // (r42:arcus-polish5: the band's corners over the body's outline marked, so the
+            // Drawn picture sorts them behind the chin rest and the ribs they pass under —
+            // sorted by their own middles, they drew white stripes between the chin rest's
+            // cells. Harmless to the Photographic picture: a shirt's `uv` carries no fold.)
+            // (r42:arcus-polish6: and how far it is tucked, in `uv[1]` — 0 for the band kept
+            // where it is, which the Drawn picture draws as a layer of its own.)
+            // (The band kept; the point under the back, as far as it lies past the band. Beside
+            // the body — under its top's level, by its ribs — the band goes under too, if
+            // `collar_rib` says so: kept there, the Drawn picture may sort it among the ribs'
+            // cells.)
+            // (The jacket's cloth there — the painted tie's flare, the jacket's collar —
+            // always: kept, the Drawn picture drew it as dark wedges by the knot.)
+            let s = if z < d.arch + rib || !shirt {
+                1.0
+            } else {
+                smooth_k((off_neck(*p) - keep) / ramp)
+            };
+            if shirt {
+                if let Some(uv) = t.uv.get_mut(k) {
+                    *uv = [BESIDE_BODY, s.max(0.0)];
+                }
+            }
+            if s <= 0.0 {
+                continue;
+            }
+            let flat = pose.o + ex * x + ey * y + ez * (back - tuck);
+            // (`collar_drape`, cm: the tucked part drawn back toward the neck along the
+            // back, so it lies near the edge it went over — off by default.)
+            let toward = {
+                let w = n0 - flat;
+                let w = w - ez * w.dot(ez);
+                w * ((drape * s) / w.len().max(1.0)).min(1.0)
+            };
+            *p = *p + (flat - *p) * s + toward;
+            tucked += 1;
+        }
+    }
+    if tune("collar_log", 0.0) > 0.0 {
+        eprintln!("collar: neck radius {r:.2} cm, {tucked} corners tucked");
+    }
+}
+
+/// r42:arcus-polish4 — how far under a held instrument's back its collar is tucked (cm).
+const TUCK: f32 = 0.4;
+
+/// r42:arcus-polish5 — a shirt corner's `uv[0]` when it lies over a held instrument's
+/// outline (`bowed_draw_tris` sorts its triangles a little farther).
+pub const BESIDE_BODY: f32 = -3.0;
+
+/// r42:arcus-polish5 — how far past the neck's surface the collar's band reaches (cm: a
+/// shirt collar stands 3.5–4 cm round the neck and its band lies within a couple of
+/// centimetres of the skin; the points reach 6–8 cm out over the chest), and over how far
+/// past it the point goes under the instrument.
+const COLLAR_KEEP: f32 = 3.0;
+const COLLAR_RAMP: f32 = 0.5;
+
+/// r42:arcus-polish5 — how far over the top's highest point a collar's corner inside the
+/// body's outline is still the instrument's to tuck (cm: 4 took the band beside the throat
+/// as well; the far collar point lies on the top's edge, within 2), and how far under it a
+/// band corner is tucked anyway (off: the band beside the ribs is kept).
+const COLLAR_TOP: f32 = 2.0;
+const COLLAR_RIB: f32 = -100.0;
+
+/// r42:arcus-polish5 — the neck's radius posed (cm): the middle distance of its skin (the
+/// vertices the neck's bone carries most) from its axis `n0`–`n1`.
+fn neck_radius(fig: &Figure, pts: &[V3], n0: V3, n1: V3) -> f32 {
+    let axis = n1 - n0;
+    let mut d: Vec<f32> = fig
+        .tris
+        .iter()
+        .zip(&fig.stuff)
+        .filter(|(_, s)| **s == Stuff::Skin)
+        .flat_map(|(t, _)| t.iter().map(|&i| i as usize))
+        .filter(|&i| {
+            fig.bw[i]
+                .iter()
+                .any(|&(b, w)| b as usize == NECK && w >= 0.5)
+        })
+        .map(|i| {
+            let p = pts[i];
+            let t = ((p - n0).dot(axis) / axis.dot(axis).max(1e-6)).clamp(0.0, 1.0);
+            (p - (n0 + axis * t)).len()
+        })
+        .collect();
+    if d.is_empty() {
+        return 6.0;
+    }
+    d.sort_by(f32::total_cmp);
+    d[d.len() / 2]
+}
+
+/// r42:arcus-polish4 — his hair's top against the room (the coordinator: a hard dark cap's
+/// outline): short tips standing out of the combed-back top, each from a card vertex over
+/// the crown, leaving along the combing (back and a little up) and lifting off — fine rods,
+/// the Photographic picture's (`Role::WispDark`).
+fn his_tips(m: &mut super::bowed_mesh::Mesh, fig: &Figure, posed: &Posed, pts: &[V3]) {
+    use super::bowed_mesh::{Rod, Role};
+    let eyes = (fig.mark("eye.L") + fig.mark("eye.R")) * 0.5;
+    let at = |q: V3| posed.at(HEAD, q);
+    let e = at(eyes);
+    let up = (at(eyes + v(0.0, 1.0, 0.0)) - e).norm();
+    let fwd = (at(eyes + v(0.0, 0.0, 1.0)) - e).norm();
+    let mid = e - fwd * 6.5 + up * 1.0;
+    let mut top = Vec::new();
+    for (t, s) in fig.tris.iter().zip(&fig.stuff) {
+        if *s != Stuff::CardHair {
+            continue;
+        }
+        for &i in t {
+            let i = i as usize;
+            let l = fig.line.get(i).copied().unwrap_or(0.0);
+            let q = pts[i] - mid;
+            // Over the crown and toward its outline, well inside the top's line.
+            if l > 6.0 && q.dot(up) > 6.0 {
+                top.push(i);
+            }
+        }
+    }
+    top.sort_unstable();
+    top.dedup();
+    let hash = |i: usize, k: u32| {
+        let x = (i as u32)
+            .wrapping_mul(2_246_822_519)
+            .wrapping_add(k.wrapping_mul(3_266_489_917));
+        ((x ^ (x >> 13)).wrapping_mul(668_265_263) >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let mut n = 0;
+    // (r42:arcus-polish5: how many, how often, how long and how lifted, while studied —
+    // `CANTUS_TUNE`'s `tips_n`, `tips_p`, `tips_len`, `tips_lift`, `tips_r`.)
+    use super::figure::tune::tune;
+    let (most, often) = (
+        tune("tips_n", HIS_TIPS as f32) as usize,
+        tune("tips_p", TIPS.0),
+    );
+    let (long, lifted, thick) = (
+        tune("tips_len", TIPS.1),
+        tune("tips_lift", 1.0),
+        tune("tips_r", TIPS.2),
+    );
+    for &i in &top {
+        if n >= most || hash(i, 1) > often {
+            continue;
+        }
+        n += 1;
+        let p0 = pts[i];
+        let nn = (p0 - mid).norm();
+        let way = fwd * -1.0 + up * 0.45;
+        let way = (way - nn * way.dot(nn)).norm();
+        let side = nn.cross(way).norm();
+        let len = (0.7 + 1.1 * hash(i, 2)) * long;
+        let lift = (0.15 + 0.35 * hash(i, 3)) * lifted;
+        let sway = (hash(i, 4) - 0.5) * 0.6;
+        let pt = |t: f32| p0 + way * (len * t) + nn * (lift * t * t + 0.03) + side * (sway * t);
+        const SEGS: usize = 3;
+        for k in 0..SEGS {
+            let (a, b) = (k as f32 / SEGS as f32, (k + 1) as f32 / SEGS as f32);
+            m.rods.push((
+                Role::WispDark,
+                Rod {
+                    a: pt(a),
+                    b: pt(b),
+                    r: WISP_R * (1.3 - 0.6 * a) * thick,
+                },
+            ));
+        }
+    }
+}
+
+/// r42:arcus-polish4 — how many tips stand out of his top at most.
+/// (r42:arcus-polish5: 250, was 90 — the top's outline still a cap.)
+const HIS_TIPS: usize = 250;
+
+/// r42:arcus-polish5 — how often a crown card's corner sends a tip out (was 0.12), how long
+/// (× 0.7–1.8 cm) and how thick (× the wisps' radius: a tip a pixel wide at 200 %, so it
+/// breaks the outline against the dark room) they are.
+/// r42:arcus-polish6 — thinner (2.0 → 1.2): the tips lying on the crown caught the back
+/// lights as bright single strands, scratches over the hair (the coordinator); at 1.2 a tip
+/// over the hair is a faint line, at the outline it still breaks the cap.
+const TIPS: (f32, f32, f32) = (0.35, 1.2, 1.2);
+
+/// r42:arcus-polish4 — how many loose hairs leave her bun's outline at most.
+const BUN_WISPS: usize = 12;
+
+/// How many of her hairline's points take a baby hair (a share of every other one), and how
+/// many flyaways leave her crown at most; a loose hair's radius (cm: a little over a real
+/// hair's 0.004, so it holds a share of a pixel at 200 %).
+const WISPS: (f32, usize) = (0.35, 6);
+const WISP_R: f32 = 0.012;
+
+/// r42:arcus-polish2 — his tie's knot (the owner's list: "the tie knot with folds"): the
+/// suit's tie is a painted region of its shirt, flat, and its top pinched to a point under
+/// the collar. A four-in-hand knot stands off the shirt: an inverted trapezoid about 3.6 cm
+/// wide under the collar and 2.4 at its foot, 3.4 tall, rounded across and fullest near its
+/// top, with the diagonal fold the wrap leaves across its front and the blade coming out
+/// from under it. Built over the tie's top where it is posed (`pts`, `nrm`), in the tie's
+/// silk.
+fn tie_knot(m: &mut super::bowed_mesh::Mesh, fig: &Figure, pts: &[V3], nrm: &[V3]) {
+    use super::bowed_mesh::{Role, Tris};
+    let mut tie: Vec<usize> = fig
+        .tris
+        .iter()
+        .zip(&fig.stuff)
+        .filter(|(_, s)| **s == Stuff::Tie)
+        .flat_map(|(t, _)| t.iter().map(|&i| i as usize))
+        .collect();
+    tie.sort_unstable();
+    tie.dedup();
+    if tie.len() < 8 {
+        return;
+    }
+    let top = tie.iter().map(|&i| fig.pos[i].y).fold(f32::MIN, f32::max);
+    let mean = |lo: f32, hi: f32| {
+        let (mut p, mut n, mut k) = (V3::default(), V3::default(), 0.0f32);
+        for &i in &tie {
+            let y = top - fig.pos[i].y;
+            if (lo..=hi).contains(&y) {
+                p = p + pts[i];
+                n = n + nrm[i];
+                k += 1.0;
+            }
+        }
+        (k > 0.0).then(|| (p * (1.0 / k), n.norm()))
+    };
+    let (Some((head, n0)), Some((foot, _))) = (mean(0.0, 1.2), mean(8.0, 12.0)) else {
+        return;
+    };
+    let n = n0;
+    let up = {
+        let u = head - foot;
+        (u - n * u.dot(n)).norm()
+    };
+    let right = up.cross(n).norm();
+    // The knot's middle a little under the tie's top (the collar's points come over its
+    // upper corners).
+    let c = head + up * (KNOT_TOP - KNOT_H * 0.5);
+    let foot_at = c - up * (KNOT_H * 0.5);
+    // r42:arcus-polish4 — the whole tie modelled (the coordinator: the knot a navy blob with
+    // white flecks; the suit's tie is a painted region of its shirt, its edges a staircase):
+    // the blade follows the shirt down from the knot's foot — the tie's own vertices' middle
+    // a centimetre at a time, at rest's distance from its top — widening to its blade and
+    // ending in a point; the suit's painted tie becomes jacket cloth under it.
+    let len = tie
+        .iter()
+        .map(|&i| top - fig.pos[i].y)
+        .fold(0.0f32, f32::max);
+    let from = KNOT_H - KNOT_TOP + 0.6;
+    let blade = (len - from).max(4.0);
+    let rows = (blade / BLADE_STEP).ceil() as usize;
+    let mut line: Vec<(V3, V3)> = Vec::with_capacity(rows + 1);
+    let mut last = (head, n);
+    for k in 0..=rows {
+        let d = from + k as f32 * BLADE_STEP;
+        if let Some(q) = mean(d - 1.0, d + 1.0) {
+            last = q;
+        }
+        line.push(last);
+    }
+    let base = line.first().map_or(foot_at, |q| q.0);
+    // How wide the suit's painted tie is at each row (its vertices' reach across from the
+    // line, a little over): the modelled blade is never narrower, so none of the painted
+    // tie's staircase edge, shirt now, shows beside it.
+    let mut reach = vec![0.0f32; rows + 1];
+    for &i in &tie {
+        let d = top - fig.pos[i].y;
+        let k = ((d - from) / BLADE_STEP).round();
+        if k < 0.0 || k > rows as f32 {
+            continue;
+        }
+        let (p, nn) = line[k as usize];
+        let r = (right - nn * right.dot(nn)).norm();
+        let x = (pts[i] - p).dot(r).abs() + 0.3;
+        reach[k as usize] = reach[k as usize].max(x);
+    }
+    // (A row's width the widest of its neighbours': a smooth edge over the staircase.)
+    let reach: Vec<f32> = (0..=rows)
+        .map(|k| {
+            reach[k.saturating_sub(2)..=(k + 2).min(rows)]
+                .iter()
+                .copied()
+                .fold(0.0, f32::max)
+        })
+        .collect();
+    const N: usize = 12;
+    // (r42:arcus-polish5: the knot's width under the collar, `knot_w1` while studied.)
+    let kw1 = super::figure::tune::tune("knot_w1", KNOT_W.1);
+    // (u across −1…1; v up the knot 0 its foot … 1 under the collar; below it, v −k the
+    // blade's row k.)
+    let at = |u: f32, v: f32| -> V3 {
+        let round = (1.0 - u.abs().powf(2.2)).max(0.0).powf(0.55);
+        if v < 0.0 {
+            let x = (-v).min(rows as f32);
+            let (k0, f) = (x.floor() as usize, x.fract());
+            let k1 = (k0 + 1).min(rows);
+            let (p0, n0_) = line[k0];
+            let (p1, n1_) = line[k1];
+            let along = p0 + (p1 - p0) * f - base + foot_at;
+            let nn = (n0_ + (n1_ - n0_) * f).norm();
+            let r = (right - nn * right.dot(nn)).norm();
+            let s = x * BLADE_STEP;
+            // Widening fast under the knot, then slowly; a point at its end.
+            let design = KNOT_W.0
+                + (BLADE_W.0 - KNOT_W.0) * smooth_k(s / 4.0)
+                + (BLADE_W.1 - BLADE_W.0) * (s / blade).clamp(0.0, 1.0);
+            // (Never far past its own shape: a few stray painted vertices made a skirt.)
+            let w = design
+                .max(2.0 * (reach[k0] + (reach[k1] - reach[k0]) * f))
+                .min(design * REACH_MOST);
+            // (Its end a point: drawn in to its middle over its last 3.5 cm.)
+            let half = w * 0.5 * ((blade - s) / 3.5).clamp(0.0, 1.0);
+            let lift = KNOT_D * 0.45 * (1.0 - smooth_k(s / 3.0));
+            // The dimple: one groove down the blade's middle just under the knot.
+            let groove = DIMPLE * (-(u / 0.2) * (u / 0.2)).exp() * (1.0 - smooth_k(s / 3.2));
+            let h = (lift * round - groove).max(0.0);
+            return along + r * (u * half) + nn * (0.16 + h);
+        }
+        let w = KNOT_W.0 + (kw1 - KNOT_W.0) * v;
+        let full = 0.45 + 0.55 * smooth_k((v - 0.05) / 0.4);
+        // The wrap: a soft crest from upper left down to lower right where the tie's turn
+        // comes round the knot — a highlight, not a crease.
+        let d = u * 0.55 + (v - 0.55);
+        let wrap = (-(d / 0.2) * (d / 0.2)).exp();
+        let h = KNOT_D * round * full + 0.06 * wrap * round;
+        c + right * (u * w * 0.5) + up * ((v - 0.5) * KNOT_H) + n * (0.12 + h)
+    };
+    // The suit's painted tie is cloth under the modelled one: the jacket's (where a ragged
+    // piece of it shows beside the blade, it lies over the jacket's front — as shirt it was
+    // a white zigzag there).
+    for (r, _) in m.tris.iter_mut() {
+        if *r == Role::Tie {
+            *r = Role::Wool;
+        }
+    }
+    let mut t = Tris::default();
+    let all = N + rows;
+    for j in 0..=all {
+        for i in 0..=N {
+            let u = i as f32 / N as f32 * 2.0 - 1.0;
+            let v = if j < rows {
+                -((rows - j) as f32)
+            } else {
+                (j - rows) as f32 / N as f32
+            };
+            let p = at(u, v);
+            let e = 0.02;
+            let du = at((u + e).min(1.0), v) - at((u - e).max(-1.0), v);
+            let dv = if v < 0.0 {
+                at(u, (v + 0.5).min(0.0)) - at(u, v - 0.5)
+            } else {
+                at(u, (v + e).min(1.0)) - at(u, (v - e).max(0.0))
+            };
+            let mut nn = du.cross(dv).norm();
+            if nn.dot(n) < 0.0 {
+                nn = nn * -1.0;
+            }
+            t.pts.push(p);
+            t.nrm.push(nn);
+            // (A little lower where it turns under at its sides — the knot's and the
+            // blade's own shade — and the dimple's groove in its shade; no edge of its own.)
+            let side = 1.0 - 0.15 * smooth_k((u.abs() - 0.7) / 0.3);
+            // (r42:arcus-polish4: the knot's form by value — the coordinator, at 400 % a navy
+            // smear: its top face lit and its underside in shade, its outline a crisp darker
+            // edge apart from the blade's, the knot's cast shadow on the blade just under it,
+            // a crease where the blade comes out, the dimple below.)
+            let dim = if v < 0.0 {
+                let s = -v * BLADE_STEP;
+                let dimple =
+                    1.0 - 0.18 * (-(u / 0.18) * (u / 0.18)).exp() * (1.0 - smooth_k(s / 3.2));
+                let shadow = 0.5 + 0.5 * smooth_k(s / 1.8);
+                let crease = 1.0 - 0.25 * (-(s / 0.5) * (s / 0.5)).exp();
+                dimple * shadow * crease
+            } else {
+                let face = 0.72 + 0.4 * smooth_k((v - 0.1) / 0.7);
+                let rim = 1.0 - 0.3 * smooth_k((u.abs() - 0.82) / 0.18);
+                face * rim
+            };
+            t.detail.push([side * dim, 9.0]);
+            t.uv.push([-1.0, -1.0]);
+        }
+    }
+    let row = (N + 1) as u32;
+    for j in 0..all as u32 {
+        for i in 0..N as u32 {
+            let (a, b, cc, d) = (
+                j * row + i,
+                j * row + i + 1,
+                (j + 1) * row + i + 1,
+                (j + 1) * row + i,
+            );
+            // Wound outward (toward `n`).
+            let f = (t.pts[b as usize] - t.pts[a as usize])
+                .cross(t.pts[cc as usize] - t.pts[a as usize]);
+            if f.dot(n) >= 0.0 {
+                t.idx.push([a, b, cc]);
+                t.idx.push([a, cc, d]);
+            } else {
+                t.idx.push([a, cc, b]);
+                t.idx.push([a, d, cc]);
+            }
+        }
+    }
+    m.tris.push((Role::Tie, t));
+    // r42:arcus-polish5 — the collar's points over the knot's upper corners (the
+    // coordinator: the near point lying over the knot's corner was not modelled; the knot
+    // stood in front of both): each shirt corner over the knot's top, off its middle, is
+    // lifted to lie on the knot's face — fully over its corners, fading out past its sides
+    // and toward its foot — so the knot comes out from under the collar as a real one does.
+    let (lap, gap) = (
+        super::figure::tune::tune("knot_lap", KNOT_LAP_ON),
+        super::figure::tune::tune("knot_lap_gap", KNOT_LAP_GAP),
+    );
+    let (u0, u1, v0) = (
+        super::figure::tune::tune("knot_lap_u0", KNOT_LAP.0),
+        super::figure::tune::tune("knot_lap_u1", KNOT_LAP.1),
+        super::figure::tune::tune("knot_lap_v0", KNOT_LAP.2),
+    );
+    if lap <= 0.0 {
+        return;
+    }
+    // r42:arcus-polish6 — every edge of the lift soft over a ramp a shirt triangle or two
+    // wide (`knot_lap_ru`, `_rv`, shares of the knot's half width and height), and the
+    // knot's face's reach behind it soft too (`knot_lap_h0`, `_hr`, cm): cut hard at 1.5 cm
+    // behind the face, or ramped over a quarter of the knot, one corner rose and its
+    // neighbour stayed — a sliver, the white curl over the knot's top-left at 400 %.
+    let (ru, rv) = (
+        super::figure::tune::tune("knot_lap_ru", KNOT_LAP_RAMP.0).max(0.05),
+        super::figure::tune::tune("knot_lap_rv", KNOT_LAP_RAMP.1).max(0.05),
+    );
+    let (h0, hr) = (
+        super::figure::tune::tune("knot_lap_h0", KNOT_LAP_BEHIND.0),
+        super::figure::tune::tune("knot_lap_hr", KNOT_LAP_BEHIND.1).max(0.05),
+    );
+    for (r, tr) in m.tris.iter_mut() {
+        if *r != Role::Shirt {
+            continue;
+        }
+        for p in tr.pts.iter_mut() {
+            let q = *p - c;
+            let (y, h) = (q.dot(up), q.dot(n));
+            // (Near the knot's face only: the collar's back round the neck lies behind it.)
+            let near = smooth_k((h + h0 + hr) / hr);
+            if near <= 0.0 {
+                continue;
+            }
+            let v = y / KNOT_H + 0.5;
+            let w = KNOT_W.0 + (kw1 - KNOT_W.0) * v.clamp(0.0, 1.0);
+            let u = q.dot(right) / (w * 0.5);
+            let k = lap
+                * near
+                * smooth_k((v - v0) / rv)
+                * (1.0 - smooth_k((v - 1.0) / KNOT_LAP_TOP.max(rv * 0.6)))
+                * smooth_k((u.abs() - u0) / ru)
+                * (1.0 - smooth_k((u.abs() - u1) / ru));
+            if k <= 0.0 {
+                continue;
+            }
+            // The knot's face there (its sides turned under: none past them).
+            let uu = u.clamp(-1.0, 1.0);
+            let round = (1.0 - uu.abs().powf(2.2)).max(0.0).powf(0.55);
+            let full = 0.45 + 0.55 * smooth_k((v.min(1.0) - 0.05) / 0.4);
+            let face = 0.12 + KNOT_D * round * full * (1.0 - smooth_k((u.abs() - 1.0) / 0.2));
+            let want = face + gap;
+            if h < want {
+                *p = *p + n * ((want - h) * k);
+            }
+        }
+    }
+}
+
+/// r42:arcus-polish5 — where the collar's points lie over the knot: from how far off its
+/// middle (a share of its half width), to how far past its sides, and from how far up it
+/// (a share of its height); how far over its face they lie (cm). (With the knot's top 3.0 cm
+/// across the collar's points ended at its sides and nothing lay over it; 3.6 — a
+/// four-in-hand's 3–4 — and the corners reached from a share of 0.15 in, the near point lies
+/// over the knot's corner.)
+const KNOT_LAP: (f32, f32, f32) = (0.15, 1.8, 0.2);
+const KNOT_LAP_GAP: f32 = 0.15;
+/// r42:arcus-polish6 — the lift's ramps across and up (shares of the knot's half width and
+/// height; 0.25 each before), and from how far behind the knot's face a shirt corner starts
+/// to be lifted, over how much (cm; a hard 1.5 before).
+const KNOT_LAP_RAMP: (f32, f32) = (0.5, 0.35);
+const KNOT_LAP_BEHIND: (f32, f32) = (1.5, 1.0);
+/// r42:arcus-polish5 — the lap off: lifting single shirt corners onto the knot left a thin
+/// white curl over its top-left at 400 % (the coordinator on sheet6) — at the shirt's density
+/// a corner lifted is a sliver, not a folded edge. `knot_lap=1` while studied.
+const KNOT_LAP_ON: f32 = 0.0;
+/// r42:arcus-polish5 — over how much of the knot's height past its top the lift fades (the
+/// collar's band above the knot hugs the neck).
+const KNOT_LAP_TOP: f32 = 0.15;
+
+/// The knot's height, its width at its foot and under the collar, and how far it stands
+/// off the shirt at its fullest (cm).
+const KNOT_H: f32 = 3.0;
+const KNOT_W: (f32, f32) = (1.9, 3.6);
+/// r42:arcus-polish4 — how far over the tie's top the knot's top stands (cm): it covers the
+/// suit's painted tie's pinched top, shirt now (its white fragments by the knot).
+const KNOT_TOP: f32 = 0.3;
+/// r42:arcus-polish4 — how much wider than its own shape the blade may grow to cover the
+/// suit's painted tie.
+const REACH_MOST: f32 = 1.2;
+const KNOT_D: f32 = 0.75;
+/// r42:arcus-polish4 — the dimple's depth under the knot (cm).
+const DIMPLE: f32 = 0.12;
+/// r42:arcus-polish4 — the modelled blade: its width under the knot and at its end (cm),
+/// and its rows' spacing along the tie (cm).
+const BLADE_W: (f32, f32) = (3.6, 7.6);
+const BLADE_STEP: f32 = 1.0;
+
+fn smooth_k(x: f32) -> f32 {
+    let x = x.clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
 /// The figure's baked pose for `b` (its arms at rest), kept: the live arms start from its
 /// shoulders.
 pub fn rest_body(b: super::bowed::Bowed, who: Who) -> std::sync::Arc<(Posed, f32)> {
@@ -1188,7 +2259,13 @@ pub fn rest_body(b: super::bowed::Bowed, who: Who) -> std::sync::Arc<(Posed, f32
     if let Some((_, p)) = kept.iter().find(|(k, _)| *k == (b, who)) {
         return p.clone();
     }
-    let s = super::bowed_figure::skeleton(b, &super::bowed::Pose::of(b));
+    // (r42:arcus-polish2: the pose its holder holds it in — the realistic violinists'.)
+    let hold = match who {
+        Who::Woman => super::bowed_hold::Hold::Woman,
+        Who::Man => super::bowed_hold::Hold::Man,
+    };
+    let pose = super::bowed_hold::pose(b, super::bowed_hold::Holder::of(hold));
+    let s = super::bowed_figure::skeleton(b, &pose);
     let p = Arc::new(body(figure(who), &s, b.dims().held, [None, None]));
     kept.push(((b, who), p.clone()));
     p

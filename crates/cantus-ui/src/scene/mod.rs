@@ -30,6 +30,7 @@ pub mod draw;
 pub mod figure; // r42:arcus-upper (ADR 0159)
 pub mod gear;
 pub mod geo;
+pub mod hall; // r42:arcus-polish3
 pub mod kit;
 pub mod light;
 mod live;

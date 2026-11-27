@@ -26,25 +26,34 @@ pub struct Lit {
     /// r42:arcus-upper — the strips a limb is drawn in across its width (Figure detail:
     /// [`STRIPS`] at High, half at Light).
     pub strips: usize,
+    /// r42:arcus-polish3 — a realistic figure on the concert stage: lit by the concert's
+    /// spot (`figure::concert`), as the picture is.
+    pub concert: bool,
 }
 
 impl Lit {
     /// The scene's light round `mid` (the instrument's middle): the key softbox high to
-    /// the front left, as both pictures place it.
-    pub fn round(v: &View, mid: V3, dark: bool) -> Lit {
+    /// the front left, as both pictures place it (r42:arcus-polish3: on the concert stage,
+    /// `concert`, the concert's spot).
+    pub fn round(v: &View, mid: V3, dark: bool, concert: bool) -> Lit {
+        let eye = v.cam.eye();
         Lit {
-            eye: v.cam.eye(),
-            key: mid
-                + V3 {
+            eye,
+            key: if concert {
+                crate::scene::figure::concert::get().key_pos(mid, eye)
+            } else {
+                mid + V3 {
                     x: -110.0,
                     y: 360.0 - mid.y,
                     z: 200.0,
-                },
+                }
+            },
             ambient: if dark { 0.30 } else { 0.42 },
             rim: if dark { 0.22 } else { 0.12 },
             dark,
             mid,
             strips: STRIPS,
+            concert,
         }
     }
 

@@ -23,6 +23,12 @@ pub struct Light {
     /// Leave the photographer's fill out (the floor: it lit a stage's floor edge to edge,
     /// where the photograph's is a pool of light falling off to the dark).
     pub no_fill: bool,
+    /// r42:arcus-polish3 — the concert stage's own graphic light (a realistic figure on the
+    /// stage, `figure::concert`): a spot with a clean terminator, the hall's dark, one clean
+    /// highlight on a varnish, the back lights' rim (`Light::rim`).
+    pub concert: Option<crate::scene::figure::concert::Concert>,
+    /// The concert's back lights (ways toward them, strengths) and its subject's middle.
+    pub backs: [(V3, f32); 2],
 }
 
 pub fn mul(a: C3, b: C3) -> C3 {
@@ -85,7 +91,38 @@ impl Light {
             floor: [0.34, 0.24, 0.16],
             no_streak: false,
             no_fill: false,
+            concert: None,
+            backs: [(v(0.0, 1.0, 0.0), 0.0); 2],
         }
+    }
+
+    /// r42:arcus-polish3 — the concert stage's light round a subject at `aim` seen from
+    /// `eye` (cm): the stage's evening mood, its key the concert's spot aimed at the subject,
+    /// its pool the concert's.
+    pub fn concert(c: &crate::scene::figure::concert::Concert, aim: V3, eye: V3) -> Light {
+        let mut l = Light::new(true, true, c.key_pos(aim, eye), aim);
+        l.m.spot_r = c.key_r * 1.6;
+        l.m.spot_k = 3.0;
+        l.m.amb = c.d_amb;
+        l.m.key = c.d_key;
+        l.m.key_col = crate::scene::figure::concert::warmth(c.key_warm);
+        l.m.falloff = 0.5;
+        l.concert = Some(*c);
+        let b = c.backs(aim, eye);
+        let lum = |x: [f32; 3]| 0.2126 * x[0] + 0.7152 * x[1] + 0.0722 * x[2];
+        l.backs = [(b[0].0, lum(b[0].1)), (b[1].0, lum(b[1].1))];
+        l
+    }
+
+    /// r42:arcus-polish3 — the concert's back lights on a surface facing `n` seen along `vv`
+    /// (0 off the concert stage): a clean line along the edge that turns toward them.
+    pub fn rim(&self, n: V3, vv: V3) -> f32 {
+        let Some(c) = &self.concert else {
+            return 0.0;
+        };
+        let edge = smooth(0.55, 0.85, 1.0 - n.dot(vv).clamp(0.0, 1.0));
+        let k: f32 = self.backs.iter().map(|&(d, e)| n.dot(d).max(0.0) * e).sum();
+        edge * k * c.d_rim
     }
 
     /// What a broad flat face of `mat` draws as its band at `p` facing `n` (seen along
@@ -94,6 +131,11 @@ impl Light {
     /// opacity of a warm white over the face.
     pub fn band(&self, mat: &Mat, n: V3, vv: V3, p: V3) -> f32 {
         let m = &self.m;
+        if self.concert.is_some() {
+            // r42:arcus-polish3 — the stage's spot: one clean highlight, no strip lights.
+            let nh = n.dot((self.ldir(p) + vv).norm()).max(0.0);
+            return (nh.powi(16) * 0.12 * mat.coat).min(0.2);
+        }
         let d = reflect(-vv, n);
         // Black lacquer is a mirror first: the tall lights' bar down its bentside as bright
         // as the photograph's (round 40 cp3: at a light finish's strength it read grey).
@@ -235,7 +277,13 @@ impl Light {
     pub fn lit_s(&self, albedo: C3, n: V3, p: V3, spot: bool) -> C3 {
         let m = &self.m;
         let l = self.ldir(p);
-        let mut d = n.dot(l).max(0.0) * if spot { self.spot(p) } else { 1.0 };
+        let ndl = match &self.concert {
+            // r42:arcus-polish3 — the stage's clean terminator: the lit side nearly even,
+            // the shadow side dark, a narrow soft step between (a drawn spot's light).
+            Some(c) => smooth(-0.25, c.d_term, n.dot(l)) * (0.6 + 0.4 * n.dot(l).max(0.0)),
+            None => n.dot(l).max(0.0),
+        };
+        let mut d = ndl * if spot { self.spot(p) } else { 1.0 };
         d += m.fill_floor * 2.2 * (-n.y).max(0.0);
         std::array::from_fn(|i| albedo[i] * (m.amb * m.amb_col[i] + m.key * m.key_col[i] * d))
     }
@@ -296,6 +344,36 @@ impl Light {
                 let l = self.ldir(p);
                 let h = (l + vv).norm();
                 let nh = n.dot(h).max(0.0);
+                if let Some(cc) = &self.concert {
+                    // r42:arcus-polish3 — under the stage's spot a varnish shows one clean
+                    // highlight (a shape, not the strip lights' blotches), the dark hall
+                    // round it, its edge's rim from the back lights.
+                    // r42:arcus-polish4 — an old Italian varnish as the photographs show it
+                    // (ref-04/06/10), not a flat saturated orange: red-brown, its flames
+                    // darker (the wood's figure stronger through it, less of the flat
+                    // colour), deeper where the arching turns from the eye (the varnish
+                    // pooled toward the edges), and a specular ridge along the arching.
+                    let c = if mat.wood {
+                        let t = (0.5 + (g - 1.0) / (2.0 * mat.figure) * 0.9 * cc.d_flame)
+                            .clamp(0.0, 1.0);
+                        let b = lerp(lerp(mat.dark, mat.light, t), mat.albedo, 0.2);
+                        let nv = n.dot(vv).max(0.0);
+                        let pool = 1.0 - cc.d_edge * (1.0 - nv) * (1.0 - nv);
+                        scale(mul(self.lit(b, n, p), cc.d_varnish), pool)
+                    } else {
+                        mul(c, [1.0, 0.8, 0.62])
+                    };
+                    let spot = nh.powi(12) * 0.12;
+                    let ridge = if mat.wood {
+                        nh.powf(cc.d_ridge_pow) * cc.d_ridge
+                    } else {
+                        0.0
+                    };
+                    // The ridge the spot's own white-warm, not the varnish's colour.
+                    let c = add(c, scale(m.key_col, spot * mat.spec.max(0.4) * m.key));
+                    let c = add(c, scale(lerp(m.key_col, [1.0; 3], 0.4), ridge * m.key));
+                    return add(c, scale([1.0, 0.9, 0.78], self.rim(n, vv) * 0.6));
+                }
                 // The key's tight highlight is a broad flat face's band too (`no_streak`):
                 // shaded once per strip it would light strips whole, one after another.
                 let tight = if self.no_streak {
