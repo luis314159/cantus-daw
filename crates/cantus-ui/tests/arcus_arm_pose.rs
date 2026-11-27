@@ -65,7 +65,10 @@ fn arms_of(hold: Hold, b: Bowed, inst: f32) -> (Vec<(f32, Vec<probe::Arm>)>, [Po
             time: Some(now),
             ..Default::default()
         };
-        let _ = ctx.run_ui(input, |ui| views::inst::window_in(&mut app, ui));
+        // (its textures handed back: a debug build's epaint asserts on a dropped delta)
+        ctx.run_ui(input, |ui| views::inst::window_in(&mut app, ui))
+            .textures_delta
+            .clear();
         out.push((along, probe::arms()));
         probe::record(false);
     }

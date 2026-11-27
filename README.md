@@ -406,7 +406,7 @@ Chorda plays a grand piano from a physical model: each key's one to three string
 - Recorded pianos too: the Salamander, bitKlavier, two uprights or your own SFZ, Decent Sampler, SF2
 - Its own mixer: each perspective a named output, one click from its own strip
 
-<sub>24 factory presets — [hear them](https://cantusdaw.com/#unit-chorda) · [light theme](docs/images/units/chorda-light.png)</sub>
+<sub>33 factory presets — [hear them](https://cantusdaw.com/#unit-chorda) · [light theme](docs/images/units/chorda-light.png)</sub>
 
 </details>
 <details>

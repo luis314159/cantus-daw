@@ -605,8 +605,8 @@ fn bake_view(
             }
             let cam = camera_of(&sc, ppp);
             let mid = crate::scene::bowed_hold::pose(b, hd).at(0.0, d.body * 0.5, 0.0); // r42:arcus-upper
-            // r42:arcus-polish3 — a realistic figure on the stage: the concert hall and its
-            // light (`figure::concert`).
+                                                                                        // r42:arcus-polish3 — a realistic figure on the stage: the concert hall and its
+                                                                                        // light (`figure::concert`).
             let real = crate::scene::bowed_human::who(hd.hold).is_some();
             let concert = (real && view.room == crate::scene::Room::Stage)
                 .then(crate::scene::figure::concert::get);
@@ -624,7 +624,7 @@ fn bake_view(
             };
             let split = g.tris.len();
             bowed::build_lit(&mut g, b, hd, concert.as_ref()); // r42:arcus-polish3
-                                         // Its two microphones, by the photographic gear.
+                                                               // Its two microphones, by the photographic gear.
             let km = kit::KitMats::new(
                 &mut g,
                 &finish_mat(cantus_core::inst::chorda_look::Finish::Black),

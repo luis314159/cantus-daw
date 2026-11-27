@@ -209,6 +209,25 @@ pub fn neck(m: &mut Mesh, d: &Dims, pose: &Pose) {
 /// by its body).
 pub const NECK_DEEP: (f32, f32) = (1.9, 2.15);
 
+/// r42 integration — the neck's cross-section at `y` as [`neck`] draws it: the fingerboard's
+/// thickness, then the rounded back's half width and depth under it (without the heel's swell
+/// into the ribs: there the body hides what the neck would). `arcus_draw_hand::hidden_by_neck`
+/// reads it, so what the figure hides behind the neck is what the neck covers (a cello's arm
+/// was hidden by an ellipse 1.25 cm deeper and wider than its drawn back, and the picture's
+/// background showed at the neck's edge).
+pub fn neck_profile(d: &Dims, y: f32) -> (f32, f32, f32) {
+    let yn = nut_y(d);
+    let k = d.body / 35.6;
+    let thick = if d.held { 0.5 * k } else { d.board_w.0 * 0.36 };
+    let base = if d.held {
+        (NECK_DEEP.0 * k - thick, NECK_DEEP.1 * k - thick)
+    } else {
+        (d.board_w.0 * 1.3, d.board_w.1 * 1.0)
+    };
+    let t = ((y - d.body) / (yn - d.body)).clamp(0.0, 1.0);
+    (thick, board_w(d, y) * 0.47, base.1 + (base.0 - base.1) * t)
+}
+
 /// The pegbox, the scroll and the pegs or machines, from the nut's top (`yn`, `nz`).
 fn head(m: &mut Mesh, d: &Dims, pose: &Pose, yn: f32, nz: f32) {
     let slope = (board_z(d, yn) - board_z(d, yn - 10.0)) / 10.0;

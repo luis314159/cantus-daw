@@ -1791,8 +1791,9 @@ fn history(
             with_fmt(format_args!("\u{2212}{g:.1} dB"), |text| {
                 let t = Text::new(text, Role::Value, ink.text).caps(false);
                 let size = ktext::measure(b.ctx(), &t, tk) + vec2(8.0, 4.0) * k;
-                let x = ((sp.x0 + sp.x1) * 0.5)
-                    .clamp(gr_r.left() + 4.0 * k + size.x * 0.5, lane_x1 - size.x * 0.5);
+                // (r42 integration: a lane narrower than its label keeps the label at its left)
+                let lo = gr_r.left() + 4.0 * k + size.x * 0.5;
+                let x = ((sp.x0 + sp.x1) * 0.5).clamp(lo, (lane_x1 - size.x * 0.5).max(lo));
                 let y = (y_gr(g, gr_r) + 3.0 * k)
                     .min(gr_r.bottom() - 2.0 * k - size.y)
                     .max(gr_r.top() + 2.0 * k);

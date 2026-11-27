@@ -140,8 +140,20 @@ impl Rig {
     fn plan(&mut self, track: TrackId, plan: OutputPlan) {
         self.app.open_inst_editor(track);
         self.app.inst.view = cantus_ui::views::inst::View::Mixer;
+        // (r42 integration: the route clicked where it stays — three frames were not always
+        // enough for the editor's tab to settle on a loaded machine, and the click landed
+        // beside the button it had measured; now the same place two frames running)
         self.idle(3);
-        let at = tympanum::plan_rect(&self.ctx, track, plan).expect("the route is drawn");
+        let mut at = tympanum::plan_rect(&self.ctx, track, plan);
+        for _ in 0..120 {
+            self.idle(1);
+            let now = tympanum::plan_rect(&self.ctx, track, plan);
+            if now.is_some() && now == at {
+                break;
+            }
+            at = now;
+        }
+        let at = at.expect("the route is drawn");
         self.click(at.center());
     }
 }
@@ -424,6 +436,12 @@ fn scenes_of_deleted_tracks_and_old_songs_are_freed() {
         r.app.inst.view = cantus_ui::views::inst::View::Play;
         r.idle(3);
     }
+    // (r42 integration: a scene's place is taken when its picture is first asked of the
+    // worker; on a loaded machine that came after the three frames — wait for it, bounded)
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while cantus_ui::scene::workers().0 < base + 3 && std::time::Instant::now() < until {
+        r.idle(1);
+    }
     let (shown, threads) = cantus_ui::scene::workers();
     assert!(shown >= base + 3, "a scene each: {shown} over {base}");
     assert!(threads <= 1, "one worker thread for all of them: {threads}");
@@ -449,6 +467,11 @@ fn scenes_of_deleted_tracks_and_old_songs_are_freed() {
     r.idle(2);
     assert!(r.app.inst.tympanum_scenes.is_empty());
     assert_eq!(r.app.inst.chorda.scenes_kept(), 0);
+    // (and a dropped scene gives its place back when the worker lets it go — bounded too)
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while cantus_ui::scene::workers().0 != base && std::time::Instant::now() < until {
+        r.idle(1);
+    }
     assert_eq!(cantus_ui::scene::workers().0, base, "back to the baseline");
 }
 

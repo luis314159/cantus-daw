@@ -784,7 +784,9 @@ impl Brush {
 
     /// A rounded rect's outline, `w` wide, centred on `rect`'s edge.
     pub fn rrect_stroke(&mut self, rect: Rect, r: f32, w: f32, color: Color32) {
-        let r = r.clamp(0.0, rect.width().min(rect.height()) * 0.5);
+        // (r42 integration: an inverted rect — a layout squeezed under nothing — rounds by 0:
+        // its negative half-size made the clamp panic)
+        let r = r.clamp(0.0, (rect.width().min(rect.height()) * 0.5).max(0.0));
         let (offs, cols, k) = self.stroke_profile(w, color);
         let n = self.corner_steps(r + w);
         for d in &offs[..k] {

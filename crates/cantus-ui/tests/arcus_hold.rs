@@ -353,17 +353,33 @@ fn the_left_hand_passes_behind_the_neck() {
                             .iter()
                             .all(|&(a, e, r)| !near_seg(p, a, e, 1.5 + r * cm))
                 };
+                // (r42 integration: against the baked picture's nearest pixel within one —
+                // the live stamp and the bake are two renderers, and on a thin line (the
+                // purfling at the cello's heel, the neck's edge) they stand a pixel apart; the
+                // figure showing over the instrument covers more than a pixel.)
                 let pixel = |p: egui::Pos2| {
                     let got = canvas.pixel((p.x * PPP) as usize, (p.y * PPP) as usize);
                     let (bx, by) = (
-                        ((p.x - rect.min.x) * PPP) as usize,
-                        ((p.y - rect.min.y) * PPP) as usize,
+                        ((p.x - rect.min.x) * PPP) as isize,
+                        ((p.y - rect.min.y) * PPP) as isize,
                     );
-                    let want = baked.pixels[by * baked.size[0] + bx];
-                    let diff = (got[0] as i32 - want.r() as i32)
-                        .abs()
-                        .max((got[1] as i32 - want.g() as i32).abs())
-                        .max((got[2] as i32 - want.b() as i32).abs());
+                    let at = |x: isize, y: isize| {
+                        let x = x.clamp(0, baked.size[0] as isize - 1) as usize;
+                        let y = y.clamp(0, baked.size[1] as isize - 1) as usize;
+                        baked.pixels[y * baked.size[0] + x]
+                    };
+                    let off = |want: egui::Color32| {
+                        (got[0] as i32 - want.r() as i32)
+                            .abs()
+                            .max((got[1] as i32 - want.g() as i32).abs())
+                            .max((got[2] as i32 - want.b() as i32).abs())
+                    };
+                    let want = at(bx, by);
+                    let diff = (-1..=1)
+                        .flat_map(|dy| (-1..=1).map(move |dx| (dx, dy)))
+                        .map(|(dx, dy)| off(at(bx + dx, by + dy)))
+                        .min()
+                        .unwrap_or(i32::MAX);
                     (got, want, diff)
                 };
                 let mut checked = 0;

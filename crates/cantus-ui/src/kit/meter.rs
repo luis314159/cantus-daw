@@ -291,7 +291,9 @@ fn paint_slate(b: &mut Brush, rect: Rect, levels: &Levels, m: &SlateMeter) {
         }
         let hold = levels.hold[ch];
         if hold > MIN_DB {
-            let y = b.snap(y_of(hold)).clamp(top, bot - px);
+            // (r42 integration: a meter under a pixel tall — a window opening — keeps its top:
+            // `bot - px` above `top` made the clamp panic)
+            let y = b.snap(y_of(hold)).clamp(top, (bot - px).max(top));
             let c = if hold > 0.0 { m.clip } else { m.hold };
             b.rect(
                 Rect::from_min_max(Pos2::new(x0, y), Pos2::new(x1, y + px.max(b.snap(m.k)))),

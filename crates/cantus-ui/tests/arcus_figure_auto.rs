@@ -41,7 +41,10 @@ fn drawn(app: &mut CantusApp, ctx: &egui::Context, n: usize) -> usize {
             predicted_dt: 1.0 / 60.0,
             ..Default::default()
         };
-        let _ = ctx.run_ui(input, |ui| views::inst::window_in(app, ui));
+        // (its textures handed back: a debug build's epaint asserts on a dropped delta)
+        ctx.run_ui(input, |ui| views::inst::window_in(app, ui))
+            .textures_delta
+            .clear();
     }
     let arms = probe::arms();
     probe::record(false);

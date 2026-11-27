@@ -216,15 +216,16 @@ pub fn designed_size(kind: EffectKind) -> Vec2 {
     }
 }
 
-/// The buttons an effect's window shows in Cantus (round 20): swap, minimise, maximise
-/// (or restore) and close.
+/// The buttons an effect's window shows in Cantus (round 20): swap, the pin (unpinned;
+/// every device window has one since ADR 0161, `device_chrome::ctl`), minimise, maximise (or
+/// restore) and close.
 pub fn window_ctl(maximised: bool) -> crate::kit::window_ctl::WindowCtl {
     crate::kit::window_ctl::WindowCtl {
         swap: Some("swap.tip.effect"),
         minimise: true,
         maximised: Some(maximised),
         close: true,
-        pin: None,
+        pin: Some(false),
     }
 }
 

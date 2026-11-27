@@ -173,7 +173,7 @@ pub const INSTRUMENTS: [Unit; 11] = [
             ("Recorded pianos too: the Salamander, bitKlavier, two uprights or your own SFZ, Decent Sampler, SF2", "También pianos grabados: el Salamander, bitKlavier, dos verticales o tu propio SFZ, Decent Sampler, SF2"),
             ("Its own mixer: each perspective a named output, one click from its own strip", "Su propio mezclador: cada perspectiva una salida con nombre, a un clic de su propio canal"),
         ]),
-        presets: Some(24),
+        presets: Some(33),
         plugin: false,
         ab: None,
         big: (1800, 1094),

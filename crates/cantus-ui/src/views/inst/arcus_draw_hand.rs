@@ -472,6 +472,7 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
         let k = (f1 - f0) / (y1 - y0);
         (f0 - k * y0, k)
     };
+    let photo = crate::scene::backend::current() == crate::scene::SceneBackend::PerPixel;
     let (w0, wk) = lin(&|y| board_w(d, y) * 0.5 + 0.1);
     let (t0, tk) = lin(&|y| board_z(d, y) + 0.05);
     let depth = neck_depth(d);
@@ -505,19 +506,47 @@ pub fn hidden_by_neck(p: V3, eye: V3, d: &Dims, pose: &Pose) -> bool {
     // corners (beside the rounded back) was taken for hidden, painted before the neck's stamp
     // and stamped over with the picture's background: the saw-toothed chips at the hand's
     // edge in third position.
+    // (r42 integration: the cross-section `bowed_head::neck` draws — its fingerboard's own
+    // thickness and its back's half width and depth — not a box-wide ellipse of the box's
+    // depth: a cello's arm was hidden where its drawn back does not reach, and the picture's
+    // background showed through at the neck's edge, `arcus_hold`.)
+    // (r42 integration: the Photographic picture draws its neck per sample, rounder and fuller
+    // than the mesh — it keeps pass 5's box-wide ellipse; so does a held instrument, whose
+    // table and thumbs were solved against it)
+    if photo || d.held {
+        return (0..NECK_STEPS_BOX).any(|k| {
+            let t = lo + (hi - lo) * (k as f32 + 0.5) / NECK_STEPS_BOX as f32;
+            let q = a + dir * t;
+            let (w, top) = (w0 + wk * q.y, t0 + tk * q.y);
+            let r = (q.x / w.max(1e-3)).clamp(-1.0, 1.0);
+            q.z <= top && q.z >= top - NECK_SLAB.max(depth * (1.0 - r * r).sqrt())
+        });
+    }
     (0..NECK_STEPS).any(|k| {
         let t = lo + (hi - lo) * (k as f32 + 0.5) / NECK_STEPS as f32;
         let q = a + dir * t;
-        let (w, top) = (w0 + wk * q.y, t0 + tk * q.y);
-        let r = (q.x / w.max(1e-3)).clamp(-1.0, 1.0);
-        q.z <= top && q.z >= top - NECK_SLAB.max(depth * (1.0 - r * r).sqrt())
+        let top = t0 + tk * q.y;
+        if q.z > top {
+            return false;
+        }
+        let (slab, half, dep) = crate::scene::bowed_head::neck_profile(d, q.y);
+        if q.z >= top - slab.max(NECK_SLAB) {
+            return true;
+        }
+        // (its half width at least the fingerboard's over it: the neck's side under the
+        // board's overhang)
+        let half = half.max(board_w(d, q.y) * 0.5);
+        let (rx, rz) = (q.x / half.max(1e-3), (top - slab - q.z) / dep.max(1e-3));
+        rx * rx + rz * rz <= 1.0
     })
 }
 
 /// r42:arcus-hands, pass 5 — the fingerboard's own thickness (cm) over the neck's rounded
 /// back, and the samples along a ray's way through the neck's box.
 const NECK_SLAB: f32 = 0.55;
-const NECK_STEPS: usize = 10;
+const NECK_STEPS_BOX: usize = 10;
+/// (r42 integration: through a cello's or a bass's drawn back, 16 — its edge to a few mm)
+const NECK_STEPS: usize = 16;
 
 /// r42:arcus-hands, pass 6 — whether the body hides `p` from `eye`: `p` deeper than the
 /// back plate (`margin` cm under the ribs, over the body's length) and its ray to the eye

@@ -222,7 +222,7 @@ fn shoot_the_voicing_view() {
     } else {
         cantus_ui::theme::slate_lapis_night()
     };
-    cantus_ui::i18n::set_locale(if which.ends_with("es") {
+    cantus_ui::i18n::set_thread_locale(if which.ends_with("es") {
         cantus_ui::i18n::Locale::Es
     } else {
         cantus_ui::i18n::Locale::En
