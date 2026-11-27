@@ -15,9 +15,14 @@
 //! ```text
 //! set <field> <value>                       # vib_depth, dynamic, player, bow_pos, …
 //! cc <t> <which> <value>                    # Arcus::controller: 0 CC1, 1 CC11, 4 CC21, …
-//! note <on> <off> <key> <vel 0..1> <art> <bow>
-//!                                           # art: - sus leg stac spic pizz trem; bow: - d u
+//! note <on> <off> <key> <vel 0..1> <art> <bow> [string]
+//!                                           # art: - sus leg stac spic pizz trem; bow: - d u;
+//!                                           # string: 0 the lowest (G) … 3 (E), or -
 //! ```
+//!
+//! `set pair 1` turns on one bow on two strings (`bow.pair`, ADR 0164): a note on another
+//! string leaves the one the bow left ringing (a crossing), a note held under another is
+//! bowed with it — what the Fiddle preset uses, here on the classical violin.
 //!
 //! A note whose `on` comes before the sounding one's `off` slurs (legato mode); one that
 //! starts at or after it is a new bow. At one instant controllers come first, then the
@@ -73,6 +78,10 @@ fn set_field(s: &mut ArcusSettings, name: &str, v: f32) {
         "gain_db" => s.gain_db = v,
         "seed" => s.seed = v as u32,
         "fine_ct" => s.fine_ct = v,
+        "pair" => s.pair = v,
+        "tilt" => s.tilt = v,
+        "just" => s.just = v,
+        "sym" => s.sym = v,
         _ => panic!("no field {name}"),
     }
 }
@@ -152,13 +161,14 @@ fn render(score: &Path, out: &Path) {
                     Ev::Cc(which.parse().expect("a cc"), v.parse().expect("v")),
                 ));
             }
-            ["note", on, off, key, vel, art, bow] => {
+            ["note", on, off, key, vel, art, bow, rest @ ..] if rest.len() <= 1 => {
                 let (on, off): (f64, f64) = (on.parse().expect("on"), off.parse().expect("off"));
                 let key: u8 = key.parse().expect("a key");
                 id += 1;
                 let how = NoteHow {
                     art: art_of(art),
                     bow: bow_of(bow),
+                    string: rest.first().and_then(|x| x.parse().ok()),
                     ..NoteHow::default()
                 };
                 evs.push((at(on), Ev::On(key, vel.parse().expect("vel"), id, how)));

@@ -4,6 +4,11 @@ demos' hall is — `paganini_render ir 5 160 8000`, convolved here path by path,
 stereo), everything at -23 LUFS integrated as 16-bit WAV, cut to the original's length; and
 the short A/B: two or three bars of the original, then the same bars on Arcus.
 
+Each take is rendered in two parts, the theme and variation 2 (variation 2 with one bow on
+two strings, `pair`), `<ver>-<take>-{tema,var2}-seco.wav`, summed here; the aligned take's
+variation 2 on one string at a time (`<ver>-alineado-var2-1cuerda-seco.wav`) makes the
+control `arcus-<ver>-alineado-1cuerda-*`.
+
     python -I tools/listening/paganini_mix.py <work dir> <out dir>
 """
 import json
@@ -21,6 +26,9 @@ import paganini_common as pc  # noqa: E402
 WET_DB = -9.0
 # the A/B's excerpts in passage time (s): the theme's first two bars, the second half's
 # first two bars, variation 2's first three bars
+# the A/B's Arcus: actual with the two strings; mejora on one string (its pair takes the classical
+# player away and drops notes: the page says why)
+AB_SRC = {"actual": "arcus-actual-alineado-sala", "mejora": "arcus-mejora-alineado-1cuerda-sala"}
 AB = [("tema-c1-2", 0.15, 2.40), ("tema-c9-10", 8.05, 10.15), ("var2-c1-3", 17.35, 20.35)]
 
 
@@ -60,13 +68,24 @@ def main(work, out):
     o, g = pc.to_lufs(orig, pc.SR)
     pc.write16(os.path.join(out, "original.wav"), o, pc.SR)
     made["original"] = o
+    def summed(*names):
+        parts = [read(os.path.join(work, nm)) for nm in names]
+        L = max(len(x) for x in parts)
+        out_ = np.zeros((L, 2))
+        for x in parts:
+            out_[: len(x)] += x
+        return out_
+
     for ver in ("actual", "mejora"):
-        for take in ("alineado", "partitura"):
-            dry = read(os.path.join(work, f"{ver}-{take}-seco.wav"))
+        for take in ("alineado", "partitura", "alineado-1cuerda"):
+            if take == "alineado-1cuerda":
+                dry = summed(f"{ver}-alineado-tema-seco.wav", f"{ver}-alineado-var2-1cuerda-seco.wav")
+            else:
+                dry = summed(f"{ver}-{take}-tema-seco.wav", f"{ver}-{take}-var2-seco.wav")
             room = hall(dry, ir)
             # the score's take keeps its own length (it is shorter); the aligned one the
             # original's, so the page can switch between them at the same moment
-            m = n if take == "alineado" else len(dry)
+            m = len(dry) if take == "partitura" else n
             for kind, x in (("seco", dry), ("sala", room)):
                 y, _ = pc.to_lufs(fit(x, m), pc.SR)
                 name = f"arcus-{ver}-{take}-{kind}"
@@ -81,7 +100,7 @@ def main(work, out):
             ramp[:f] = np.linspace(0, 1, f)
             ramp[-f:] = np.linspace(1, 0, f)
             seg_o = made["original"][i0:i1] * ramp[:, None]
-            seg_a = made[f"arcus-{ver}-alineado-sala"][i0:i1] * ramp[:, None]
+            seg_a = made[AB_SRC[ver]][i0:i1] * ramp[:, None]
             gap = np.zeros((int(0.4 * pc.SR), 2))
             pc.write16(os.path.join(out, f"ab-{tag}-{ver}.wav"),
                        np.concatenate([seg_o, gap, seg_a]), pc.SR)

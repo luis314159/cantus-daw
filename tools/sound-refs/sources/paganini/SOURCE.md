@@ -25,6 +25,19 @@ certificates; every file's first bytes checked (FORM/AIFF, MThd).
 - Taken: the file itself (881 bytes; 2/4, 960 ticks a quarter, 150 bpm; the theme with
   its first half written out twice, 84 notes).
 
+## commons/ — Variation 2's score (added 2026-11-26, the owner's "two strings")
+
+- File: https://commons.wikimedia.org/wiki/File:Caprice-24-a4.pdf — "Caprice No. 24 by
+  Paginini", engraved by David Chan for the Mutopia project (2009, via free-scores.com),
+  transferred from en.wikipedia.
+- Licence on its page: {{PD-old}} (public domain). Mutopia's current edition of the piece
+  (piece 2000) is CC BY-SA 4.0 and was not taken; only Paganini's notes, slurs and the
+  fingerings 0 / 1 / 4 of Variation 2 were read from this PDF (by eye, into
+  `tools/listening/paganini_notes.py`'s `VAR2_BARS`).
+- Taken: `Caprice-24-a4.pdf` (272 776 bytes, 5 pages).
+- IMSLP's public-domain editions (Peters 1880, Carl Fischer 1922, …) were not downloaded:
+  IMSLP answers scripts with a browser redirect, which is not worked around.
+
 ## Not taken (licences checked and refused)
 
 - Mutopia's Caprice 24 (piece 2000): CC BY-SA 4.0.

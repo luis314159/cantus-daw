@@ -17,6 +17,7 @@ from scipy import signal
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import paganini_common as pc  # noqa: E402
+import paganini_notes as pn  # noqa: E402
 from soundlab import core, features  # noqa: E402
 
 import matplotlib  # noqa: E402
@@ -26,8 +27,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 # the reference palette's first three categorical slots (validated: dataviz's script)
 WHO = [("original", "Original (QMUL 2014)", "#2a78d6", "-", "o"),
        ("arcus-actual-alineado-sala", "Arcus, versión actual", "#eb6834", "--", "s"),
-       ("arcus-mejora-alineado-sala", "Arcus, versión en mejora", "#1baf7a", ":", "^")]
+       ("arcus-mejora-alineado-1cuerda-sala", "Arcus, versión en mejora (una cuerda)", "#1baf7a", ":", "^")]
 SURF, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e2dc"
+# variation 2's crossings: the three above and the controls (one string at a time)
+CROSS = [WHO[0], WHO[1],
+         ("arcus-mejora-alineado-sala", "Arcus en mejora, dos cuerdas", "#1baf7a", ":", "^"),
+         ("arcus-actual-alineado-1cuerda-sala", "Arcus actual, una cuerda (control)", "#eda100",
+          "-.", "D")]
 
 
 def style(ax, title, xl, yl):
@@ -287,17 +293,50 @@ def main(work, out):
     ax.legend(fontsize=8, frameon=False)
     save(f, os.path.join(od, "dinamica.png"))
 
-    json.dump(dict(summary=summary, notes={k: v for k, v in res.items()}),
+    # 8 — variation 2's two strings: bar by bar, how far the upper string falls under the
+    # lower note, the balance there, and the interval's tuning
+    cross = {}
+    for tag, label, col, ls, mk in CROSS:
+        x, sr = pc.audio.read(os.path.join(out, tag + ".wav"))
+        cross[tag] = pn.crossings(x[:, 0], sr, notes, key_t="p_on")
+    xs = {}
+    for tag, rows in cross.items():
+        iv = [r["interval_cents"] for r in rows if r["interval_cents"] is not None]
+        xs[tag] = dict(ring_db=float(np.median([r["ring_db"] for r in rows])),
+                       balance_db=float(np.median([r["balance_db"] for r in rows])),
+                       interval_ct=float(np.median(iv)),
+                       interval_spread_ct=float(np.median(np.abs(np.array(iv) - np.median(iv)))))
+    summary["cross"] = xs
+    f, axs = fig(9, 9.0, 3)
+    for tag, label, col, ls, mk in CROSS:
+        rows = cross[tag]
+        bars = [r["bar"] for r in rows]
+        for ax, key in zip(axs, ("ring_db", "balance_db", "interval_cents")):
+            ax.plot(bars, [r[key] for r in rows], color=col, ls=ls, lw=2, marker=mk, ms=7,
+                    mec=SURF, mew=1.5, label=label)
+    style(axs[0], "Variación 2: cuánto cae la cuerda de arriba bajo la nota de abajo (tiempo 1 de cada compás)",
+          "compás (con la repetición)", "dB bajo su pico")
+    style(axs[1], "Equilibrio de las dos cuerdas mientras suena la de abajo", "compás", "dB, arriba menos abajo")
+    style(axs[2], "Afinación del intervalo (arriba menos abajo) frente al temperado", "compás", "cents")
+    for ax in axs:
+        ax.set_xticks(range(1, 17))
+        ax.legend(fontsize=7, frameon=False, ncol=2)
+    save(f, os.path.join(od, "cuerdas.png"))
+
+    json.dump(dict(summary=summary, crossings=cross, notes={k: v for k, v in res.items()}),
               open(os.path.join(od, "analisis.json"), "w", encoding="utf-8"), indent=1)
     for tag, s in summary.items():
+        if tag == "cross":
+            print("cross", s)
+            continue
         print(tag)
         for kk, v in s.items():
             if kk.startswith("ltas") or kk.startswith("hnr"):
                 continue
             print("   ", kk, v)
-        print("    hnr", [None if v is None else round(v, 1) for v in s["hnr_med"]])
+        print("    hnr", [None if v is None else round(v, 1) for v in s.get("hnr_med", [])])
     fc = summary["original"]["ltas_fc"]
-    for tag in ("arcus-actual-alineado-sala", "arcus-mejora-alineado-sala"):
+    for tag in ("arcus-actual-alineado-sala", "arcus-mejora-alineado-1cuerda-sala"):
         d = np.array(summary[tag]["ltas_db"]) - np.array(summary["original"]["ltas_db"])
         print(tag, "ltas diff", [(int(a), round(b, 1)) for a, b in zip(fc, d)])
 

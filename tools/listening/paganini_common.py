@@ -82,3 +82,79 @@ def write16(path, x, sr):
     rng = np.random.default_rng(1)
     d = (rng.random(x.shape) - rng.random(x.shape)) / 32768.0
     audio.write(path, x + d, sr, subtype="PCM_16")
+
+
+def two_voice(m, sr, a, b, hi_key, lo_key, nh=4):
+    """Two notes sounding together over [a, b) (s): the upper one's harmonics 1–nh against
+    the lower one's (each harmonic's power within ±1.5 % of where it should be, from a
+    Hann-windowed FFT zero-padded to 1 Hz), and each one's frequency in cents from its
+    tempered key, from its 2nd and 3rd harmonics' peaks (parabolic). Returns
+    (balance dB: upper minus lower, upper cents, lower cents, interval cents minus the
+    tempered interval)."""
+    seg = m[int(a * sr):int(b * sr)]
+    if len(seg) < int(0.03 * sr):
+        return None
+    w = seg * np.hanning(len(seg))
+    n = 1 << int(np.ceil(np.log2(max(sr, len(seg)))))
+    X = np.abs(np.fft.rfft(w, n)) ** 2
+    fr = np.fft.rfftfreq(n, 1 / sr)
+
+    def power(key):
+        f0 = 440.0 * 2 ** ((key - 69) / 12)
+        return sum(X[(fr > h * f0 * 0.985) & (fr < h * f0 * 1.015)].sum() for h in range(1, nh + 1))
+
+    def cents(key):
+        f0 = 440.0 * 2 ** ((key - 69) / 12)
+        out = []
+        for h in (2, 3):
+            sel = np.nonzero((fr > h * f0 * 0.985) & (fr < h * f0 * 1.015))[0]
+            if len(sel) < 3:
+                continue
+            i = sel[np.argmax(X[sel])]
+            y0, y1, y2 = np.log(X[i - 1] + 1e-30), np.log(X[i] + 1e-30), np.log(X[i + 1] + 1e-30)
+            den = y0 - 2 * y1 + y2
+            off = 0.5 * (y0 - y2) / den if abs(den) > 1e-12 else 0.0
+            f = (fr[i] + off * (fr[1] - fr[0])) / h
+            out.append(1200 * np.log2(f / f0))
+        return float(np.median(out)) if out else None
+
+    ph, pl = power(hi_key), power(lo_key)
+    ch, cl = cents(hi_key), cents(lo_key)
+    iv = None if ch is None or cl is None else ch - cl
+    return float(10 * np.log10((ph + 1e-30) / (pl + 1e-30))), ch, cl, iv
+
+
+def crossing_beat(m, sr, a, b, hi_key, lo_key, nh=4):
+    """A beat that alternates an upper note with its lower neighbour (hi lo hi lo) over
+    [a, b) s: each note's harmonics 1-nh (power within +-1.5 % of each) followed in time
+    (43 ms Hann, 5 ms hop); the frames where the lower note leads most (the top 30 % of
+    lo - hi) are where the lower note is played. Returns dict:
+      balance_db  the upper note's level there against the lower's (median, dB);
+      ring_db     how far the upper note falls there under its own peak in the beat
+                  (one string: it stops, 15-30 dB; two strings: it rings on, a few dB);
+      hi_cents, lo_cents, interval_cents
+                  each note's pitch from a Hann FFT over the whole beat (2nd and 3rd
+                  harmonics' peaks), and the interval against the tempered one."""
+    from scipy import signal as sg
+    seg = m[int(a * sr):int(b * sr)]
+    if len(seg) < int(0.15 * sr):
+        return None
+    n = 2048
+    h = int(0.005 * sr)
+    fr, _, z = sg.stft(seg, sr, nperseg=n, noverlap=n - h, boundary=None, padded=False)
+    P = np.abs(z) ** 2
+
+    def level(key):
+        f0 = 440.0 * 2 ** ((key - 69) / 12)
+        sel = np.zeros(len(fr), bool)
+        for k_ in range(1, nh + 1):
+            sel |= (fr > k_ * f0 * 0.985) & (fr < k_ * f0 * 1.015)
+        return 10 * np.log10(P[sel].sum(axis=0) + 1e-20)
+
+    hi, lo = level(hi_key), level(lo_key)
+    d = lo - hi
+    top = d >= np.percentile(d, 70)
+    r = two_voice(m, sr, a, b, hi_key, lo_key, nh)
+    return dict(balance_db=float(np.median(hi[top] - lo[top])),
+                ring_db=float(hi.max() - np.median(hi[top])),
+                hi_cents=r[1], lo_cents=r[2], interval_cents=r[3])

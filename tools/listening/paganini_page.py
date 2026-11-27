@@ -65,8 +65,10 @@ def f1(v):
 
 
 def main(out, info):
-    a = json.load(open(os.path.join(out, "analisis", "analisis.json"), encoding="utf-8"))["summary"]
-    O, A, M = a["original"], a["arcus-actual-alineado-sala"], a["arcus-mejora-alineado-sala"]
+    full = json.load(open(os.path.join(out, "analisis", "analisis.json"), encoding="utf-8"))
+    a = full["summary"]
+    cr = full["crossings"]
+    O, A, M = a["original"], a["arcus-actual-alineado-sala"], a["arcus-mejora-alineado-1cuerda-sala"]
     fc = O["ltas_fc"]
 
     def ltas_diff(s, lo, hi):
@@ -99,9 +101,32 @@ def main(out, info):
 
     versions = [("original.wav", "Original"),
                 ("arcus-actual-alineado-sala.wav", "Arcus actual"),
-                ("arcus-mejora-alineado-sala.wav", "Arcus en mejora"),
+                ("arcus-mejora-alineado-1cuerda-sala.wav", "Arcus en mejora, una cuerda"),
+                ("arcus-mejora-alineado-sala.wav", "Arcus en mejora, dos cuerdas (falla)"),
+                ("arcus-actual-alineado-1cuerda-sala.wav", "Arcus actual, una cuerda"),
+                ("antes-doble/arcus-actual-alineado-sala.wav", "Antes (transcripción)"),
                 ("arcus-actual-alineado-seco.wav", "Arcus actual (seco)"),
-                ("arcus-mejora-alineado-seco.wav", "Arcus en mejora (seco)")]
+                ("arcus-mejora-alineado-1cuerda-seco.wav", "Arcus en mejora, una cuerda (seco)")]
+
+    # variation 2's crossings, bar by bar
+    C = ["original", "arcus-actual-alineado-sala", "arcus-mejora-alineado-sala",
+         "arcus-actual-alineado-1cuerda-sala"]
+    names = ["A", "A#", "B", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#"]
+
+    def nm(k):
+        return f"{names[(k - 9) % 12]}{k // 12 - 1}"
+
+    cross_rows = ""
+    for i, r0 in enumerate(cr["original"]):
+        cells = "".join(
+            f"<td>{f1(cr[c][i]['ring_db'])} / {f1(cr[c][i]['balance_db'])} / "
+            f"{'—' if cr[c][i]['interval_cents'] is None else f1(cr[c][i]['interval_cents'])}</td>"
+            for c in C)
+        mark = "" if r0["marked"] else ", sin digitación"
+        cross_rows += (f"<tr><td>{r0['bar']} (c. {r0['src_bar']}{mark})</td>"
+                       f"<td>{nm(r0['hi'])} sobre {nm(r0['lo'])}</td>{cells}</tr>")
+    X = a["cross"]
+    CTRL = X["arcus-actual-alineado-1cuerda-sala"]
     sync = "".join(f'<button data-i="{i}" aria-pressed="false">{i + 1} · {html.escape(n)}</button>'
                    for i, (_, n) in enumerate(versions))
     sync_a = "".join(f'<audio controls preload="metadata" src="{f}"></audio>' for f, _ in versions)
@@ -137,24 +162,33 @@ University of London (2014), publicada en Internet Archive (<code>Paganini_Capri
 <b>Public Domain Mark 1.0</b>. Toma 03, el par de micrófonos C414 (izquierdo y derecho), 96 kHz → 48 kHz.
 El intérprete no está identificado en la ficha. Crédito: Queen Mary University of London, Performance Lab.</p>
 <p><b>Las notas:</b> el tema viene del MIDI de dominio público de Wikimedia Commons
-(«Paganini caprice24 theme.mid», Hyacinth, 2018), alineado con la grabación. La Variación 2 está
-<b>transcrita de la grabación</b> con un detector de altura (YIN), así que puede llevar alguna nota
-de adorno mal leída.</p>
+(«Paganini caprice24 theme.mid», Hyacinth, 2018), alineado con la grabación. La Variación 2 sale ahora
+de la <b>partitura de dominio público</b> de Wikimedia Commons («Caprice-24-a4.pdf», grabado por David Chan
+para el proyecto Mutopia, PD-old). Sus notas, adornos, ligaduras y digitaciones se pasaron a mano y se
+alinearon igual que el tema.</p>
+<p class="mut"><b>Corrección (26-11):</b> la primera versión transcribía la Variación 2 con un detector
+de una sola voz, que se quedaba con una cuerda. En la partitura, el primer tiempo de cada compás alterna
+dos cuerdas: una cuerda al aire (digitación 0) o una nota pisada (1) con su vecina en la cuerda de abajo
+(4), así que la de arriba sigue sonando bajo la de abajo. Ahora Arcus la toca con un arco sobre dos
+cuerdas (<code>bow.pair</code>, ADR 0164). La toma anterior se guarda en <code>antes-doble/</code>.</p>
 <p>Todos los archivos están a <b>−23 LUFS</b>, en WAV de 16 bits a 48 kHz. Las versiones «sala» llevan la
 sala pequeña de Cantus (Aula, respuesta «chamber», 1,3 s, cortada bajo 160 Hz y sobre 8 kHz, a 9 dB
 bajo la señal seca), para acercarse a la sala de la grabación.</p>
 
 <h2 id="escuchar">Escuchar</h2>
-<p>Este reproductor cambia de versión <b>en el mismo instante</b>. Pulsa los botones o las teclas 1–5
+<p>Este reproductor cambia de versión <b>en el mismo instante</b>. Pulsa los botones o las teclas 1–8
 mientras suena.</p>
 <div id="sync" class="clip"><div class="sw">{sync}</div>{sync_a}</div>
 <h3>Cada versión por separado</h3>
 <div class=clips>
 {clip("Original (35 s)", "original.wav")}
 {clip("Arcus actual, alineado, sala", "arcus-actual-alineado-sala.wav", "El tempo, el rubato y la dinámica de la grabación.")}
-{clip("Arcus en mejora, alineado, sala", "arcus-mejora-alineado-sala.wav", "La rama del sonido clásico en curso.")}
+{clip("Arcus en mejora, alineado, sala (una cuerda)", "arcus-mejora-alineado-1cuerda-sala.wav", "La rama del sonido clásico en curso, con su intérprete clásico entero.")}
+{clip("Arcus en mejora, alineado, sala, dos cuerdas", "arcus-mejora-alineado-sala.wav", "Con bow.pair: se calla en 9 de los 16 compases de la Variación 2 (ver abajo).")}
 {clip("Arcus actual, alineado, seco", "arcus-actual-alineado-seco.wav")}
-{clip("Arcus en mejora, alineado, seco", "arcus-mejora-alineado-seco.wav")}
+{clip("Arcus en mejora, alineado, seco (una cuerda)", "arcus-mejora-alineado-1cuerda-seco.wav")}
+{clip("Control: Arcus actual, Variación 2 en una sola cuerda", "arcus-actual-alineado-1cuerda-sala.wav", "Las mismas notas sin bow.pair.")}
+{clip("Antes: Arcus actual con la Variación 2 transcrita", "antes-doble/arcus-actual-alineado-sala.wav", "La toma anterior (antes-doble).")}
 {clip("Arcus actual, al tempo de la partitura, sala", "arcus-actual-partitura-sala.wav", "A 150 negras por minuto (el MIDI), mf fijo, sin rubato.")}
 {clip("Arcus en mejora, al tempo de la partitura, sala", "arcus-mejora-partitura-sala.wav")}
 {clip("Arcus actual, al tempo de la partitura, seco", "arcus-actual-partitura-seco.wav")}
@@ -172,7 +206,7 @@ ambas versiones. Se usa el micrófono izquierdo, porque sumar un par separado pr
 <span class="key" style="background:var(--s1)"></span>original ·
 <span class="key" style="background:var(--s2)"></span>Arcus actual ·
 <span class="key" style="background:var(--s3)"></span>Arcus en mejora.</p>
-<table><tr><th>Medida</th><th>Original</th><th>Arcus actual</th><th>Arcus en mejora</th></tr>{table}</table>
+<table><tr><th>Medida</th><th>Original</th><th>Arcus actual</th><th>Arcus en mejora (una cuerda)</th></tr>{table}</table>
 
 <h3>Espectro de largo plazo</h3>
 <img src="analisis/espectro.png" alt="Espectro en tercios de octava del original y de Arcus, y su diferencia">
@@ -196,9 +230,9 @@ en un violín real la crin rasca y se oye arriba.</p>
 <img src="analisis/afinacion.png" alt="Desvío en cents respecto a la nota temperada a lo largo del pasaje">
 <img src="analisis/vibrato.png" alt="Profundidad del vibrato por nota larga">
 <p>El intérprete afina unos {f1(O["tuning_cents"])} cents alto (La ≈ 442 Hz) y su desvío nota a nota es de
-{f1(O["intonation_spread_cents"])} cents. Arcus actual afina casi perfecto
-({f1(A["intonation_spread_cents"])} cents): demasiado exacto para un violín. La versión en mejora sube a
-{f1(M["intonation_spread_cents"])} cents, más cerca. En este pasaje rápido el intérprete casi no usa vibrato:
+{f1(O["intonation_spread_cents"])} cents. Arcus afina más exacto de lo que toca un violinista:
+{f1(A["intonation_spread_cents"])} cents la versión actual y {f1(M["intonation_spread_cents"])} la versión en
+mejora. En este pasaje rápido el intérprete casi no usa vibrato:
 sólo un {f1(100 * O["vib_share"])} % de las notas largas pasa de 15 cents, a unos {f1(O["vib_hz"][0])} Hz. En Arcus
 es un {f1(100 * A["vib_share"])} %; la versión en mejora vibra más lento ({f1(M["vib_hz"][0])} Hz), aunque sobre
 pocas notas.</p>
@@ -227,6 +261,42 @@ eso se oye como un arco blando, sin el «mordisco» de cada nota.</p>
 ({f1(A["dip_slur"][0])} / {f1(M["dip_slur"][0])} contra {f1(O["dip_slur"][0])} dB), así que la ligadura suena
 algo re-articulada. Ojo: qué notas van ligadas se dedujo del nivel de la grabación, no de una partitura.</p>
 
+<h3 id="cuerdas">Las dos cuerdas de la Variación 2</h3>
+<p>Para cada compás de la Variación 2 (16, con la repetición) se mide su primer tiempo, que alterna una
+nota de arriba con su vecina de abajo. Tres cosas: cuánto cae la cuerda de arriba mientras suena la de
+abajo (si son dos cuerdas sigue sonando y cae poco), el equilibrio entre las dos en ese momento y la
+afinación del intervalo frente al temperado. La sala de la grabación también sostiene la nota de
+arriba, así que el control es Arcus con las mismas notas en una sola cuerda y la misma sala.</p>
+<img src="analisis/cuerdas.png" alt="Variación 2 compás a compás: caída de la cuerda de arriba, equilibrio e intervalo">
+<p>Medianas de los 16 compases. La cuerda de arriba cae {f1(X["original"]["ring_db"])} dB en el
+original, {f1(X["arcus-actual-alineado-sala"]["ring_db"])} en Arcus actual y
+{f1(X["arcus-mejora-alineado-sala"]["ring_db"])} en la versión en mejora, contra
+{f1(CTRL["ring_db"])} dB con una sola cuerda. Equilibrio (arriba menos abajo):
+{f1(X["original"]["balance_db"])} dB en el original;
+{f1(X["arcus-actual-alineado-sala"]["balance_db"])} y
+{f1(X["arcus-mejora-alineado-sala"]["balance_db"])} dB en Arcus;
+{f1(CTRL["balance_db"])} dB con una cuerda. Intervalo:
+{f1(X["original"]["interval_ct"])} cents en el original (variación
+{f1(X["original"]["interval_spread_ct"])}),
+{f1(X["arcus-actual-alineado-sala"]["interval_ct"])} /
+{f1(X["arcus-mejora-alineado-sala"]["interval_ct"])} cents en Arcus.</p>
+<table><tr><th>Compás</th><th>Notas</th><th>Original</th><th>Arcus actual (dos cuerdas)</th><th>Arcus en mejora (dos cuerdas)</th>
+<th>Una cuerda (control)</th></tr>{cross_rows}</table>
+<p class="mut">Cada celda: caída de la cuerda de arriba (dB) / equilibrio (dB) / intervalo (cents). La
+partitura marca dos cuerdas en todos los compases menos el 6 y el 8 (compases 10 y 12 de la
+interpretación), que no llevan digitación. Las medidas del original dicen si el intérprete también los
+cruza.</p>
+<p><b>La versión en mejora y bow.pair.</b> En la rama arcus-classical (d9f66789e), <code>bow.pair</code> no
+sólo da las dos cuerdas: también apaga el intérprete clásico, porque <code>shape::classical</code> lo
+reparte como <code>player × (1 − pair)</code>, y enciende el del fiddle (el «shuffle» que liga notas
+rápidas sueltas, el cambio de arco suave y el vibrato tardío). En la versión en mejora, la Variación 2
+con dos cuerdas suena por eso con el arco del fiddle. Además <b>se calla</b>: en 9 de los 16 compases
+(2, 3, 6, 8, 10, 11, 13, 14 y 16 de la interpretación) varias notas ligadas no suenan, hasta −90 dB. La
+versión actual, con la misma partitura y el mismo <code>pair</code>, no pierde ninguna, y la versión en
+mejora sin <code>pair</code> tampoco. Por eso, en el análisis general y en el A/B, «en mejora» es su toma
+de una cuerda. Para tener las dos cosas a la vez, el DSP necesita separar «dos cuerdas» de «arco de fiddle»
+(un control propio o que <code>classical()</code> no lea <code>pair</code>). No lo he cambiado.</p>
+
 <h3>La dinámica nota a nota</h3>
 <img src="analisis/dinamica.png" alt="Pico de cada nota en Arcus frente al original">
 <p>Arcus sigue la dinámica de la grabación con r = {f1(A["dyn_r"])} / {f1(M["dyn_r"])}. Las notas suaves
@@ -248,16 +318,26 @@ pulido y algo apagado.</li>
 <li><b>Graves que el violín no radia.</b> Hay un golpe ancho de 150–400 Hz bajo las notas agudas
 fuertes, unos 15–20 dB sobre la grabación al empezar la segunda mitad del tema (La5). Y la fundamental
 del La3 grave sale unos 16 dB más fuerte. Suena a caja más grande o a «bombeo», no a violín.</li>
-<li><b>La afinación es demasiado perfecta</b> en la versión actual ({f1(A["intonation_spread_cents"])} contra
-{f1(O["intonation_spread_cents"])} cents de desvío). La versión en mejora ({f1(M["intonation_spread_cents"])}
-cents) ya se acerca. Además el intérprete afina a La ≈ 442; en el A/B la diferencia de 8 cents se nota
-como otro color, no como error.</li>
+<li><b>La afinación es demasiado exacta</b>: {f1(A["intonation_spread_cents"])} /
+{f1(M["intonation_spread_cents"])} cents de desvío nota a nota, contra {f1(O["intonation_spread_cents"])}. En las
+dos cuerdas de la Variación 2, el intérprete estrecha el semitono (la sensible alta):
+{f1(X["original"]["interval_ct"])} cents frente al temperado. Arcus lo deja temperado
+({f1(X["arcus-actual-alineado-sala"]["interval_ct"])}), y su control <code>dstop.just</code> lo movería
+hacia 16/15, que es más ancho, al revés que el intérprete. Además el intérprete afina a La ≈ 442: en el
+A/B, esos 8–10 cents se oyen como otro color, no como error.</li>
 <li><b>La dinámica nota a nota se sigue sólo a medias</b> (r = {f1(A["dyn_r"])}, pendiente
 {f1(A["dyn_slope"])}): los acentos del intérprete no salen tan marcados. Puede ser en parte mi mapeo
 de CC1.</li>
-<li><b>Las ligaduras se re-articulan un poco</b> ({f1(A["dip_slur"][0])} contra {f1(O["dip_slur"][0])} dB de hueco
-en la Variación 2), y el vibrato de la versión en mejora es más lento ({f1(M["vib_hz"][0])} Hz contra
-{f1(O["vib_hz"][0])} Hz). Son detalles menores, medidos sobre pocas notas.</li>
+<li><b>Las dos cuerdas suenan demasiado parejas.</b> Con <code>bow.pair</code>, la cuerda de arriba de la
+Variación 2 suena por fin bajo la de abajo. El equilibrio pasa de {f1(CTRL["balance_db"])} dB con una
+cuerda a {f1(X["arcus-actual-alineado-sala"]["balance_db"])} dB, contra {f1(X["original"]["balance_db"])} dB en el
+original. Pero cae sólo {f1(X["arcus-actual-alineado-sala"]["ring_db"])} dB mientras suena la otra, contra
+{f1(X["original"]["ring_db"])} dB en el original: Arcus mantiene la cuerda libre casi tan fuerte como si
+siguiera bajo el arco. En la versión en mejora, <code>bow.pair</code> además se calla en 9 de los 16
+compases (ver <a href="#cuerdas">las dos cuerdas</a>).</li>
+<li><b>Detalles menores:</b> el hueco entre notas ligadas ({f1(A["dip_slur"][0])} / {f1(M["dip_slur"][0])} contra
+{f1(O["dip_slur"][0])} dB) y el vibrato de la versión en mejora, más lento ({f1(M["vib_hz"][0])} Hz contra
+{f1(O["vib_hz"][0])} Hz, sobre pocas notas).</li>
 </ol>
 <p class="mut">Esta lista sale de las medidas, no de una escucha: el orden es el que espero que oiga el
 oído, y queda para que lo confirmes con el reproductor de arriba.</p>
@@ -285,15 +365,18 @@ primera nota. Después cada nota se lleva al inicio detectado más cercano con l
 corrige cuando eso la deja con menos de la mitad de su valor.</li>
 <li><b>Articulación, arco y dinámica:</b> salen del nivel de la grabación. Una nota termina donde cae
 9 dB bajo su pico. Con 30 ms o más de silencio el golpe es separado (staccato si dura menos de
-0,16 s). En la Variación 2, dos notas unidas sin un hueco de 6 dB van ligadas. El CC1 sigue el nivel
+0,16 s). En la Variación 2 los arcos son los de la partitura: cada compás, una ligadura. El CC1 sigue el nivel
 suavizado (80 ms) y la velocidad sale del pico de cada nota. El vibrato es el automático de Arcus.</li>
 <li><b>Arcus:</b> el violín con el preset «Violín cantabile» tal como lo lee el motor
 (bow.pos 1,09, vibrato 1,2× desde 160 ms, bow.attack 1,4, dyn 0,65, body.ring 1,15), con el intérprete
 (player) activo, en modo legato. Se renderiza fuera de línea con el ejemplo
 <code>paganini_render</code> (cantus-dsp), sin tocar el DSP.</li>
 <li><b>Versión al tempo de la partitura:</b> las mismas notas y articulaciones a 150 negras por minuto
-(el tempo del MIDI), con el CC1 fijo en 0,6. La Variación 2 va cuantizada a semicorcheas de su pulso
-medio.</li>
+(el tempo del MIDI), con el CC1 fijo en 0,6.</li>
+<li><b>Las dos cuerdas:</b> el tema y la Variación 2 se renderizan aparte y se suman. La Variación 2 lleva
+<code>set pair 1</code>, y cada nota del primer tiempo, su cuerda según la digitación de la partitura:
+la de arriba en la cuerda aguda (La al aire = 2, Mi al aire o pisada = 3) y su vecina en la de abajo.
+Los adornos (apoyaturas breves) van 50 ms antes de su nota, dentro de la ligadura.</li>
 <li>Scripts: <code>tools/listening/paganini_notes.py</code>, <code>paganini_mix.py</code>,
 <code>paganini_compare.py</code> y <code>paganini_page.py</code> (rama r42/paganini).</li>
 </ul>

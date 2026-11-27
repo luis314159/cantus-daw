@@ -1,21 +1,30 @@
 """The Paganini comparison's notes (round 42): Caprice No. 24's theme (with its first half's
 repeat, as played) from the public-domain MIDI on Wikimedia Commons (`Paganini caprice24
-theme.mid`, Hyacinth, 2018), aligned to the recording by DTW on the pitch track and moved
-onto the recording's onsets; Variation 2 transcribed from the recording (YIN, semitone runs,
-octave errors folded, repeated notes split at onsets). Variation 1 (arpeggios over three
+theme.mid`, Hyacinth, 2018) and Variation 2 from the public-domain score on Wikimedia Commons
+(`Caprice-24-a4.pdf`, David Chan's engraving for the Mutopia project, PD-old; its notes,
+fingerings and slurs entered by hand in `VAR2_BARS`), each aligned to the recording by DTW
+on the pitch track and moved onto the recording's onsets. Variation 1 (arpeggios over three
 octaves, bounced across the strings) is left out: see the report.
 
-Writes, into <work>:
-  pasaje-original.wav       the two excerpts joined (theme 0.30–17.40 s, variation 2
-                            35.85–53.85 s of take 03), 48 kHz stereo, float
-  notes.json                every note: recording time, passage time, key, articulation,
-                            velocity, the bow (new / slurred), and its score time
-  arcus-alineado.txt        the score for `paganini_render` at the recording's timing,
-                            with CC1 following the recording's level
-  arcus-partitura.txt       the same notes at the score's tempo (the MIDI's 150 bpm),
-                            the dynamic flat at mf, no rubato
+Variation 2's first beat in every bar alternates two strings: an open string (fingered 0)
+or a stopped note (1) with its lower neighbour on the string below (fingered 4), so the
+upper string rings on under the lower note. `VAR2_BARS` gives those notes their strings, and
+the variation is played with one bow on two strings (`set pair 1`, ADR 0164). `crossings()`
+measures, bar by bar, how loud the upper string still sounds under the lower note.
 
-    python -I tools/listening/paganini_notes.py <work dir>
+Writes, into <work>:
+  pasaje-original.wav       the two excerpts joined (theme 0.30-17.40 s, variation 2
+                            35.85-53.85 s of take 03), 48 kHz stereo, float
+  notes.json                every note: recording time, passage time, key, string,
+                            articulation, velocity, the bow (new / slurred), its score time;
+                            and the crossings measured in the recording
+  arcus-{alineado,partitura}-{tema,var2}.txt, arcus-alineado-var2-1cuerda.txt
+                            the scores for `paganini_render`: at the recording's timing
+                            (CC1 following the recording's level) or at the score's tempo
+                            (150 bpm, mf, no rubato); the theme one string a note, variation 2
+                            with `pair` as asked
+
+    python -I tools/listening/paganini_notes.py <work dir> [pair for variation 2, default 1]
 """
 import json
 import os
@@ -34,6 +43,57 @@ VAR2 = (35.85, 53.85)
 JOIN = THEME[1] - VAR2[0]  # var 2's recording time + JOIN = its passage time (- THEME[0])
 SCORE_BPM = 150.0          # the MIDI's tempo (400 000 us a quarter)
 FRAME = 0.02
+
+# Variation 2 as the public-domain score writes it (Commons `Caprice-24-a4.pdf`, page 1):
+# per bar, beat 1's four 16ths with their strings (0 G ... 3 E; the score's fingerings 0 0 or
+# 1 4 put the 1st and 3rd on the upper string, the 2nd and 4th on the one below; None where
+# it marks none), the grace note before beat 2, and beat 2's notes (16ths, or (key, beats)).
+# Every bar is one slur (bar 4: the slur ends on its E5, the E4 is its own up-bow). Bars 1-4
+# are repeated.
+_A, _E = (2, 1, 2, 1), (3, 2, 3, 2)
+VAR2_BARS = [
+    ([69, 68, 69, 68], _A, 70, [69, 71, 72, 74]),                 # 1  open A over G#
+    ([76, 75, 76, 74], _E, 77, [76, 74, 72, 71]),                 # 2  open E over D#, D
+    ([69, 68, 69, 68], _A, 70, [69, 71, 72, 74]),                 # 3
+    ([76, 75, 76, 74], _E, 77, [(76, 0.5), (64, 0.5)]),           # 4  E5, then E4 up-bow
+    ([81, 80, 81, 79], _E, 82, [81, 79, 77, 76]),                 # 5  1 4: A5 (E) over G#5 (A)
+    ([74, 73, 74, 72], None, 75, [74, 76, 77, 74]),               # 6  no fingering
+    ([79, 78, 79, 77], _E, 80, [79, 77, 76, 74]),                 # 7  1 4
+    ([72, 71, 72, 71], None, 73, [72, 74, 76, 72]),               # 8  no fingering
+    ([77, 76, 77, 76], _E, 79, [77, 74, 72, 71]),                 # 9  1 4
+    ([76, 75, 76, 74], _E, 77, [76, 72, 71, 69]),                 # 10 0 0
+    ([71, 70, 71, 69], _A, 72, [71, 77, 76, 68]),                 # 11 1 4: B4 (A) over A#4 (D)
+    ([69, 68, 69, 68], _A, 71, [(69, 0.5)]),                      # 12 0 0, the A an 8th
+]
+VAR2_FORM = [0, 1, 2, 3, 0, 1, 2, 3] + list(range(4, 12))
+GRACE_BEATS = 0.1
+
+
+def var2_score():
+    """Variation 2's notes as played (the repeat written out): dicts with beat, beats, key,
+    string, bar, src_bar, new_bow, grace, cross (its beat-1 notes on two strings), cross_lo
+    (a lower note of such a pair)."""
+    out, bar_at = [], 0.0
+    for n_bar, b in enumerate(VAR2_FORM):
+        beat1, strings, grace, beat2 = VAR2_BARS[b]
+        for i, key in enumerate(beat1):
+            out.append(dict(beat=bar_at + 0.25 * i, beats=0.25, key=key,
+                            string=None if strings is None else strings[i], bar=n_bar + 1,
+                            src_bar=b + 1, new_bow=i == 0, grace=False,
+                            cross=strings is not None, cross_lo=i % 2 == 1))
+        out[-1]["beats"] = 0.25 - GRACE_BEATS
+        out.append(dict(beat=bar_at + 1.0 - GRACE_BEATS, beats=GRACE_BEATS, key=grace,
+                        string=None, bar=n_bar + 1, src_bar=b + 1, new_bow=False, grace=True,
+                        cross=False, cross_lo=False))
+        at = bar_at + 1.0
+        for x in beat2:
+            key, d = (x, 0.25) if isinstance(x, int) else x
+            out.append(dict(beat=at, beats=d, key=key, string=None, bar=n_bar + 1,
+                            src_bar=b + 1, new_bow=(b == 3 and key == 64), grace=False,
+                            cross=False, cross_lo=False))
+            at += d
+        bar_at += 2.0
+    return out
 
 
 def read_midi(path):
@@ -193,59 +253,54 @@ def regularize(ons, beats, min_share=0.5):
     return t
 
 
-def transcribe(t, k, ap, onsets, a, b):
-    """Variation 2 from the pitch track: semitone runs of at least 30 ms, an octave error
-    folded back towards its neighbours, a run under 40 ms between two others dropped unless
-    it is a semitone neighbour (the turns), runs of one key joined unless an onset parts
-    them. Returns [(on, key)]."""
-    sel = (t >= a) & (t < b)
-    tt, q, aa = t[sel], np.round(k[sel]), ap[sel]
-    q = np.where(aa < 0.3, q, -1)
-    runs, i = [], 0
-    while i < len(q):
-        j = i
-        while j + 1 < len(q) and q[j + 1] == q[i]:
-            j += 1
-        if q[i] > 0 and tt[j] - tt[i] >= 0.025:
-            runs.append([tt[i], tt[j] + 0.005, int(q[i])])
-        i = j + 1
-    # octave errors: a run 10+ semitones from both neighbours moves by octaves towards them
-    for n in range(len(runs)):
-        nb = [runs[m][2] for m in (n - 1, n + 1) if 0 <= m < len(runs)]
-        if not nb:
-            continue
-        ref = float(np.median(nb))
-        while runs[n][2] - ref >= 9.5:
-            runs[n][2] -= 12
-        while ref - runs[n][2] >= 9.5:
-            runs[n][2] += 12
-    # short runs that are not a neighbour's semitone or tone: out
-    keep = []
-    for n, r in enumerate(runs):
-        dur = r[1] - r[0]
-        if dur < 0.04:
-            nb = [runs[m][2] for m in (n - 1, n + 1) if 0 <= m < len(runs)]
-            if not any(abs(r[2] - x) in (1, 2) for x in nb):
-                continue
-        keep.append(r)
-    # join runs of one key unless an onset parts them
+def align(score, region, t, k, ap, onsets, ft, fr):
+    """The score's notes [(beat, beats, key)] aligned to the recording over `region`: DTW,
+    then each onset snapped and regularized. Returns the onset times."""
+    beat = 60.0 / SCORE_BPM
+    total = max(b0 + d for b0, d, _ in score)
+    S = int(np.ceil(total * beat / FRAME)) + 1
+    sc = np.full(S, np.nan)
+    sc_on = np.zeros(S, bool)
+    for b0, d, key in score:
+        f0, f1 = int(b0 * beat / FRAME), int((b0 + max(d, 0.25)) * beat / FRAME)
+        sc[f0:f1] = key
+        sc_on[f0] = True
+    rec = frames_of(t, k, ap, region[0], region[1])
+    rec_on = np.zeros(len(rec))
+    for f in range(len(rec)):
+        s_ = (ft >= region[0] + f * FRAME) & (ft < region[0] + (f + 1) * FRAME)
+        if s_.any():
+            rec_on[f] = float(np.clip((float(fr[s_].max()) - 1.0) / 3.0, 0.0, 1.0))
+    cand = onsets[(onsets > region[0]) & (onsets < region[1])]
+    st = int((cand[0] - region[0]) / FRAME)
+    for o in cand:  # the first onset with a pitch after it: the section's first note
+        sel = (t >= o + 0.02) & (t < o + 0.08) & (ap < 0.3)
+        if sel.sum() >= 3:
+            st = int((o - region[0]) / FRAME)
+            break
+    path = dtw_align(rec, sc, rec_on, sc_on, st)
+    approx = [region[0] + path[min(int(b0 * beat / FRAME), S - 1)] * FRAME for b0, _, _ in score]
+    return regularize(snap(approx, onsets, [kk for _, _, kk in score], t, k, ap),
+                      [b0 for b0, _, _ in score])
+
+
+def crossings(m, sr, notes, key_t="t"):
+    """Variation 2's first beats, bar by bar (`paganini_common.crossing_beat`): how far the
+    upper note rings on under its lower neighbour, their balance there and their interval.
+    `key_t` names the notes' time in `m` ("t" the recording's, "p_on" the passage's). Bars 6
+    and 8 of the score carry no fingering: measured too."""
     out = []
-    for r in keep:
-        if out and out[-1][2] == r[2]:
-            between = onsets[(onsets > out[-1][1] - 0.03) & (onsets < r[0] + 0.03)]
-            if r[0] - out[-1][1] < 0.06 and len(between) == 0:
-                out[-1][1] = r[1]
-                continue
+    for bar in sorted({n["bar"] for n in notes if n.get("section") == "var2"}):
+        bn = [n for n in notes if n.get("section") == "var2" and n["bar"] == bar]
+        g = [n for n in bn if n["grace"]][0]
+        a, b = bn[0][key_t], g[key_t]
+        r = pc.crossing_beat(m, sr, a, b, bn[0]["key"], bn[1]["key"])
+        if r is None:
+            continue
+        r.update(bar=bar, src_bar=bn[0]["src_bar"], at=a, hi=bn[0]["key"], lo=bn[1]["key"],
+                 marked=bn[0]["cross"])
         out.append(r)
-    # a note starts at the onset just before its run, when one is near
-    notes = []
-    for r in out:
-        o = onsets[(onsets > r[0] - 0.06) & (onsets <= r[0] + 0.01)]
-        on = float(o[-1]) if len(o) else float(r[0])
-        if notes and on <= notes[-1][0] + 0.03:
-            on = float(r[0])
-        notes.append((on, r[2]))
-    return notes
+    return out
 
 
 def shape_notes(notes, te, e, end):
@@ -305,7 +360,7 @@ def cc_curve(te, e, notes, a, b, shift):
     return out
 
 
-def main(work):
+def main(work, pair=1.0):
     os.makedirs(work, exist_ok=True)
     x, sr = pc.recording()
     m = x[:, 0]
@@ -323,54 +378,38 @@ def main(work):
 
     # ---- the theme: the MIDI aligned
     midi, _ = read_midi(MIDI)
-    beat = 60.0 / SCORE_BPM
-    total = max(b0 + d for b0, d, _, _ in midi)
-    S = int(np.ceil(total * beat / FRAME)) + 1
-    score = np.full(S, np.nan)
-    score_on = np.zeros(S, bool)
-    for b0, d, key, _ in midi:
-        f0, f1 = int(b0 * beat / FRAME), int((b0 + max(d, 0.25)) * beat / FRAME)
-        score[f0:f1] = key
-        score_on[f0] = True
-    rec = frames_of(t, k, ap, THEME[0], THEME[1])
-    # the recording's onset strength per frame: the flux ratio's peak in it, 0 … 1
-    rec_on = np.zeros(len(rec))
-    for f in range(len(rec)):
-        s_ = (ft >= THEME[0] + f * FRAME) & (ft < THEME[0] + (f + 1) * FRAME)
-        if s_.any():
-            r_ = float(fr[s_].max())
-            rec_on[f] = float(np.clip((r_ - 1.0) / 3.0, 0.0, 1.0))
-    first = onsets[onsets > THEME[0]][0]
-    path = dtw_align(rec, score, rec_on, score_on, int((first - THEME[0]) / FRAME))
-    approx = [THEME[0] + path[min(int(b0 * beat / FRAME), S - 1)] * FRAME for b0, _, _, _ in midi]
-    keys = [key for _, _, key, _ in midi]
-    ons = regularize(snap(approx, onsets, keys, t, k, ap), [b0 for b0, _, _, _ in midi])
-    notes = []
-    for (b0, d, key, vel), on in zip(midi, ons):
-        notes.append(dict(section="theme", t=on, key=int(key), score_beat=b0, score_beats=d,
-                          midi_vel=int(vel)))
-    # ---- variation 2: transcribed
-    v2 = transcribe(t, k, ap, onsets, VAR2[0] + 0.1, VAR2[1] - 0.25)
-    for on, key in v2:
-        notes.append(dict(section="var2", t=on, key=int(key)))
-    th = [n for n in notes if n["section"] == "theme"]
-    va = [n for n in notes if n["section"] == "var2"]
+    ons = align([(b0, d, key) for b0, d, key, _ in midi], THEME, t, k, ap, onsets, ft, fr)
+    th = [dict(section="theme", t=on, key=int(key), score_beat=b0, score_beats=d,
+               midi_vel=int(vel), string=None, grace=False)
+          for (b0, d, key, vel), on in zip(midi, ons)]
     shape_notes(th, te, e, THEME[1] - 0.2)
+
+    # ---- variation 2: the score aligned (the grace notes placed after, 50 ms before their
+    # main note)
+    sc = var2_score()
+    main_ = [n for n in sc if not n["grace"]]
+    ons = align([(n["beat"], n["beats"], n["key"]) for n in main_], VAR2, t, k, ap, onsets, ft, fr)
+    for n, on in zip(main_, ons):
+        n["t"] = on
+    for i, n in enumerate(sc):
+        if n["grace"]:
+            prev, nxt = sc[i - 1]["t"], sc[i + 1]["t"]
+            n["t"] = max(nxt - 0.05, prev + 0.6 * (nxt - prev))
+    va = []
+    for n in sc:
+        va.append(dict(section="var2", t=n["t"], key=n["key"], score_beat=n["beat"],
+                       score_beats=n["beats"], string=n["string"], grace=n["grace"],
+                       bar=n["bar"], src_bar=n["src_bar"], cross=n["cross"],
+                       cross_lo=n["cross_lo"], score_new_bow=n["new_bow"]))
     shape_notes(va, te, e, VAR2[1] - 0.05)
-    # the theme's last note and variation 2's: held to the level's own fall
-    # ---- the score's own time for variation 2: its onsets quantized to 16ths of its mean beat
-    q16 = float(np.median(np.diff([n["t"] for n in va])))
-    q16 = 0.125 if not 0.09 < q16 < 0.16 else q16
-    b_start = va[0]["t"]
-    pos = 0
-    for n, x2 in enumerate(va):
-        x2["score_beat"] = pos / 4.0
-        nxt = va[n + 1]["t"] if n + 1 < len(va) else x2["off"] + 0.05
-        steps = max(1, int(round((nxt - x2["t"]) / q16)))
-        x2["score_beats"] = steps / 4.0
-        pos += steps
-    del b_start
-    # passage times
+    # the score's bows: every bar one slur, bar 4's E4 its own bow
+    for n in va:
+        n["new_bow"] = n["score_new_bow"]
+        n["art"] = "sus" if n["new_bow"] else "leg"
+    # the crossings as the recording has them
+    cross_orig = crossings(m, sr, va)
+
+    notes = th + va
     for x2 in notes:
         sh = -THEME[0] if x2["section"] == "theme" else JOIN - THEME[0]
         x2["p_on"] = x2["t"] + sh
@@ -384,54 +423,71 @@ def main(work):
     tail = x[b1 - fade:b1].copy() * np.linspace(1, 0, fade)[:, None]
     orig = np.concatenate([x[a0:a1], x[b0_:b1 - fade], tail])
     pc.audio.write(os.path.join(work, "pasaje-original.wav"), orig, sr, subtype="FLOAT")
+
     # ---- the scores
-    cc = cc_curve(te, e, th, THEME[0], THEME[1], -THEME[0]) + \
-        cc_curve(te, e, va, VAR2[0], VAR2[1], JOIN - THEME[0])
-
     def note_line(on, off, x2):
-        return f"note {on:.4f} {off:.4f} {x2['key']} {x2['vel']:.3f} {x2['art']} -"
+        st = "-" if x2.get("string") is None else str(x2["string"])
+        return f"note {on:.4f} {off:.4f} {x2['key']} {x2['vel']:.3f} {x2['art']} - {st}"
 
-    lines = ["# Caprice 24, theme + variation 2 — at the recording's timing (paganini_notes.py)"]
-    lines += [f"cc {tt:.3f} 0 {v:.3f}" for tt, v in cc]
-    for n, x2 in enumerate(notes):
-        off = x2["p_off"]
-        nxt = notes[n + 1] if n + 1 < len(notes) else None
-        if nxt is not None and nxt["art"] == "leg" and nxt["section"] == x2["section"]:
-            off = nxt["p_on"] + 0.02  # overlapped: the next note slurs
-        lines.append(note_line(x2["p_on"], off, x2))
-    open(os.path.join(work, "arcus-alineado.txt"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+    def write(name, head, part, cc, timing):
+        lines = [f"# Caprice 24, {name} (paganini_notes.py)"] + head
+        lines += [f"cc {tt:.3f} 0 {v:.3f}" for tt, v in cc]
+        for n, x2 in enumerate(part):
+            on, off = timing(n, x2)
+            lines.append(note_line(on, off, x2))
+        open(os.path.join(work, name + ".txt"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
 
-    # at the score's tempo: the theme from 0.3 s, variation 2 a bar after it
-    lines = ["# Caprice 24, theme + variation 2 — at the score's tempo (150 bpm), mf, no rubato"]
-    lines.append("cc 0 0 0.6")
+    def aligned(part):
+        def f(n, x2):
+            off = x2["p_off"]
+            nxt = part[n + 1] if n + 1 < len(part) else None
+            if nxt is not None and nxt["art"] == "leg":
+                off = nxt["p_on"] + 0.02  # overlapped: the next note slurs
+            return x2["p_on"], off
+        return f
+
     beat = 60.0 / SCORE_BPM
     t_th = 0.3
     t_va = t_th + (2 * np.ceil(max(n["score_beat"] + n["score_beats"] for n in th) / 2) + 2) * beat
-    for n, x2 in enumerate(notes):
-        base = t_th if x2["section"] == "theme" else t_va
-        on = base + x2["score_beat"] * beat
-        if x2["section"] == "theme":
+
+    def scored(part, base):
+        def f(n, x2):
+            on = base + x2["score_beat"] * beat
             dur = x2["score_beats"] * beat
-            # the recording's articulation kept: a staccato at most its written length
             if x2["art"] == "stac":
                 dur = 0.6 * dur
-        else:
-            dur = x2["score_beats"] * beat
-        off = on + dur
-        nxt = notes[n + 1] if n + 1 < len(notes) else None
-        if nxt is not None and nxt["art"] == "leg" and nxt["section"] == x2["section"]:
-            off = base + nxt["score_beat"] * beat + 0.02
-        v = dict(x2)
-        v["vel"] = 0.6
-        lines.append(note_line(on, off, v))
-    open(os.path.join(work, "arcus-partitura.txt"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
-    json.dump(dict(theme=THEME, var2=VAR2, join=JOIN, score_bpm=SCORE_BPM, notes=notes),
-              open(os.path.join(work, "notes.json"), "w"), indent=1)
+            off = on + dur
+            nxt = part[n + 1] if n + 1 < len(part) else None
+            if nxt is not None and nxt["art"] == "leg":
+                off = base + nxt["score_beat"] * beat + 0.02
+            return on, off
+        return f
+
+    cc_th = cc_curve(te, e, th, THEME[0], THEME[1], -THEME[0])
+    cc_va = cc_curve(te, e, va, VAR2[0], VAR2[1], JOIN - THEME[0])
+    pair_head = [f"set pair {pair:g}"]
+    write("arcus-alineado-tema", [], th, cc_th, aligned(th))
+    write("arcus-alineado-var2", pair_head, va, cc_va, aligned(va))
+    # the control: the same variation 2 on one string at a time (no pair)
+    write("arcus-alineado-var2-1cuerda", ["set pair 0"], va, cc_va, aligned(va))
+    flat = [dict(v, vel=0.6) for v in th]
+    write("arcus-partitura-tema", [], flat, [(0.0, 0.6)], scored(flat, t_th))
+    flat = [dict(v, vel=0.6) for v in va]
+    write("arcus-partitura-var2", pair_head, flat, [(0.0, 0.6)], scored(flat, t_va))
+    json.dump(dict(theme=THEME, var2=VAR2, join=JOIN, score_bpm=SCORE_BPM, pair=pair,
+                   notes=notes, crossings_original=cross_orig),
+              open(os.path.join(work, "notes.json"), "w", encoding="utf-8"), indent=1)
     print(f"{len(th)} theme notes, {len(va)} variation-2 notes; passage {len(orig) / sr:.2f} s")
-    for x2 in notes:
-        print(f"{x2['section']:5s} {x2['t']:7.3f} {x2['off'] - x2['t']:5.3f} {pc.name(x2['key']):4s} "
-              f"{x2['art']:4s} {'new' if x2['new_bow'] else 'slur'} {x2['peak_db']:6.1f}")
+    print("variation 2, the crossings in the recording (upper string under the lower note):")
+    for c in cross_orig:
+        print(f"  bar {c['bar']:2d} (score {c['src_bar']:2d}{'' if c['marked'] else ', unmarked'}) "
+              f"{pc.name(c['hi'])} over {pc.name(c['lo'])}: falls {c['ring_db']:5.1f} dB, "
+              f"balance {c['balance_db']:+6.1f} dB, interval {c['interval_cents']:+6.1f} ct")
+    for x2 in va:
+        print(f"var2 bar {x2['bar']:2d} {x2['t']:7.3f} {pc.name(x2['key']):4s} {x2['art']:4s} "
+              f"{'g' if x2['grace'] else ' '} {x2['string']}")
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else r"F:\projects\cantus-work\listen\paganini\work")
+    main(sys.argv[1] if len(sys.argv) > 1 else r"F:\projects\cantus-work\listen\paganini\work",
+         float(sys.argv[2]) if len(sys.argv) > 2 else 1.0)
