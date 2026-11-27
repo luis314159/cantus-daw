@@ -1956,7 +1956,7 @@ mod tests {
         let (ok, new) = models(&read("v86.cantus"));
         assert!(ok);
         assert_eq!(new, vec![2.0, 2.0], "the plain and the hybrid Tympanum");
-        for f in ["v67.cantus", "v71.cantus", "v85.cantus"] {
+        for f in ["v68.cantus", "v71.cantus", "v85.cantus"] {
             let (_, old) = models(&read(f));
             assert!(
                 !old.is_empty() && old.iter().all(|m| *m == 1.0),

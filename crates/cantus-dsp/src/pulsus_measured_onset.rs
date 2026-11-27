@@ -248,8 +248,20 @@ pub(crate) fn strike_modes(s: &Six<'_>, bank: &mut Modes, vary: &mut Noise) -> f
         }
         amax = amax.max(x);
         let (c, sn) = (math::cos(q[i]), math::sin(q[i]));
-        bank.re[i] += x * c;
-        bank.im[i] += x * sn;
+        // The stick on a moving head: its push adds to the ring, and where the head comes
+        // up against it the contact pushes the harder — the mode is never left weaker than
+        // the stroke alone would leave it (a sum that cancelled would; a head struck while it
+        // rings never loses level).
+        let (r0, i0) = (bank.re[i], bank.im[i]);
+        let (mut nr, mut ni) = (r0 + x * c, i0 + x * sn);
+        let m2 = nr * nr + ni * ni;
+        if m2 < x * x && m2 > 0.0 {
+            let g = (x * x / m2).sqrt();
+            nr *= g;
+            ni *= g;
+        }
+        bank.re[i] = nr;
+        bank.im[i] = ni;
         bank.live[i / 8] = true;
         // the layers' T60s blended geometrically, as model 5's
         let (mut lt, mut ws) = (0.0f32, 0.0f32);
@@ -261,7 +273,7 @@ pub(crate) fn strike_modes(s: &Six<'_>, bank: &mut Modes, vary: &mut Noise) -> f
         }
         let t60 = math::exp(lt / ws.max(1e-6)) * s.decay;
         bank.r[i] = math::exp(-6.907_755 / (t60 * s.sr));
-        let (mut cr, mut ci) = (x * c, x * sn);
+        let (mut cr, mut ci) = (nr - r0, ni - i0);
         if y > 0.0 {
             // the early part, as the growing part's phasor (the ring less it: so it is
             // added inverted), dying in its time
