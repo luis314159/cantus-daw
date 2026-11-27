@@ -61,6 +61,10 @@ mod tick;
 #[path = "pulsus_measured_law.rs"]
 mod law;
 
+// r42:tympanum-real — model 6, the drums' onset (ADR 0124's seventh amendment).
+#[path = "pulsus_measured_onset.rs"]
+pub(crate) mod onset;
+
 #[cfg(test)]
 #[path = "pulsus_measured_tests.rs"]
 mod tests;
@@ -192,6 +196,9 @@ pub(crate) struct Strike {
     /// edge the higher partials and bands rise and the lower fall (3 dB an octave each way
     /// at ±1, about 250 Hz and 1 kHz).
     pub tilt: f32,
+    /// The model: 5, or 6 — a drum's onset through the stick's contact (`onset`); a cymbal
+    /// plays 6 as 5.
+    pub gen: u8,
 }
 
 /// One hit's band envelopes.
@@ -207,6 +214,11 @@ pub(crate) struct Slot {
     /// Each band's amplitude now and its factor per control step.
     pub g: [f32; NB],
     pub m: [f32; NB],
+    /// Model 6: the bands come in after `lag` samples, each over its own `rise`
+    /// (`onset::ramp`).
+    pub ramp: bool,
+    pub lag: [f32; NB],
+    pub rise: [f32; NB],
 }
 
 impl Slot {
@@ -219,6 +231,9 @@ impl Slot {
             db: [-200.0; NB * NBP],
             g: [0.0; NB],
             m: [1.0; NB],
+            ramp: false,
+            lag: [0.0; NB],
+            rise: [1.0; NB],
         }
     }
 }
@@ -351,6 +366,12 @@ pub(crate) struct Object {
     /// (`Bank::drum_lp`).
     pub split: bool,
     pub lpz: [f32; 4],
+    /// Model 6 (a drum): the stick's contact — samples into it, and its length — and the
+    /// knock's end.
+    pub six: bool,
+    pub contact_n: u32,
+    pub contact_len: u32,
+    pub stick_end: u32,
 }
 
 /// Every measured piece of a kit, and the band filters they share.
@@ -375,6 +396,7 @@ impl Bank {
         let sr = if sr > 0.0 { sr } else { 48_000.0 };
         // The tables decoded now, with the kit — never on the audio thread.
         let _ = tables();
+        let _ = onset::params();
         let mut b = Bank {
             sr,
             objects: (0..MAX_OBJECTS).map(|_| Object::new()).collect(),
@@ -593,6 +615,10 @@ impl Object {
             hps: [0.0; 8],
             split: false,
             lpz: [0.0; 4],
+            six: false,
+            contact_n: 0,
+            contact_len: 0,
+            stick_end: 0,
         }
     }
 

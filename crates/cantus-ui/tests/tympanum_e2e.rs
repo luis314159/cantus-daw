@@ -587,45 +587,90 @@ fn the_jazz_kit_plays_its_own_measured_voices() {
 
 /// The modelled kits' level law (r42:tympanum-real, `DSP_VERSION` 19), through the boot path
 /// and the real engine: every piece of the studio and jazz kits grows with the velocity at
-/// every step a drummer plays (the studio kick at 56 was louder than at 80).
+/// every step a drummer plays, a second apart (each drum struck while its last hit rings), for
+/// every seed — model 6 (a new Tympanum's `model` 2) never lets one hit's own draw cancel its
+/// level (model 5's blend did: the studio kick at 96 3.3 dB under its 80 for one seed).
 #[test]
-#[ignore = "open (docs/round42/tympanum-real.md §7.2): the studio kick at 96 falls 3.3 dB under 80 \nfor this hit's seed — the blend takes the main layer's onset phases with both layers' amplitudes"]
 fn every_modelled_piece_grows_with_the_velocity_through_the_app() {
     const VELS: [u8; 9] = [16, 32, 48, 56, 64, 80, 96, 112, 127];
     for kit in ["model:studio", "model:jazz"] {
         for key in [36u8, 38, 45, 41, 42, 49, 51] {
-            let mut p = Project::new("Law");
-            p.tempo_bpm = 60.0;
-            let mut t = p.make_track("Drums");
-            let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
-            spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
-            t.instrument = InstrumentSpec::Native(spec);
-            // one hit every 4 s (four beats at 60 BPM), each its own window: a drum struck
-            // while its last hit rings is the re-strike's own matter (the doc's open items)
-            let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(4 * VELS.len() as i64 + 1));
-            for (i, v) in VELS.iter().enumerate() {
-                c.notes
-                    .push(p.make_note(Ticks::beats(4 * i as i64), Ticks(PPQ / 8), key, *v));
-            }
-            t.clips.push(c);
-            p.tracks.push(t);
-            let (mut app, _proc) = boot(p.clone());
-            let x = offline(&mut app, &p, VELS.len() * 4 * 48_000, 512);
-            let lv: Vec<f32> = (0..VELS.len())
-                .map(|i| {
-                    let w = &x[i * 4 * 96_000..i * 4 * 96_000 + 2 * 3_840];
-                    let e = w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32;
-                    10.0 * e.max(1e-20).log10()
-                })
-                .collect();
-            for (j, w) in lv.windows(2).enumerate() {
-                assert!(
-                    w[1] > w[0] - 1.0,
-                    "{kit} key {key}: velocity {} → {} falls ({lv:?})",
-                    VELS[j],
-                    VELS[j + 1]
-                );
+            for seed in [0.0f32, 1.0, 2.0] {
+                let mut p = Project::new("Law");
+                p.tempo_bpm = 60.0;
+                let mut t = p.make_track("Drums");
+                let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+                spec.set_text(KIT_KEY, Some(kit.to_string())).unwrap();
+                spec.set("seed", seed);
+                t.instrument = InstrumentSpec::Native(spec);
+                // one hit a second (a beat at 60 BPM): each drum struck while it rings
+                let mut c = p.make_clip("Hits", Ticks::ZERO, Ticks::beats(VELS.len() as i64 + 1));
+                for (i, v) in VELS.iter().enumerate() {
+                    c.notes
+                        .push(p.make_note(Ticks::beats(i as i64), Ticks(PPQ / 8), key, *v));
+                }
+                t.clips.push(c);
+                p.tracks.push(t);
+                let (mut app, _proc) = boot(p.clone());
+                let x = offline(&mut app, &p, (VELS.len() + 1) * 48_000, 512);
+                let lv: Vec<f32> = (0..VELS.len())
+                    .map(|i| {
+                        let w = &x[i * 96_000..i * 96_000 + 2 * 3_840];
+                        let e = w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32;
+                        10.0 * cantus_dsp::math::log10(e.max(1e-20))
+                    })
+                    .collect();
+                for (j, w) in lv.windows(2).enumerate() {
+                    assert!(
+                        w[1] > w[0] - 1.0,
+                        "{kit} key {key} seed {seed}: velocity {} → {} falls ({lv:?})",
+                        VELS[j],
+                        VELS[j + 1]
+                    );
+                }
             }
         }
     }
+}
+
+/// Model 6 through the app (r42:tympanum-real, ADR 0124's seventh amendment; schema 86): a
+/// new Tympanum stores `model` 2 and its drums come in through the stick's contact — the
+/// snare's first half millisecond far under what a song made before (`model` 1, model 5)
+/// plays — while its cymbals play the same bits under either model.
+#[test]
+fn a_new_tympanum_plays_the_drums_onset_and_an_old_song_keeps_its_own() {
+    let render_with = |model: Option<f32>, key: u8| {
+        let mut p = Project::new("Onset");
+        p.tempo_bpm = 60.0;
+        let mut t = p.make_track("Drums");
+        let mut spec = NativeSpec::new(InstrumentKind::AcousticDrums);
+        assert_eq!(spec.get("model"), 2.0, "a new instance stores model 2");
+        spec.set_text(KIT_KEY, Some("model:studio".to_string()))
+            .unwrap();
+        if let Some(m) = model {
+            spec.set("model", m);
+        }
+        t.instrument = InstrumentSpec::Native(spec);
+        let mut c = p.make_clip("Hit", Ticks::ZERO, Ticks::beats(2));
+        c.notes
+            .push(p.make_note(Ticks::ZERO, Ticks(PPQ / 8), key, 110));
+        t.clips.push(c);
+        p.tracks.push(t);
+        let (mut app, _proc) = boot(p.clone());
+        offline(&mut app, &p, 48_000, 512)
+    };
+    let onset = |x: &[f32]| {
+        let first = x.iter().position(|v| v.abs() > 1e-6).unwrap_or(0);
+        let w = &x[first..first + 2 * 24];
+        (w.iter().map(|s| s * s).sum::<f32>() / w.len() as f32).sqrt()
+    };
+    let (old, new) = (render_with(Some(1.0), 38), render_with(None, 38));
+    assert!(peak(&new) > 1e-3);
+    assert!(
+        onset(&new) < 0.5 * onset(&old),
+        "the snare's first 0.5 ms: model 2 {} against model 1 {}",
+        onset(&new),
+        onset(&old)
+    );
+    same(&render_with(Some(1.0), 49), &render_with(None, 49), "the crash");
 }

@@ -703,17 +703,31 @@ fn a_drums_noise_rests_under_its_fundamental_and_its_low_bands_under_its_highs()
 #[test]
 #[ignore]
 fn level_law_dump() {
-    for table in [1u8, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24] {
+    // (r42:tympanum-real: and model 6's drums, `six NN:`, with `LAW6` as it is)
+    let runs = [1u8, 2, 3, 4, 5, 6, 7, 8, 17, 18, 19, 20, 21, 22, 23, 24]
+        .into_iter()
+        .map(|t| (t, 5u8))
+        .chain(
+            [4u8, 5, 6, 7, 8, 20, 21, 22, 23, 24]
+                .into_iter()
+                .map(|t| (t, 6u8)),
+        );
+    for (table, gen) in runs {
         if super::table(table).is_none() {
             continue;
         }
-        let mut line = format!("table {table:2}:");
+        let mut line = if gen == 6 {
+            format!("six {table:2}:")
+        } else {
+            format!("table {table:2}:")
+        };
         for v in super::law::LAW_VELS {
             let vel = v as u8;
             let mut e = 0.0f32;
             for id in 0..3u64 {
                 let mut p = Pulsus::new(SR);
                 p.enable_measured();
+                p.measured_gen = gen;
                 p.set_kit(3, 9, 4, false);
                 p.set_pad_count(1);
                 p.set_pad(0, 60, &pad(table, 1, 0));
@@ -812,3 +826,7 @@ fn a_table_without_its_burst_and_every_other_with_its_own() {
         assert_eq!(burst(id), 1.0);
     }
 }
+
+// r42:tympanum-real — model 6, the drums' onset.
+#[path = "pulsus_measured_onset_tests.rs"]
+mod onset_tests;

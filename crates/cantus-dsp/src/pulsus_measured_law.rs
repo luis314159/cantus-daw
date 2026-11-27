@@ -38,10 +38,26 @@ pub(crate) const LAW: &[(u8, [i16; 17])] = &[
     (24, [0, 12, 0, 0, 3, 100, -90, -55, 2, -2, 92, -62, -27, -25, 10, 5, 0]),
 ];
 
+/// Model 6's law (its drums' onset, `onset`): per drum table, centi-dB at [`LAW_VELS`] that
+/// bring its first 80 ms to model 5's with [`LAW`] — the same law, the same calibrated level —
+/// written by `tools/tympanum-real/law6.py` from `level_law_dump`'s two runs.
+#[rustfmt::skip]
+pub(crate) const LAW6: &[(u8, [i16; 17])] = &[
+];
+
 /// The level (dB) table `id`'s law adds at velocity `vel` (1 … 127), linear between the
 /// given velocities; 0 for a table without one.
 pub(crate) fn law_db(id: u8, vel: f32) -> f32 {
-    let Some((_, c)) = LAW.iter().find(|(t, _)| *t == id) else {
+    law_in(LAW, id, vel)
+}
+
+/// [`law_db`] for model 6 ([`LAW6`]).
+pub(crate) fn law_db6(id: u8, vel: f32) -> f32 {
+    law_in(LAW6, id, vel)
+}
+
+fn law_in(law: &[(u8, [i16; 17])], id: u8, vel: f32) -> f32 {
+    let Some((_, c)) = law.iter().find(|(t, _)| *t == id) else {
         return 0.0;
     };
     let v = vel.clamp(LAW_VELS[0], LAW_VELS[LAW_VELS.len() - 1]);

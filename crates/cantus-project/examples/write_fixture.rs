@@ -2177,6 +2177,15 @@ fn main() {
             }
         }
     }
+    // r42:tympanum-real — Schema 86 (ADR 0124's seventh amendment): a new Tympanum plays
+    // model 2 (the drums' onset); a song saved before stored model 1 with each one.
+    for t in p.tracks.iter_mut() {
+        if let InstrumentSpec::Native(n) = &mut t.instrument {
+            if n.kind == InstrumentKind::AcousticDrums {
+                n.set("model", if upto >= 86 { 2.0 } else { 1.0 });
+            }
+        }
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

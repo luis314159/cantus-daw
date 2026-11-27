@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 85; // r42: 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
+pub const SCHEMA_VERSION: u32 = 86; // r42: 86 Tympanum's model 2, the drums' onset (ADR 0124's seventh amendment, tympanum-real), 85 Arcus's one bow on two strings, sympathetic strings, grit, steel and just double stops (ADR 0164, fiddle), 84 Chorda's colour (`colour`, ADR 0098's sixth amendment, chorda-c17), 83 a bowed note's bow start, bow part and string (ADR 0162, arcus-expr), 82 Exemplar's articulations, bows, controller crossfades and scripted legato (ADR 0158, strings-rec), 81 Arcus (the bowed string) and the note's articulation (ADRs 0157, 0158), 80 the project's and the tracks' tuning, `ExternalUnit::mts` and `ExternalPlugin::tuning_by` (ADRs 0155, 0156); r41: 79 Fides's input as a sidechain from a strip (ADR 0154), 78 Fides (the resonator), Nitor (the enhancer) and Fragor's five circuits as board-only pedals (ADRs 0150–0152); fx (the effects side round, merged after round 40): 72 the side round's five kinds, 73 Tabula's board and three kinds, 74 Fractus's lanes and three kinds, 75 wave B's Cedo shape and three kinds (Vinculum, Lenis, Cedo), 76 wave C's two kinds and Comparatio's references, 77 wave D's X-Y pad and formula controller; r40: 71 Tympanum's voice (generated or hybrid, drums-hyb), 70 a strip added to an instrument's family (tymp-ui), 62 pads (a track's record tap), 63 and 64 unused (reserved for ripple and delay, which needed none), 65 cast (the default dancer: Compás), 66 an instrument's named outputs, 67 Tympanum, 68 Chorda's recorded source, 69 the scene's room look (phase 3); r36: 50 mix, 51 external, 52 editor, 53 ara; r37: 54 piano (chorda), 55 piano (sectio, to come), 56 drums, 57 drums (kit gain), 58 scene (chorda's look), 59 chars (the default character); r39: 60 conv (Aula's response from a file), 61 arrange (sections, folders, lane modes)
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -358,6 +358,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_82_to_83, // r42 arcus-expr — a note's bow start, bow part and string (ADR 0162)
     migrate_83_to_84, // r42:chorda-c17 — Chorda's colour (ADR 0098, sixth amendment)
     migrate_84_to_85, // r42 fiddle — Arcus's strings under one bow (ADR 0164)
+    migrate_85_to_86, // r42:tympanum-real — Tympanum's model 2 (ADR 0124, seventh amendment)
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -1319,6 +1320,15 @@ fn migrate_84_to_85(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 86 (round 42, ADR 0124's seventh amendment): Tympanum's model 2 — a measured
+/// drum's onset through the stick's contact (Pulsus's measured model 6). A new instance stores
+/// `model` = 2; a song made before plays model 1 (model 5's onset), the `model` its build
+/// stored with every instance, written here into any Tympanum that lacks it. An older build
+/// must refuse a v86 file: it would play a model 2 song with model 1. // r42:tympanum-real
+fn migrate_85_to_86(value: &mut Value) -> Result<(), String> {
+    write_native_default(value, "AcousticDrums", "model", 1.0)
+}
+
 /// Write `character` = `id` into every dancer's text that names none (schemas 59 and 65:
 /// the default character changed, an old song keeps the one it showed).
 fn write_default_character(value: &mut Value, id: &str) -> Result<(), String> {
@@ -1864,7 +1874,9 @@ mod tests {
         // r42 fiddle — no longer the newest (85): migrated, its integrity is not checked;
         // the newest keeps the colour too.
         assert_eq!(chorda("v84.cantus").1, 0.6);
-        assert_eq!(chorda("v85.cantus"), (true, 0.6));
+        // r42:tympanum-real — nor 85 (86): the newest keeps the colour too.
+        assert_eq!(chorda("v85.cantus").1, 0.6);
+        assert_eq!(chorda("v86.cantus"), (true, 0.6));
         assert_eq!(chorda("v83.cantus").1, 0.0);
     }
 
@@ -1893,8 +1905,10 @@ mod tests {
                 .expect("the Arcus track");
             (report.integrity_verified, spec)
         };
-        let (ok, s) = arcus("v85.cantus");
+        // r42:tympanum-real — no longer the newest (86): migrated, and the newest keeps it.
+        let (ok, s) = arcus("v86.cantus");
         assert!(ok);
+        assert_eq!(arcus("v85.cantus").1, s);
         let keys = [
             "bow.pair",
             "bow.tilt",
@@ -1911,6 +1925,50 @@ mod tests {
         let (_, old) = arcus("v83.cantus");
         let got: Vec<f32> = keys.iter().map(|k| old.get(k)).collect();
         assert_eq!(got, vec![0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+    }
+
+    /// r42:tympanum-real — Schema 86 (ADR 0124's seventh amendment): the newest fixture's
+    /// Tympanums play model 2 (the drums' onset); every older file's play model 1 — stored by
+    /// its build, or written by the migration where a hand-made file left it out.
+    #[test]
+    fn schema_86_keeps_each_tympanums_model() {
+        use cantus_core::InstrumentSpec;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let models = |text: &str| {
+            let report = parse(text, true).unwrap();
+            let got: Vec<f32> = report
+                .file
+                .project
+                .tracks
+                .iter()
+                .filter_map(|t| match &t.instrument {
+                    InstrumentSpec::Native(s)
+                        if s.kind == cantus_core::InstrumentKind::AcousticDrums =>
+                    {
+                        Some(s.get("model"))
+                    }
+                    _ => None,
+                })
+                .collect();
+            (report.integrity_verified, got)
+        };
+        let read = |f: &str| std::fs::read_to_string(dir.join(f)).unwrap();
+        let (ok, new) = models(&read("v86.cantus"));
+        assert!(ok);
+        assert_eq!(new, vec![2.0, 2.0], "the plain and the hybrid Tympanum");
+        for f in ["v67.cantus", "v71.cantus", "v85.cantus"] {
+            let (_, old) = models(&read(f));
+            assert!(
+                !old.is_empty() && old.iter().all(|m| *m == 1.0),
+                "{f}: {old:?}"
+            );
+        }
+        // A file whose Tympanum lost its `model` (written by hand): model 1 all the same.
+        let text = read("v85.cantus");
+        let cut = text.replacen("\"model\": 1.0,", "", 1);
+        assert_ne!(cut, text);
+        let (_, cut) = models(&cut);
+        assert!(cut.iter().all(|m| *m == 1.0), "{cut:?}");
     }
 
     /// r42 arcus-expr — Schema 83 (ADR 0162): the fixture's second note keeps its bow start,

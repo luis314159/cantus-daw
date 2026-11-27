@@ -157,6 +157,8 @@ impl InstrumentKind {
             InstrumentKind::Sampler => &[("rr.order", 0.0)],
             InstrumentKind::Chorda => &[("model", 1.0)],
             InstrumentKind::Resonator => &[("model", 1.0)], // r42:arcus — Fides's model 2
+            // r42:tympanum-real — Tympanum's model 2 (the drums' onset)
+            InstrumentKind::AcousticDrums => &[("model", 1.0)],
             _ => &[],
         }
     }

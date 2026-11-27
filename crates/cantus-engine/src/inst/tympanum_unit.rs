@@ -200,6 +200,10 @@ impl Unit {
             .pulsus
             .set_kit(LANES_MODEL, seed, self.hat_cc, false);
         self.model.pulsus.chick = spec.get("hat.chick") >= 0.5;
+        // The model a song was made with (ADR 0059): 1 plays the measured pieces as model 5,
+        // 2 (a new instance) a drum's onset through the stick's contact (model 6, ADR 0124's
+        // seventh amendment).
+        self.model.pulsus.measured_gen = if spec.get("model") >= 1.5 { 6 } else { 5 };
         // The kit card: every piece tuned and ringing at once.
         let kit_tune = spec.get("tune");
         let ring = spec.get("ring").clamp(0.05, 2.0);
