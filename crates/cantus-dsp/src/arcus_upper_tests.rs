@@ -65,11 +65,11 @@ fn lower() -> Vec<ArcusSettings> {
 /// the viola's and cello's narrower vibrato and the upper strings' pitch table measured again with
 /// the player on. The measured size: `docs/round42/arcus-classical.md`, *The size of the change*.
 const LOWER_HASHES: &[u64] = &[
-    0x57246295038f61ba,
-    0xab76f18e6820348b,
+    0x4f1d1dcda9edf81f,
+    0xcb8db4391d301106,
     0x8ab414d6e1b9ffd4,
     0x2499bbc3fbcb96a4,
-    0x7fcfe5740e53e96b,
+    0xd7dc01a4b7d153d7,
     0xfc4755af4bd14dce,
     0xfb9c139a75d9d005,
 ];

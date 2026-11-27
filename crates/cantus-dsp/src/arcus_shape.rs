@@ -431,6 +431,11 @@ impl Shape {
         self.taper.is_some_and(|(_, t, len)| t >= len)
     }
 
+    /// How far under the stroke's level this note's shape began, dB (its player's share in it).
+    pub fn start_db(&self) -> f32 {
+        -self.amount * self.from
+    }
+
     /// The knobs this note was begun with.
     pub fn knobs(&self) -> &Knobs {
         &self.k

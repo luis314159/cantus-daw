@@ -246,7 +246,17 @@ impl Voice {
             0.0
         };
         if shaped && !keep {
-            self.swell = (0.0, 1.0);
+            // The bow carries the swell's depth as far as Guettler's gate lets it (`shape`'s caps);
+            // the rest stays the output's swell it was (pass 4's rise, the same length), so the
+            // level still rises as the players' do where the bow may not start that low.
+            let d = d_t.clamp(0.0, 1.0);
+            let full = spec.swell_db.0 + (spec.swell_db.1 - spec.swell_db.0) * d;
+            let rest = (full - self.shape.start_db()).max(0.0);
+            self.swell = if rest > 0.0 {
+                (self.swell.0, math::db_to_gain(-rest))
+            } else {
+                (0.0, 1.0)
+            };
         }
         // r42 arcus-classical: a bow change inside a phrase lets the vibrato in again
         // (`shape::Knobs::vib_back`); a fast passage's keeps the passage's.
