@@ -65,13 +65,13 @@ fn lower() -> Vec<ArcusSettings> {
 /// the viola's and cello's narrower vibrato and the upper strings' pitch table measured again with
 /// the player on. The measured size: `docs/round42/arcus-classical.md`, *The size of the change*.
 const LOWER_HASHES: &[u64] = &[
-    0xedee88a99a161007,
-    0x0fc1c7f4258b2391,
+    0x57246295038f61ba,
+    0xab76f18e6820348b,
     0x8ab414d6e1b9ffd4,
     0x2499bbc3fbcb96a4,
-    0x9f0be6272bb67192,
-    0x11e9652f06b9b99d,
-    0xddcda54d66f25e6e,
+    0x7fcfe5740e53e96b,
+    0xfc4755af4bd14dce,
+    0xfb9c139a75d9d005,
 ];
 
 /// r42 arcus-expr — the null of the player (ADR 0162): with `player` 0 the seven renders keep
@@ -84,9 +84,9 @@ const PASS6_HASHES: &[u64] = &[
     0x5634ca566ba8d2b4,
     0x14bce81194da377a,
     0xff53c5e8c8a78e36,
-    0x37ee4025d26144f9,
-    0xb8f95ec789b155c9,
-    0x397c32ccfbf464e1,
+    0x8fc5c4e1e644e2b7,
+    0x46d4102f6774671c,
+    0x0022787859074505,
 ];
 
 #[test]
