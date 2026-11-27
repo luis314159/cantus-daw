@@ -567,7 +567,12 @@ studio kick at 96 came out 3.3 dB under its 80.
   click's drawn noise set its level anew each stroke.
 - A crash plays model 6 as model 5, to the bit.
 
-The constants are fitted against the recorded snares' and toms' per-band peak timing
+The drums physics survey (`research/instruments-next/drums-physics-survey.md`,
+`r42/drums-research` 499435d9c) found the measured stick contact on a snare or tom to be
+3–8 ms (Wagner 2006; Dahl 2011): model 6's half-sine is 3–5× too short. The modelled family's
+next onset is a Hunt–Crossley stick on the modal head with the energy-driven glide and
+per-mode air loading (the doc's §8). The constants are fitted against the recorded snares' and
+toms' per-band peak timing
 (`onset.py`, `onset_fit.py`). A `tune` cargo feature (development only, never in a
 distributed build) reads them from `CANTUS_M6`.
 

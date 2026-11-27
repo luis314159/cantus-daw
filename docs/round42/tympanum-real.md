@@ -128,12 +128,17 @@ velocities before anything changed.
    2–3 ms, 60–400 Hz at 4–5.5 ms — where in both recordings every band peaks at 5–11 ms (the lows
    last). The bands' tables rise over 3–5 ms as measured, so the early energy is the modes' onset
    and the stick's knock (the snare's knock is 4.9 at velocity 110–127, a 2-ms half-sine low-passed
-   at 1.2 kHz). Physically: the stick's contact lasts ~1 ms but the head's displacement — what
-   radiates — grows over its first half-periods (a 14″ snare's ~200 Hz: 2.5 ms each), the bottom
+   at 1.2 kHz). Physically (corrected after the drums physics survey,
+   `research/instruments-next/drums-physics-survey.md` on `r42/drums-research`, 499435d9c): the
+   stick's contact on a snare or a tom lasts **3–8 ms** at mezzoforte (Wagner 2006, a
+   contact-sensing stick; Dahl 2011's survey), shorter for harder strokes and towards the rim,
+   with bumps as the head's wave returns from the rim — not ~1 ms, as this section first said.
+   Besides, the head's displacement — what radiates — grows over its first half-periods (a 14″ snare's ~200 Hz: 2.5 ms each), the bottom
    head and the wires answer only after the air cavity couples them (another 1–3 ms), and the
    overheads hear it 2–3 ms later still. Model 5 starts every mode at full amplitude at the
-   strike. **The fix is model 6's onset**: each mode driven through the contact force (a half-sine
-   as long as the contact: ~0.8 ms at ff, ~1.8 ms at pp — the brightness law comes with it), the
+   strike. **Model 6's onset** drives each mode through a contact force — but a half-sine of
+   0.8 ms (ff) to 1.8 ms (pp), three to five times shorter than the measured contact (the survey's
+   §4; the modelled family's next step is a Hunt–Crossley stick on the modal head, §8) — the
    wires' noise gated by the bottom head's motion with the cavity's lag, the knock as the head's
    first push rather than a separate pulse. A limiter or a fixed delay would only hide it.
 5. **The 1 kHz band (diagnosed).** Per hit, the studio kit's 1 kHz share is inside the recorded
@@ -281,14 +286,15 @@ Cantus's (Aula); streaming from disk.
 
 What is **missing** for "beats the commercial ones":
 
-1. **Velocity crossfade between adjacent layers** (today a hit picks one layer): the two nearest
-   layers of the same round-robin slot, both read with the hit's one draw, at equal-power weights
-   corrected by their measured correlation (the hybrid player's `1/sqrt(wa^2 + wb^2 + 2 wa wb rho)`),
-   so no layer pair can cancel (model 5's layer blend did).
-2. **More variation than the round robins**: per hit a small seeded change the recordings
-   justify (about ±0.5 dB, ±3 cents, a start under 0.1 ms, a mild tilt) on top of the real take,
-   the "infinite round robin" the commercial engines sell, measured against the recordings'
-   1.4–2.0 dB take-to-take variation.
+1. **A velocity join by spectral morphing** (today a hit picks one layer): one take, its
+   spectrum (a tilt and its band levels) morphed toward the neighbouring layer's, fitted per layer
+   pair — never two takes summed, which is what can cancel (the root of model 5's kick at 96 under
+   its 80); the physics says brightness changes smoothly with velocity (the survey's §8.5).
+2. **A measured variation layer** on top of the round robins: each kit's own take-to-take
+   statistics (third-octave levels, f0 in cents, onset timing, a position tilt) reduced to a few
+   components; one draw per hit, shared by every microphone (bleed stays coherent), kept inside the
+   recordings' 1.4–2.0 dB (the survey's §8.4) — the "infinite round robin", measured, not a free
+   random draw.
 3. **Articulations everywhere**: a curated key map per flagship kit (rimshot, cross-stick, edge,
    off-centre, buzz, hat openings, ride bell and edge, chokes), and **brushes**: taps from the
    brush layers; sweeps (Big Rusty's stir, Unruly, Swirly) as held notes, looped and shaped by
@@ -297,20 +303,34 @@ What is **missing** for "beats the commercial ones":
    seconds long, centred at 3–5.7 kHz).
 4. **Strike position as a morph** between sampled positions (Virtuosity's centre and off-centre,
    Gogodze's centre and edge): a continuous `pos` crossfading the two with one draw.
-5. **Sympathetic snare buzz**: the wires excited by the kick and toms, from Frankensnare's
-   sympathetic recordings or a small modelled wire bank driven by the other pieces' lanes.
+5. **Sympathetic snare buzz and tom resonance, only where the kit differs from its recording**
+   (a piece retuned, damped, muted or swapped — otherwise it is already in the recording): each
+   piece's modal bank driven by the other pieces' dry lanes (Clifford, Lindsay Smith & Reiss,
+   DAFx 2012, whose listeners could not tell it from the real thing).
+8. **Retune and damp by modal decomposition** (Kirby & Sandler 2020): a sampled drum split into
+   its modes and a residual; only the modes are retuned, re-damped and glided, the stick, the
+   wires and the room stay as recorded.
 6. **Curated mixes**: each flagship kit's default mic balance, bleed and room set by ear against
    its library's own demos, saved as the kit's preset.
 7. **Size**: a light edition per flagship kit (close + OH + room, FLAC, about 400 MB or less)
    beside the full one.
 
-**(b) Modelling only where it beats samples**: retuning and damping a sampled drum (present),
-variation beyond the round robins (2), sympathetic buzz (5), strike position (4), the room
-(present: Aula and the modelled rooms). Never the whole sound of a kit called realistic.
+**(b) Modelling only where it beats samples**: retuning and damping a sampled drum (8; today a
+resample and an envelope), variation beyond the round robins (2), sympathetic buzz (5), strike
+position (4), the room (present: Aula and the modelled rooms). Never the whole sound of a kit
+called realistic. **Rimshots, cross-stick, rolls and brush sweeps stay sampled**, and no
+physical cymbal or physical hi-hat is built (von Kármán plates are out of real time for a kit;
+the survey's §0.3).
 
 **(c) The modelled kits stay** as a separate, honestly named family (*Modelled* or *Synth*;
 Studio Maple and Jazz Birch named so in the picker), offered as playable and tunable drums,
-not as recordings.
+not as recordings. Their next onset is a real contact: a **Hunt–Crossley stick on the modal
+head** at the measured 3–8 ms (Avanzini & Marogna 2010, with the non-iterative scheme of
+Ducceschi et al. 2021), the **energy-driven pitch glide** (Avanzini, Marogna & Bank, JASA 2012)
+and **per-mode air loading** — replacing model 6's half-sine.
+
+The physics behind each choice is `research/instruments-next/drums-physics-survey.md`
+(`r42/drums-research`, 499435d9c).
 
 **How we prove it beats the commercial ones, blind.** (1) An ABX kit per flagship kit against
 its own recorded original played straight (no crossfade, no variation): Tympanum's version must
@@ -322,11 +342,12 @@ one loudness (`tools/soundlab`). (3) The measures of §3 (`compare.py`, `grooves
 feature inside the recorded range, the take-to-take variation in the recordings' 1.4–2.0 dB.
 
 **Where it fits.** Round 42 (now): this plan; model 6 as an interim (kept: schema 86); the
-measures and tools. **Round 43**: the velocity crossfade (1), the variation layer (2), the
-flagship key maps and mixes (3 without sweeps, 6), the picker's two families (c), the light
-editions (7) and the ABX kit: what turns "real by construction" into Tympanum's default.
-**Round 44**: brushes with sweeps, the position morph, sympathetic buzz, and the MUSHRA against
-the commercial instruments on the owner's machine.
+measures and tools. **Round 43**: the spectral velocity morph (1), the measured variation layer
+(2), the flagship key maps and mixes (3 without sweeps, 6), the picker's two families (c), the
+light editions (7) and the ABX kit: what turns "real by construction" into Tympanum's default.
+**Round 44**: sympathetic buzz and tom resonance (5), retune and damp by decomposition (8), the
+position morph (4), brush sweeps as sampled loops, the modelled family's Hunt–Crossley onset, and
+the MUSHRA against the commercial instruments on the owner's machine.
 
 ## 9. Where the session stopped (2026-11-26)
 
