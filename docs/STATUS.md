@@ -1,8 +1,67 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-11-22 (**0.1.0-beta.16 published** for Windows, Linux and **macOS (a preview)** on 2026-11-22, tag on cantus-daw `daf3d22f` after four rehearsals; then **round 41**: Fides the resonator instrument (ADR 0150) with its input as a sidechain from another strip (ADR 0154), Nitor the one-knob enhancer (ADR 0151) and the song's key reaching effects (ADR 0153), Fragor's five circuits as Tabula pedals (ADR 0152), every Chorda string in tune (`DSP_VERSION` 11), a fresh install following the system's light or dark; the integrated review's 18 findings and the undo fuzz's five fixed; the launch video made (`tools/video/`). Schema 79, `DSP_VERSION` 11. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** on `r41/integration` Windows 8 316 pass (167 ignored) and WSL Ubuntu 24.04 8 274, both `--no-fail-fast`; each run's two failures fixed and rerun alone (kit_lint's token rule; transcribe_convert's tests now take turns; Chorda's real-time guard failed only with the two suites at once on one machine)
+**Updated:** 2026-11-27 (**0.1.0-beta.17 published** on 2026-11-24 for Windows, Linux and macOS (a preview), from round 41; then **round 42**, on `r42/integration` `fb887ec96`: the project's tuning in every instrument with Scala and MTS-ESP (ADRs 0155, 0156); **Arcus**, the modelled bowed string — cello, double bass, violin, viola — with its player, its Fiddle character and Bite, the classical passes and the Paganini comparison (ADRs 0157, 0162, 0164, 0166), its musicians dressed and their hands rebuilt (ADR 0159, the finger frame), still out of the picker until the owner's ABX; recorded strings and the note's articulation in Exemplar (ADR 0158); one sound lab for every instrument (ADR 0160); editor windows that give the view back and pin (ADR 0161); Chorda's candidate 18 the default, its advanced voicing (22 controls) and 8 character presets; Tympanum's level law and model 6, the element-by-element analysis and the owner's decision that it stays generated; the drums physics survey; the updater's three fixes (Windows beta.16/17 must update once by hand); Violet Paper; the effects as plug-ins on their own and the site's Plug-ins pages (ADR 0167). Schema 88, `DSP_VERSION` 20, ADRs 0155–0162, 0164, 0166, 0167 (0163 and 0165 unused). Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** on `r42/integration` Windows **8 691 pass, 0 fail, 223 ignored** (5 541 outside cantus-ui on `c442b3db8`, 3 150 in cantus-ui on `fb887ec96`), clippy `-D warnings` green; **WSL Linux: pending, see below**
+
+Linux (WSL): PENDING
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 42 left
+
+Round 42 is merged into **`r42/integration`** (`F:\projects\daw-r42\integration`, `fb887ec96`)
+and is **not yet on master**. The account: `docs/round42/integration.md`; one report per builder
+beside it; the round's section below. The owner's word of 2026-11-26 (*"En cuanto termines
+publica todo"*, memory `decision-r42-publish-all`) covers this round's publication once it is
+finished; a failing gate is fixed or reported, never skipped.
+
+1. **Close the gates.**
+   - The WSL Linux check on `r42/integration`: `bash tools/wsl/guarded.sh r42/integration test`
+     (it now watches C: *and* F:, since the WSL disk moved to `F:\wsl` on 2026-11-26), never
+     beside the Windows suite or any other build. Then fill in the header's *Linux (WSL)* line.
+   - `cargo fmt --all -- --check` on Linux. On Windows `cargo fmt --all` fails with os error 206
+     (the command line is too long); this round ran rustfmt file by file.
+2. **Publish** (`docs/RELEASING.md`, every lesson L1–L10):
+   - merge `r42/integration` into the private master and push it;
+   - **0.1.0-beta.18** (the workspace's `Cargo.toml` still says 0.1.0-beta.17): the notes are
+     drafted in `docs/releases/v0.1.0-beta.18.md`, with the
+     paragraph that tells Windows users of beta.16 and beta.17 to install it **by hand, once**
+     (their updater refuses every unsigned update, `docs/round42/fix-update-dim.md`). A green
+     hand-run rehearsal of `release.yml` on the three systems, then
+     `docs/releases/v0.1.0-beta.18.preflight.md`, then the tag. beta.18 is the first release
+     with the per-effect plug-in zips (L10): check that the publish job found every one;
+   - the public repository through `tools/public/publish.sh`;
+   - the site with the **Plug-ins** section: its buttons turn into links by themselves once
+     `assets/release.json` holds the zips (ADR 0167);
+   - after the release, the in-app update of `docs/beta-checklist.md` (*Ronda 42 — la
+     actualización dentro de la app*). On Linux and macOS beta.17 → beta.18 can be tried at
+     once; on Windows the first in-app update that can work is beta.18 → beta.19.
+3. **Then round 43**: `docs/next-session.md` — the adaptive piano roll first, then Arcus's
+   sections, the musicians to 100 %, Tympanum's generated realism, Chorda's next aims and the
+   instruments as plug-ins.
+4. **What waits for the owner** (none of it blocks beta.18):
+   - **Chorda 18's blind ABX**: `F:\projects\cantus-work\listen\ABX-Chorda18.zip` (the key in
+     `chorda-abx18-key\`, read with `tools/listening/abx_read.py`). Candidate 18 already ships
+     as the default; his results aim the next pass.
+   - **Arcus's ABX verdicts** (the two pages of round 42). Arcus joins `InstrumentKind::ALL`
+     and the picker only after them.
+   - His eye on **the musicians' hands** (the finger frame; the 400 % sheets) and on **Violet
+     Paper** on a real screen.
+   - The launch video on YouTube and the social accounts (`docs/social/`).
+5. **The integrator's call before the tag** (by the owner's mandate of 2026-11-22): a new
+   Tympanum plays **model 6** (`model` 2) by default; old songs keep model 5 (`model` 1). The
+   owner called both models *"un desastre"* beside recorded kits, and model 6's rock *"suena
+   horroroso"*. Model 6 measures nearer the recordings (the grooves' crest on seven of nine
+   genres, the weighted measures 13.7 → 12.8 and 25.7 → 24.1), so it stays the default unless a
+   listen says otherwise; the release notes say plainly that the modelled kits are work in
+   progress and that recorded kits are a click away.
+6. **Verified only in emulation** (the steps in `docs/beta-checklist.md`, *Ronda 42*): every
+   picture and gesture (the CPU renderer); the tuning against a real MTS-ESP master; the
+   plug-in zips (never built from real plug-ins; `lipo` and `codesign` never run); the macOS
+   preview, never opened on a real Mac; every build unsigned; the stage companion stepping
+   behind the Updates window on a real desktop.
+7. **Disk**: round 42's worktrees under `F:\projects\daw-r42` (and their `target/` folders) go
+   once the owner says. `tmp\`, `listen\` and `F:\projects\cantus-work\listen\` hold his
+   listening material and stay; the sound references live in `F:\projects\cantus-refs`.
 
 ## The next session: what round 41 left
 
@@ -748,6 +807,85 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 42: the project's tuning, Arcus the bowed string and its musicians, Chorda 18, Tympanum against real drums, the plug-ins on their own (requested 2026-11-22)
+
+**The ask:** `docs/next-session.md` (round 42) — microtuning, strings and winds, an effect. With
+the owner's mandate (2026-11-22) the integrator named the bowed string **Arcus**, built the cello
+and the double bass first, and moved the effect (a multiband delay) to round 43. The owner then
+steered the round piece by piece, each ask recorded in its builder's report: Arcus's picture
+(*"se ve muy feo"*, *"usa el mismo motor gráfico de Chorda y Tympanum"*), the violin and viola
+(pose B), the country fiddle (*"make it sound like a country fiddle"*), the classical sound
+(*"como esa grabación de Paganini"*), the hands (*"la mano aún sale algo tosca o gorda"*),
+Chorda's next passes from his blind tests of candidates 16 and 17, Chorda's character presets
+(*"un muy oscuro, uno muy imponente"*, every parameter by hand), Tympanum against real drums of
+many genres, a sound lab for every instrument, editor windows that give the view back, Violet
+Paper, and the effects downloadable on their own. **beta.17** (round 41) was published on
+2026-11-24 from the `rc/0.1.0-beta.17` branch (rehearsal 45086843755, three systems green); the
+site's LCP work (`site/lcp`, LCP 2.11 → 1.66 s) and the `url` 2.5.9 fix (RUSTSEC-2026-0592, the
+public repository's supply-chain audit red since 2026-11-20) followed. Account:
+`docs/round42/integration.md`; one report per builder in `docs/round42/`.
+
+| Part | What changed |
+|---|---|
+| The project's tuning (ADRs 0155, 0156; schema 80; keymap 20; `tuning.md`, `tuning-face.md`) | Every pitched native instrument follows the song's tuning, with a per-track override; 12-TET at the default touches no bit. Fifteen temperaments built from their construction rule, rotated to a key with A at the diapason (Pythagorean, ¼/⅙-comma meantone, Werckmeister III/IV, Kirnberger II/III, Vallotti, Young II, Kellner, Neidhardt III, Lehman, 5- and 7-limit just); Scala `.scl`/`.kbm` in and out (tested with Scala's and Surge's own files); MTS-ESP as client and as master (in `cantus-rt`). *Options ▸ Tuning…* (**Ctrl+Shift+T**: Ctrl+Alt+T is the Linux terminal), *Follow the song's key*, the diapason 415–443, an audition. Hosted plug-ins tuned once (`ExternalPlugin::tuning_by`). The first mid-round review's findings fixed (`fix-engine.md`: 16 on correctness and 13 on reach; `fix-ui.md`: 25 on the interface) |
+| Arcus, the bowed string (ADR 0157; schema 81; `arcus.md`, `arcus-match.md`, `arcus-upper.md`, `arcus-look.md`) | `InstrumentKind::BowedString`: a string in physical units bowed by a force at a speed and a distance from the bridge, a closed-form friction junction timed between samples, torsion, Fides's body; arco, re-bow, slur, portamento, staccato, spiccato, tremolo, pizzicato, MPE. Matched to recorded cellos and basses (Iowa MIS, TinySOL, VSCO 2, Karoryfer, Smolken) in six passes: tremolo in tune, spiccato from real strokes, vibrato rebuilt from 1 976 measured notes (`DSP_VERSION` 13), the cello's body to 10 kHz (14). **The violin and the viola** at 4× the rate for the short bow–bridge segment (top notes within 0.03 cents). Its picture on Chorda's scene engine from luthiers' geometry (sheet v4 approved). An original *Andante cantabile* demo. **Out of the picker** (`InstrumentKind::ALL`) until the owner's ABX verdicts |
+| Arcus played like a human (ADR 0162; `DSP_VERSION` 15; schema 83; `arcus-expr.md`) | The player on by default: the bow tracked along the stick (a down-bow from the frog, an up-bow from the tip), the bow part, the starts, fingering and shifts, measured on the HSD quartet's stems (Mozart K465) |
+| The fiddle and **Bite** (ADR 0164; `DSP_VERSION` 17; schema 85; `fiddle.md`) | Measured against 31 fiddle recordings (CC0/CC BY Freesound and Commons, US public-domain 78s by Eck Robertson and others): one bow on two strings (`bow.pair`, `bow.tilt`, `dstop.just`), sympathetic open strings, the hair's grit near the bridge, steel strings, the chop, cross-tunings (AEAE, GDGD, ADAE, calico, DDAD), one close mic, a fiddle's bridge; the *Fiddle* preset; two fiddle demos. The owner heard the bow as *"excesivamente rasposo"*: the scratch was the hair's noise (`bow.noise` 0, `bow.grit` 0.75, `body.bridge` 1.3), and **Bite** (`bow.bite`, 0–1, default 0.5) shares the grit out by the dynamic — his takes A, B and C in one control, stored under schema 85 |
+| Arcus's classical passes and **the Paganini comparison** (ADR 0166; `DSP_VERSION` 20; schema 87; `arcus-classical.md`, `strings-refs.md`) | Pass 1: the stroke's shape (the bow's speed and the dynamic rise from silence, sag, breathe, taper after the key, the bow lifted moving), the free string after the bow, the vibrato's way back, the player's intonation in a passage, the corner with the force, the pluck in tune (pizz −3.2…−4.1 → −0.2 cents). Pass 2: **the playback's look-ahead** (each clip note's length and the gap to the next handed before its note-on, no latency, live = offline), the violin's air mode and bridge corner, the held stroke's noise, a double stop's second string with its own intonation, the fiddler as its own switch (`player.fiddle`, schema 87). Better references first (Iowa MIS 2012, the Musopen K465 session, Good-sounds' bass): crest in band 4–8/12 → 10–12/12 groups. **Paganini** (`r42/paganini`): Caprice 24's theme and Variation 2 on two strings, from public-domain scores, rendered by `paganini_render` against the QMUL Performance Lab's recording (Public Domain Mark): long notes' ends 9.0 → 13.1 dB under the peak (the recording 16.6), the 200 Hz excess +15.7 → −2.3 dB, Variation 2's notes more than 30 dB under its median (pass 1: 9 of 16 bars, down to −90 dB) none of 137. Open: the loud cello's dull partials 2–8, a too-clean pizzicato, Variation 2's upper string |
+| Recorded strings and the note's articulation (ADR 0158; schema 82; `strings-rec.md`) | A note carries its articulation and bow (`Note::art`) from every clip, render, freeze and stem; the piano roll's articulation lane with marks drawn as a score prints them; Exemplar plays articulation and bow per zone, continuous controller crossfades (SFZ `xfin_loccN`…), a scripted legato and per-articulation releases; five recorded-string packs on demand |
+| One sound lab (ADR 0160; `soundlab.md`, `sound-data.md`) | `tools/soundlab/`: an instrument is a subject file; its measures, held-out bands, one blind kit with ABX and MUSHRA (`examples/abx_kit`), results read with their statistics. Every reference set catalogued with checksums and one fetch command, the data in `CANTUS_REFS` (`F:\projects\cantus-refs`) outside the round folders |
+| Editor windows (ADR 0161; `editor-windows.md`) | Closing an instrument's or plug-in's editor brings back the view it covered (the mixer, the arrangement…); a pin keeps an editor on screen; several at once |
+| Every instrument whole at every scale (`fix4-narrow.md`) | `instruments_narrow_e2e` over every kind and view, in both languages, at 100/150/200 % and the narrowest window (it found 1 375 cuts); views scroll below their designed size; Exemplar reflows |
+| The musicians: holders, clothes and hands (ADR 0159 and its passes; `arcus-upper.md`, `arcus-upper-next.md`) | What holds an Arcus: a stand, a stylised musician, a mannequin, and the **realistic woman and man** (MakeHuman-built, original faces) on the PlayRig contract; *Figure detail* High · Light · Auto; one head of hair (maps, alpha to coverage, Kajiya–Kay), CC0 eyes (closed by default). **Clothes** (`arcus-polish`, passes 1–6): the concert light against three concert photographs, his face made more masculine, the Drawn varnish, her V neckline (`V_DEPTH` 11 → 7), the collar and tie, the sleeve test, the far collar band, and a converter that checks every input before it works (a temp folder had lost its skins and clothes, and pass 5's trials read the embedded figure in silence). **Hands** (`arcus-hands`, passes 1–8): rebuilt from the owner's photographs, their proportions measured against ANSUR II — joints that bend as bones (`sharpen_joints`), fingertips with pulp, nails with bed, lunula and free edge, clefts between the fingers, the hands' own skin, the instrument kept out of the palm (`hidden_by_neck`, `hidden_by_body`), the last phalanges shortened; the table's rule breaks 82 → 40. Pass 8 measured the edge-on hand high up as unreachable with this rig (its palm goes into the neck's heel; her viola arm cannot reach): a rig decision first. **The finger frame** (the integration, from the owner's E5 on the A string): the fingers under the stopping one rest on their notes, those over it hover low, tip down. Of 560 rows **493 take the frame, 39 keep the pre-frame pose, 28 are the same** (`tools/arcus-figures/left_hand_rows.json`); the owner's rows, her violin's **2-3-1 and 2-3-3** (the A string, the fourth finger at the 1st and 3rd positions), are on the frame; her open A string (2-4-1, the elbow 9.7 cm across against 9.4) and his B4 (2-1-1, a 1 px speck at 200 %) went back. The hand gate 36 rules / 27 cases → 31 / 20 |
+| Two faults the hand gates had hidden (integration) | **The app (`cb8802666`)**: the arm raster's passes drew each kept texture in the last-filled pass's rectangle, so at rest the left hand's High picture went into the bow arm's place and **the left hand vanished** (Photographic, High, any still hand); each pass now keeps its own rectangle (`Scratch::ras_at`), held by `a_still_hand_at_high_is_drawn_in_every_frame`. **The harness (`1ad56e047`)**: `raster::shoot` began each run with no textures, so a later shot on one context drew every texture an earlier run had sent as white (text as bars, a white block for the bow hand); it keeps a context's textures now. The first ratchets (strays 145/146, specks none) had been measured on missing hands; they were taken again on the hands as drawn |
+| Chorda 17 → 18 (ADR 0098's sixth to eighth amendments; `DSP_VERSION` 16, 18; schemas 84, 88; `chorda-c17.md`, `chorda-c18.md`, `chorda-presets.md`) | **Candidate 17**, measured against two grands (the Salamander and the bitKlavier, both through the engine): the action's knock as a case rings it, middle C's nasal partial voiced, a `colour` knob. **The owner's blind ABX of 17** (`chorda-abx17-verdict.md`): told from the Salamander 16/16, both catch questions passed, the Salamander preferred 5 of 7; the bass now Chorda's; the top's knock *"un golpe con reverb"*. **Candidate 18, the default**: the top's mechanics dry (a 15 ms burst whose highs die first; the late-to-early ratio −1.9 dB against the grands' −6.8 / −1.6), middle C's fifth partial −10 dB, the two lowest notes without the thump before the tone (A0's rise 34 → 11 ms; the grands 5–13). Its **ABX kit 18** is built (`chorda_abx --shipped --previous --catch middle_c,bass`; `ABX-Chorda18.zip`). **The advanced voicing**: 22 `voicing.*` controls in six groups (hammers, strings, soundboard and case, action, microphones, tone) on Chorda's second Edit page, each at its default the shipped voicing to the bit. **Eight character presets** (Dark Felt, Imposing Concert, Bright Pop, Intimate Close, Upright Parlour, Vintage Honky-Tonk, Jazz Club Grand, Cinematic Felt), each fitted to a CC0/CC BY recording of its kind where one exists: 36 of 47 checks inside. Chorda has 33 factory presets |
+| Tympanum against real drums (ADR 0124's sixth and seventh amendments; `DSP_VERSION` 19; schema 86; `tymp-abx.md`, `tympanum-real.md`) | **Its blind kit** (`tympanum_abx`, the shared `abx_kit` page): Tympanum as it ships against DRSKit and Virtuosity, through the engine. **The library**: the `drums-*` sets (death metal to brushes, CC0 and CC BY only; the Groove MIDI Dataset's 1 150 performances), about 2.3 GB fetched. **The level law**: every model 5 table grows at every velocity step (the studio kick was louder at 56 than at 80); the weighted measures studio 23.2 → 13.7, jazz 38.1 → 25.7. **Model 6** (`model` 2, a new song's default; model 5 stays bit-identical for old songs): each mode driven through the stick's contact, the bands' rise and the wires' lag, the knock as the head's push, a moving-head re-strike; the grooves' crest nearer the recordings on seven of nine genres (rock 27.7 → 22.8 dB against 19.1–23.8). **Two model fixes at the integration**: a re-struck kick or tom starts its bands on the measured draw (`FRESH_NOISE`; the rack tom had come out 2.56 dB under), and a model 6 layer's burst is never under a softer one's (the jazz ride at 127 under its 112). **The element-by-element analysis** (`tools/tympanum-real/elements.py`; the owner's page `analisis-elementos`): 12 pieces against the recorded kits, a verdict each. **The owner's verdict and decision** (2026-11-26): *"todo era un desastre, no se parece nada a algo real"*; *"la idea es que Tympanum sean sonidos generados (aunque permita sonidos grabados)"* — **Tympanum stays generated**, the recorded kits supported and used as the references and the ABX targets (`tympanum-real.md` §8, memory `decision-tympanum-generated`) |
+| The drums physics survey (`research/instruments-next/drums-physics-survey.md`, `r42/drums-research` 499435d9c) | How each element of a kit is simulated and described: Bessel modes, air loading, two heads coupled through the air, tension modulation (the pitch glide), the stick's contact as a Hunt–Crossley collision (3–8 ms measured on a snare or a tom: **model 6's 0.8–1.8 ms half-sine is three to five times too short**), the wires as a one-sided contact, the cymbals' wave turbulence (von Kármán, out of real time for a kit), mics and variation; about thirty papers checked against their records. It was written for a sample-first pivot the owner then turned down: its physics and its modelled-family steps are what §8 follows; its "sample" column for the flagship kits is superseded |
+| The updater (`fix-update-dim.md`; RELEASING L9) | Three bugs the owner met in beta.16, in one screenshot. **The dark window**: the update notice laid the dialogs' full-window veil, and the Updates window sat under its own; the notice now paints no veil and the window is in front. **The publisher check**: `release.yml` set `CANTUS_PUBLISHER` from a variable that does not exist, so beta.16 and beta.17 were built to demand a signature from a publisher named "" and refuse every unsigned update on Windows; a blank name is now no publisher, the workflow sets it only in a signing step, and each failure says what failed. **Those two Windows versions cannot be repaired: their users install beta.18 by hand once** (the paragraph is in beta.18's notes). **The tag over the dialog** ("Neon Tide · 124 BPM"): the stage companion's topmost window; it steps behind the main window while a dialog is up (`cantus_rt::window::Layered::set_behind`) and comes back after |
+| Violet Paper (ADR 0111 §13; `violet-paper.md`) | The 25th theme, light only: a warm off-white with a faint lavender cast, deep violet-grey inks, an amethyst accent (`#6a46b8`), the logo's gold for the playhead; text 15.2:1 on the base, every measured line at its bar; told from every other theme (ΔE 18.9 from the nearest light one) |
+| The effects as plug-ins on their own (ADR 0167; RELEASING L10; `site-plugins.md`) | `xtask plugin-zips`: one zip per effect per system and one with all, under stable names with no version (`Cantus-plugin-<slug>-<platform>.zip`, `Cantus-plugins-all-<platform>.zip`), CLAP and VST3 with the licence, the notices and a README per system; the Mac's plug-ins for the first time (universal, signed ad hoc). The publish job refuses a release that lacks one. The site's **Plug-ins** section: `/plugins/` and a page for each of the 43 effects in both languages; a button is a link only when the release the site is built on holds its file (until beta.18, a disabled button and a note); the WebAssembly 249 381 B against its 250 000. About 8 GB more per release |
+| The machine and the tools | The WSL disk moved to `F:\wsl` (2026-11-26) and `tools/wsl/guarded.sh` watches C: and F:; `tools/wsl/compact.ps1` (the image 135 → 27.4 GB); `tools/test/suite-windows.sh` (565 test executables, about 56 GB, never fit F: at once); CI runs when a sound-lab subject changes; `drskit-tympanum` installs (its manifest's unpacked size was wrong since round 40); Fides's bowed pitch through Arcus's junction (`DSP_VERSION` 12, round 41's leftover) |
+| Reviews | Mid-round review 1 (`fix-engine`, `fix-ui`); mid-round review 2, three finders (`fix2-arcus`: nine on Arcus's and Exemplar's DSP, among them a clamp that could panic on the audio thread above A7; `fix2-model`: fourteen on the model, the files, the UI and the AI); `fix3-suite`; `fix4-narrow`; the integration's own reds (`docs/round42/integration.md`) |
+
+**Verified only in emulation, or waiting for the owner** (the steps in `docs/beta-checklist.md`,
+*Ronda 42*):
+
+- **The owner's ear:** Chorda 18's blind ABX (the kit is built and checked in Edge; candidate 18
+  ships meanwhile); Arcus's ABX verdicts, which gate its place in the picker; Tympanum's blind kit
+  (`ABX-Tympanum.zip`). Everything Arcus, Chorda and Tympanum gained this round is measured, and
+  heard by him only in the previews named in each report.
+- **The owner's eye:** the musicians' hands (the finger frame, the 400 % sheets) and Violet
+  Paper on a real screen; every picture here is the CPU renderer's.
+- **The macOS preview** has still never been opened on a real Mac, and its plug-in build
+  (`lipo`, `codesign -s -`) has never run.
+- **Every build is unsigned** (Windows SmartScreen, macOS Gatekeeper); the in-app update on
+  Windows works again only from beta.18 on.
+- MTS-ESP against a real master; the plug-in zips in REAPER, Bitwig, FL Studio, Live and Cubase;
+  the stage companion stepping behind the Updates window on a real desktop.
+
+**Ratchets** — gates held where the round leaves them, each a round-43 target (the musicians to
+100 %):
+
+| Gate | Ratchet | Target | What is left |
+|---|---|---|---|
+| `arcus_hand_table` | 31 rules / 20 cases into the instrument | none | the edge-on hand high up (a rig decision first: the heel resting on the body, a palm that narrows when turned, or a longer reach for her viola arm); the thumb tips on the E side; the knuckle rows at +14 |
+| `arcus_figure_specks` (strays) | 150 | none | Drawn's far collar band, her Drawn neck dot, the bow hand's strays at the earlier camera |
+| `arcus_hand_form` (dark specks) | 1 | none | his left hand at 200 %: one pixel at the tip of the gap between two fingers, where the scroll's varnish shows |
+| `arcus_hand_shape` (`LOBE_REACH`) | 0.9 of the way to the wrist | the whole way | the last tenth, the wrist's join with the cuff, measured meanwhile by `BULGE` and the sleeve test |
+
+**Numbers:** schema 79 → **88** (80 tuning, 81 Arcus and the note's articulation, 82 Exemplar's
+articulations, 83 the bow's state, 84 Chorda's colour, 85 the fiddle and Bite, 86 Tympanum's
+model 6, 87 `player.fiddle`, 88 Chorda's voicing), keymap 20, `DSP_VERSION` 11 → **20** (12
+Fides's bowed pitch, 13–14 Arcus passes 5–6, 15 Arcus's player, 16 Chorda 17, 17 the fiddle, 18
+Chorda 18, 19 Tympanum's level law and model 6, 20 Arcus's classical player), ADRs 0155–0162,
+0164, 0166, 0167 (0163 and 0165 unused).
+
+**Tests:** Windows on `r42/integration`, `--no-fail-fast`, **8 691 pass, 0 fail, 223 ignored**:
+5 541 outside cantus-ui on `c442b3db8` and 3 150 in cantus-ui on `fb887ec96`
+(`tools/test/suite-windows.sh`); clippy `--workspace --all-targets -D warnings` green. Linux
+(WSL): PENDING. `cargo fmt --all` fails on Windows with os error 206; rustfmt ran on every
+changed file.
 
 ## The effects side round: seventeen effects, two controllers, the mid-song glide, issue #1, several screens (requested 2026-11-13)
 

@@ -63,3 +63,9 @@
 - [Name pronunciation](reference-name-pronunciation.md) — Chorda = KOR-da (ch = k); Cantus KAN-tus, Tympanum TIM-pa-num; for narration/TTS
 - [ElevenLabs (Starter)](reference-elevenlabs.md) — owner bought Starter 2026-11-21 for the video voice; key in Credential Manager target cantus-elevenlabs; not usable for sound packs
 - [Owner delegates: decide for excellence](decision-owner-delegates-excellence.md) — 2026-11-22: pending choices are mine by the excellence bar; ask only for his accounts/money/admin/legal; decisions taken for video + Fides
+- [Round 42: tuning + Arcus, beta.17 rc](round-42.md) — beta.17 candidate on cantus-daw branch rc/0.1.0-beta.17 (site waits); contract 3cd82f6f5; builders tuning, tuning-face, arcus; free HOLD-BUILDS after WSL
+- [Decision: piano roll leads round 43](decision-round43-piano-roll-first.md) — owner 2026-11-25: adaptive piano roll first in r43, guitar r44; expressive musician only after both musicians at 100 %
+- [Decision: Arcus sections design](decision-arcus-sections.md) — owner 2026-11-25: one Arcus with Section choice, Film 14/12/10/10/6 default, shared stage in 43-B; study in research/instruments-next
+- [Decision: Tympanum stays generated](decision-tympanum-generated.md) — owner 2026-11-26: modelled drums are the flagship (made real by physics); recorded kits supported as references
+- [Cantus social channels](reference-cantus-social.md) — YouTube channel id, hola@/prensa@ routing, launch posts in cantus-work/difusion; brand vs personal posting
+- [Decision: publish round 42](decision-r42-publish-all.md) — owner 2026-11-26: "publica todo" once r42 closes: master, beta.18 (rehearsal+preflight), public repo, site with Plug-ins

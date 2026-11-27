@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: project
   originSessionId: c330c055-9d87-4a1d-9df8-77cfd8e6440e
-  modified: 2026-11-21T09:05:42.854Z
+  modified: 2026-11-22T19:32:30.666Z
 ---
 
 Session cantus-bc, 2026-11-20/21 (cantus-6f beside it: site/README showcase, tour, wasm budget).
@@ -50,4 +50,5 @@ Session cantus-bc, 2026-11-20/21 (cantus-6f beside it: site/README showcase, tou
 See [[decision-round41-content]], [[feedback-tools-in-repo]], [[decision-packs-always-free]].
 
 **Closed 2026-11-22:** r41/integration (STATUS cdfc638f0) — Win 8 316 / WSL 8 274 pass, each run's 2 failures fixed (kit_lint token, transcribe_convert turns) or a load artefact (Chorda guard, two suites at once — never again). Added after the review: Fides in ALL, Fides input = sidechain (ADR 0154, schema 79) wired into agents/desk/matrix/inspector, status-line, picker thumb store LRU, value words, undo fuzz fixes (tempo keep, comp seam, freeze pan law, VCA order, Comparatio list). Launch video final in F:\projects\video-work\final (45/45 checks); owner uploads to YouTube. Next = docs/next-session.md (round 42: microtuning, strings & winds).
+- cantus-6f's last parts (2026-11-22): r41/cards (Nitor/Fides cards, pitches out of the wasm −6.9 KB) and r41/appimage-name (links → Cantus-x86_64.AppImage; download page's chmod/hash lines name the file the button saves — they named the versioned one, live bug; README macOS = beta.16's unsigned preview) are in private master 7eb64c6ec, **not published**: round 41 goes out as beta.17 first, then publish.sh. b16/appimage-links (same fix on old master) WAS merged and published before that: public master a3271f45, Site run 44982501207 green — the live download page has the fix. Public master's wasm is 249 907/250 000 B — no web change straight to public master. Worktrees daw-r41/tour-shots and showcase: targets cleaned.
 
