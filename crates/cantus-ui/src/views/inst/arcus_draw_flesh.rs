@@ -837,6 +837,16 @@ fn stuff_slot(st: Stuff) -> usize {
     }
 }
 
+/// r42:arcus-polish6 — `CANTUS_TUNE`'s `strip_probe_x`, `strip_probe_y` (window points), once.
+fn strip_probe() -> Option<Pos2> {
+    static P: OnceLock<Option<Pos2>> = OnceLock::new();
+    *P.get_or_init(|| {
+        use crate::scene::figure::tune::tune;
+        let (x, y) = (tune("strip_probe_x", -1.0), tune("strip_probe_y", -1.0));
+        (x >= 0.0 && y >= 0.0).then(|| Pos2::new(x, y))
+    })
+}
+
 /// r42:arcus-polish6 — the stuffs whose maps are also made without the concert's edge line
 /// (slots 8 and 9).
 const BARE: [Stuff; 2] = [Stuff::Velvet, Stuff::Wool];
@@ -1794,6 +1804,28 @@ pub fn arm(
                         }
                         let k = if cloth { 1.0 } else { 0.5 };
                         let (ca, cb) = (lerp_c(corner(a), ci, k), lerp_c(corner(bb), ci, k));
+                        // (r42:arcus-polish6: `CANTUS_TUNE`'s `strip_probe_x`, `_y`, window
+                        // points: every outline strip within 2 points of there printed.)
+                        if let Some(at) = strip_probe() {
+                            let d = pb - pa;
+                            let t = ((at - pa).dot(d) / d.length_sq().max(1e-6)).clamp(0.0, 1.0);
+                            if (pa + d * t - at).length() < 2.0 {
+                                let cls = |t: u32| {
+                                    (t != u32::MAX).then(|| (sc.cls[t as usize], sc.front[t as usize]))
+                                };
+                                eprintln!(
+                                    "strip at {at:?}: side {s} pass {:?} {:?} edge {pa:?}-{pb:?}                                      t0 {:?} t1 {:?} alpha {:.2}/{:.2} live {:.2}/{:.2} colours                                      {ca:?} {cb:?}",
+                                    hidden.map(|h| h.0),
+                                    am.stuff[t],
+                                    cls(t0),
+                                    cls(t1),
+                                    am.alpha[a as usize],
+                                    am.alpha[bb as usize],
+                                    am.live[a as usize],
+                                    am.live[bb as usize],
+                                );
+                            }
+                        }
                         b.edge_joined(pa, pb, ca, cb, join(a) * px, join(bb) * px);
                     }
                 }

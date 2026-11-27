@@ -326,13 +326,15 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
                     );
                 }
             }
-            if keep_out
-                && !inside
-                && !c.mirror
-                && *role == Role::Shirt
-                && (marked(i0) || marked(i1) || marked(i2))
-            {
-                band.push((sp.clone(), gradient(&sp, &cols), cam.depth(ctr)));
+            if keep_out && *role == Role::Shirt && (marked(i0) || marked(i1) || marked(i2)) {
+                // (Only the band kept where it is — every corner over the outline and none
+                // tucked: a triangle with a corner pressed under the back is a sliver
+                // reaching down over the jacket and the varnish, white shards in its layer;
+                // under the back, it is left out.)
+                let kept = |i: usize| marked(i) && t.uv[i][1] <= 0.0;
+                if !inside && !c.mirror && kept(i0) && kept(i1) && kept(i2) {
+                    band.push((sp.clone(), gradient(&sp, &cols), cam.depth(ctr)));
+                }
                 continue;
             }
             if keep_out
@@ -344,7 +346,10 @@ pub fn draw(c: &mut Ctx, b: Bowed, m: &Mesh, cover: &[super::bowed_draw::Cover])
             {
                 let bx = super::geo::bbox(&sp);
                 if near_region(bx) {
-                    nearer.push((bx, sp.clone(), cam.depth(ctr)));
+                    // (Grown, as the chin rest's faces: the seams between them let the band
+                    // through as a grid over the tie.)
+                    let g = super::bowed_draw::grown(&sp, 0.6);
+                    nearer.push((super::geo::bbox(&g), g, cam.depth(ctr)));
                 }
             }
             // Overlapping a little more than a pixel: no seam grid on a light theme.

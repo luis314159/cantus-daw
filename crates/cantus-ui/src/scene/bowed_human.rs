@@ -1741,11 +1741,8 @@ fn clear_of_the_body(
             // Drawn picture sorts them behind the chin rest and the ribs they pass under —
             // sorted by their own middles, they drew white stripes between the chin rest's
             // cells. Harmless to the Photographic picture: a shirt's `uv` carries no fold.)
-            if shirt {
-                if let Some(uv) = t.uv.get_mut(k) {
-                    *uv = [BESIDE_BODY, 0.0];
-                }
-            }
+            // (r42:arcus-polish6: and how far it is tucked, in `uv[1]` — 0 for the band kept
+            // where it is, which the Drawn picture draws as a layer of its own.)
             // (The band kept; the point under the back, as far as it lies past the band. Beside
             // the body — under its top's level, by its ribs — the band goes under too, if
             // `collar_rib` says so: kept there, the Drawn picture may sort it among the ribs'
@@ -1757,6 +1754,11 @@ fn clear_of_the_body(
             } else {
                 smooth_k((off_neck(*p) - keep) / ramp)
             };
+            if shirt {
+                if let Some(uv) = t.uv.get_mut(k) {
+                    *uv = [BESIDE_BODY, s.max(0.0)];
+                }
+            }
             if s <= 0.0 {
                 continue;
             }

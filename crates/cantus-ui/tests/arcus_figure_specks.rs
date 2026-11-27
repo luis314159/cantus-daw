@@ -694,6 +694,8 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 let floor = (SLEEVE_ISLAND * SLEEVE_PPP * SLEEVE_PPP) as usize;
                 // The chest region: the largest patch.
                 let chest = (0..sizes.len()).max_by_key(|&i| sizes[i]);
+                // (Every island's size, px at 100 %, counted or under the floor: the report.)
+                let mut islands = std::collections::BTreeSet::new();
                 for y in 0..h {
                     for x in 0..w {
                         let k = y * w + x;
@@ -708,8 +710,11 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                             && Some(part[k] as usize) != chest
                             && in_cloth(part[k] as usize)
                             && thick(part[k] as usize)
-                            && sizes[part[k] as usize] >= floor
                         {
+                            islands.insert(part[k]);
+                            if sizes[part[k] as usize] < floor {
+                                continue;
+                            }
                             under_n += 1;
                             under_box = (
                                 under_box.0.min(x),
@@ -723,7 +728,18 @@ fn no_skin_shows_through_or_under_her_bow_sleeve() {
                 let area = sleeve.m.iter().filter(|&&x| x).count();
                 eprintln!(
                     "{b:?} {be:?} bow at {along}: sleeve {area} px, {inside_n} skin px inside, \
-                     {under_n} under{}",
+                     {under_n} under{}{}",
+                    if islands.is_empty() {
+                        String::new()
+                    } else {
+                        let s: Vec<String> = islands
+                            .iter()
+                            .map(|&i| {
+                                format!("{:.0}", sizes[i as usize] as f32 / SLEEVE_PPP / SLEEVE_PPP)
+                            })
+                            .collect();
+                        format!(" (islands of {} px at 100 %)", s.join(", "))
+                    },
                     if under_n > 0 {
                         format!(
                             " in ({}, {})-({}, {})",

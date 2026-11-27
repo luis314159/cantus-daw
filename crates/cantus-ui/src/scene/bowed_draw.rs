@@ -709,7 +709,7 @@ pub type Cover = ((f32, f32, f32, f32), Vec<Pos2>);
 const COVER_GROW: f32 = 0.6;
 
 /// `pts` moved out from their middle by `d` (points).
-fn grown(pts: &[Pos2], d: f32) -> Vec<Pos2> {
+pub fn grown(pts: &[Pos2], d: f32) -> Vec<Pos2> {
     let n = pts.len().max(1) as f32;
     let c = pts.iter().fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2()) / n;
     pts.iter()
