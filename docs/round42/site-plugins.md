@@ -169,7 +169,40 @@ alone, the effects index, and every effect's page and card.
 
 ## 3. Verified here, and not
 
-(Numbers in the report to the integrator: budget, contrast, screenshots.)
+Verified here, on the built site (Trunk, 216 pages pre-rendered):
+
+- **WebAssembly:** 249 381 B gzip (budget 250 000).
+- **The home's page:** 35 768 B (EN) and 36 347 B (ES), within two round trips (42 000).
+- **Lighthouse, the site budget** (`tools/web-budget.ps1 -NoBuild`, the home, calibrated CPU
+  2.43×, 3 runs): LCP 1.66 s, 811 KB, CLS 0, accessibility 100. Every line within budget.
+- **Lighthouse on the new pages** (one run, same CPU, not a gate):
+
+  | Page | LCP | Size | CLS | Accessibility |
+  |---|---|---|---|---|
+  | `/plugins/` | 3.5 s | 446 KB | 0 | 100 |
+  | `/es/plugins/fragor/` | 4.1 s | 535 KB | 0 | 100 |
+  | `/plugins/aequalis/` | 3.8 s | 491 KB | 0 | 100 |
+  | `/effects/aequalis/` (existing) | 4.7 s | 1.5 MB | | |
+  | `/download/` (existing) | 3.3 s | | | |
+
+- **Contrast** (`contrast.mjs`, light and dark, 1440 and 390 px): AA on every text of
+  `/plugins/`, `/es/plugins/`, `/plugins/aequalis/`, `/es/plugins/fragor/` and
+  `/plugins/delay/`, on the changed `/effects/aequalis/` and `/download/`, and on the preview's
+  live pages. The lowest is 4.59:1.
+- **Motion:** `motion.mjs` passes.
+- **The system's radio group** switches the card and the steps for Windows, Linux and macOS
+  by CSS (headless Edge, `/plugins/fragor/` and `/es/plugins/`).
+- **Tests:**
+  - `cargo test --features ssr`: 36 passed. `cargo fmt --check` is clean. Clippy, natively
+    and for `wasm32`, adds no warning.
+  - xtask: the five `plugin_zips_tests` pass, and so does `cargo clippy -p xtask -p
+    cantus-update --all-targets` with `-D warnings`.
+  - In the whole xtask run, `package::ci_tests::every_file_a_test_or_the_build_reads_runs_ci_when_it_changes`
+    fails on `tools/soundlab/subjects/arcus-cello/subject.json` (commit 95898ce72, already in
+    `r42/integration`, not this branch's).
+- **Screenshots:** `F:\projects\daw-r42	mp\site-plugins\` — `now\` is the real state,
+  `live-preview\` uses made-up facts.
+
 
 Verified only in emulation, or not at all:
 
