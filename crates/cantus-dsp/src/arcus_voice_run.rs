@@ -212,13 +212,21 @@ impl Voice {
             let d = d_t.clamp(0.0, 1.0);
             let (len, depth) = (spec.swell_s, spec.swell_db);
             // (A loud stroke from the string is set in less deeply: `Knobs::fresh_ff`.)
-            let ff = s.shape_try.unwrap_or(super::super::shape::KNOBS).fresh_ff;
-            // … and the bass's lowest notes at the stroke's speed (under C2 the depth falls to
-            // none at E1: a slow string's attack sits at Guettler's limit already).
+            let kn = s.shape_try.unwrap_or(super::super::shape::KNOBS);
+            let ff = kn.fresh_ff;
+            // (the bass's own cap: `Knobs::fresh_cap_bass`)
+            let cap = if self.inst == Instrument::Bass {
+                kn.fresh_cap_bass
+            } else {
+                kn.fresh_cap
+            };
+            // … and the lowest notes nearer the stroke's speed (under C3 the depth falls to none
+            // at E1: a slow string's attack sits at Guettler's limit already — the cello's C and G
+            // strings at pp from 15 dB under took 335 and 202 ms against 270 and 180).
             let hz = 440.0 * math::exp2((self.note + self.tune - 69.0) / 12.0);
-            let low = ((hz - 41.2) / (65.4 - 41.2)).clamp(0.0, 1.0);
+            let low = ((hz - 41.2) / (130.8 - 41.2)).clamp(0.0, 1.0);
             super::super::shape::Begin::Fresh(
-                (depth.0 + (depth.1 - depth.0) * d) * (1.0 - ff * d) * low,
+                ((depth.0 + (depth.1 - depth.0) * d) * (1.0 - ff * d) * low).min(cap),
                 len.0 + (len.1 - len.0) * d * d,
             )
         };

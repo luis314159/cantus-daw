@@ -51,6 +51,9 @@ pub struct Knobs {
     /// its catch rang 3 dB over the next 60–160 ms) nor shorter than `fresh_min` s (the cello's
     /// ff swell is 0.05 s: its spectrum settled at once).
     pub fresh_cap: f32,
+    /// … the bass's (its low strings' attacks sit near Guettler's limit: from 12 dB under its E2
+    /// at pp took 238 ms against 214).
+    pub fresh_cap_bass: f32,
     pub fresh_min: f32,
     /// … nor longer than `fresh_max` s (the violin's soft swell is 0.7 s: at 1.6 × its notes
     /// settled after the violins').
@@ -114,7 +117,8 @@ pub const KNOBS: Knobs = Knobs {
     dyn_max: 0.3,
     fresh_db: 1.0,
     fresh_s: 1.6,
-    fresh_cap: 8.0,
+    fresh_cap: 15.0,
+    fresh_cap_bass: 8.0,
     fresh_min: 0.2,
     fresh_max: 0.6,
     fresh_ff: 0.8,
@@ -171,6 +175,7 @@ impl Knobs {
                 "fresh_db" => self.fresh_db = v,
                 "fresh_s" => self.fresh_s = v,
                 "fresh_cap" => self.fresh_cap = v,
+                "fresh_cap_bass" => self.fresh_cap_bass = v,
                 "fresh_min" => self.fresh_min = v,
                 "fresh_max" => self.fresh_max = v,
                 "fresh_ff" => self.fresh_ff = v,
@@ -244,6 +249,9 @@ pub fn shuffle_len(seed: u32, key: u8, id: u64) -> u8 {
 pub fn classical(amount: f32, pair: f32) -> f32 {
     (amount.clamp(0.0, 1.0) * (1.0 - pair.clamp(0.0, 1.0))).max(0.0)
 }
+
+/// How long a note must have been held for its whole taper, s.
+pub const TAPER_HELD_S: f32 = 0.8;
 
 /// How long a stroke holds still after its rise before it sags and breathes, s.
 pub const CALM_S: f32 = 0.3;
@@ -377,9 +385,12 @@ impl Shape {
         self.taper = None;
         self.t = 0.0;
         let (from, rise) = match how {
+            // A note from silence in a fast passage (a détaché after a rest's breath) bites at
+            // once: the shape's depth `fast_share` of a long one's, its rise half as long.
             Begin::Fresh(depth, len) => (
-                -(depth * k.fresh_db).min(k.fresh_cap),
-                (len * k.fresh_s).clamp(k.fresh_min, k.fresh_max.max(k.fresh_min)),
+                -(depth * k.fresh_db).min(k.fresh_cap) * if fast { k.fast_share } else { 1.0 },
+                (len * k.fresh_s).clamp(k.fresh_min, k.fresh_max.max(k.fresh_min))
+                    * if fast { 0.5 } else { 1.0 },
             ),
             Begin::Rebow => (
                 -k.rebow_db * if fast { k.fast_share } else { 1.0 },
@@ -405,9 +416,13 @@ impl Shape {
     }
 
     /// The key is let go: the taper, over `len` s.
+    /// A note held only a short while tapers in proportion (a détaché note's end is the bow's
+    /// change or lift, not a diminuendo: the Paganini caprice's short notes ended 10.7 dB under
+    /// their peak with a full taper, the player's 16.5): full from `TAPER_HELD_S` held.
     pub fn taper(&mut self, len: f32) {
         if self.amount > 0.0 && self.taper.is_none() {
-            self.taper = Some((self.l, 0.0, len.max(1e-3)));
+            let held = smooth(self.t / TAPER_HELD_S);
+            self.taper = Some((self.l, 0.0, (len * held).max(1e-3)));
         }
     }
 
