@@ -510,6 +510,7 @@ fn cost_breakdown() {
                 gain: 1.0,
                 click: 1.0,
                 tilt: 0.0,
+                gen: 5,
             })
         };
         let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
@@ -599,6 +600,7 @@ fn dump_source() {
                 gain: 1.0,
                 click: 1.0,
                 tilt: 0.0,
+                gen: 5,
             });
             let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
             for _ in 0..(48_000 / 256) {
@@ -659,6 +661,7 @@ fn a_drums_noise_rests_under_its_fundamental_and_its_low_bands_under_its_highs()
             gain: 1.0,
             click: 1.0,
             tilt: 0.0,
+            gen: 5,
         })
     };
     let mut b = Bank::new(SR);

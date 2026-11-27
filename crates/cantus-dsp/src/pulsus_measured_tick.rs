@@ -884,9 +884,9 @@ impl Object {
             let (lj, fj) = (&b.lj[..b.nl], &b.fj[..b.nf]);
             if let (Some(dc), false, true) = (contact, choked, k == self.cur) {
                 run::<false, false>(&mut b.re, &mut b.im, &b.r, c, s, lj, d, &mut va, &mut vq);
-                run::<true, true>(
-                    &mut b.fre, &mut b.fim, &b.rf, c, s, fj, dc, &mut va, &mut vq,
-                );
+                run::<false, true>(&mut b.fre, &mut b.fim, &b.rf, c, s, fj, d, &mut va, &mut vq);
+                let cj = &b.cj[..b.nc];
+                run::<true, true>(&mut b.cre, &mut b.cim, &b.r, c, s, cj, dc, &mut va, &mut vq);
             } else if choked {
                 run::<true, false>(&mut b.re, &mut b.im, &b.r, c, s, lj, d, &mut va, &mut vq);
                 run::<true, true>(&mut b.fre, &mut b.fim, &b.rf, c, s, fj, d, &mut va, &mut vq);
@@ -963,6 +963,12 @@ impl Object {
             for q in 0..b.nf {
                 let j = b.fj[q] as usize * 8;
                 b.flive[j / 8] = settle(&mut b.fre[j..j + 8], &mut b.fim[j..j + 8], self.mfloor);
+            }
+            if b.nc > 0 && self.contact_n >= self.contact_len {
+                // (model 6: the stick has left — what it had to push in is all in)
+                b.cre = [0.0; super::MAX_MODES];
+                b.cim = [0.0; super::MAX_MODES];
+                b.clive = [false; super::MAX_MODES / 8];
             }
             b.index(self.n);
             let alive = b.nl + b.nf > 0;

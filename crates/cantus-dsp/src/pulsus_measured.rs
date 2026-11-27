@@ -261,6 +261,14 @@ pub(crate) struct Modes {
     pub nl: usize,
     pub fj: [u8; MAX_MODES / 8],
     pub nf: usize,
+    /// Model 6 (`onset`): the part of a hit's modes the stick has not yet pushed in, which
+    /// rings with the ring's radius and shrinks by the contact's step to nothing; its blocks
+    /// and their list.
+    pub cre: [f32; MAX_MODES],
+    pub cim: [f32; MAX_MODES],
+    pub clive: [bool; MAX_MODES / 8],
+    pub cj: [u8; MAX_MODES / 8],
+    pub nc: usize,
 }
 
 impl Modes {
@@ -278,6 +286,11 @@ impl Modes {
             nl: 0,
             fj: [0; MAX_MODES / 8],
             nf: 0,
+            cre: [0.0; MAX_MODES],
+            cim: [0.0; MAX_MODES],
+            clive: [false; MAX_MODES / 8],
+            cj: [0; MAX_MODES / 8],
+            nc: 0,
         }
     }
 
@@ -285,6 +298,7 @@ impl Modes {
     pub(crate) fn index(&mut self, n: usize) {
         self.nl = 0;
         self.nf = 0;
+        self.nc = 0;
         for j in 0..(MAX_MODES / 8).min(n.div_ceil(8)) {
             if self.live[j] {
                 self.lj[self.nl] = j as u8;
@@ -293,6 +307,10 @@ impl Modes {
             if self.flive[j] {
                 self.fj[self.nf] = j as u8;
                 self.nf += 1;
+            }
+            if self.clive[j] {
+                self.cj[self.nc] = j as u8;
+                self.nc += 1;
             }
         }
     }
@@ -696,8 +714,12 @@ impl Object {
         b.fim = [0.0; MAX_MODES];
         b.live = [false; MAX_MODES / 8];
         b.flive = [false; MAX_MODES / 8];
+        b.cre = [0.0; MAX_MODES];
+        b.cim = [0.0; MAX_MODES];
+        b.clive = [false; MAX_MODES / 8];
         b.nl = 0;
         b.nf = 0;
+        b.nc = 0;
         self.bank_choke[self.cur] = false;
         for s in &mut self.slots {
             if s.on {
