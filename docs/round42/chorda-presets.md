@@ -1,6 +1,6 @@
 # Round 42 — `chorda-presets`: the voicing by hand and the character presets
 
-**Status: in progress.** Branch `r42/chorda-c17` (the same worktree) from 7d85795ef. ADR 0098's
+**Status: done, awaiting the owner's ear.** Branch `r42/chorda-c17` (the same worktree) from 7d85795ef. ADR 0098's
 eighth amendment. Schema 88 (85–87 held, empty, for the integration's: 86 Tympanum's, 87
 Arcus's). No `DSP_VERSION` change: every control at its default is the shipped voicing to the bit.
 
@@ -219,4 +219,10 @@ differences). The Old Piano FB was sampled at one velocity: its climb (0 dB) is 
 
 ## Open
 
-- Nothing verified by ear yet.
+- Nothing verified by ear yet: the named preview is for the owner.
+- The unison's beat stays under the recordings' in five presets (Chorda's unisons beatless by design).
+- The Upright Parlour's attack is brighter than the KW's soft mezzo-forte layer (Chorda's top roll-off is 12 dB/oct), and its bass weight is 1.2 dB over the span (its level window).
+- No free (CC0 / CC BY) felt piano exists to fit Dark Felt and Cinematic Felt against.
+- Not mine, failing on this branch before it: `instruments_scale_e2e`'s header test cuts Tympanum's kit name "Studio Maple" in Spanish; `instruments_narrow_e2e` cuts Arcus's "INTÉRPRETE" in Spanish.
+- The integrator: schemas 85–87 are held by empty migrations here (`migrate_84_to_85` … `86_to_87`); put the integration's in their place, keep 88, and write `fixtures/v88.cantus` again after the merge.
+- Not run: the whole workspace suite, the WSL/Linux check.
