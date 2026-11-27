@@ -111,8 +111,9 @@ pub struct Knobs {
     /// The look-ahead's end (ADR 0166: a note's length known on playback): a note followed
     /// within `end_follow` s by the next eases `end_db` before its end (`end_short` on a note
     /// of `END_SHORT_S` or less, between them by its length), over `end_share` of its length
-    /// up to `end_max` s; one followed by a rest `end_rest` of that (the key's taper after it
-    /// carries the rest). The players' long notes inside a phrase end 8–10 dB (Musopen, HSD
+    /// up to `end_max` s; one followed by a rest `end_rest` of that (0: none — the key's taper
+    /// after it carries it, and the note sounds its written length before it eases: eased
+    /// before a rest, a held note's last half-second moved its measured pitch 3.7 cents). The players' long notes inside a phrase end 8–10 dB (Musopen, HSD
     /// 10–35) under their peak; Arcus's, without it, 3.6–5.0.
     pub end_db: f32,
     pub end_short: f32,
@@ -181,7 +182,7 @@ pub const KNOBS: Knobs = Knobs {
     end_short: 3.0,
     end_share: 0.5,
     end_max: 0.6,
-    end_rest: 0.5,
+    end_rest: 0.0,
     end_follow: 0.1,
     rebow_keep: 0.5,
     rise_share: 0.0,

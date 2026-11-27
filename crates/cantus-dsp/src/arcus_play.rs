@@ -94,7 +94,7 @@ impl Arcus {
         self.alloc.set_mode(self.s.mode, Default::default());
         self.body.set(&self.s.body());
         self.upper_body.set(upper::body::shape_of(&self.s)); // r42:arcus-upper
-                                                             // r42 arcus-classical: the classical violin's body radiates 1 dB less in music (the air
+                                                             // r42 arcus-classical: the classical violin's body radiates about 1 dB less in music (the air
                                                              // mode's roll-off, the 250 Hz hill lower): its output that much higher, so the bowed
                                                              // presets keep their one level (`arcus_level_e2e`); a fiddler's keeps its own.
         let mut out = self.s.output();

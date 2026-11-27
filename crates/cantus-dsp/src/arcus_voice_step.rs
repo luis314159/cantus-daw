@@ -476,10 +476,14 @@ impl Voice {
             * super::pair::steel_corner(s); // r42 fiddle
                                             // r42 arcus-classical (model 2): the violin's corner sharper (`upper::VIOLIN_CORNER_K`;
                                             // a tool's try × `Knobs::corner_k` on the upper strings).
-                                            // (a fiddler's keeps the corner the Fiddle character was tuned with, ADR 0164)
+                                            // (a fiddler's keeps the corner the Fiddle character was tuned with, ADR 0164), sharper
+                                            // with the stroke's dynamic — Cremer's rounding goes as 1/F: a soft stroke keeps pass 1's
+                                            // corner (at × 2 from pp the G and E strings' soft attacks overran Guettler's limits).
         if s.model >= 2 && self.inst == Instrument::Violin {
             let fid = super::super::shape::fiddler(s) as f64;
-            corner *= 1.0 + (super::super::upper::VIOLIN_CORNER_K - 1.0) * (1.0 - fid);
+            let x = ((self.d as f64 - 0.25) / 0.5).clamp(0.0, 1.0);
+            let by_dyn = x * x * (3.0 - 2.0 * x);
+            corner *= 1.0 + (super::super::upper::VIOLIN_CORNER_K - 1.0) * (1.0 - fid) * by_dyn;
         }
         if knobs.corner_k != 1.0 && matches!(self.inst, Instrument::Violin | Instrument::Viola) {
             corner *= knobs.corner_k as f64; // r42 arcus-classical: a tool's try
