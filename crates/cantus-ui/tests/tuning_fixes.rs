@@ -130,8 +130,20 @@ fn the_open_window_holds_the_keys_but_undo_redo_and_its_own() {
     // Undo and Redo pass.
     press(&ctx, &mut a, Key::Z, Modifiers::COMMAND);
     assert!(a.project().tuning.is_default(), "Ctrl+Z undid the tuning");
-    press(&ctx, &mut a, Key::Y, Modifiers::COMMAND);
-    assert_eq!(a.project().tuning, werck(3, false), "Ctrl+Y redid it");
+    // Redo as the system binds it: Ctrl+Y on Windows and Linux, Cmd+Shift+Z on macOS.
+    let redo = cantus_ui::keymap::cantus_keymap().bindings_for(Action::Redo)[0];
+    let mut redo_mods = Modifiers::NONE;
+    if redo.command {
+        redo_mods = redo_mods | Modifiers::COMMAND;
+    }
+    if redo.shift {
+        redo_mods = redo_mods | Modifiers::SHIFT;
+    }
+    if redo.alt {
+        redo_mods = redo_mods | Modifiers::ALT;
+    }
+    press(&ctx, &mut a, redo.key, redo_mods);
+    assert_eq!(a.project().tuning, werck(3, false), "Redo redid it");
     assert!(a.tuning.open.is_some(), "still open");
     // Esc closes the window, and only the window.
     press(&ctx, &mut a, Key::Escape, Modifiers::NONE);
