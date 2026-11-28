@@ -134,13 +134,13 @@ fn the_open_window_holds_the_keys_but_undo_redo_and_its_own() {
     let redo = cantus_ui::keymap::cantus_keymap().bindings_for(Action::Redo)[0];
     let mut redo_mods = Modifiers::NONE;
     if redo.command {
-        redo_mods = redo_mods | Modifiers::COMMAND;
+        redo_mods |= Modifiers::COMMAND;
     }
     if redo.shift {
-        redo_mods = redo_mods | Modifiers::SHIFT;
+        redo_mods |= Modifiers::SHIFT;
     }
     if redo.alt {
-        redo_mods = redo_mods | Modifiers::ALT;
+        redo_mods |= Modifiers::ALT;
     }
     press(&ctx, &mut a, redo.key, redo_mods);
     assert_eq!(a.project().tuning, werck(3, false), "Redo redid it");
