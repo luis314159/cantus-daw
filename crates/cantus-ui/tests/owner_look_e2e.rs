@@ -204,17 +204,23 @@ impl Rig {
         self.frames(30);
         let was = self.app.settings.look.clone();
         // The headless pointer's first press on a freshly shown page is sometimes taken by
-        // the window coming forward (a click on the segment again is the same choice).
-        for _ in 0..3 {
+        // the window coming forward (a click on the segment again is the same choice). The
+        // macOS runner, slower, once let all of three tries pass with no change and the test
+        // read the old setting later (rehearsal 46147025464): more tries, and a choice that
+        // never lands fails here, where it happened.
+        let mut changed = false;
+        for _ in 0..8 {
             self.click_word(word);
             self.frames(3);
             if self.app.settings.look != was {
+                changed = true;
                 break;
             }
             let texts = self.frames(1);
             let at: Vec<_> = texts.iter().filter(|(t, _)| t == word).collect();
             eprintln!("choose({word:?}): no change yet; seen at {at:?}");
         }
+        assert!(changed, "choose({word:?}): eight clicks changed nothing");
         self.app.show_settings = false;
         self.frames(3);
     }
