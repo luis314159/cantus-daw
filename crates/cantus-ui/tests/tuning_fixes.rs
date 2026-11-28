@@ -131,7 +131,8 @@ fn the_open_window_holds_the_keys_but_undo_redo_and_its_own() {
     press(&ctx, &mut a, Key::Z, Modifiers::COMMAND);
     assert!(a.project().tuning.is_default(), "Ctrl+Z undid the tuning");
     // Redo as the system binds it: Ctrl+Y on Windows and Linux, Cmd+Shift+Z on macOS.
-    let redo = cantus_ui::keymap::cantus_keymap().bindings_for(Action::Redo)[0];
+    // The app's own keymap (`Keymap::for_this_system`): the Mac's has no Ctrl+Y.
+    let redo = a.keymap.bindings_for(Action::Redo)[0];
     let mut redo_mods = Modifiers::NONE;
     if redo.command {
         redo_mods |= Modifiers::COMMAND;
