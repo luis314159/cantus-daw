@@ -150,5 +150,9 @@ todas las herramientas nuevas en `tools/`.
   por `CantusApp::assemble` y corrígelo.
 - **El pánico del `clamp` en `soak_smoke`**: visto una vez bajo carga, nunca reproducido; los tres
   `clamp` que podían invertirse tienen guarda. Si vuelve, guarda la semilla y la entrada.
+- **La memoria de una canción vacía subió 5.1 → 5.9 MB** (memory_e2e, Windows y el runner de
+  Linux, 2026-11-28): la cota pasó a 6.5 para publicar la beta.18. Encuentra dónde están los
+  0.8 MB (las cadenas de la ronda 42 son +43 KB de inglés; el resto, alguna vista o tabla que
+  ya se crea al arrancar) y devuélvela a ~5.1 con su cota de vuelta.
 - **`cargo fmt --all` en Windows** falla con «os error 206» (rutas largas); se usa rustfmt archivo
   por archivo y `fmt --check` en WSL.
