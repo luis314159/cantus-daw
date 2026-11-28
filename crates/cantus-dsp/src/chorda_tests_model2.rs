@@ -279,8 +279,10 @@ fn model_2s_sixty_four_pedal_down_voices_cost_at_most_twice_model_1() {
     }
     let (one, two) = best;
     assert!(two / one < 2.5, "model 2 / model 1 = {:.3}", two / one);
-    // A catastrophe guard on any machine: model 2 keeps up with real time.
-    assert!(two < 1.0, "{two}");
+    // No share of a core beside the ratio (L3): the guard `two < 1.0` that stood here is
+    // what failed model 1's test in the full Linux suite (2026-11-27) — the machine's load.
+    // Model 1 against the crate's reference is tests_piano's test; model 2 against model 1
+    // is this one.
 }
 
 #[test]

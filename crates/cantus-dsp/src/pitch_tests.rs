@@ -252,22 +252,40 @@ fn the_tracker_rests_exactly() {
     }
 }
 
-/// The offline analysis is a function of the take: the same bits twice; and it is fast.
+/// The offline analysis is a function of the take: the same bits twice; and it is fast —
+/// against the crate's reference workload timed between and around the two analyses
+/// (docs/RELEASING.md L3), the quicker of each: the owner's machine reads 0.53–0.55
+/// alone (2026-11-27; 0.8 s a minute of audio), 1.18 with sixteen busy loops beside the
+/// whole suite; the bound is 4. The fixed bound it replaces (6 s for a minute of audio,
+/// one try) read a loaded runner's speed as much as the analysis's.
 #[test]
 fn the_offline_analysis_is_deterministic_and_fast() {
+    use crate::timing_reference::{secs, Reference};
     let _turn = crate::timing_turn();
     let sr = 48_000.0;
     let vib = testkit::vibrato(180.0, 40.0, 5.0);
     let x = testkit::voice(sr, 20.0, Vowel::A, 0.5, &vib);
-    let t0 = std::time::Instant::now();
-    let a = analyse(&x, sr);
-    let took = t0.elapsed().as_secs_f32();
-    let b = analyse(&x, sr);
+    let mut reference = Reference::new();
+    let mut unit = reference.time(PITCH_REFERENCE_UNITS);
+    let mut a = None;
+    let took_a = secs(|| a = Some(analyse(&x, sr)));
+    unit = unit.min(reference.time(PITCH_REFERENCE_UNITS));
+    let mut b = None;
+    let took_b = secs(|| b = Some(analyse(&x, sr)));
+    unit = unit.min(reference.time(PITCH_REFERENCE_UNITS));
     assert_eq!(a, b);
-    let per_minute = took * 3.0;
-    eprintln!("offline analysis: {per_minute:.2} s per minute of audio at 48 kHz");
-    assert!(per_minute < 6.0, "{per_minute} s per minute");
+    let took = took_a.min(took_b);
+    let ratio = took / unit;
+    eprintln!(
+        "offline analysis: {:.2} s per minute of audio at 48 kHz, {ratio:.3} x the reference",
+        took * 3.0
+    );
+    assert!(ratio < 4.0, "the analysis took {ratio:.3} x the reference");
 }
+
+/// The reference's window for the analysis: 0.48 s on the owner's machine, about twice
+/// the analysis of 20 s.
+const PITCH_REFERENCE_UNITS: usize = 100_000;
 
 /// Epochs: one period apart, every voiced stretch covered, each on the same phase (the
 /// waveform around consecutive marks matches).

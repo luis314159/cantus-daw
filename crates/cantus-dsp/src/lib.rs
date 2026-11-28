@@ -188,3 +188,7 @@ pub(crate) fn timing_turn() -> std::sync::MutexGuard<'static, ()> {
     static TURN: std::sync::Mutex<()> = std::sync::Mutex::new(());
     TURN.lock().unwrap_or_else(|e| e.into_inner())
 }
+
+/// What the timing tests compare with: a fixed loop of plain DSP timed beside them (L3).
+#[cfg(test)]
+pub(crate) mod timing_reference;

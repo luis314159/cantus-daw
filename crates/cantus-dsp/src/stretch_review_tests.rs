@@ -742,16 +742,29 @@ fn a_sketch_of_a_minute_is_quick() {
     let x: Vec<f32> = x.iter().zip(&nz).map(|(a, b)| a + 0.3 * b).collect();
     let len = (n as f64 / 1.05) as usize;
     let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
-    let mut best = f64::MAX;
-    for _ in 0..3 {
-        let t = std::time::Instant::now();
-        let y = sketch(&[&x, &x], SR, &map, len, 2.0, 0, &[]);
-        best = best.min(t.elapsed().as_secs_f64());
-        assert_eq!(y[0].len(), len);
-    }
-    eprintln!("SKETCH {best:.3} s");
-    assert!(best < 0.6, "a minute sketched in {best:.2} s");
+    // Against the crate's reference workload timed in turn with it (docs/RELEASING.md L3),
+    // the best of three each: the owner's machine reads 0.27 alone (2026-11-27; 0.13 s),
+    // 0.48 with sixteen busy loops beside the whole suite; the bound is 1.25.
+    // The fixed 0.6 s it replaces read a loaded runner's speed as much as the sketch's.
+    let (best, reference) =
+        crate::timing_reference::best_of_interleaved(3, SKETCH_REFERENCE_UNITS, || {
+            let mut len_out = 0;
+            let took = crate::timing_reference::secs(|| {
+                len_out = sketch(&[&x, &x], SR, &map, len, 2.0, 0, &[])[0].len();
+            });
+            assert_eq!(len_out, len);
+            took
+        });
+    let ratio = best / reference;
+    eprintln!("SKETCH {best:.3} s, {ratio:.3} x the reference");
+    assert!(
+        ratio < 1.25,
+        "a minute sketched in {ratio:.3} x the reference"
+    );
 }
+
+/// The reference's window for the sketch: 0.48 s on the owner's machine.
+const SKETCH_REFERENCE_UNITS: usize = 100_000;
 
 /// Round 29's second review (finding 14): partials both channels hold (the same notes,
 /// each its own place in the image), over noise of each channel's own only 10 dB down (a

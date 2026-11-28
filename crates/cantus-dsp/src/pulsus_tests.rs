@@ -977,17 +977,20 @@ fn a_full_pool_renders_within_budget() {
         render(&mut k, 96_000, 512, &events);
         start.elapsed().as_secs_f32()
     };
-    let light = time(&[PadSettings::kick(), PadSettings::snare()]).max(1e-4);
-    let secs = time(&[heavy, cymbal]);
+    // In turn, the best of three each (docs/RELEASING.md L3): a burst of load on one try
+    // falls on neither best.
+    let (mut light, mut secs) = (f32::INFINITY, f32::INFINITY);
+    for _ in 0..3 {
+        light = light.min(time(&[PadSettings::kick(), PadSettings::snare()]));
+        secs = secs.min(time(&[heavy, cymbal]));
+    }
+    let light = light.max(1e-4);
     let ratio = secs / light;
     eprintln!(
         "pulsus: 48 heavy voices, 2 s of audio in {secs:.3} s ({:.2} % of real time per          voice), {ratio:.1}x Pulsus I's kick and snare",
         secs / 2.0 / 48.0 * 100.0
     );
+    // The ratio alone: the absolute ceiling beside it (60 s for 2 s of audio) read the
+    // machine, not the drums (L3 — no fixed number).
     assert!(ratio < 40.0, "the heavy voices cost {ratio:.1}x Pulsus I's");
-    // And an absolute ceiling generous enough for a loaded machine.
-    assert!(
-        secs < 60.0,
-        "48 heavy voices took {secs:.2} s for 2 s of audio"
-    );
 }

@@ -411,13 +411,19 @@ fn the_mixer_levels_drive_the_filter() {
     );
 }
 
+/// Calor's cost per voice at each quality, against the crate's reference workload timed
+/// beside it (docs/RELEASING.md L3): windows of four 512-frame blocks of eight voices and
+/// as long a window of the reference, taken in turn, the best of 150 each. The bounds are
+/// ratios, three times or more what the owner's machine reads alone (2026-11-27: Draft
+/// 0.52, Good 1.18, Best 2.46 — bounds 2, 4 and 8); the fixed ceilings in nanoseconds they
+/// replace read the machine's speed and its load as much as Calor's.
 #[test]
 fn cpu_per_voice_at_each_quality() {
     let _turn = crate::timing_turn();
-    for (quality, ceiling_ns) in [
-        (Quality::Draft, 1500.0),
-        (Quality::Good, 3000.0),
-        (Quality::Best, 8000.0),
+    for (quality, max_ratio) in [
+        (Quality::Draft, 2.0),
+        (Quality::Good, 4.0),
+        (Quality::Best, 8.0),
     ] {
         let mut s = busy_settings();
         s.stack = 1;
@@ -428,25 +434,30 @@ fn cpu_per_voice_at_each_quality() {
             c.note_on(*k, 0.8, i as u64 + 1);
         }
         let (mut l, mut r) = (vec![0.0; 512], vec![0.0; 512]);
-        // Five windows of about 0.4 s (the same two seconds of audio one run gave), and
-        // the least disturbed one: preemption on a loaded machine can only add time, so
-        // the minimum is Calor's own cost (round 23; Lamina's and the organ's rule).
-        let blocks = 2 * 48_000 / 512 / 5;
-        let mut best = f64::INFINITY;
-        for _ in 0..5 {
-            let t0 = std::time::Instant::now();
-            for _ in 0..blocks {
-                l.fill(0.0);
-                r.fill(0.0);
-                c.process(&mut l, &mut r);
-            }
-            best = best.min(t0.elapsed().as_nanos() as f64);
-        }
-        let ns = best / (blocks * 512 * 8) as f64;
+        let blocks = 4;
+        let (calor, reference) =
+            crate::timing_reference::best_of_interleaved(150, CALOR_REFERENCE_UNITS, || {
+                crate::timing_reference::secs(|| {
+                    for _ in 0..blocks {
+                        l.fill(0.0);
+                        r.fill(0.0);
+                        c.process(&mut l, &mut r);
+                    }
+                })
+            });
+        let ns = calor * 1e9 / (blocks * 512 * 8) as f64;
+        let ratio = calor / reference;
         println!(
-            "{quality:?}: {ns:.0} ns per voice per sample, {:.2} % of a core per voice at 48 kHz",
+            "{quality:?}: {ns:.0} ns per voice per sample, {:.2} % of a core per voice at 48 kHz, {ratio:.3} x the reference",
             ns * 48_000.0 / 1e7
         );
-        assert!(ns < ceiling_ns, "{quality:?}: {ns:.0} ns per voice-sample");
+        assert!(
+            ratio < max_ratio,
+            "{quality:?}: {ratio:.3} x the reference ({ns:.0} ns per voice-sample)"
+        );
     }
 }
+
+/// The reference's window for Calor's: a thousand units (4.8 ms on the owner's machine;
+/// four blocks of eight Good voices take 5.7).
+const CALOR_REFERENCE_UNITS: usize = 1_000;

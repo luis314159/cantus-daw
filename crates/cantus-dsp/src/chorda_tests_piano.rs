@@ -1,7 +1,8 @@
 //! Chorda behaves as a grand does, measured on the sound: the half pedal is continuous,
 //! the strings decay in two stages, the soft pedal softens, the strings ring in sympathy
 //! with the pedal down; and 64 voices with the pedal down cost less than a quarter of one
-//! core at 256-frame blocks.
+//! core at 256-frame blocks (the ignored quiet measure; in the suite, a bounded multiple of
+//! the crate's reference workload timed beside them).
 
 use super::tests_engine::{keyboard, perform, piano, Ev};
 use super::*;
@@ -239,18 +240,60 @@ fn sixty_four_pedal_down_voices() -> f64 {
     best
 }
 
+/// 64 pedal-down voices against the crate's reference workload timed beside them
+/// (docs/RELEASING.md L3), in short windows taken in turn — four blocks of the piano
+/// (21 ms of audio, about 4 ms of work on the owner's machine) and as long a window of the
+/// reference — the best of 600 each, so a burst of load falls on both alike and some
+/// windows of each run undisturbed. The bound is a ratio: on the owner's machine it reads
+/// 0.98 alone (2026-11-27, 17.5 % of a core); a piano four times dearer fails, a runner
+/// several times slower or a machine running the whole suite does not. The absolute check this replaces, a share of a
+/// core under 1.0, failed in the full Linux suite under WSL (2026-11-27) on a piano that
+/// reads 17.9 % alone: the machine's load, not the piano. The quarter-core target itself
+/// is the ignored quiet measure below (ADR 0059).
 #[test]
-fn sixty_four_pedal_down_voices_fit_a_quarter_of_a_core() {
+fn sixty_four_pedal_down_voices_cost_a_bounded_multiple_of_the_reference() {
     let _turn = crate::timing_turn();
-    let load = sixty_four_pedal_down_voices();
-    eprintln!("64 pedal-down voices: {:.1} % of one core", load * 100.0);
-    // No fixed share of a core (docs/RELEASING.md L3): the bound of 0.6 read 0.571 on the
-    // owner's machine under the whole cantus-dsp suite (2026-11-21), the machine's load
-    // and not the piano's. Model 1's cost against a reference timed beside it is model 2's
-    // ratio test (chorda_tests_model2); here a catastrophe guard alone — it keeps up with
-    // real time. The release figure is the ignored quiet measure below (ADR 0059).
-    assert!(load < 1.0, "{load}");
+    let mut c = piano();
+    let mut ev = vec![(0usize, Ev::Pedal(1.0))];
+    for (i, k) in (30u8..94).enumerate() {
+        ev.push((1 + i * 37, Ev::On(k, 0.7, i as u64 + 1)));
+    }
+    perform(&mut c, &ev, 4_096, 256, 1);
+    assert_eq!(c.active_voices(), 64);
+    let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
+    let blocks = 4;
+    let (piano, reference) =
+        crate::timing_reference::best_of_interleaved(600, REFERENCE_UNITS, || {
+            crate::timing_reference::secs(|| {
+                for _ in 0..blocks {
+                    l.fill(0.0);
+                    r.fill(0.0);
+                    c.process(&mut l, &mut r);
+                }
+            })
+        });
+    assert!(
+        c.active_voices() >= 60,
+        "still sounding: {}",
+        c.active_voices()
+    );
+    let ratio = piano / reference;
+    eprintln!(
+        "64 pedal-down voices: {:.1} % of one core, {ratio:.3} x the reference ({:.2} µs a unit)",
+        piano / ((blocks * 256) as f64 / FS) * 100.0,
+        reference / REFERENCE_UNITS as f64 * 1e6
+    );
+    assert!(
+        ratio < MAX_RATIO,
+        "64 pedal-down voices / reference = {ratio:.3}"
+    );
 }
+
+/// The reference's window: about as long as four blocks of 64 pedal-down voices (3.8 ms
+/// on the owner's machine).
+const REFERENCE_UNITS: usize = 800;
+/// Four times the quiet ratio (0.98; 1.34 with sixteen busy loops beside the whole suite).
+const MAX_RATIO: f64 = 4.0;
 
 #[test]
 #[ignore]

@@ -185,9 +185,26 @@ fn a_hostile_count_or_length_is_read_as_what_is_there() {
         acid(8, 120.0),
         d,
     ]);
-    let t = std::time::Instant::now();
-    let m = markers(&bytes).expect("a WAV");
-    assert!(t.elapsed() < std::time::Duration::from_millis(100));
+    // At once: the quickest of three reads within a window of the crate's reference workload
+    // timed beside them (docs/RELEASING.md L3; 20 000 units, about 0.1 s on the owner's
+    // machine, where the read takes microseconds). A loop over the 2³² points claimed would
+    // take seconds — tens of windows on any machine. The fixed 100 ms it replaces
+    // could be one preempted read on a loaded runner.
+    let mut m = None;
+    let (read, window) = crate::timing_reference::best_of_interleaved(3, 20_000, || {
+        crate::timing_reference::secs(|| m = Some(markers(&bytes).expect("a WAV")))
+    });
+    eprintln!(
+        "a hostile file read in {:.1} µs, {:.5} of a reference window",
+        read * 1e6,
+        read / window
+    );
+    assert!(
+        read < window,
+        "the hostile file took {:.3} reference windows to read",
+        read / window
+    );
+    let m = m.unwrap();
     assert!(m.cues.is_empty() && m.loops.is_empty());
     assert_eq!(m.frames, 4_800);
     // 8 beats in 0.1 s would say 4 800 BPM: the tempo the chunk writes stands.
