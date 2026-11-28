@@ -3022,6 +3022,13 @@ component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
 
 ## 8. Polish
 
+- **The goldens on every architecture we claim (a Rust developer on Reddit, 2026-11-27).**
+  The claim is "the same bits on x86-64 and aarch64". Today the whole suite runs on x86-64
+  Windows, x86-64 Linux and Apple-silicon macOS (`release.yml`, `macos.yml`). Add an
+  `ubuntu-24.04-arm` job (GitHub's free arm64 Linux runner) to `ci.yml`, and to the release's
+  rehearsal; consider running the universal Mac build's Intel slice once per release
+  (`arch -x86_64 cargo test` under Rosetta). *Done when* the golden and null tests pass on all
+  four, and the README's determinism line names them.
 - **The suite as `docs/RELEASING.md` keeps it (the owner, 2026-11-19: "buscando siempre hacer
   todo con excelencia")** — build its practice:
   1. **The tagged run reuses the rehearsal's result**: when preflight has verified a green
