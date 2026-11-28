@@ -254,6 +254,12 @@ pub struct Meters {
     pub comp: [f32; 3],
     /// The analysed plug-in's telemetry (`crate::fx::FxUnit::telemetry`).
     pub fx: crate::fx::Telemetry,
+    /// Whose `fx` is: the unit's id and kind when it was read (`None` before any). The
+    /// readings stay until the next analysed unit reports, so an editor opened on another
+    /// effect, or on a unit replaced under the same id, is shown another kind's numbers
+    /// until then unless it checks this (2026-11-27: Multiplex read another kind's slot 22
+    /// as its sample rate, 1.52 Hz, and a clamp in its curve panicked in the soak).
+    pub fx_of: Option<(cantus_core::EffectId, cantus_core::EffectKind)>,
     /// fx3:contract — the analysed board's open pedal's telemetry
     /// (`EngineMessage::SetAnalysedPedal`; `FxUnit::pedal_telemetry`).
     pub fx_pedal: crate::fx::Telemetry,
@@ -304,6 +310,7 @@ impl Default for Meters {
             eq_deltas: [0.0; METERED_EQ_BANDS],
             comp: [0.0; 3],
             fx: [0.0; crate::fx::TELEMETRY_LEN],
+            fx_of: None,
             fx_pedal: [0.0; crate::fx::TELEMETRY_LEN], // fx3:contract
             inst: [0.0; crate::inst::TELEMETRY_LEN],
             input_count: 0,

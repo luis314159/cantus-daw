@@ -727,7 +727,7 @@ impl CantusApp {
         }
         Some(match self.comp_editor.open {
             Some((st, fx)) if st == strip && working(fx) => {
-                let t = self.fx_telemetry();
+                let t = self.fx_telemetry_of(fx, EffectKind::Compressor);
                 (t[tele::SAMPLE_RATE] > 0.0).then_some(t[tele::GR])
             }
             // Every other strip: the engine's per-strip reduction (the deepest of its

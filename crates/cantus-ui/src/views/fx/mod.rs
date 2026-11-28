@@ -238,9 +238,22 @@ impl FxEditors {
 }
 
 impl CantusApp {
-    /// The open editor's telemetry: injected (demos, tests) or the engine's.
-    pub fn fx_telemetry(&self) -> cantus_engine::Telemetry {
-        self.fx.injected.unwrap_or_else(|| self.engine.meters().fx)
+    /// The telemetry of `effect`, a unit of `kind`: injected (demos, tests), or the
+    /// engine's when its last readings are that unit's — zeros (at rest) until then. The
+    /// engine keeps the last analysed unit's numbers until the next one reports: an editor
+    /// opened on another effect, or on a unit replaced under the same id, read them as its
+    /// own for a block or more (2026-11-27: Multiplex took another kind's slot 22 for its
+    /// sample rate, 1.52 Hz, and a clamp in its curve panicked — the soak under load).
+    pub fn fx_telemetry_of(&self, effect: EffectId, kind: EffectKind) -> cantus_engine::Telemetry {
+        if let Some(t) = self.fx.injected {
+            return t;
+        }
+        let m = self.engine.meters();
+        if m.fx_of == Some((effect, kind)) {
+            m.fx
+        } else {
+            [0.0; cantus_engine::TELEMETRY_LEN]
+        }
     }
 
     pub(crate) fn open_fx_editor(&mut self, strip: StripId, effect: EffectId, kind: EffectKind) {

@@ -778,7 +778,7 @@ impl FxHost for DawHost<'_> {
     }
 
     fn telemetry(&self) -> Telemetry {
-        let mut t = self.app.fx_telemetry();
+        let mut t = self.app.fx_telemetry_of(self.effect, self.spec.kind);
         // r42:editor-windows (ADR 0161): the engine reports on the analysed editor only;
         // another one on screen shows its readings at rest until it is touched.
         if !self.app.effect_reads_engine(self.effect) {

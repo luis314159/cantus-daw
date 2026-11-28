@@ -93,10 +93,13 @@ impl Slope {
 }
 
 /// `tan(π f / fs)`, the TPT filters' frequency coefficient, with `f` kept inside
-/// (1 Hz, 0.49 fs) so it stays finite and positive.
+/// (1 Hz, 0.49 fs) so it stays finite and positive. Under 2.05 Hz (no engine's rate; an
+/// editor once passed another unit's telemetry for one, 1.52 Hz) that range is empty: the
+/// bounds are never inverted — `f32::clamp` panics on that — and `f` reads 1 Hz. Every
+/// real rate gives the same bits as before.
 #[inline]
 pub fn warp(hz: f32, sample_rate: f32) -> f32 {
-    let f = hz.clamp(1.0, sample_rate * 0.49);
+    let f = hz.clamp(1.0, (sample_rate * 0.49).max(1.0));
     math::tan(PI * f / sample_rate)
 }
 
@@ -474,6 +477,24 @@ pub fn shelf_response(slope: Slope, g: f32, rho: f32, hz: f32, sample_rate: f32)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 2026-11-27 (the soak under load): a rate under 2.05 Hz inverted the clamp's bounds
+    /// and panicked; now it reads at 1 Hz, and a real rate is unchanged to the bit.
+    #[test]
+    fn warp_never_panics_on_a_rate_too_low() {
+        for sr in [1.52f32, 1.0, 0.5, 0.0, -48_000.0] {
+            let _ = warp(1_000.0, sr);
+        }
+        let _ = warp(1_000.0, f32::NAN);
+        assert_eq!(
+            warp(700.0, 48_000.0).to_bits(),
+            math::tan(PI * 700.0 / 48_000.0).to_bits()
+        );
+        assert_eq!(
+            warp(30_000.0, 48_000.0).to_bits(),
+            math::tan(PI * (48_000.0 * 0.49) / 48_000.0).to_bits()
+        );
+    }
 
     #[test]
     fn a_state_variable_section_splits_its_input_exactly() {

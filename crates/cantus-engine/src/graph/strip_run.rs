@@ -146,6 +146,7 @@ pub(crate) fn read_meters(
     }
     if let Some(t) = e.telemetry() {
         a.fx = Some(t);
+        a.fx_of = Some((e.id, e.kind));
     }
     // fx3:contract — the open pedal's editor, inside the analysed board.
     if let Some(t) = pedal.and_then(|p| e.pedal_telemetry(p)) {

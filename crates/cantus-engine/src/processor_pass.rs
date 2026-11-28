@@ -490,6 +490,7 @@ impl Processor {
             }
             if let Some(t) = a.fx.take() {
                 self.meters.fx = t;
+                self.meters.fx_of = a.fx_of;
             }
             if let Some(t) = a.fx_pedal.take() {
                 self.meters.fx_pedal = t; // fx3:contract
