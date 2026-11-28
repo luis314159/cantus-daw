@@ -434,6 +434,15 @@ pub trait MainThread: Send {
     fn stopped(&self) -> Option<(String, Blame)> {
         None
     }
+
+    /// [`Self::stopped`] asked once, for good — what a render's end asks of its instances.
+    /// An end its helper has not named yet (its pipe closed, its process not yet reaped: on
+    /// macOS that comes a while later) is waited for, briefly, instead of answered `None`,
+    /// which would take a render that lost the plug-in for whole (round 42: the macOS
+    /// runner's render that lost one silently).
+    fn fate(&self) -> Option<(String, Blame)> {
+        self.stopped()
+    }
 }
 
 /// A parameter change at a sample offset in the block.

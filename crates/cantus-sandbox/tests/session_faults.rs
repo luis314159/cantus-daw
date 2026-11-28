@@ -368,11 +368,16 @@ fn a_plugin_that_crashes_while_loading_can_be_reloaded_or_moved() {
 /// An automation clip that sets the gain's Fault parameter at beat 2: what crashes (or
 /// hangs) an offline render's instance in its `process`.
 fn fault_at_beat_two(rig: &mut Rig, effect: EffectId, value: f64) {
+    fault_from(rig, effect, value, Ticks::beats(2), Ticks::beats(2));
+}
+
+/// [`fault_at_beat_two`] from `start`, for `length`.
+fn fault_from(rig: &mut Rig, effect: EffectId, value: f64, start: Ticks, length: Ticks) {
     let track = rig.bus.project().tracks[0].id;
     let pos = (value / FAULT_LAST) as f32;
     let mut pts = vec![AutoPoint::new(Ticks::ZERO, pos)];
     pts[0].shape = Shape::Hold;
-    let mut clip = rig.bus.new_clip("fault", Ticks::beats(2), Ticks::beats(2));
+    let mut clip = rig.bus.new_clip("fault", start, length);
     clip.automation = Some(Automation::new(
         AutoTarget::Plugin {
             effect,
@@ -441,4 +446,59 @@ fn a_render_that_loses_a_plugin_says_so() {
             "{what}: the live one plays on"
         );
     }
+}
+
+/// Takes a test hook's variable back out of the process when the test ends, passed or not.
+struct EnvVar(&'static str);
+
+impl EnvVar {
+    fn set(name: &'static str, value: &str) -> EnvVar {
+        std::env::set_var(name, value);
+        EnvVar(name)
+    }
+}
+
+impl Drop for EnvVar {
+    fn drop(&mut self) {
+        std::env::remove_var(self.0);
+    }
+}
+
+/// A render whose plug-in crashes in its last blocks says so even when the render has
+/// ended before the watchdog has named how its helper ended — the helper's pipe closed (so
+/// the render went on dry at once), its process not yet reaped. macOS reaps a crashed
+/// process a while after its pipes close: the release rehearsal's macOS runner finished
+/// such a render with no failure said, an export silently missing its plug-in (round 42).
+/// The watchdog's naming held back here for a second, the render and its question end
+/// well inside it.
+#[test]
+fn a_render_that_loses_a_plugin_before_its_end_is_named_says_so() {
+    let _g = serial();
+    let _late = EnvVar::set("CANTUS_TEST_SANDBOX_REAP_DELAY_MS", "1000");
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
+    rig.settle();
+    // A sixteenth before the song's end: a dozen dry blocks after the crash.
+    let sixteenth = Ticks::QUARTER / 4;
+    fault_from(
+        &mut rig,
+        id,
+        ABORT_PROCESS,
+        Ticks::beats(8) - sixteenth,
+        sixteenth,
+    );
+    rig.settle();
+    let _ = render(&mut rig);
+    let t = Instant::now();
+    let failures = rig.host.render_failures();
+    let asked = t.elapsed();
+    rig.host.finish_render();
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert_eq!(failures[0].name, info(GAIN_ID).name);
+    assert_eq!(failures[0].kind, cantus_host::RenderLoss::Stopped);
+    // Not waited for to the watchdog's word: the render's end is told within the moment
+    // an unnamed end is held back for.
+    assert!(asked < Duration::from_secs(1), "{asked:?}");
 }

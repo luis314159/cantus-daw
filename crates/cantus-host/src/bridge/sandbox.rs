@@ -665,6 +665,13 @@ impl Sandbox {
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
             .map(|ms| Duration::from_millis(ms.min(10_000)));
+        // Cantus's tests: an end the system lets the watchdog see only a while after the
+        // helper's pipe closed (macOS reaps a crashed process well after its pipes close;
+        // round 42, the macOS runner's render that lost a plug-in silently).
+        let naming = std::env::var("CANTUS_TEST_SANDBOX_REAP_DELAY_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .map_or(Duration::ZERO, |ms| Duration::from_millis(ms.min(10_000)));
         std::thread::Builder::new()
             .name("cantus-sandbox-watchdog".into())
             .spawn(move || {
@@ -678,7 +685,7 @@ impl Sandbox {
                         // The pool is not held while the helper lives: it goes when
                         // Cantus's last user lets go, and tells its helpers to quit.
                         drop(pool);
-                        watch(child, kill, me, ending);
+                        watch(child, kill, me, ending, naming);
                         live.fetch_sub(1, Ordering::AcqRel);
                     }
                     Ok(None) => {}
@@ -1455,8 +1462,15 @@ fn crash_words(status: std::process::ExitStatus) -> String {
 /// it ends. Once nothing in Cantus uses it, a helper told to quit is given the call limit
 /// to end its plug-ins by itself — their destructors write preferences, release licences —
 /// and a crash on the way out is still laid on the plug-in that did it (review isolation-4
-/// #45, #46); one never told is ended at once.
-fn watch(mut child: Child, kill: Arc<AtomicBool>, me: Weak<Sandbox>, ending: Arc<Ending>) {
+/// #45, #46); one never told is ended at once. `naming` holds back the name of an end the
+/// watchdog has seen (tests only: zero in the application).
+fn watch(
+    mut child: Child,
+    kill: Arc<AtomicBool>,
+    me: Weak<Sandbox>,
+    ending: Arc<Ending>,
+    naming: Duration,
+) {
     let mut orphaned: Option<Instant> = None;
     loop {
         if kill.load(Ordering::Acquire) {
@@ -1464,6 +1478,9 @@ fn watch(mut child: Child, kill: Arc<AtomicBool>, me: Weak<Sandbox>, ending: Arc
         }
         match child.try_wait() {
             Ok(Some(status)) => {
+                if !naming.is_zero() {
+                    std::thread::sleep(naming);
+                }
                 if let Some(s) = me.upgrade() {
                     let why = if status.success() {
                         "it ended".to_string()

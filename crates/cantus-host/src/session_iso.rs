@@ -346,10 +346,12 @@ impl PluginHost {
             if let Err(e) = main.load_state(state.bytes()) {
                 if offline {
                     // A render never runs a plug-in with another state than its own
-                    // (review isolation-4 #10, #34).
+                    // (review isolation-4 #10, #34). Asked once: a helper that died
+                    // over it is a crash, named or not yet (round 42).
+                    let end = main.fate();
                     return Err(Failed {
-                        crashed: main.stopped().is_some(),
-                        blame: main.stopped().map_or(Blame::Unknown, |(_, b)| b),
+                        crashed: end.is_some(),
+                        blame: end.map_or(Blame::Unknown, |(_, b)| b),
                         why: e.to_string(),
                     });
                 }
@@ -1087,11 +1089,13 @@ impl PluginHost {
     /// The plug-ins of the running render (export, stems, bake, freeze) that failed it —
     /// stopped during it, never loaded for it, or began with a stale state: a render that
     /// lost one must not be reported done, and one with a stale state says so (review #6,
-    /// #47; isolation-4 #10, #41). Asked before [`Self::finish_render`].
+    /// #47; isolation-4 #10, #41). Asked before [`Self::finish_render`]. Asked once, so a
+    /// helper whose end its watchdog has not named yet is waited for (briefly) rather than
+    /// taken for alive (round 42, [`crate::backend::MainThread::fate`]).
     pub fn render_failures(&self) -> Vec<RenderFailure> {
         let mut out = self.render_lost.clone();
         out.extend(self.render_mains.iter().filter_map(|m| {
-            m.stopped().map(|(reason, _)| RenderFailure {
+            m.fate().map(|(reason, _)| RenderFailure {
                 name: m.info().name.clone(),
                 reason,
                 kind: if m.loaded() {

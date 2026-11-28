@@ -50,6 +50,9 @@ const RETRY_AFTER: Duration = Duration::from_secs(2);
 /// The most an interface call waits for an answer that usually comes at once (a window
 /// opened, a restart): a frame's share, never more (round 29, review isolation-5).
 pub const FRAME_WAIT: Duration = Duration::from_millis(30);
+/// How long an end its helper's pipe told of first is held back for the watchdog to name
+/// (how the process ended) — after it, it is told as it stands.
+const NAMING: Duration = Duration::from_millis(200);
 
 /// The main half.
 pub struct BridgeMain {
@@ -390,7 +393,7 @@ impl BridgeMain {
             return None;
         }
         // Its pipe closed first; the watchdog names how it ended a moment later.
-        if self.sandbox.why().is_none() && self.sandbox.dead_for() < Duration::from_millis(200) {
+        if self.sandbox.why().is_none() && self.sandbox.dead_for() < NAMING {
             return None;
         }
         if let Some((n, name)) = self.sandbox.user_stop() {
@@ -1016,6 +1019,26 @@ impl MainThread for BridgeMain {
             return self.crashed_notice();
         }
         self.load_failure().map(|why| (why, Blame::Unknown))
+    }
+
+    /// Gone is gone: an end not named yet is waited for, within its hold ([`NAMING`]), and
+    /// told as it stands past it — never `None` (round 42: a render ended inside the hold
+    /// and its lost plug-in was not said).
+    fn fate(&self) -> Option<(String, Blame)> {
+        let start = Instant::now();
+        loop {
+            if !self.gone() {
+                return self.stopped();
+            }
+            if let Some(end) = self.crashed_notice() {
+                return Some(end);
+            }
+            // The hold runs from the helper's end, so this is a bound, not a wait.
+            if start.elapsed() >= NAMING * 2 {
+                return Some((self.crash_reason(), self.sandbox.blame(self.instance)));
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 }
 
